@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { getActivitiesForUser, activities as allActivities, Activity, ActivityCategory } from '@/data/mockData';
-import { CheckCircle2, Clock, Star, Filter, ChevronDown, ChevronUp, Play, Award } from 'lucide-react';
+import { CheckCircle2, Clock, Award, ChevronDown, ChevronUp, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import ActivityExecution from './ActivityExecution';
 
 const categoryEmoji: Record<string, string> = {
   'autonomía personal': '🦸', higiene: '🧼', organización: '📋', escuela: '📚', 'cocina básica': '🍳',
@@ -18,13 +19,31 @@ const difficultyColors: Record<string, string> = {
   avanzado: 'bg-red-100 text-red-700',
 };
 
+const typeColors: Record<string, string> = {
+  guiada: 'bg-blue-100 text-blue-700',
+  juego: 'bg-green-100 text-green-700',
+  regulación: 'bg-purple-100 text-purple-700',
+  decisión: 'bg-amber-100 text-amber-700',
+};
+
 export default function UserActivities({ filter }: { filter: 'all' | 'recommended' }) {
   const { user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<string>('todas');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [localActivities, setLocalActivities] = useState(allActivities);
+  const [executingActivity, setExecutingActivity] = useState<Activity | null>(null);
 
   if (!user) return null;
+
+  if (executingActivity) {
+    return (
+      <ActivityExecution
+        activity={executingActivity}
+        onBack={() => setExecutingActivity(null)}
+        onComplete={(id) => setLocalActivities(prev => prev.map(a => a.id === id ? { ...a, status: 'completada' as const, progress: 100 } : a))}
+      />
+    );
+  }
 
   let filtered = filter === 'recommended'
     ? localActivities.filter(a => a.assignedTo === user.id)
@@ -40,6 +59,9 @@ export default function UserActivities({ filter }: { filter: 'all' | 'recommende
     setLocalActivities(prev => prev.map(a => a.id === id ? { ...a, status: 'completada' as const, progress: 100 } : a));
   };
 
+  // Daily challenge
+  const dailyActivity = localActivities.find(a => a.assignedTo === user.id && a.status === 'pendiente' && a.type === 'regulación') || localActivities.find(a => a.assignedTo === user.id && a.status === 'pendiente');
+
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
       <div>
@@ -50,6 +72,18 @@ export default function UserActivities({ filter }: { filter: 'all' | 'recommende
           {filter === 'recommended' ? 'Actividades seleccionadas especialmente para vos' : 'Todas las actividades disponibles'}
         </p>
       </div>
+
+      {/* Daily challenge */}
+      {filter === 'recommended' && dailyActivity && (
+        <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="gradient-primary rounded-xl p-4 text-primary-foreground">
+          <p className="text-xs font-medium opacity-80">🎯 Actividad del día</p>
+          <p className="font-heading font-bold mt-1">{dailyActivity.title}</p>
+          <p className="text-xs opacity-80 mt-1">{dailyActivity.description.slice(0, 80)}...</p>
+          <Button size="sm" variant="outline" className="mt-3 border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10" onClick={() => setExecutingActivity(dailyActivity)}>
+            <Play size={14} className="mr-1" /> Empezar ahora
+          </Button>
+        </motion.div>
+      )}
 
       {/* Category filter */}
       <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
@@ -86,11 +120,15 @@ export default function UserActivities({ filter }: { filter: 'all' | 'recommende
                 </div>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <span className={`text-[10px] px-2 py-0.5 rounded-full ${difficultyColors[activity.difficulty]}`}>{activity.difficulty}</span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${typeColors[activity.type]}`}>{activity.type}</span>
                   <span className="text-[10px] text-muted-foreground flex items-center gap-1"><Clock size={10} /> {activity.duration}</span>
                   <span className="text-[10px] text-muted-foreground flex items-center gap-1"><Award size={10} /> {activity.points} pts</span>
                 </div>
                 {activity.recommendedByName && (
-                  <p className="text-[10px] text-primary mt-1">Recomendada por {activity.recommendedByName}</p>
+                  <p className="text-[10px] text-primary mt-1">
+                    {activity.recommendedBy === 'tutor' ? '👩 ' : activity.recommendedBy === 'profesional' ? '👩‍⚕️ ' : '🤖 '}
+                    Recomendada por {activity.recommendedByName}
+                  </p>
                 )}
                 {activity.progress > 0 && activity.progress < 100 && (
                   <div className="w-full bg-muted rounded-full h-1.5 mt-2">
@@ -110,16 +148,21 @@ export default function UserActivities({ filter }: { filter: 'all' | 'recommende
                   <ol className="space-y-1.5">
                     {activity.steps.map((step, si) => (
                       <li key={si} className="flex items-start gap-2 text-xs text-muted-foreground">
-                        <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] flex items-center justify-center shrink-0 font-bold">{si + 1}</span>
+                        <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] flex items-center justify-center shrink-0 font-bold">{activity.stepIcons?.[si] || si + 1}</span>
                         {step}
                       </li>
                     ))}
                   </ol>
                 </div>
                 {activity.status !== 'completada' && (
-                  <Button size="sm" className="mt-4 w-full gradient-primary text-primary-foreground" onClick={() => completeActivity(activity.id)}>
-                    <CheckCircle2 size={14} className="mr-1" /> Completar actividad
-                  </Button>
+                  <div className="flex gap-2 mt-4">
+                    <Button size="sm" className="flex-1 gradient-primary text-primary-foreground" onClick={() => setExecutingActivity(activity)}>
+                      <Play size={14} className="mr-1" /> Empezar actividad
+                    </Button>
+                    <Button size="sm" variant="outline" className="flex-1" onClick={() => completeActivity(activity.id)}>
+                      <CheckCircle2 size={14} className="mr-1" /> Marcar completada
+                    </Button>
+                  </div>
                 )}
               </motion.div>
             )}
