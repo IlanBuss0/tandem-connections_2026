@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Home, Calendar, CheckSquare, MessageCircle, Heart, Trophy, User, Settings, HelpCircle, Sun, BookOpen, MapPin, Star, Bell, LogOut, Menu, X, Sparkles } from 'lucide-react';
+import { Home, Calendar, CheckSquare, MessageCircle, Heart, Trophy, User, Sun, Star, Bell, LogOut, Menu, X, Image, BookOpen, Target } from 'lucide-react';
 import UserHome from '@/pages/user/UserHome';
 import UserRoutines from '@/pages/user/UserRoutines';
 import UserCalendar from '@/pages/user/UserCalendar';
@@ -9,6 +9,9 @@ import UserChat from '@/pages/user/UserChat';
 import UserEmotions from '@/pages/user/UserEmotions';
 import UserAchievements from '@/pages/user/UserAchievements';
 import UserProfile from '@/pages/user/UserProfile';
+import UserPictograms from '@/pages/user/UserPictograms';
+import UserNotifications from '@/pages/user/UserNotifications';
+import UserResources from '@/pages/user/UserResources';
 import TutorDashboard from '@/pages/tutor/TutorDashboard';
 import ProfessionalDashboard from '@/pages/professional/ProfessionalDashboard';
 
@@ -18,9 +21,12 @@ const userNav = [
   { id: 'calendar', label: 'Calendario', icon: Calendar },
   { id: 'activities', label: 'Actividades', icon: CheckSquare },
   { id: 'recommended', label: 'Recomendadas', icon: Star },
+  { id: 'pictograms', label: 'Pictogramas', icon: Image },
   { id: 'chat', label: 'Chat', icon: MessageCircle },
   { id: 'emotions', label: 'Emociones', icon: Heart },
   { id: 'achievements', label: 'Logros', icon: Trophy },
+  { id: 'notifications', label: 'Notificaciones', icon: Bell },
+  { id: 'resources', label: 'Recursos', icon: BookOpen },
   { id: 'profile', label: 'Perfil', icon: User },
 ];
 
@@ -31,7 +37,6 @@ export default function AppShell() {
 
   if (!user) return null;
 
-  // Tutor and Professional get their own dashboards
   if (user.role === 'tutor') return <TutorDashboard />;
   if (user.role === 'professional') return <ProfessionalDashboard />;
 
@@ -42,13 +47,18 @@ export default function AppShell() {
       case 'calendar': return <UserCalendar />;
       case 'activities': return <UserActivities filter="all" />;
       case 'recommended': return <UserActivities filter="recommended" />;
+      case 'pictograms': return <UserPictograms />;
       case 'chat': return <UserChat />;
       case 'emotions': return <UserEmotions />;
       case 'achievements': return <UserAchievements />;
+      case 'notifications': return <UserNotifications />;
+      case 'resources': return <UserResources />;
       case 'profile': return <UserProfile />;
       default: return <UserHome />;
     }
   };
+
+  const unreadNotifs = 8; // mock
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -59,6 +69,10 @@ export default function AppShell() {
         </button>
         <h1 className="font-heading font-bold text-gradient text-lg">TÁNDEM</h1>
         <div className="flex items-center gap-2">
+          <button onClick={() => setActiveTab('notifications')} className="relative text-muted-foreground">
+            <Bell size={20} />
+            {unreadNotifs > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full gradient-primary text-primary-foreground text-[8px] flex items-center justify-center font-bold">{unreadNotifs}</span>}
+          </button>
           <span className="text-xl">{user.avatar}</span>
         </div>
       </header>
@@ -87,6 +101,7 @@ export default function AppShell() {
                 >
                   <item.icon size={18} />
                   {item.label}
+                  {item.id === 'notifications' && unreadNotifs > 0 && <span className="ml-auto w-5 h-5 rounded-full gradient-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">{unreadNotifs}</span>}
                 </button>
               ))}
             </nav>
@@ -121,6 +136,7 @@ export default function AppShell() {
             >
               <item.icon size={18} />
               {item.label}
+              {item.id === 'notifications' && unreadNotifs > 0 && <span className="ml-auto w-5 h-5 rounded-full gradient-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">{unreadNotifs}</span>}
             </button>
           ))}
         </nav>
@@ -140,7 +156,7 @@ export default function AppShell() {
 
       {/* Mobile bottom nav */}
       <nav className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-sm border-t border-border flex justify-around py-2 z-40 lg:hidden">
-        {[userNav[0], userNav[1], userNav[3], userNav[5], userNav[6]].map(item => (
+        {[userNav[0], userNav[1], userNav[3], userNav[6], userNav[7]].map(item => (
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}
