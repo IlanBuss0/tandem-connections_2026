@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Activity } from '@/data/mockData';
-import { ArrowLeft, CheckCircle2, Pause, Play, HelpCircle, Volume2, PartyPopper } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Pause, Play, HelpCircle, Volume2, PartyPopper, Coins } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useWallet } from '@/contexts/WalletContext';
 
 interface Props {
   activity: Activity;
@@ -11,6 +12,8 @@ interface Props {
 }
 
 export default function ActivityExecution({ activity, onBack, onComplete }: Props) {
+  const { earn } = useWallet();
+  const [coinsAwarded, setCoinsAwarded] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<boolean[]>(activity.steps.map(() => false));
   const [paused, setPaused] = useState(false);
