@@ -1,4 +1,5 @@
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { WalletProvider } from '@/contexts/WalletContext';
 import Login from '@/pages/Login';
 import AppShell from '@/components/AppShell';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -17,7 +18,9 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <AuthProvider>
-        <AuthGate />
+        <WalletProvider>
+          <AuthGate />
+        </WalletProvider>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
