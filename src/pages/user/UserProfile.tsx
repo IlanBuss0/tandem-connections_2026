@@ -42,26 +42,12 @@ export default function UserProfile() {
             </div>
             <CoinBadge size="md" />
           </div>
-        {user.bio && <p className="text-sm text-muted-foreground mt-2">{user.bio}</p>}
-        <div className="flex justify-center gap-4 mt-4">
-          <div className="text-center">
-            <p className="font-bold text-foreground">{user.level}</p>
-            <p className="text-xs text-muted-foreground">Nivel</p>
-          </div>
-          <div className="text-center">
-            <p className="font-bold text-foreground">{user.points}</p>
-            <p className="text-xs text-muted-foreground">Puntos</p>
-          </div>
-          <div className="text-center">
-            <p className="font-bold text-foreground">{user.streak}</p>
-            <p className="text-xs text-muted-foreground">Racha</p>
-          </div>
+          {user.plan === 'premium' && (
+            <div className="mt-3 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
+              <Crown size={12} /> Premium
+            </div>
+          )}
         </div>
-        {user.plan === 'premium' && (
-          <div className="mt-3 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
-            <Crown size={12} /> Premium
-          </div>
-        )}
       </div>
 
       {/* Linked people */}
