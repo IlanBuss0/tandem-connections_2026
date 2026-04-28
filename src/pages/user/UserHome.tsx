@@ -1,10 +1,16 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { useWallet } from '@/contexts/WalletContext';
 import { motion } from 'framer-motion';
 import { getActivitiesForUser, getNotificationsForUser, getObjectivesForUser, juanDailyRoutine } from '@/data/mockData';
-import { CheckCircle2, Clock, Flame, Star, Trophy, Bell, TrendingUp, Target } from 'lucide-react';
+import { CheckCircle2, Clock, Flame, Star, Trophy, Bell, Target, ShoppingBag } from 'lucide-react';
+import AvatarPreview from '@/components/AvatarPreview';
+import CoinBadge from '@/components/CoinBadge';
 
-export default function UserHome() {
+interface Props { onNavigate?: (tab: string) => void; }
+
+export default function UserHome({ onNavigate }: Props) {
   const { user } = useAuth();
+  const { state: wallet } = useWallet();
   if (!user || user.role !== 'user') return null;
 
   const activities = getActivitiesForUser(user.id);
@@ -15,11 +21,20 @@ export default function UserHome() {
   const completedActivities = activities.filter(a => a.status === 'completada').length;
 
   return (
-    <div className="space-y-6 pb-20 lg:pb-6">
-      {/* Greeting */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-        <h2 className="text-2xl font-heading font-bold text-foreground">¡Hola, {user.name.split(' ')[0]}! 👋</h2>
-        <p className="text-muted-foreground text-sm mt-1">Veamos cómo va tu día</p>
+    <div className="space-y-5 sm:space-y-6 pb-24 lg:pb-6">
+      {/* Greeting + Avatar */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-2xl border border-border p-4 sm:p-5 flex items-center gap-4">
+        <AvatarPreview equipped={wallet.equipped} size={88} />
+        <div className="flex-1 min-w-0">
+          <h2 className="text-lg sm:text-xl font-heading font-bold text-foreground truncate">¡Hola, {user.name.split(' ')[0]}! 👋</h2>
+          <p className="text-xs sm:text-sm text-muted-foreground">Veamos cómo va tu día</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <CoinBadge size="sm" onClick={() => onNavigate?.('shop')} />
+            <button onClick={() => onNavigate?.('shop')} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+              <ShoppingBag size={12} /> Tienda
+            </button>
+          </div>
+        </div>
       </motion.div>
 
       {/* Stats cards */}
