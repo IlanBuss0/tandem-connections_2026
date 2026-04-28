@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Activity } from '@/data/mockData';
-import { ArrowLeft, CheckCircle2, Pause, Play, HelpCircle, Volume2, PartyPopper } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Pause, Play, HelpCircle, Volume2, PartyPopper, Coins } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useWallet } from '@/contexts/WalletContext';
 
 interface Props {
   activity: Activity;
@@ -11,6 +12,8 @@ interface Props {
 }
 
 export default function ActivityExecution({ activity, onBack, onComplete }: Props) {
+  const { earn } = useWallet();
+  const [coinsAwarded, setCoinsAwarded] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<boolean[]>(activity.steps.map(() => false));
   const [paused, setPaused] = useState(false);
@@ -31,7 +34,17 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
     }
   };
 
+  // Otorgar monedas una sola vez al terminar
+  useEffect(() => {
+    if (finished && !coinsAwarded) {
+      const reward = Math.max(10, Math.round(activity.points / 2));
+      earn(reward, `Actividad: ${activity.title}`);
+      setCoinsAwarded(true);
+    }
+  }, [finished, coinsAwarded, activity, earn]);
+
   if (finished) {
+    const reward = Math.max(10, Math.round(activity.points / 2));
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6 px-4">
         <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', bounce: 0.5 }}>
@@ -40,8 +53,13 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <h2 className="text-2xl font-heading font-bold text-foreground">¡Actividad completada!</h2>
           <p className="text-muted-foreground mt-2 max-w-sm">{activity.completionMessage || '¡Excelente trabajo! Seguí así.'}</p>
-          <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-100 text-amber-700 font-bold">
-            <PartyPopper size={18} /> +{activity.points} puntos
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-100 text-amber-700 font-bold">
+              <PartyPopper size={18} /> +{activity.points} puntos
+            </span>
+            <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-50 text-amber-600 font-bold border border-amber-200">
+              <Coins size={18} /> +{reward} monedas
+            </span>
           </div>
         </motion.div>
         <Button onClick={() => { onComplete(activity.id); onBack(); }} className="gradient-primary text-primary-foreground mt-4">

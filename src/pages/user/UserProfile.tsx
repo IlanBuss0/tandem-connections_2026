@@ -1,10 +1,14 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { useWallet } from '@/contexts/WalletContext';
 import { getTutorById, getProfessionalById, pricingPlans } from '@/data/mockData';
-import { User, Mail, Shield, Star, Crown, Check } from 'lucide-react';
+import { Crown, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import AvatarPreview from '@/components/AvatarPreview';
+import CoinBadge from '@/components/CoinBadge';
 
 export default function UserProfile() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
+  const { state: wallet } = useWallet();
   if (!user || user.role !== 'user') return null;
 
   const tutor = user.linkedTutorIds?.[0] ? getTutorById(user.linkedTutorIds[0]) : null;
@@ -17,30 +21,33 @@ export default function UserProfile() {
       </div>
 
       {/* Avatar & info */}
-      <div className="bg-card rounded-xl p-6 border border-border shadow-sm text-center">
-        <span className="text-6xl block mb-3">{user.avatar}</span>
-        <h3 className="text-xl font-heading font-bold text-foreground">{user.name}</h3>
-        <p className="text-sm text-muted-foreground">@{user.username}</p>
-        {user.bio && <p className="text-sm text-muted-foreground mt-2">{user.bio}</p>}
-        <div className="flex justify-center gap-4 mt-4">
-          <div className="text-center">
-            <p className="font-bold text-foreground">{user.level}</p>
-            <p className="text-xs text-muted-foreground">Nivel</p>
+      <div className="bg-card rounded-xl p-5 sm:p-6 border border-border shadow-sm flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left">
+        <AvatarPreview equipped={wallet.equipped} size={140} />
+        <div className="flex-1 min-w-0">
+          <h3 className="text-xl font-heading font-bold text-foreground">{user.name}</h3>
+          <p className="text-sm text-muted-foreground">@{user.username}</p>
+          {user.bio && <p className="text-sm text-muted-foreground mt-2">{user.bio}</p>}
+          <div className="flex flex-wrap justify-center sm:justify-start gap-4 mt-4">
+            <div className="text-center">
+              <p className="font-bold text-foreground">{user.level}</p>
+              <p className="text-xs text-muted-foreground">Nivel</p>
+            </div>
+            <div className="text-center">
+              <p className="font-bold text-foreground">{user.points}</p>
+              <p className="text-xs text-muted-foreground">Puntos</p>
+            </div>
+            <div className="text-center">
+              <p className="font-bold text-foreground">{user.streak}</p>
+              <p className="text-xs text-muted-foreground">Racha</p>
+            </div>
+            <CoinBadge size="md" />
           </div>
-          <div className="text-center">
-            <p className="font-bold text-foreground">{user.points}</p>
-            <p className="text-xs text-muted-foreground">Puntos</p>
-          </div>
-          <div className="text-center">
-            <p className="font-bold text-foreground">{user.streak}</p>
-            <p className="text-xs text-muted-foreground">Racha</p>
-          </div>
+          {user.plan === 'premium' && (
+            <div className="mt-3 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
+              <Crown size={12} /> Premium
+            </div>
+          )}
         </div>
-        {user.plan === 'premium' && (
-          <div className="mt-3 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
-            <Crown size={12} /> Premium
-          </div>
-        )}
       </div>
 
       {/* Linked people */}
