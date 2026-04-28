@@ -211,5 +211,3 @@ function AvatarTab() {
   );
 }
 
-// Importar items aquí también para AvatarTab
-import { SHOP_ITEMS as _SI } from '@/data/shopItems';

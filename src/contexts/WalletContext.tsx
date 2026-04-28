@@ -83,11 +83,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const earn = useCallback((amount: number, reason: string) => {
     if (amount <= 0) return;
-    setState(prev => ({
-      ...prev,
-      balance: prev.balance + amount,
-      history: [{ id: `tx-${Date.now()}`, type: 'ingreso', amount, reason, at: Date.now() }, ...prev.history].slice(0, 50),
-    }));
+    setState(prev => {
+      const tx: CoinTxn = { id: `tx-${Date.now()}`, type: 'ingreso', amount, reason, at: Date.now() };
+      return {
+        ...prev,
+        balance: prev.balance + amount,
+        history: [tx, ...prev.history].slice(0, 50),
+      };
+    });
   }, []);
 
   const buy = useCallback((itemId: string) => {
@@ -103,11 +106,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         result = { ok: false, reason: 'No tenés suficientes monedas' };
         return prev;
       }
+      const tx: CoinTxn = { id: `tx-${Date.now()}`, type: 'egreso', amount: item.price, reason: `Compra: ${item.name}`, itemId, at: Date.now() };
       return {
         ...prev,
         balance: prev.balance - item.price,
         inventory: [...prev.inventory, itemId],
-        history: [{ id: `tx-${Date.now()}`, type: 'egreso', amount: item.price, reason: `Compra: ${item.name}`, itemId, at: Date.now() }, ...prev.history].slice(0, 50),
+        history: [tx, ...prev.history].slice(0, 50),
       };
     });
     return result;
