@@ -1,5 +1,6 @@
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { WalletProvider } from '@/contexts/WalletContext';
+import { CustomActivitiesProvider } from '@/contexts/CustomActivitiesContext';
 import Login from '@/pages/Login';
 import AppShell from '@/components/AppShell';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -19,7 +20,9 @@ const App = () => (
       <Toaster />
       <AuthProvider>
         <WalletProvider>
-          <AuthGate />
+          <CustomActivitiesProvider>
+            <AuthGate />
+          </CustomActivitiesProvider>
         </WalletProvider>
       </AuthProvider>
     </TooltipProvider>

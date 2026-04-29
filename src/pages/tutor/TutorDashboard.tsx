@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { users, getActivitiesForUser, getEmotionsForUser, getObjectivesForUser, getLocationsForUser, calendarEvents, getRecommendationsForUser } from '@/data/mockData';
-import { LogOut, MapPin, CheckCircle2, Heart, Calendar, Target, BarChart3, Bell, Shield, TrendingUp, AlertTriangle } from 'lucide-react';
+import { LogOut, MapPin, CheckCircle2, Heart, Calendar, Target, BarChart3, Bell, Shield, TrendingUp, AlertTriangle, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
+import ActivityManager from '@/components/ActivityManager';
 
 export default function TutorDashboard() {
   const { user, logout } = useAuth();
@@ -25,6 +26,7 @@ export default function TutorDashboard() {
 
   const tabs = [
     { id: 'overview', label: 'Resumen', icon: BarChart3 },
+    { id: 'activities', label: 'Actividades', icon: Sparkles },
     { id: 'location', label: 'Ubicación', icon: MapPin },
     { id: 'emotions', label: 'Emociones', icon: Heart },
     { id: 'calendar', label: 'Calendario', icon: Calendar },
@@ -128,6 +130,10 @@ export default function TutorDashboard() {
                   </div>
                 </div>
               </div>
+            )}
+
+            {tab === 'activities' && (
+              <ActivityManager />
             )}
 
             {tab === 'insights' && (
