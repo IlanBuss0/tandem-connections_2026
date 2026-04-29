@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
 import { getActivitiesForUser, activities as allActivities, Activity, ActivityCategory } from '@/data/mockData';
-import { CheckCircle2, Clock, Award, ChevronDown, ChevronUp, Play } from 'lucide-react';
+import { CheckCircle2, Clock, Award, ChevronDown, ChevronUp, Play, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ActivityExecution from './ActivityExecution';
 
@@ -28,10 +29,18 @@ const typeColors: Record<string, string> = {
 
 export default function UserActivities({ filter }: { filter: 'all' | 'recommended' }) {
   const { user } = useAuth();
+  const { forUser } = useCustomActivities();
   const [selectedCategory, setSelectedCategory] = useState<string>('todas');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [localActivities, setLocalActivities] = useState(allActivities);
   const [executingActivity, setExecutingActivity] = useState<Activity | null>(null);
+
+  // Custom activities asignadas a este usuario
+  const customForUser = useMemo(() => user ? forUser(user.id) : [], [user, forUser]);
+  const merged = useMemo(() => {
+    // Custom siempre van primero (más recientes)
+    return [...customForUser, ...localActivities];
+  }, [customForUser, localActivities]);
 
   if (!user) return null;
 
@@ -46,8 +55,8 @@ export default function UserActivities({ filter }: { filter: 'all' | 'recommende
   }
 
   let filtered = filter === 'recommended'
-    ? localActivities.filter(a => a.assignedTo === user.id)
-    : localActivities;
+    ? merged.filter(a => a.assignedTo === user.id || (a as any).assignedToIds?.includes(user.id))
+    : merged;
 
   if (selectedCategory !== 'todas') {
     filtered = filtered.filter(a => a.category === selectedCategory);
