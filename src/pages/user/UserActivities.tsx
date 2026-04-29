@@ -125,6 +125,7 @@ export default function UserActivities({ filter }: { filter: 'all' | 'recommende
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className={`font-medium text-sm ${activity.status === 'completada' ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{activity.title}</p>
+                  {(activity as any).isCustom && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary flex items-center gap-0.5"><Sparkles size={9} />Personalizada</span>}
                   {activity.status === 'completada' && <CheckCircle2 size={14} className="text-success" />}
                 </div>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
