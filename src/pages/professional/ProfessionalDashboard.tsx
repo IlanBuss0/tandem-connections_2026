@@ -148,6 +148,8 @@ export default function ProfessionalDashboard() {
           );
         })()}
 
+        {tab === 'create' && <ActivityManager />}
+
         {tab === 'tools' && (
           <div className="space-y-4">
             <h2 className="font-heading font-bold text-xl text-foreground">Herramientas profesionales</h2>
