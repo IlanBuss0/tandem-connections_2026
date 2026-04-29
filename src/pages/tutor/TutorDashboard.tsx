@@ -129,11 +129,14 @@ export default function TutorDashboard() {
                     ))}
                   </div>
                 </div>
+              </div>
             )}
 
             {tab === 'activities' && (
               <ActivityManager />
             )}
+
+            {tab === 'insights' && (
               <div className="space-y-4">
                 <div className="bg-card rounded-xl p-4 border border-border">
                   <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2"><Shield size={16} className="text-primary" /> Insights automáticos</h3>
