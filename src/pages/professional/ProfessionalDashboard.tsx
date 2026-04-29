@@ -163,7 +163,7 @@ export default function ProfessionalDashboard() {
             <div className="bg-card rounded-xl p-4 border border-border">
               <h3 className="font-heading font-semibold text-foreground mb-3">🛠️ Acciones rápidas</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <Button variant="outline" className="justify-start"><ClipboardPlus size={14} className="mr-2" /> Crear actividad personalizada</Button>
+                <Button variant="outline" className="justify-start" onClick={() => setTab('create')}><ClipboardPlus size={14} className="mr-2" /> Crear actividad personalizada</Button>
                 <Button variant="outline" className="justify-start"><Calendar size={14} className="mr-2" /> Planificación semanal</Button>
                 <Button variant="outline" className="justify-start"><FileText size={14} className="mr-2" /> Notas internas</Button>
                 <Button variant="outline" className="justify-start"><BarChart3 size={14} className="mr-2" /> Registro de intervenciones</Button>
