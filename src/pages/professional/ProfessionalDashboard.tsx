@@ -108,7 +108,7 @@ export default function ProfessionalDashboard() {
 
               {patientTab === 'stats' && <AdvancedStats user={patientDetail} />}
               {patientTab === 'agenda' && <WeeklyAgenda user={patientDetail} />}
-              {patientTab === 'overview' && <></>}
+              {patientTab === 'overview' && (<>
               <div className="bg-card rounded-xl p-5 border border-border">
                 <div className="flex items-center gap-4 mb-4">
                   <span className="text-5xl">{patientDetail.avatar}</span>
@@ -162,6 +162,7 @@ export default function ProfessionalDashboard() {
                 <Button className="flex-1 gradient-primary text-primary-foreground"><MessageSquare size={14} className="mr-1" /> Enviar mensaje</Button>
                 <Button variant="outline" className="flex-1"><Calendar size={14} className="mr-1" /> Proponer sesión</Button>
               </div>
+              </>)}
             </div>
           );
         })()}
