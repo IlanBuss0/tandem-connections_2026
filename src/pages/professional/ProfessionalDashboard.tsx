@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { users, getActivitiesForUser, getEmotionsForUser, getObjectivesForUser, calendarEvents, professionals as allProfessionals, getRecommendationsForUser } from '@/data/mockData';
-import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, MessageSquare, Sparkles } from 'lucide-react';
+import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, MessageSquare, Sparkles, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import ActivityManager from '@/components/ActivityManager';
+import AdvancedStats from '@/components/AdvancedStats';
+import WeeklyAgenda from '@/components/WeeklyAgenda';
 
 export default function ProfessionalDashboard() {
   const { user, logout } = useAuth();
