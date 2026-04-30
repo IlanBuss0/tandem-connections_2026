@@ -12,6 +12,7 @@ export default function ProfessionalDashboard() {
   const { user, logout } = useAuth();
   const [tab, setTab] = useState('patients');
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
+  const [patientTab, setPatientTab] = useState<'overview' | 'stats' | 'agenda'>('overview');
   if (!user || user.role !== 'professional') return null;
 
   const linkedUsers = users.filter(u => (user as any).linkedUserIds?.includes(u.id));
