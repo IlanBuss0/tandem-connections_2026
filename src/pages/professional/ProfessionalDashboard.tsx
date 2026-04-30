@@ -93,7 +93,22 @@ export default function ProfessionalDashboard() {
           const recs = getRecommendationsForUser(patientDetail.id);
           return (
             <div className="space-y-4">
-              <button onClick={() => setSelectedPatient(null)} className="text-sm text-primary font-medium">← Volver a pacientes</button>
+              <button onClick={() => { setSelectedPatient(null); setPatientTab('overview'); }} className="text-sm text-primary font-medium">← Volver a pacientes</button>
+              <div className="flex gap-2 overflow-x-auto">
+                {([
+                  { id: 'overview', label: 'Resumen', icon: BarChart3 },
+                  { id: 'stats', label: 'Estadísticas', icon: TrendingUp },
+                  { id: 'agenda', label: 'Agenda', icon: Clock },
+                ] as const).map(t => (
+                  <button key={t.id} onClick={() => setPatientTab(t.id)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm whitespace-nowrap ${patientTab === t.id ? 'gradient-primary text-primary-foreground' : 'bg-card border border-border text-muted-foreground'}`}>
+                    <t.icon size={14} /> {t.label}
+                  </button>
+                ))}
+              </div>
+
+              {patientTab === 'stats' && <AdvancedStats user={patientDetail} />}
+              {patientTab === 'agenda' && <WeeklyAgenda user={patientDetail} />}
+              {patientTab === 'overview' && <></>}
               <div className="bg-card rounded-xl p-5 border border-border">
                 <div className="flex items-center gap-4 mb-4">
                   <span className="text-5xl">{patientDetail.avatar}</span>
