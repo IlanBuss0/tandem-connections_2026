@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { users, getActivitiesForUser, getEmotionsForUser, getObjectivesForUser, calendarEvents, professionals as allProfessionals, getRecommendationsForUser } from '@/data/mockData';
-import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, MessageSquare, Sparkles } from 'lucide-react';
+import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, MessageSquare, Sparkles, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import ActivityManager from '@/components/ActivityManager';
+import AdvancedStats from '@/components/AdvancedStats';
+import WeeklyAgenda from '@/components/WeeklyAgenda';
 
 export default function ProfessionalDashboard() {
   const { user, logout } = useAuth();
   const [tab, setTab] = useState('patients');
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
+  const [patientTab, setPatientTab] = useState<'overview' | 'stats' | 'agenda'>('overview');
   if (!user || user.role !== 'professional') return null;
 
   const linkedUsers = users.filter(u => (user as any).linkedUserIds?.includes(u.id));
@@ -90,7 +93,22 @@ export default function ProfessionalDashboard() {
           const recs = getRecommendationsForUser(patientDetail.id);
           return (
             <div className="space-y-4">
-              <button onClick={() => setSelectedPatient(null)} className="text-sm text-primary font-medium">← Volver a pacientes</button>
+              <button onClick={() => { setSelectedPatient(null); setPatientTab('overview'); }} className="text-sm text-primary font-medium">← Volver a pacientes</button>
+              <div className="flex gap-2 overflow-x-auto">
+                {([
+                  { id: 'overview', label: 'Resumen', icon: BarChart3 },
+                  { id: 'stats', label: 'Estadísticas', icon: TrendingUp },
+                  { id: 'agenda', label: 'Agenda', icon: Clock },
+                ] as const).map(t => (
+                  <button key={t.id} onClick={() => setPatientTab(t.id)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm whitespace-nowrap ${patientTab === t.id ? 'gradient-primary text-primary-foreground' : 'bg-card border border-border text-muted-foreground'}`}>
+                    <t.icon size={14} /> {t.label}
+                  </button>
+                ))}
+              </div>
+
+              {patientTab === 'stats' && <AdvancedStats user={patientDetail} />}
+              {patientTab === 'agenda' && <WeeklyAgenda user={patientDetail} />}
+              {patientTab === 'overview' && (<>
               <div className="bg-card rounded-xl p-5 border border-border">
                 <div className="flex items-center gap-4 mb-4">
                   <span className="text-5xl">{patientDetail.avatar}</span>
@@ -144,6 +162,7 @@ export default function ProfessionalDashboard() {
                 <Button className="flex-1 gradient-primary text-primary-foreground"><MessageSquare size={14} className="mr-1" /> Enviar mensaje</Button>
                 <Button variant="outline" className="flex-1"><Calendar size={14} className="mr-1" /> Proponer sesión</Button>
               </div>
+              </>)}
             </div>
           );
         })()}
