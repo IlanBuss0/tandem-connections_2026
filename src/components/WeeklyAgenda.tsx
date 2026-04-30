@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { calendarEvents, User } from '@/data/mockData';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
+import { toast } from '@/hooks/use-toast';
 import { ChevronLeft, ChevronRight, Plus, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -21,7 +22,7 @@ function startOfWeek(d: Date) {
 function fmt(d: Date) { return d.toISOString().split('T')[0]; }
 
 export default function WeeklyAgenda({ user }: Props) {
-  const { activities: customActs, assign } = useCustomActivities();
+  const { items: customActs, createOrUpdate } = useCustomActivities();
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [selectedSlot, setSelectedSlot] = useState<{ date: string; hour: number } | null>(null);
 
@@ -54,7 +55,10 @@ export default function WeeklyAgenda({ user }: Props) {
   }, [events]);
 
   // Actividades custom asignadas a este user
-  const assignedActs = useMemo(() => customActs.filter(a => a.status === 'published' && a.assignedToUserIds.includes(user.id)), [customActs, user.id]);
+  const assignedActs = useMemo(
+    () => customActs.filter(a => !a.draft && (a.assignedToIds?.includes(user.id) || true)),
+    [customActs, user.id]
+  );
 
   const goPrev = () => { const n = new Date(weekStart); n.setDate(n.getDate() - 7); setWeekStart(n); };
   const goNext = () => { const n = new Date(weekStart); n.setDate(n.getDate() + 7); setWeekStart(n); };
@@ -150,7 +154,27 @@ export default function WeeklyAgenda({ user }: Props) {
                       size="sm"
                       className="gradient-primary text-primary-foreground text-xs"
                       onClick={() => {
-                        assign(a.id, [user.id], `${selectedSlot.date}T${String(selectedSlot.hour).padStart(2, '0')}:00`);
+                        const next = Array.from(new Set([...(a.assignedToIds || []), user.id]));
+                        createOrUpdate({
+                          id: a.id,
+                          title: a.title,
+                          category: a.category,
+                          objective: a.objective,
+                          description: a.description,
+                          difficulty: a.difficulty,
+                          duration: a.duration,
+                          steps: a.steps,
+                          stepIcons: a.stepIcons,
+                          points: a.points,
+                          type: a.type,
+                          completionMessage: a.completionMessage,
+                          assignedTo: a.assignedTo,
+                          draft: false,
+                          assignedToIds: next,
+                          dueDate: selectedSlot.date,
+                          notes: `${a.notes ?? ''}\nProgramada: ${selectedSlot.date} ${selectedSlot.hour}:00`.trim(),
+                        });
+                        toast({ title: 'Actividad asignada', description: `${a.title} → ${user.name.split(' ')[0]} · ${selectedSlot.date} ${selectedSlot.hour}:00` });
                         setSelectedSlot(null);
                       }}
                     >
