@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { users, getActivitiesForUser, getEmotionsForUser, getObjectivesForUser, getLocationsForUser, calendarEvents, getRecommendationsForUser } from '@/data/mockData';
-import { LogOut, MapPin, CheckCircle2, Heart, Calendar, Target, BarChart3, Bell, Shield, TrendingUp, AlertTriangle, Sparkles } from 'lucide-react';
+import { LogOut, MapPin, CheckCircle2, Heart, Calendar, Target, BarChart3, Bell, Shield, TrendingUp, AlertTriangle, Sparkles, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import ActivityManager from '@/components/ActivityManager';
+import AdvancedStats from '@/components/AdvancedStats';
+import WeeklyAgenda from '@/components/WeeklyAgenda';
 
 export default function TutorDashboard() {
   const { user, logout } = useAuth();
@@ -26,6 +28,8 @@ export default function TutorDashboard() {
 
   const tabs = [
     { id: 'overview', label: 'Resumen', icon: BarChart3 },
+    { id: 'stats', label: 'Estadísticas', icon: TrendingUp },
+    { id: 'agenda', label: 'Agenda', icon: Clock },
     { id: 'activities', label: 'Actividades', icon: Sparkles },
     { id: 'location', label: 'Ubicación', icon: MapPin },
     { id: 'emotions', label: 'Emociones', icon: Heart },
@@ -131,6 +135,9 @@ export default function TutorDashboard() {
                 </div>
               </div>
             )}
+
+            {tab === 'stats' && mainUser && <AdvancedStats user={mainUser} />}
+            {tab === 'agenda' && mainUser && <WeeklyAgenda user={mainUser} />}
 
             {tab === 'activities' && (
               <ActivityManager />
