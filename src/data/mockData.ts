@@ -149,6 +149,9 @@ export interface Activity {
   points: number;
   type: ActivityType;
   completionMessage?: string;
+  // Mini-juego (opcional)
+  gameType?: import('./miniGames').GameType;
+  gameData?: import('./miniGames').GameData;
 }
 
 export const activities: Activity[] = [

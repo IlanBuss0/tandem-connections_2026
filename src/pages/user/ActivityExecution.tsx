@@ -4,6 +4,7 @@ import { Activity } from '@/data/mockData';
 import { ArrowLeft, CheckCircle2, Pause, Play, HelpCircle, Volume2, PartyPopper, Coins } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useWallet } from '@/contexts/WalletContext';
+import MiniGame from '@/components/MiniGame';
 
 interface Props {
   activity: Activity;
@@ -65,6 +66,29 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
         <Button onClick={() => { onComplete(activity.id); onBack(); }} className="gradient-primary text-primary-foreground mt-4">
           Volver a actividades
         </Button>
+      </div>
+    );
+  }
+
+  // === Mini-juego ===
+  if (activity.gameType && activity.gameData) {
+    return (
+      <div className="space-y-4 pb-20 lg:pb-6">
+        <div className="flex items-center gap-3">
+          <button onClick={onBack} className="text-muted-foreground hover:text-foreground" aria-label="Volver"><ArrowLeft size={20} /></button>
+          <div className="flex-1 min-w-0">
+            <h2 className="font-heading font-bold text-foreground text-lg leading-tight truncate">{activity.title}</h2>
+            <p className="text-xs text-muted-foreground truncate">🎮 Mini-juego · {activity.duration}</p>
+          </div>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium shrink-0">juego</span>
+        </div>
+        <div className="bg-card rounded-2xl p-4 border border-border shadow-sm">
+          <MiniGame
+            gameType={activity.gameType}
+            gameData={activity.gameData}
+            onFinish={() => setFinished(true)}
+          />
+        </div>
       </div>
     );
   }

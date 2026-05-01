@@ -1,6 +1,7 @@
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { WalletProvider } from '@/contexts/WalletContext';
 import { CustomActivitiesProvider } from '@/contexts/CustomActivitiesContext';
+import { ChatProvider } from '@/contexts/ChatContext';
 import { AccessibilityProvider } from '@/contexts/AccessibilityContext';
 import AccessibilityWidget from '@/components/AccessibilityWidget';
 import Login from '@/pages/Login';
@@ -30,7 +31,9 @@ const App = () => (
         <AccessibilityProvider>
           <WalletProvider>
             <CustomActivitiesProvider>
-              <AuthGate />
+              <ChatProvider>
+                <AuthGate />
+              </ChatProvider>
             </CustomActivitiesProvider>
           </WalletProvider>
         </AccessibilityProvider>
