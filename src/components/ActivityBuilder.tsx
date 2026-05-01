@@ -216,28 +216,67 @@ export default function ActivityBuilder({ initialId, onClose }: Props) {
               <div className="space-y-4">
                 <div>
                   <h3 className="font-heading font-semibold text-foreground mb-1">Elegí una plantilla</h3>
-                  <p className="text-xs text-muted-foreground">Te ahorra tiempo. Después podés modificar todo.</p>
+                  <p className="text-xs text-muted-foreground">Te ahorra tiempo. Después podés modificar todo. Incluye actividades guiadas y <span className="font-semibold text-primary">mini-juegos</span> 🎮.</p>
                 </div>
                 <div className="relative">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <Input value={tplSearch} onChange={e => setTplSearch(e.target.value)} placeholder="Buscar plantilla…" className="pl-9" />
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {filteredTpls.map(tpl => (
-                    <button
-                      key={tpl.id}
-                      onClick={() => applyTemplate(tpl)}
-                      className="text-left p-3 rounded-lg border border-border hover:border-primary/40 hover:bg-muted/40 transition-colors flex gap-3"
-                    >
-                      <span className="text-2xl shrink-0">{tpl.emoji}</span>
-                      <div className="min-w-0">
-                        <p className="font-medium text-sm text-foreground truncate">{tpl.name}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">{tpl.category} · {tpl.duration}</p>
-                        <p className="text-[10px] text-muted-foreground line-clamp-2 mt-1">{tpl.description || 'Empezar desde cero'}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+
+                {/* Mini-juegos */}
+                {filteredGameTpls.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Gamepad2 size={14} className="text-primary" />
+                      <h4 className="text-sm font-semibold text-foreground">Mini-juegos interactivos</h4>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">{filteredGameTpls.length}</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {filteredGameTpls.map(tpl => (
+                        <button
+                          key={tpl.id}
+                          onClick={() => applyTemplate(tpl)}
+                          className="text-left p-3 rounded-lg border border-primary/30 bg-gradient-to-br from-primary/5 to-accent/10 hover:border-primary transition-colors flex gap-3"
+                        >
+                          <span className="text-2xl shrink-0">{tpl.emoji}</span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1">
+                              <p className="font-medium text-sm text-foreground truncate">{tpl.name}</p>
+                              <span className="text-[9px] px-1 py-0.5 rounded bg-primary text-primary-foreground font-bold">JUEGO</span>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground truncate">{tpl.gameType} · {tpl.duration}</p>
+                            <p className="text-[10px] text-muted-foreground line-clamp-2 mt-1">{tpl.description}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Actividades guiadas */}
+                {filteredTpls.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                      <Sparkles size={14} className="text-primary" /> Actividades guiadas
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {filteredTpls.map(tpl => (
+                        <button
+                          key={tpl.id}
+                          onClick={() => applyTemplate(tpl)}
+                          className="text-left p-3 rounded-lg border border-border hover:border-primary/40 hover:bg-muted/40 transition-colors flex gap-3"
+                        >
+                          <span className="text-2xl shrink-0">{tpl.emoji}</span>
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm text-foreground truncate">{tpl.name}</p>
+                            <p className="text-[10px] text-muted-foreground truncate">{tpl.category} · {tpl.duration}</p>
+                            <p className="text-[10px] text-muted-foreground line-clamp-2 mt-1">{tpl.description || 'Empezar desde cero'}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
