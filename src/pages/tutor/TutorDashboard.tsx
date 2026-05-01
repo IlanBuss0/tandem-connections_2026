@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { users, getActivitiesForUser, getEmotionsForUser, getObjectivesForUser, getLocationsForUser, calendarEvents, getRecommendationsForUser } from '@/data/mockData';
-import { LogOut, MapPin, CheckCircle2, Heart, Calendar, Target, BarChart3, Bell, Shield, TrendingUp, AlertTriangle, Sparkles, Clock } from 'lucide-react';
+import { LogOut, MapPin, CheckCircle2, Heart, Calendar, Target, BarChart3, Bell, Shield, TrendingUp, AlertTriangle, Sparkles, Clock, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import ActivityManager from '@/components/ActivityManager';
 import AdvancedStats from '@/components/AdvancedStats';
 import WeeklyAgenda from '@/components/WeeklyAgenda';
+import ChatScreen from '@/components/ChatScreen';
 
 export default function TutorDashboard() {
   const { user, logout } = useAuth();
@@ -31,6 +32,7 @@ export default function TutorDashboard() {
     { id: 'stats', label: 'Estadísticas', icon: TrendingUp },
     { id: 'agenda', label: 'Agenda', icon: Clock },
     { id: 'activities', label: 'Actividades', icon: Sparkles },
+    { id: 'chat', label: 'Chat', icon: MessageCircle },
     { id: 'location', label: 'Ubicación', icon: MapPin },
     { id: 'emotions', label: 'Emociones', icon: Heart },
     { id: 'calendar', label: 'Calendario', icon: Calendar },
