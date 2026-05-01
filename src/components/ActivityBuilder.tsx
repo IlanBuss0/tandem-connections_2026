@@ -153,14 +153,19 @@ export default function ActivityBuilder({ initialId, onClose }: Props) {
       dueDate: form.dueDate || undefined,
       notes: form.notes,
       draft: !publishNow,
-    });
+      gameType: form.gameType,
+      gameData: form.gameData,
+    } as any);
     if (saved && publishNow) publish(saved.id);
     onClose();
   };
 
+  const q = tplSearch.toLowerCase();
   const filteredTpls = ACTIVITY_TEMPLATES.filter(t =>
-    t.name.toLowerCase().includes(tplSearch.toLowerCase()) ||
-    t.tags.some(tag => tag.includes(tplSearch.toLowerCase()))
+    t.name.toLowerCase().includes(q) || t.tags.some(tag => tag.includes(q))
+  );
+  const filteredGameTpls = GAME_TEMPLATES.filter(t =>
+    t.name.toLowerCase().includes(q) || t.tags.some(tag => tag.includes(q))
   );
 
   const stepsLabels = ['Plantilla', 'Datos básicos', 'Pasos', 'Asignar', 'Revisar'];
