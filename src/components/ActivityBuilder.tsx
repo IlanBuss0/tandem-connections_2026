@@ -51,6 +51,8 @@ export default function ActivityBuilder({ initialId, onClose }: Props) {
         dueDate: editing.dueDate || '',
         notes: editing.notes || '',
         draft: editing.draft,
+        gameType: editing.gameType,
+        gameData: editing.gameData,
       };
     }
     return {
@@ -70,10 +72,13 @@ export default function ActivityBuilder({ initialId, onClose }: Props) {
       dueDate: '',
       notes: '',
       draft: true,
+      gameType: undefined as undefined | import('@/data/miniGames').GameType,
+      gameData: undefined as undefined | import('@/data/miniGames').GameData,
     };
   });
 
-  const applyTemplate = (tpl: ActivityTemplate) => {
+  const applyTemplate = (tpl: ActivityTemplate | GameTemplate) => {
+    const isGame = (tpl as GameTemplate).gameType !== undefined;
     setForm(prev => ({
       ...prev,
       title: tpl.id === 'tpl-blank' ? '' : tpl.name,
@@ -87,6 +92,8 @@ export default function ActivityBuilder({ initialId, onClose }: Props) {
       stepIcons: [...tpl.stepIcons],
       points: tpl.points,
       completionMessage: tpl.completionMessage,
+      gameType: isGame ? (tpl as GameTemplate).gameType : undefined,
+      gameData: isGame ? (tpl as GameTemplate).gameData : undefined,
     }));
     setStep(1);
   };
