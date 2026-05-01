@@ -4,6 +4,7 @@ import { Activity } from '@/data/mockData';
 import { ArrowLeft, CheckCircle2, Pause, Play, HelpCircle, Volume2, PartyPopper, Coins } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useWallet } from '@/contexts/WalletContext';
+import MiniGame from '@/components/MiniGame';
 
 interface Props {
   activity: Activity;
