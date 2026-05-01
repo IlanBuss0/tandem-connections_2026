@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Trash2, GripVertical, Save, Send, Sparkles, Search, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Trash2, GripVertical, Save, Send, Sparkles, Search, X, Gamepad2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
 import { ACTIVITY_TEMPLATES, ActivityTemplate, STEP_ICON_OPTIONS } from '@/data/activityTemplates';
+import { GAME_TEMPLATES, GameTemplate } from '@/data/miniGames';
 import { users, ActivityCategory, ActivityType } from '@/data/mockData';
 import { motion, AnimatePresence } from 'framer-motion';
 
