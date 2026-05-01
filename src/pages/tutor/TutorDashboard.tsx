@@ -77,7 +77,7 @@ export default function TutorDashboard() {
       </div>
 
       <div className="max-w-4xl mx-auto p-4 space-y-4">
-        {!mainUser ? <p className="text-muted-foreground">No hay usuarios vinculados.</p> : (
+        {tab === 'chat' ? <ChatScreen /> : !mainUser ? <p className="text-muted-foreground">No hay usuarios vinculados.</p> : (
           <>
             <div className="bg-card rounded-xl p-4 border border-border flex items-center gap-4">
               <span className="text-4xl">{mainUser.avatar}</span>
