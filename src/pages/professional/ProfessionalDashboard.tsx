@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { users, getActivitiesForUser, getEmotionsForUser, getObjectivesForUser, calendarEvents, professionals as allProfessionals, getRecommendationsForUser } from '@/data/mockData';
-import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, MessageSquare, Sparkles, Clock } from 'lucide-react';
+import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, MessageSquare, Sparkles, Clock, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import ActivityManager from '@/components/ActivityManager';
 import AdvancedStats from '@/components/AdvancedStats';
 import WeeklyAgenda from '@/components/WeeklyAgenda';
+import ChatScreen from '@/components/ChatScreen';
 
 export default function ProfessionalDashboard() {
   const { user, logout } = useAuth();
@@ -20,6 +21,7 @@ export default function ProfessionalDashboard() {
   const tabs = [
     { id: 'patients', label: 'Pacientes', icon: Users },
     { id: 'create', label: 'Crear actividad', icon: Sparkles },
+    { id: 'chat', label: 'Chat', icon: MessageCircle },
     { id: 'tools', label: 'Herramientas', icon: ClipboardPlus },
     { id: 'directory', label: 'Directorio', icon: FileText },
   ];
@@ -45,6 +47,7 @@ export default function ProfessionalDashboard() {
       </div>
 
       <div className="max-w-4xl mx-auto p-4 space-y-4">
+        {tab === 'chat' && <ChatScreen />}
         {tab === 'patients' && !selectedPatient && (
           <>
             <h2 className="font-heading font-bold text-xl text-foreground">Mis pacientes ({linkedUsers.length})</h2>
