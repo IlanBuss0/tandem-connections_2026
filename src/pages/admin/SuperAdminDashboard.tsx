@@ -46,6 +46,13 @@ const NAV: { id: SectionId; label: string; icon: any }[] = [
   { id: 'system', label: 'System', icon: Cpu },
 ];
 
+// Tailwind safelist (keep these literal so JIT compiles dynamic tones used below)
+// text-cyan-300 text-cyan-400 text-emerald-300 text-emerald-400 text-fuchsia-300 text-fuchsia-400
+// text-amber-300 text-amber-400 text-rose-300 text-rose-400 text-sky-300 text-sky-400
+// bg-cyan-400 bg-emerald-400 bg-fuchsia-400 bg-amber-400 bg-rose-400 bg-sky-400
+// hover:border-cyan-500/50 hover:border-emerald-500/50 hover:border-fuchsia-500/50 hover:border-amber-500/50 hover:border-rose-500/50 hover:border-sky-500/50
+// hover:bg-cyan-500/10 hover:bg-emerald-500/10 hover:bg-fuchsia-500/10 hover:bg-amber-500/10 hover:bg-rose-500/10 hover:bg-sky-500/10
+
 // ---------- mock telemetry generators ----------
 const seriesArea = Array.from({ length: 48 }, (_, i) => ({
   t: `${String(i % 24).padStart(2, '0')}:00`,
