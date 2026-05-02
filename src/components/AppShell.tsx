@@ -18,6 +18,7 @@ import UserResources from '@/pages/user/UserResources';
 import UserShop from '@/pages/user/UserShop';
 import TutorDashboard from '@/pages/tutor/TutorDashboard';
 import ProfessionalDashboard from '@/pages/professional/ProfessionalDashboard';
+import SuperAdminDashboard from '@/pages/admin/SuperAdminDashboard';
 
 const userNav = [
   { id: 'home', label: 'Inicio', icon: Home },
@@ -42,6 +43,7 @@ export default function AppShell() {
 
   if (!user) return null;
 
+  if (user.role === 'admin') return <SuperAdminDashboard />;
   if (user.role === 'tutor') return <TutorDashboard />;
   if (user.role === 'professional') return <ProfessionalDashboard />;
 

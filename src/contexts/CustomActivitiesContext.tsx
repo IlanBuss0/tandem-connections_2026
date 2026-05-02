@@ -52,7 +52,7 @@ export function CustomActivitiesProvider({ children }: { children: ReactNode }) 
   useEffect(() => { save(items); }, [items]);
 
   const createOrUpdate: Ctx['createOrUpdate'] = useCallback((data) => {
-    if (!user || (user.role !== 'tutor' && user.role !== 'professional')) return null;
+    if (!user || (user.role !== 'tutor' && user.role !== 'professional' && user.role !== 'admin')) return null;
     const now = Date.now();
     let saved: CustomActivity | null = null;
 

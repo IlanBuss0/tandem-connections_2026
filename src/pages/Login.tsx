@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import { users, tutors, professionals } from '@/data/mockData';
+import { users, tutors, professionals, admins } from '@/data/mockData';
 import { Eye, EyeOff, LogIn, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,7 @@ export default function Login() {
     { label: '🧒 Juan (Usuario)', user: users[0] },
     { label: '👩 Laura (Tutora)', user: tutors[0] as any },
     { label: '👩‍⚕️ Lic. Martina (Profesional)', user: professionals[0] as any },
+    { label: '🛡️ Root (Super Admin · God Mode)', user: admins[0] as any },
   ];
 
   return (
