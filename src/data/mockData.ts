@@ -1,5 +1,22 @@
 // ==================== USERS ====================
-export type UserRole = 'user' | 'tutor' | 'professional';
+export type UserRole = 'user' | 'tutor' | 'professional' | 'admin';
+
+// ==================== ADMIN (Super Admin / Developer) ====================
+export interface Admin {
+  id: string;
+  username: string;
+  password: string;
+  name: string;
+  role: 'admin';
+  email: string;
+  avatar: string;
+  clearance: 'developer' | 'superadmin';
+}
+
+export const admins: Admin[] = [
+  { id: 'a1', username: 'root', password: 'root', name: 'Root Developer', role: 'admin', email: 'root@tandem.dev', avatar: '🛡️', clearance: 'developer' },
+  { id: 'a2', username: 'admin', password: 'admin', name: 'Super Admin', role: 'admin', email: 'admin@tandem.dev', avatar: '⚡', clearance: 'superadmin' },
+];
 
 export interface User {
   id: string;
@@ -720,13 +737,15 @@ export const pricingPlans: PricingPlan[] = [
 ];
 
 // ==================== HELPER FUNCTIONS ====================
-export function findUser(username: string, password: string): (User | Tutor | Professional) | null {
+export function findUser(username: string, password: string): (User | Tutor | Professional | Admin) | null {
   const u = users.find(u => u.username === username && u.password === password);
   if (u) return u;
   const t = tutors.find(t => t.username === username && t.password === password);
   if (t) return t;
   const p = professionals.find(p => p.username === username && p.password === password);
   if (p) return p;
+  const a = admins.find(a => a.username === username && a.password === password);
+  if (a) return a;
   return null;
 }
 

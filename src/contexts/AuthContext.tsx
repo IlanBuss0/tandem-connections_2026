@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { findUser, User, Tutor, Professional } from '@/data/mockData';
+import { findUser, User, Tutor, Professional, Admin } from '@/data/mockData';
 
-type AuthUser = User | Tutor | Professional;
+type AuthUser = User | Tutor | Professional | Admin;
 
 interface AuthContextType {
   user: AuthUser | null;
