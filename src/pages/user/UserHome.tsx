@@ -26,12 +26,6 @@ export default function UserHome({ onNavigate }: Props) {
   const completedActivities = activities.filter(a => a.status === 'completada').length;
   const lastEmotion = records[0];
 
-  const activities = getActivitiesForUser(user.id);
-  const notifications = getNotificationsForUser(user.id).filter(n => !n.read);
-  const objectives = getObjectivesForUser(user.id).filter(o => o.status === 'activo');
-  const completedToday = juanDailyRoutine.filter(r => r.completed).length;
-  const totalRoutine = juanDailyRoutine.length;
-  const completedActivities = activities.filter(a => a.status === 'completada').length;
 
   return (
     <div className="space-y-5 sm:space-y-6 pb-24 lg:pb-6">
@@ -78,13 +72,16 @@ export default function UserHome({ onNavigate }: Props) {
           <div className="gradient-primary h-3 rounded-full transition-all" style={{ width: `${(completedToday / totalRoutine) * 100}%` }} />
         </div>
         <div className="space-y-2 max-h-48 overflow-y-auto">
-          {juanDailyRoutine.slice(0, 8).map(item => (
+          {routine.slice(0, 8).map(item => (
             <div key={item.id} className={`flex items-center gap-3 text-sm py-1 ${item.completed ? 'opacity-60' : ''}`}>
               <span>{item.completed ? '✅' : '⬜'}</span>
               <span className="text-muted-foreground w-12">{item.time}</span>
               <span className={item.completed ? 'line-through text-muted-foreground' : 'text-foreground'}>{item.title}</span>
             </div>
           ))}
+          {routine.length === 0 && (
+            <p className="text-xs text-muted-foreground text-center py-2">Sin pasos. Andá a "Mi día" para crear tu rutina.</p>
+          )}
         </div>
       </motion.div>
 
