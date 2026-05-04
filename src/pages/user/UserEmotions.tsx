@@ -1,64 +1,30 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useAuth } from '@/contexts/AuthContext';
-import { getEmotionsForUser, EmotionalRecord } from '@/data/mockData';
-
-const emotionOptions = [
-  { emoji: '😊', label: 'Contento' },
-  { emoji: '😄', label: 'Feliz' },
-  { emoji: '😌', label: 'Tranquilo' },
-  { emoji: '💪', label: 'Motivado' },
-  { emoji: '🥹', label: 'Orgulloso' },
-  { emoji: '😰', label: 'Ansioso' },
-  { emoji: '😬', label: 'Nervioso' },
-  { emoji: '😤', label: 'Frustrado' },
-  { emoji: '😡', label: 'Enojado' },
-  { emoji: '😢', label: 'Triste' },
-  { emoji: '😴', label: 'Cansado' },
-  { emoji: '😐', label: 'Aburrido' },
-  { emoji: '😲', label: 'Sorprendido' },
-  { emoji: '😟', label: 'Preocupado' },
-];
+import { useEmotions, emotionOptions } from '@/contexts/EmotionsContext';
+import { Trash2 } from 'lucide-react';
 
 export default function UserEmotions() {
-  const { user } = useAuth();
-  const [records, setRecords] = useState<EmotionalRecord[]>(user ? getEmotionsForUser(user.id) : []);
+  const { records, add, remove } = useEmotions();
   const [selectedEmotion, setSelectedEmotion] = useState<string | null>(null);
   const [intensity, setIntensity] = useState(3);
   const [context, setContext] = useState('');
 
-  if (!user) return null;
-
-  const addRecord = () => {
+  const submit = () => {
     if (!selectedEmotion) return;
     const opt = emotionOptions.find(e => e.label === selectedEmotion);
-    const newRec: EmotionalRecord = {
-      id: `em-${Date.now()}`,
-      userId: user.id,
-      emotion: selectedEmotion,
-      emoji: opt?.emoji || '😊',
-      intensity,
-      context,
-      whatHelped: '',
-      timestamp: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
-      date: new Date().toISOString().split('T')[0],
-    };
-    setRecords(prev => [newRec, ...prev]);
+    add({ emotion: selectedEmotion, emoji: opt?.emoji || '😊', intensity, context, whatHelped: '' });
     setSelectedEmotion(null);
     setContext('');
     setIntensity(3);
   };
 
-  // Group by date
   const grouped = records.reduce((acc, r) => {
     if (!acc[r.date]) acc[r.date] = [];
     acc[r.date].push(r);
     return acc;
-  }, {} as Record<string, EmotionalRecord[]>);
-
+  }, {} as Record<string, typeof records>);
   const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
 
-  // Emotion summary for chart
   const emotionCounts = records.reduce((acc, r) => {
     acc[r.emotion] = (acc[r.emotion] || 0) + 1;
     return acc;
@@ -72,7 +38,6 @@ export default function UserEmotions() {
         <p className="text-muted-foreground text-sm">Registrá cómo te sentís</p>
       </div>
 
-      {/* Emotion selector */}
       <div className="bg-card rounded-xl p-4 border border-border shadow-sm">
         <h3 className="font-heading font-semibold text-foreground mb-3">¿Cómo te sentís ahora?</h3>
         <div className="grid grid-cols-7 gap-2 mb-4">
@@ -93,9 +58,7 @@ export default function UserEmotions() {
             <div>
               <label className="text-sm font-medium text-foreground">Intensidad: {intensity}/5</label>
               <input type="range" min={1} max={5} value={intensity} onChange={e => setIntensity(+e.target.value)} className="w-full accent-primary mt-1" />
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Poco</span><span>Mucho</span>
-              </div>
+              <div className="flex justify-between text-xs text-muted-foreground"><span>Poco</span><span>Mucho</span></div>
             </div>
             <div>
               <label className="text-sm font-medium text-foreground">¿Qué pasó?</label>
@@ -106,14 +69,13 @@ export default function UserEmotions() {
                 className="w-full mt-1 p-3 rounded-lg border border-border bg-background text-sm resize-none h-20"
               />
             </div>
-            <button onClick={addRecord} className="w-full py-2.5 rounded-lg gradient-primary text-primary-foreground font-semibold text-sm">
+            <button onClick={submit} className="w-full py-2.5 rounded-lg gradient-primary text-primary-foreground font-semibold text-sm">
               Registrar emoción
             </button>
           </motion.div>
         )}
       </div>
 
-      {/* Summary */}
       <div className="bg-card rounded-xl p-4 border border-border shadow-sm">
         <h3 className="font-heading font-semibold text-foreground mb-3">📊 Resumen emocional</h3>
         <div className="space-y-2">
@@ -131,10 +93,10 @@ export default function UserEmotions() {
               </div>
             );
           })}
+          {topEmotions.length === 0 && <p className="text-xs text-muted-foreground">Aún no hay registros.</p>}
         </div>
       </div>
 
-      {/* History */}
       <div>
         <h3 className="font-heading font-semibold text-foreground mb-3">Historial</h3>
         {dates.map(date => (
@@ -156,9 +118,11 @@ export default function UserEmotions() {
                       </div>
                     </div>
                     {rec.context && <p className="text-xs text-muted-foreground mt-0.5">{rec.context}</p>}
-                    {rec.whatHelped && <p className="text-xs text-success mt-0.5">✓ {rec.whatHelped}</p>}
                   </div>
                   <span className="text-[10px] text-muted-foreground">{rec.timestamp}</span>
+                  <button onClick={() => remove(rec.id)} className="text-muted-foreground hover:text-destructive p-1" title="Eliminar">
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               ))}
             </div>
