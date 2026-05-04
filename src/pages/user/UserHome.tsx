@@ -85,6 +85,34 @@ export default function UserHome({ onNavigate }: Props) {
         </div>
       </motion.div>
 
+      {/* Quick Emotion Logger */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="bg-card rounded-xl p-4 border border-border shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-heading font-semibold text-foreground flex items-center gap-2">
+            <Heart size={18} className="text-pink-500" /> ¿Cómo te sentís?
+          </h3>
+          <button onClick={() => onNavigate?.('emotions')} className="text-xs text-primary hover:underline">Ver todo</button>
+        </div>
+        {lastEmotion && (
+          <p className="text-xs text-muted-foreground mb-2">
+            Último: <span className="text-foreground font-medium">{lastEmotion.emoji} {lastEmotion.emotion}</span> · {lastEmotion.timestamp}
+          </p>
+        )}
+        <div className="grid grid-cols-7 gap-1.5">
+          {emotionOptions.slice(0, 7).map(opt => (
+            <button
+              key={opt.label}
+              onClick={() => quickLog(opt.label)}
+              title={`Registrar: ${opt.label}`}
+              className="flex flex-col items-center p-2 rounded-lg hover:bg-muted/60 active:scale-95 transition"
+            >
+              <span className="text-2xl">{opt.emoji}</span>
+              <span className="text-[9px] text-muted-foreground mt-0.5 leading-tight truncate w-full text-center">{opt.label}</span>
+            </button>
+          ))}
+        </div>
+      </motion.div>
+
       {/* Active objectives */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="bg-card rounded-xl p-4 border border-border shadow-sm">
         <h3 className="font-heading font-semibold text-foreground flex items-center gap-2 mb-3">
