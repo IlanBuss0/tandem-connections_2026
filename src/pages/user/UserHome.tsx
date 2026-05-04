@@ -1,17 +1,30 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { motion } from 'framer-motion';
-import { getActivitiesForUser, getNotificationsForUser, getObjectivesForUser, juanDailyRoutine } from '@/data/mockData';
-import { CheckCircle2, Clock, Flame, Star, Trophy, Bell, Target, ShoppingBag } from 'lucide-react';
+import { getActivitiesForUser, getNotificationsForUser, getObjectivesForUser } from '@/data/mockData';
+import { CheckCircle2, Clock, Flame, Star, Trophy, Bell, Target, ShoppingBag, Heart } from 'lucide-react';
 import AvatarPreview from '@/components/AvatarPreview';
 import CoinBadge from '@/components/CoinBadge';
+import { useEmotions, emotionOptions } from '@/contexts/EmotionsContext';
+import { useRoutines } from '@/contexts/RoutinesContext';
 
 interface Props { onNavigate?: (tab: string) => void; }
 
 export default function UserHome({ onNavigate }: Props) {
   const { user } = useAuth();
   const { state: wallet } = useWallet();
+  const { records, quickLog } = useEmotions();
+  const { todayRoutine } = useRoutines();
   if (!user || user.role !== 'user') return null;
+
+  const activities = getActivitiesForUser(user.id);
+  const notifications = getNotificationsForUser(user.id).filter(n => !n.read);
+  const objectives = getObjectivesForUser(user.id).filter(o => o.status === 'activo');
+  const routine = todayRoutine?.items || [];
+  const completedToday = routine.filter(r => r.completed).length;
+  const totalRoutine = Math.max(routine.length, 1);
+  const completedActivities = activities.filter(a => a.status === 'completada').length;
+  const lastEmotion = records[0];
 
   const activities = getActivitiesForUser(user.id);
   const notifications = getNotificationsForUser(user.id).filter(n => !n.read);
