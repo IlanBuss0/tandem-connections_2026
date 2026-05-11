@@ -4,7 +4,7 @@ import { TrendingUp, Activity as ActivityIcon, Heart, Target, Award, Calendar, C
 import {
   getActivitiesForUser, getEmotionsForUser, getObjectivesForUser, calendarEvents,
   achievements as allAchievements, User,
-} from '@/data/mockData';
+} from '@/data/repo';
 
 interface Props {
   user: User;

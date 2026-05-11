@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { findUser, User, Tutor, Professional, Admin } from '@/data/mockData';
+import { findUser, User, Tutor, Professional, Admin } from '@/data/repo';
 
 type AuthUser = User | Tutor | Professional | Admin;
 

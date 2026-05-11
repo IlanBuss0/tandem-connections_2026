@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
-import type { Activity, ActivityCategory, ActivityType } from '@/data/mockData';
+import type { Activity, ActivityCategory, ActivityType } from '@/data/repo';
 
 export interface CustomActivity extends Activity {
   isCustom: true;

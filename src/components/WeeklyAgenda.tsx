@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { calendarEvents, User } from '@/data/mockData';
+import { calendarEvents, User } from '@/data/repo';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
 import { toast } from '@/hooks/use-toast';
 import { ChevronLeft, ChevronRight, Plus, Clock } from 'lucide-react';

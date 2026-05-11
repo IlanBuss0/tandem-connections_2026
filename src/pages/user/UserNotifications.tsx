@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import { getNotificationsForUser, Notification } from '@/data/mockData';
+import { getNotificationsForUser, Notification } from '@/data/repo';
 import { Bell, Check } from 'lucide-react';
 
 export default function UserNotifications() {

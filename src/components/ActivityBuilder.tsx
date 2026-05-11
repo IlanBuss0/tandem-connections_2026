@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
 import { ACTIVITY_TEMPLATES, ActivityTemplate, STEP_ICON_OPTIONS } from '@/data/activityTemplates';
 import { GAME_TEMPLATES, GameTemplate } from '@/data/miniGames';
-import { users, ActivityCategory, ActivityType } from '@/data/mockData';
+import { users, ActivityCategory, ActivityType } from '@/data/repo';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const CATEGORIES: ActivityCategory[] = ['autonomía personal','higiene','organización','escuela','cocina básica','transporte','compras','manejo del dinero','emociones','comunicación','vida social','seguridad personal','rutinas del hogar','regulación emocional','preparación para salidas','anticipación de cambios'];
