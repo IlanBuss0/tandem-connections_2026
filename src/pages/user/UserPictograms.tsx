@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { pictograms, Pictogram } from '@/data/mockData';
+import { pictograms, Pictogram } from '@/data/repo';
 import { Search, Heart, Download, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode, useMemo } from 'react';
 import { useAuth } from './AuthContext';
-import { emotionalRecords as seed, EmotionalRecord } from '@/data/mockData';
+import { emotionalRecords as seed, EmotionalRecord } from '@/data/repo';
 
 const KEY = (uid: string) => `tandem:emotions:${uid}:v1`;
 

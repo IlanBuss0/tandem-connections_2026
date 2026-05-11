@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import { users, tutors, professionals, admins } from '@/data/mockData';
+import { users, tutors, professionals, admins } from '@/data/repo';
 import { Eye, EyeOff, LogIn, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

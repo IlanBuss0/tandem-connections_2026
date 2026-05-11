@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useRoutines, DayKey } from '@/contexts/RoutinesContext';
 import { CheckCircle2, Circle, Clock, Plus, Pencil, Trash2, Copy, X, Save } from 'lucide-react';
-import { RoutineItem } from '@/data/mockData';
+import { RoutineItem } from '@/data/repo';
 
 const categories = ['mañana', 'escuela', 'mediodía', 'tarde', 'noche'];
 const categoryLabels: Record<string, string> = { mañana: '🌅 Mañana', escuela: '📚 Escuela', mediodía: '☀️ Mediodía', tarde: '🌤️ Tarde', noche: '🌙 Noche' };

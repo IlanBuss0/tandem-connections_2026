@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChat, ContactPerson, getPersonById } from '@/contexts/ChatContext';
-import { Conversation } from '@/data/mockData';
+import { Conversation } from '@/data/repo';
 import { ArrowLeft, Send, Plus, Search, X, MessageCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';

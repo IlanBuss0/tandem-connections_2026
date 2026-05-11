@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
-import { users, tutors, professionals, activities, admins } from '@/data/mockData';
+import { users, tutors, professionals, activities, admins } from '@/data/repo';
 import { SHOP_ITEMS } from '@/data/shopItems';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

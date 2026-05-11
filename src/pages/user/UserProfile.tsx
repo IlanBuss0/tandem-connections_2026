@@ -1,6 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
-import { getTutorById, getProfessionalById, pricingPlans } from '@/data/mockData';
+import { getTutorById, getProfessionalById, pricingPlans } from '@/data/repo';
 import { Crown, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AvatarPreview from '@/components/AvatarPreview';

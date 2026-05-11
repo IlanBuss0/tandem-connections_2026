@@ -8,7 +8,7 @@ import {
   professionals,
   Conversation,
   ChatMessage,
-} from '@/data/mockData';
+} from '@/data/repo';
 
 const KEY_C = 'tandem:chat:conversations:v1';
 const KEY_M = 'tandem:chat:messages:v1';

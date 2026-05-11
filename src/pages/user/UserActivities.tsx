@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
-import { getActivitiesForUser, activities as allActivities, Activity, ActivityCategory } from '@/data/mockData';
+import { getActivitiesForUser, activities as allActivities, Activity, ActivityCategory } from '@/data/repo';
 import { CheckCircle2, Clock, Award, ChevronDown, ChevronUp, Play, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ActivityExecution from './ActivityExecution';

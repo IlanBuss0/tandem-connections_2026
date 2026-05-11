@@ -1,7 +1,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { motion } from 'framer-motion';
-import { getActivitiesForUser, getNotificationsForUser, getObjectivesForUser } from '@/data/mockData';
+import { getActivitiesForUser, getNotificationsForUser, getObjectivesForUser } from '@/data/repo';
 import { CheckCircle2, Clock, Flame, Star, Trophy, Bell, Target, ShoppingBag, Heart } from 'lucide-react';
 import AvatarPreview from '@/components/AvatarPreview';
 import CoinBadge from '@/components/CoinBadge';
