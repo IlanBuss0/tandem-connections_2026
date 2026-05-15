@@ -61,6 +61,40 @@ export async function fetchActivitiesForUser(userId: string): Promise<Activity[]
 export async function fetchNotificationsForUser(userId: string): Promise<Notification[]> {
   return apiFetchWithFallback<Notification[]>([`/notifications?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/notifications`]);
 }
+export async function fetchObjectivesForUser(userId: string): Promise<Objective[]> {
+  return apiFetchWithFallback<Objective[]>([`/objectives?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/objectives`]);
+}
+export async function fetchCalendarEventsForUser(userId: string): Promise<CalendarEvent[]> {
+  return apiFetchWithFallback<CalendarEvent[]>([`/calendar/events?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/calendar/events`]);
+}
+export async function createCalendarEvent(userId: string, data: Omit<CalendarEvent, 'id' | 'userId'>): Promise<CalendarEvent> {
+  return apiFetchWithFallback<CalendarEvent>([`/calendar/events`, `/users/${encodeURIComponent(userId)}/calendar/events`], { method: 'POST', body: JSON.stringify({ ...data, userId }) });
+}
+export async function updateCalendarEvent(eventId: string, patch: Partial<CalendarEvent>): Promise<CalendarEvent> {
+  return apiFetchWithFallback<CalendarEvent>([`/calendar/events/${encodeURIComponent(eventId)}`], { method: 'PATCH', body: JSON.stringify(patch) });
+}
+export async function deleteCalendarEvent(eventId: string): Promise<void> {
+  await apiFetchWithFallback<unknown>([`/calendar/events/${encodeURIComponent(eventId)}`], { method: 'DELETE' });
+}
+
+export async function fetchEmotionRecordsForUser(userId: string): Promise<EmotionalRecord[]> {
+  return apiFetchWithFallback<EmotionalRecord[]>([`/emotions?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/emotions`]);
+}
+export async function createEmotionRecord(userId: string, payload: Omit<EmotionalRecord, 'id' | 'userId'>): Promise<EmotionalRecord> {
+  return apiFetchWithFallback<EmotionalRecord>([`/emotions`, `/users/${encodeURIComponent(userId)}/emotions`], { method: 'POST', body: JSON.stringify({ ...payload, userId }) });
+}
+export async function deleteEmotionRecord(recordId: string): Promise<void> {
+  await apiFetchWithFallback<unknown>([`/emotions/${encodeURIComponent(recordId)}`], { method: 'DELETE' });
+}
+
+export interface DayRoutine { id: string; name: string; dayOfWeek: number | null; items: RoutineItem[] }
+export async function fetchRoutinesForUser(userId: string): Promise<DayRoutine[]> {
+  return apiFetchWithFallback<DayRoutine[]>([`/routines?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/routines`]);
+}
+export async function saveRoutinesForUser(userId: string, routines: DayRoutine[]): Promise<DayRoutine[]> {
+  return apiFetchWithFallback<DayRoutine[]>([`/routines/bulk`, `/users/${encodeURIComponent(userId)}/routines`], { method: 'PUT', body: JSON.stringify({ userId, routines }) });
+}
+
 export async function fetchConversationsForUser(userId: string): Promise<Conversation[]> {
   return apiFetchWithFallback<Conversation[]>([`/chat/conversations?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/conversations`]);
 }
@@ -69,19 +103,18 @@ export async function fetchMessagesForConversation(conversationId: string): Prom
 }
 export async function sendMessage(conversationId: string, senderId: string, senderName: string, text: string): Promise<ChatMessage> {
   return apiFetchWithFallback<ChatMessage>([`/chat/conversations/${encodeURIComponent(conversationId)}/messages`, `/conversations/${encodeURIComponent(conversationId)}/messages`], {
-    method: 'POST',
-    body: JSON.stringify({ senderId, senderName, text, type: 'text' }),
+    method: 'POST', body: JSON.stringify({ senderId, senderName, text, type: 'text' }),
   });
 }
 export async function fetchAllUsers(): Promise<User[]> { return apiFetchWithFallback<User[]>(['/users']); }
 export async function fetchAllTutors(): Promise<Tutor[]> { return apiFetchWithFallback<Tutor[]>(['/tutors']); }
 export async function fetchAllProfessionals(): Promise<Professional[]> { return apiFetchWithFallback<Professional[]>(['/professionals']); }
 
+// legacy screens pending migration
 export const resources: Resource[] = [];
 export const achievements: Achievement[] = [];
 export const pictograms: Pictogram[] = [];
 export const pricingPlans: PricingPlan[] = [];
-
 export const users: User[] = [];
 export const tutors: Tutor[] = [];
 export const professionals: Professional[] = [];
@@ -96,7 +129,6 @@ export const emotionalRecords: EmotionalRecord[] = [];
 export const objectives: Objective[] = [];
 export const locations: Location[] = [];
 export const recommendations: Recommendation[] = [];
-
 export const getActivitiesForUser = (_: string): Activity[] => [];
 export const getNotificationsForUser = (_: string): Notification[] => [];
 export const getObjectivesForUser = (_: string): Objective[] => [];

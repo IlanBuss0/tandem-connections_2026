@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode, useMemo } from 'react';
 import { useAuth } from './AuthContext';
-import { juanDailyRoutine, RoutineItem } from '@/data/api';
+import { DayRoutine as ApiDayRoutine, fetchRoutinesForUser, RoutineItem, saveRoutinesForUser } from '@/data/api';
 
 // Day of the week index: 0 = Domingo ... 6 = Sábado. -1 = "default/today"
 export type DayKey = 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -12,37 +12,7 @@ export interface DayRoutine {
   items: RoutineItem[];
 }
 
-const KEY = (uid: string) => `tandem:routines:${uid}:v1`;
-
 const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-
-function defaultRoutines(uid: string): DayRoutine[] {
-  if (uid === 'u1') {
-    // Juan: rutina escolar (lun-vie) + fin de semana
-    const weekdayItems = juanDailyRoutine;
-    const weekendItems: RoutineItem[] = [
-      { id: 'wr1', time: '09:00', title: 'Despertarse tranquilo', icon: '⏰', completed: false, category: 'mañana' },
-      { id: 'wr2', time: '09:30', title: 'Desayunar en familia', icon: '🥣', completed: false, category: 'mañana' },
-      { id: 'wr3', time: '11:00', title: 'Tiempo libre', icon: '🎮', completed: false, category: 'mañana' },
-      { id: 'wr4', time: '13:00', title: 'Almorzar', icon: '🍽️', completed: false, category: 'mediodía' },
-      { id: 'wr5', time: '15:00', title: 'Salir / actividad', icon: '🌳', completed: false, category: 'tarde' },
-      { id: 'wr6', time: '20:00', title: 'Cenar', icon: '🍝', completed: false, category: 'noche' },
-      { id: 'wr7', time: '22:00', title: 'Dormir', icon: '🌙', completed: false, category: 'noche' },
-    ];
-    return [
-      { id: 'dr-school', name: 'Día escolar', dayOfWeek: 1, items: weekdayItems.map(i => ({ ...i, completed: false })) },
-      { id: 'dr-tue', name: 'Día escolar', dayOfWeek: 2, items: weekdayItems.map(i => ({ ...i, id: i.id + '-t', completed: false })) },
-      { id: 'dr-wed', name: 'Día escolar', dayOfWeek: 3, items: weekdayItems.map(i => ({ ...i, id: i.id + '-w', completed: false })) },
-      { id: 'dr-thu', name: 'Día escolar', dayOfWeek: 4, items: weekdayItems.map(i => ({ ...i, id: i.id + '-th', completed: false })) },
-      { id: 'dr-fri', name: 'Día escolar', dayOfWeek: 5, items: weekdayItems.map(i => ({ ...i, id: i.id + '-f', completed: false })) },
-      { id: 'dr-sat', name: 'Fin de semana', dayOfWeek: 6, items: weekendItems },
-      { id: 'dr-sun', name: 'Fin de semana', dayOfWeek: 0, items: weekendItems.map(i => ({ ...i, id: i.id + '-s', completed: false })) },
-    ];
-  }
-  return [
-    { id: `dr-${Date.now()}`, name: 'Mi día', dayOfWeek: null, items: [] },
-  ];
-}
 
 interface Ctx {
   routines: DayRoutine[];
@@ -68,17 +38,17 @@ export function RoutinesProvider({ children }: { children: ReactNode }) {
   const [selectedRoutineId, setSelectedRoutineId] = useState<string | null>(null);
 
   useEffect(() => {
+    let mounted = true;
     if (!user) return;
-    try {
-      const raw = localStorage.getItem(KEY(user.id));
-      if (raw) { setRoutines(JSON.parse(raw)); return; }
-    } catch { /* noop */ }
-    setRoutines(defaultRoutines(user.id));
+    fetchRoutinesForUser(user.id)
+      .then(rows => { if (mounted) setRoutines(rows as DayRoutine[]); })
+      .catch(() => { if (mounted) setRoutines([]); });
+    return () => { mounted = false; };
   }, [user]);
 
   useEffect(() => {
-    if (!user || routines.length === 0) return;
-    try { localStorage.setItem(KEY(user.id), JSON.stringify(routines)); } catch { /* noop */ }
+    if (!user) return;
+    saveRoutinesForUser(user.id, routines as ApiDayRoutine[]).catch(() => undefined);
   }, [routines, user]);
 
   const todayDow = new Date().getDay() as DayKey;
