@@ -1,33 +1,25 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import { users, tutors, professionals, admins } from '@/data/repo';
 import { Eye, EyeOff, LogIn, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 export default function Login() {
-  const { login, loginAs } = useAuth();
+  const { login } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [showCredentials, setShowCredentials] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!login(username, password)) {
+    if (!(await login(username, password))) {
       setError('Usuario o contraseña incorrectos');
     }
   };
-
-  const demoProfiles = [
-    { label: '🧒 Juan (Usuario)', user: users[0] },
-    { label: '👩 Laura (Tutora)', user: tutors[0] as any },
-    { label: '👩‍⚕️ Lic. Martina (Profesional)', user: professionals[0] as any },
-    { label: '🛡️ Root (Super Admin · God Mode)', user: admins[0] as any },
-  ];
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, hsl(210 80% 94%), hsl(270 40% 94%), hsl(200 60% 96%))' }}>
@@ -129,23 +121,6 @@ export default function Login() {
             )}
           </div>
 
-          {/* Quick demo access */}
-          <div className="mt-4 space-y-2">
-            <p className="text-xs text-center text-muted-foreground">Acceso rápido a demo</p>
-            <div className="flex flex-col gap-2">
-              {demoProfiles.map((dp) => (
-                <Button
-                  key={dp.label}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => loginAs(dp.user)}
-                  className="w-full text-sm justify-start"
-                >
-                  {dp.label}
-                </Button>
-              ))}
-            </div>
-          </div>
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-4">

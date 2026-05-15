@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { resources } from '@/data/repo';
+import { resources } from '@/data/api';
 import { BookOpen, Clock } from 'lucide-react';
 
 export default function UserResources() {

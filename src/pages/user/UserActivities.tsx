@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
-import { getActivitiesForUser, activities as allActivities, Activity, ActivityCategory } from '@/data/repo';
+import { fetchActivitiesForUser, Activity, ActivityCategory } from '@/data/api';
 import { CheckCircle2, Clock, Award, ChevronDown, ChevronUp, Play, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ActivityExecution from './ActivityExecution';
@@ -32,9 +32,20 @@ export default function UserActivities({ filter }: { filter: 'all' | 'recommende
   const { forUser } = useCustomActivities();
   const [selectedCategory, setSelectedCategory] = useState<string>('todas');
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [localActivities, setLocalActivities] = useState(allActivities);
+  const [localActivities, setLocalActivities] = useState<Activity[]>([]);
   const [executingActivity, setExecutingActivity] = useState<Activity | null>(null);
 
+
+  useEffect(() => {
+    let mounted = true;
+    if (!user) return;
+    fetchActivitiesForUser(user.id).then((rows) => {
+      if (mounted) setLocalActivities(rows);
+    }).catch(() => {
+      if (mounted) setLocalActivities([]);
+    });
+    return () => { mounted = false; };
+  }, [user]);
   // Custom activities asignadas a este usuario
   const customForUser = useMemo(() => user ? forUser(user.id) : [], [user, forUser]);
   const merged = useMemo(() => {
@@ -62,7 +73,7 @@ export default function UserActivities({ filter }: { filter: 'all' | 'recommende
     filtered = filtered.filter(a => a.category === selectedCategory);
   }
 
-  const categories = ['todas', ...Array.from(new Set(allActivities.map(a => a.category)))];
+  const categories = ['todas', ...Array.from(new Set(merged.map(a => a.category)))];
 
   const completeActivity = (id: string) => {
     setLocalActivities(prev => prev.map(a => a.id === id ? { ...a, status: 'completada' as const, progress: 100 } : a));

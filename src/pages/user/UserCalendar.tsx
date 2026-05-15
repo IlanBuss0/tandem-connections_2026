@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCalendar, eventTypes, typeEmoji } from '@/contexts/CalendarContext';
-import { CalendarEvent } from '@/data/repo';
+import { CalendarEvent } from '@/data/api';
 import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, X, Clock, Save } from 'lucide-react';
 
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];

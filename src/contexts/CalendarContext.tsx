@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode, useMemo } from 'react';
 import { useAuth } from './AuthContext';
-import { calendarEvents as seed, CalendarEvent } from '@/data/repo';
+import { calendarEvents as seed, CalendarEvent } from '@/data/api';
 
 const KEY = (uid: string) => `tandem:calendar:${uid}:v1`;
 

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode, useMemo } from 'react';
 import { useAuth } from './AuthContext';
-import { juanDailyRoutine, RoutineItem } from '@/data/repo';
+import { juanDailyRoutine, RoutineItem } from '@/data/api';
 
 // Day of the week index: 0 = Domingo ... 6 = Sábado. -1 = "default/today"
 export type DayKey = 0 | 1 | 2 | 3 | 4 | 5 | 6;
