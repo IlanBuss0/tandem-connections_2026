@@ -110,6 +110,30 @@ export async function fetchAllUsers(): Promise<User[]> { return apiFetchWithFall
 export async function fetchAllTutors(): Promise<Tutor[]> { return apiFetchWithFallback<Tutor[]>(['/tutors']); }
 export async function fetchAllProfessionals(): Promise<Professional[]> { return apiFetchWithFallback<Professional[]>(['/professionals']); }
 
+
+export async function fetchAchievementsForUser(userId: string): Promise<Achievement[]> {
+  return apiFetchWithFallback<Achievement[]>([`/achievements?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/achievements`]);
+}
+export async function fetchResourcesForUser(userId: string): Promise<Resource[]> {
+  return apiFetchWithFallback<Resource[]>([`/resources?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/resources`]);
+}
+export async function fetchPictograms(query?: { category?: string; search?: string }): Promise<Pictogram[]> {
+  const params = new URLSearchParams();
+  if (query?.category && query.category !== 'todas') params.set('category', query.category);
+  if (query?.search) params.set('search', query.search);
+  const q = params.toString();
+  return apiFetchWithFallback<Pictogram[]>([q ? `/pictograms?${q}` : '/pictograms']);
+}
+export async function fetchTutorById(id: string): Promise<Tutor | null> {
+  try { return await apiFetchWithFallback<Tutor>([`/tutors/${encodeURIComponent(id)}`]); } catch { return null; }
+}
+export async function fetchProfessionalById(id: string): Promise<Professional | null> {
+  try { return await apiFetchWithFallback<Professional>([`/professionals/${encodeURIComponent(id)}`]); } catch { return null; }
+}
+export async function fetchPricingPlans(): Promise<PricingPlan[]> {
+  return apiFetchWithFallback<PricingPlan[]>(['/pricing/plans', '/plans/pricing']);
+}
+
 // legacy screens pending migration
 export const resources: Resource[] = [];
 export const achievements: Achievement[] = [];

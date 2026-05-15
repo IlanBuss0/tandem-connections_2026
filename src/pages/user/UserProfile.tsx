@@ -1,6 +1,7 @@
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
-import { getTutorById, getProfessionalById, pricingPlans } from '@/data/api';
+import { fetchPricingPlans, fetchProfessionalById, fetchTutorById, PricingPlan, Professional, Tutor } from '@/data/api';
 import { Crown, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AvatarPreview from '@/components/AvatarPreview';
@@ -11,8 +12,25 @@ export default function UserProfile() {
   const { state: wallet } = useWallet();
   if (!user || user.role !== 'user') return null;
 
-  const tutor = user.linkedTutorIds?.[0] ? getTutorById(user.linkedTutorIds[0]) : null;
-  const professional = user.linkedProfessionalIds?.[0] ? getProfessionalById(user.linkedProfessionalIds[0]) : null;
+  const [tutor, setTutor] = useState<Tutor | null>(null);
+  const [professional, setProfessional] = useState<Professional | null>(null);
+  const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!user) return;
+    Promise.all([
+      user.linkedTutorIds?.[0] ? fetchTutorById(user.linkedTutorIds[0]) : Promise.resolve(null),
+      user.linkedProfessionalIds?.[0] ? fetchProfessionalById(user.linkedProfessionalIds[0]) : Promise.resolve(null),
+      fetchPricingPlans().catch(() => []),
+    ]).then(([t, p, plans]) => {
+      if (!mounted) return;
+      setTutor(t);
+      setProfessional(p);
+      setPricingPlans(plans);
+    });
+    return () => { mounted = false; };
+  }, [user]);
 
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
