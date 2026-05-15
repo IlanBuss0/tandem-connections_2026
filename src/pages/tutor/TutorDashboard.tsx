@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { users, getActivitiesForUser, getEmotionsForUser, getObjectivesForUser, getLocationsForUser, calendarEvents, getRecommendationsForUser } from '@/data/repo';
+import { users, getActivitiesForUser, getEmotionsForUser, getObjectivesForUser, getLocationsForUser, calendarEvents, getRecommendationsForUser } from '@/data/api';
 import { LogOut, MapPin, CheckCircle2, Heart, Calendar, Target, BarChart3, Bell, Shield, TrendingUp, AlertTriangle, Sparkles, Clock, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
