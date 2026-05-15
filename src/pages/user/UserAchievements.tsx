@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import { achievements } from '@/data/repo';
+import { achievements } from '@/data/api';
 import { Lock, Sparkles } from 'lucide-react';
 
 export default function UserAchievements() {

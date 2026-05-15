@@ -1,7 +1,8 @@
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { motion } from 'framer-motion';
-import { getActivitiesForUser, getNotificationsForUser, getObjectivesForUser } from '@/data/repo';
+import { Activity, fetchActivitiesForUser, fetchNotificationsForUser, fetchObjectivesForUser, Notification, Objective } from '@/data/api';
 import { CheckCircle2, Clock, Flame, Star, Trophy, Bell, Target, ShoppingBag, Heart } from 'lucide-react';
 import AvatarPreview from '@/components/AvatarPreview';
 import CoinBadge from '@/components/CoinBadge';
@@ -15,11 +16,28 @@ export default function UserHome({ onNavigate }: Props) {
   const { state: wallet } = useWallet();
   const { records, quickLog } = useEmotions();
   const { todayRoutine } = useRoutines();
+
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [objectives, setObjectives] = useState<Objective[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!user || user.role !== 'user') return;
+    Promise.all([
+      fetchActivitiesForUser(user.id).catch(() => []),
+      fetchNotificationsForUser(user.id).catch(() => []),
+      fetchObjectivesForUser(user.id).catch(() => []),
+    ]).then(([a, n, o]) => {
+      if (!mounted) return;
+      setActivities(a);
+      setNotifications(n.filter(x => !x.read));
+      setObjectives(o.filter(x => x.status === 'activo'));
+    });
+    return () => { mounted = false; };
+  }, [user]);
   if (!user || user.role !== 'user') return null;
 
-  const activities = getActivitiesForUser(user.id);
-  const notifications = getNotificationsForUser(user.id).filter(n => !n.read);
-  const objectives = getObjectivesForUser(user.id).filter(o => o.status === 'activo');
   const routine = todayRoutine?.items || [];
   const completedToday = routine.filter(r => r.completed).length;
   const totalRoutine = Math.max(routine.length, 1);

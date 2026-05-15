@@ -1,12 +1,24 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import { getNotificationsForUser, Notification } from '@/data/repo';
+import { fetchNotificationsForUser, Notification } from '@/data/api';
 import { Bell, Check } from 'lucide-react';
 
 export default function UserNotifications() {
   const { user } = useAuth();
-  const [notifs, setNotifs] = useState<Notification[]>(user ? getNotificationsForUser(user.id) : []);
+  const [notifs, setNotifs] = useState<Notification[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!user) return;
+    fetchNotificationsForUser(user.id).then((data) => {
+      if (mounted) setNotifs(data);
+    }).catch(() => {
+      if (mounted) setNotifs([]);
+    });
+    return () => { mounted = false; };
+  }, [user]);
+
   if (!user) return null;
 
   const markRead = (id: string) => setNotifs(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));

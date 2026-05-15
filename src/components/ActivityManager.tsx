@@ -3,7 +3,7 @@ import { Plus, Edit2, Copy, Trash2, Send, EyeOff, Sparkles, Users, Calendar } fr
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
-import { users } from '@/data/repo';
+import { users } from '@/data/api';
 import ActivityBuilder from './ActivityBuilder';
 
 export default function ActivityManager() {
