@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { findUser, User, Tutor, Professional, Admin } from '@/data/repo';
+import { findUser, User, Tutor, Professional, Admin } from '@/data/api';
 
 type AuthUser = User | Tutor | Professional | Admin;
 
 interface AuthContextType {
   user: AuthUser | null;
-  login: (username: string, password: string) => boolean;
+  login: (username: string, password: string) => Promise<boolean>;
   loginAs: (user: AuthUser) => void;
   logout: () => void;
   isAuthenticated: boolean;
@@ -16,8 +16,8 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
 
-  const login = (username: string, password: string): boolean => {
-    const found = findUser(username, password);
+  const login = async (username: string, password: string): Promise<boolean> => {
+    const found = await findUser(username, password);
     if (found) {
       setUser(found);
       return true;

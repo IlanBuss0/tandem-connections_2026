@@ -1,25 +1,15 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import {
-  conversations as seedConvs,
-  chatMessages as seedMsgs,
-  users,
-  tutors,
-  professionals,
+  fetchAllProfessionals,
+  fetchAllTutors,
+  fetchAllUsers,
+  fetchConversationsForUser,
+  fetchMessagesForConversation,
+  sendMessage,
   Conversation,
   ChatMessage,
-} from '@/data/repo';
-
-const KEY_C = 'tandem:chat:conversations:v1';
-const KEY_M = 'tandem:chat:messages:v1';
-
-function load<T>(k: string, fallback: T): T {
-  try { const raw = localStorage.getItem(k); if (raw) return JSON.parse(raw); } catch { /* noop */ }
-  return fallback;
-}
-function save<T>(k: string, v: T) {
-  try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* noop */ }
-}
+} from '@/data/api';
 
 export interface ContactPerson {
   id: string;
@@ -32,9 +22,10 @@ export interface ContactPerson {
 interface Ctx {
   conversations: Conversation[];
   messages: ChatMessage[];
+  loading: boolean;
   conversationsForUser: (uid: string) => Conversation[];
   messagesFor: (cid: string) => ChatMessage[];
-  send: (cid: string, text: string) => void;
+  send: (cid: string, text: string) => Promise<void>;
   markRead: (cid: string, uid: string) => void;
   ensureConversationWith: (selfId: string, otherId: string) => Conversation;
   allContacts: () => ContactPerson[];
@@ -42,56 +33,60 @@ interface Ctx {
 
 const ChatContext = createContext<Ctx | null>(null);
 
-function nowTime() {
-  return new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-}
-
-function getPersonById(id: string): ContactPerson | null {
-  const u = users.find(x => x.id === id);
-  if (u) return { id: u.id, name: u.name, avatar: u.avatar, role: 'user', subtitle: `Usuario · Nivel ${u.level}` };
-  const t = tutors.find(x => x.id === id);
-  if (t) return { id: t.id, name: t.name, avatar: t.avatar, role: 'tutor', subtitle: `Tutor/a · ${t.relation}` };
-  const p = professionals.find(x => x.id === id);
-  if (p) return { id: p.id, name: p.name, avatar: p.avatar, role: 'profesional', subtitle: p.specialty };
-  return null;
-}
-
 export function ChatProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const [conversations, setConversations] = useState<Conversation[]>(() => load(KEY_C, seedConvs));
-  const [messages, setMessages] = useState<ChatMessage[]>(() => load(KEY_M, seedMsgs));
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [contacts, setContacts] = useState<ContactPerson[]>([]);
 
-  useEffect(() => { save(KEY_C, conversations); }, [conversations]);
-  useEffect(() => { save(KEY_M, messages); }, [messages]);
+  useEffect(() => {
+    let mounted = true;
+    setLoading(true);
+    Promise.all([fetchAllUsers(), fetchAllTutors(), fetchAllProfessionals()])
+      .then(([users, tutors, pros]) => {
+        if (!mounted) return;
+        const list: ContactPerson[] = [
+          ...users.map(u => ({ id: u.id, name: u.name, avatar: u.avatar, role: 'user' as const, subtitle: `Usuario · Nivel ${u.level}` })),
+          ...tutors.map(t => ({ id: t.id, name: t.name, avatar: t.avatar, role: 'tutor' as const, subtitle: `Tutor/a · ${t.relation}` })),
+          ...pros.map(p => ({ id: p.id, name: p.name, avatar: p.avatar, role: 'profesional' as const, subtitle: p.specialty })),
+        ];
+        setContacts(list);
+      })
+      .catch(() => mounted && setContacts([]))
+      .finally(() => mounted && setLoading(false));
+    return () => { mounted = false; };
+  }, []);
 
-  const conversationsForUser = useCallback(
-    (uid: string) => conversations.filter(c => c.participants.includes(uid)),
-    [conversations]
-  );
+  useEffect(() => {
+    let mounted = true;
+    if (!user) return;
+    setLoading(true);
+    fetchConversationsForUser(user.id)
+      .then(async convs => {
+        if (!mounted) return;
+        setConversations(convs);
+        const byConv = await Promise.all(convs.map(async c => fetchMessagesForConversation(c.id).catch(() => [])));
+        if (!mounted) return;
+        setMessages(byConv.flat());
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setConversations([]);
+        setMessages([]);
+      })
+      .finally(() => mounted && setLoading(false));
+    return () => { mounted = false; };
+  }, [user]);
 
-  const messagesFor = useCallback(
-    (cid: string) => messages.filter(m => m.conversationId === cid),
-    [messages]
-  );
+  const conversationsForUser = useCallback((uid: string) => conversations.filter(c => c.participants.includes(uid)), [conversations]);
+  const messagesFor = useCallback((cid: string) => messages.filter(m => m.conversationId === cid), [messages]);
 
-  const send = useCallback((cid: string, text: string) => {
+  const send = useCallback(async (cid: string, text: string) => {
     if (!user || !text.trim()) return;
-    const msg: ChatMessage = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
-      conversationId: cid,
-      senderId: user.id,
-      senderName: user.name,
-      text: text.trim(),
-      timestamp: nowTime(),
-      read: true,
-      type: 'text',
-    };
-    setMessages(prev => [...prev, msg]);
-    setConversations(prev => prev.map(c =>
-      c.id === cid
-        ? { ...c, lastMessage: text.trim(), lastMessageTime: msg.timestamp, unreadCount: 0 }
-        : c
-    ));
+    const sent = await sendMessage(cid, user.id, user.name, text.trim());
+    setMessages(prev => [...prev, sent]);
+    setConversations(prev => prev.map(c => c.id === cid ? { ...c, lastMessage: sent.text, lastMessageTime: sent.timestamp, unreadCount: 0 } : c));
   }, [user]);
 
   const markRead = useCallback((cid: string, _uid: string) => {
@@ -100,42 +95,26 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const ensureConversationWith = useCallback((selfId: string, otherId: string): Conversation => {
-    const existing = conversations.find(c =>
-      c.participants.length === 2 &&
-      c.participants.includes(selfId) &&
-      c.participants.includes(otherId)
-    );
+    const existing = conversations.find(c => c.participants.length === 2 && c.participants.includes(selfId) && c.participants.includes(otherId));
     if (existing) return existing;
-
-    const self = getPersonById(selfId);
-    const other = getPersonById(otherId);
-    const type: Conversation['type'] = other?.role === 'profesional' ? 'profesional' : 'tutor';
+    const other = contacts.find(c => c.id === otherId);
     const conv: Conversation = {
-      id: `conv-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+      id: `local-${Date.now()}`,
       participants: [selfId, otherId],
-      participantNames: [self?.name || 'Yo', other?.name || 'Contacto'],
+      participantNames: ['Yo', other?.name || 'Contacto'],
       lastMessage: 'Conversación iniciada',
-      lastMessageTime: nowTime(),
+      lastMessageTime: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
       unreadCount: 0,
       avatar: other?.avatar || '💬',
-      type,
+      type: other?.role === 'profesional' ? 'profesional' : 'tutor',
     };
     setConversations(prev => [conv, ...prev]);
     return conv;
-  }, [conversations]);
+  }, [contacts, conversations]);
 
-  const allContacts = useCallback((): ContactPerson[] => {
-    const list: ContactPerson[] = [];
-    users.forEach(u => list.push({ id: u.id, name: u.name, avatar: u.avatar, role: 'user', subtitle: `Usuario · Nivel ${u.level}` }));
-    tutors.forEach(t => list.push({ id: t.id, name: t.name, avatar: t.avatar, role: 'tutor', subtitle: `Tutor/a · ${t.relation}` }));
-    professionals.forEach(p => list.push({ id: p.id, name: p.name, avatar: p.avatar, role: 'profesional', subtitle: p.specialty }));
-    return list;
-  }, []);
+  const allContacts = useCallback(() => contacts, [contacts]);
 
-  const value = useMemo<Ctx>(() => ({
-    conversations, messages, conversationsForUser, messagesFor, send, markRead, ensureConversationWith, allContacts,
-  }), [conversations, messages, conversationsForUser, messagesFor, send, markRead, ensureConversationWith, allContacts]);
-
+  const value = useMemo<Ctx>(() => ({ conversations, messages, loading, conversationsForUser, messagesFor, send, markRead, ensureConversationWith, allContacts }), [conversations, messages, loading, conversationsForUser, messagesFor, send, markRead, ensureConversationWith, allContacts]);
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
 }
 
@@ -144,5 +123,3 @@ export function useChat() {
   if (!ctx) throw new Error('useChat must be inside ChatProvider');
   return ctx;
 }
-
-export { getPersonById };
