@@ -20,6 +20,7 @@ export interface ContactPerson {
 }
 
 interface Ctx {
+  
   conversations: Conversation[];
   messages: ChatMessage[];
   loading: boolean;
@@ -29,6 +30,7 @@ interface Ctx {
   markRead: (cid: string, uid: string) => void;
   ensureConversationWith: (selfId: string, otherId: string) => Conversation;
   allContacts: () => ContactPerson[];
+  getPersonById: (id: string) => ContactPerson | undefined; //agregue esto
 }
 
 const ChatContext = createContext<Ctx | null>(null);
@@ -113,8 +115,33 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [contacts, conversations]);
 
   const allContacts = useCallback(() => contacts, [contacts]);
-
-  const value = useMemo<Ctx>(() => ({ conversations, messages, loading, conversationsForUser, messagesFor, send, markRead, ensureConversationWith, allContacts }), [conversations, messages, loading, conversationsForUser, messagesFor, send, markRead, ensureConversationWith, allContacts]);
+  const getPersonById = useCallback( //agregue esto
+  (id: string) => contacts.find(c => c.id === id),
+  [contacts]
+);
+const value = useMemo<Ctx>(() => ({ //agregue esto
+  conversations,
+  messages,
+  loading,
+  conversationsForUser,
+  messagesFor,
+  send,
+  markRead,
+  ensureConversationWith,
+  allContacts,
+  getPersonById
+}), [
+  conversations,
+  messages,
+  loading,
+  conversationsForUser,
+  messagesFor,
+  send,
+  markRead,
+  ensureConversationWith,
+  allContacts,
+  getPersonById
+]);
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
 }
 
