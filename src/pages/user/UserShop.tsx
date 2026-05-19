@@ -6,7 +6,7 @@ import AvatarPreview from '@/components/AvatarPreview';
 import CoinBadge from '@/components/CoinBadge';
 import { Button } from '@/components/ui/button';
 import { Check, Coins, Lock, Sparkles, ShoppingBag, Backpack } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { toast } from '@/hooks/ui/use-toast';
 
 const TABS: Array<{ id: 'tienda' | 'inventario' | 'avatar'; label: string; icon: any }> = [
   { id: 'avatar', label: 'Mi avatar', icon: Sparkles },
