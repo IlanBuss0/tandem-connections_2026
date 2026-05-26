@@ -1,4 +1,6 @@
 import * as legacy from './mockData';
+import { tandemApi } from '@/services/api';
+import type { Actividad as DbActividad, Notificacion as DbNotificacion, Usuario } from '@/types/database';
 
 export type UserRole = legacy.UserRole;
 export type User = legacy.User;
@@ -22,13 +24,11 @@ export type Pictogram = legacy.Pictogram;
 export type Resource = legacy.Resource;
 export type PricingPlan = legacy.PricingPlan;
 
-const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3000';
-
 async function apiFetchWithFallback<T>(paths: string[], init?: RequestInit): Promise<T> {
   let last: unknown = null;
   for (const p of paths) {
     try {
-      const res = await fetch(`${API_BASE}${p}`, {
+      const res = await fetch(`${((import.meta as any).env?.VITE_BACKEND_URL || (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/$/, '')}${p}`, {
         headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
         ...init,
       });
@@ -36,7 +36,8 @@ async function apiFetchWithFallback<T>(paths: string[], init?: RequestInit): Pro
         last = new Error(`HTTP ${res.status} on ${p}`);
         continue;
       }
-      return (await res.json()) as T;
+      const payload = await res.json();
+      return (payload && typeof payload === 'object' && 'ok' in payload && 'data' in payload ? payload.data : payload) as T;
     } catch (e) {
       last = e;
     }
@@ -44,22 +45,138 @@ async function apiFetchWithFallback<T>(paths: string[], init?: RequestInit): Pro
   throw last instanceof Error ? last : new Error('Request failed');
 }
 
+function backendRoleToLegacyRole(idTipoUsuario?: number): UserRole {
+  switch (idTipoUsuario) {
+    case 2:
+      return 'tutor';
+    case 3:
+      return 'professional';
+    case 4:
+      return 'admin';
+    case 1:
+    default:
+      return 'user';
+  }
+}
+
+function toLegacyUser(user: Partial<Usuario>): User | Tutor | Professional | Admin {
+  const role = backendRoleToLegacyRole(user.id_tipo_usuario);
+  const base = {
+    id: String(user.id ?? ''),
+    username: user.nombre_usuario ?? user.correo ?? '',
+    password: '',
+    name: [user.nombre, user.apellido].filter(Boolean).join(' ') || user.nombre_usuario || user.correo || 'Usuario',
+    email: user.correo ?? '',
+    avatar: '🙂',
+  };
+
+  if (role === 'admin') {
+    return { ...base, role, clearance: 'superadmin' } as Admin;
+  }
+
+  if (role === 'tutor') {
+    return { ...base, role, relation: '', linkedUserIds: [], phone: user.telefono ? String(user.telefono) : '' } as Tutor;
+  }
+
+  if (role === 'professional') {
+    return {
+      ...base,
+      role,
+      specialty: '',
+      description: '',
+      modality: '',
+      availability: '',
+      linkedUserIds: [],
+      phone: user.telefono ? String(user.telefono) : '',
+    } as Professional;
+  }
+
+  return {
+    ...base,
+    role,
+    points: 0,
+    streak: 0,
+    level: 1,
+    plan: 'free',
+    onboarded: true,
+  } as User;
+}
+
+function toLegacyActivity(activity: DbActividad, userId?: string): Activity {
+  const typeById: Record<number, ActivityType> = {
+    1: 'guiada',
+    2: 'juego',
+    3: 'regulaciÃ³n',
+    4: 'decisiÃ³n',
+    5: 'guiada',
+  };
+
+  return {
+    id: String(activity.id),
+    title: activity.titulo,
+    category: 'autonomÃ­a personal',
+    objective: activity.descripcion || activity.titulo,
+    description: activity.descripcion || activity.titulo,
+    difficulty: 'medio',
+    duration: '10 min',
+    steps: [activity.descripcion || activity.titulo],
+    stepIcons: ['1'],
+    status: 'pendiente',
+    recommendedBy: 'app',
+    progress: 0,
+    assignedTo: userId,
+    points: activity.id_punto_otorgado ? activity.id_punto_otorgado * 10 : 10,
+    type: typeById[activity.id_tipo_actividad] || 'guiada',
+    completionMessage: 'Actividad completada.',
+  };
+}
+
+function toLegacyNotification(notification: DbNotificacion): Notification {
+  return {
+    id: String(notification.id),
+    userId: String(notification.id_usuario_destino),
+    title: notification.titulo,
+    message: notification.cuerpo || '',
+    type: 'reminder',
+    icon: '!',
+    read: notification.leida,
+    timestamp: notification.fecha_creacion,
+  } as Notification;
+}
+
 export async function findUser(username: string, password: string): Promise<User | Tutor | Professional | Admin | null> {
   try {
-    return await apiFetchWithFallback<User | Tutor | Professional | Admin | null>(['/auth/login', '/login'], {
-      method: 'POST',
-      body: JSON.stringify({ username, password }),
+    const auth = await tandemApi.auth.login({
+      nombre_usuario: username,
+      correo: username.includes('@') ? username : undefined,
+      contrasena: password,
     });
+
+    localStorage.setItem('tandem_auth_token', auth.token);
+    return toLegacyUser(auth.user);
   } catch {
     return null;
   }
 }
 
 export async function fetchActivitiesForUser(userId: string): Promise<Activity[]> {
-  return apiFetchWithFallback<Activity[]>([`/activities?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/activities`]);
+  try {
+    const rows = await tandemApi.actividades.getAll();
+    return rows.map((row) => toLegacyActivity(row, userId));
+  } catch {
+    return apiFetchWithFallback<Activity[]>([`/activities?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/activities`]);
+  }
 }
 export async function fetchNotificationsForUser(userId: string): Promise<Notification[]> {
-  return apiFetchWithFallback<Notification[]>([`/notifications?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/notifications`]);
+  try {
+    const numericUserId = Number(userId);
+    const rows = await tandemApi.notificaciones.getAll();
+    return rows
+      .filter((row) => Number.isNaN(numericUserId) || row.id_usuario_destino === numericUserId)
+      .map(toLegacyNotification);
+  } catch {
+    return apiFetchWithFallback<Notification[]>([`/notifications?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/notifications`]);
+  }
 }
 export async function fetchObjectivesForUser(userId: string): Promise<Objective[]> {
   return apiFetchWithFallback<Objective[]>([`/objectives?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/objectives`]);
@@ -106,9 +223,43 @@ export async function sendMessage(conversationId: string, senderId: string, send
     method: 'POST', body: JSON.stringify({ senderId, senderName, text, type: 'text' }),
   });
 }
-export async function fetchAllUsers(): Promise<User[]> { return apiFetchWithFallback<User[]>(['/users']); }
-export async function fetchAllTutors(): Promise<Tutor[]> { return apiFetchWithFallback<Tutor[]>(['/tutors']); }
-export async function fetchAllProfessionals(): Promise<Professional[]> { return apiFetchWithFallback<Professional[]>(['/professionals']); }
+export async function fetchAllUsers(): Promise<User[]> {
+  const usuarios = await tandemApi.usuarios.getAll();
+  return usuarios.map(toLegacyUser).filter((user): user is User => user.role === 'user');
+}
+export async function fetchAllTutors(): Promise<Tutor[]> {
+  const [usuarios, tutoresBackend] = await Promise.all([
+    tandemApi.usuarios.getAll(),
+    tandemApi.tutores.getAll(),
+  ]);
+  const usuarioById = new Map(usuarios.map((user) => [user.id, user]));
+
+  return tutoresBackend.map((tutor) => {
+    const legacyUser = toLegacyUser(usuarioById.get(tutor.id_usuario) || { id: tutor.id_usuario, id_tipo_usuario: 2 });
+    return {
+      ...(legacyUser as Tutor),
+      id: String(tutor.id),
+      relation: tutor.parentesco || '',
+    };
+  });
+}
+export async function fetchAllProfessionals(): Promise<Professional[]> {
+  const [usuarios, profesionalesBackend] = await Promise.all([
+    tandemApi.usuarios.getAll(),
+    tandemApi.profesionales.getAll(),
+  ]);
+  const usuarioById = new Map(usuarios.map((user) => [user.id, user]));
+
+  return profesionalesBackend.map((professional) => {
+    const legacyUser = toLegacyUser(usuarioById.get(professional.id_usuario) || { id: professional.id_usuario, id_tipo_usuario: 3 });
+    return {
+      ...(legacyUser as Professional),
+      id: String(professional.id),
+      specialty: professional.especialidad || professional.profesion || '',
+      description: professional.institucion || '',
+    };
+  });
+}
 
 
 export async function fetchAchievementsForUser(userId: string): Promise<Achievement[]> {
