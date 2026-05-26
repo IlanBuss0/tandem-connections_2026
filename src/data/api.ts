@@ -1,8 +1,5 @@
 import * as legacy from './mockData';
 import { tandemApi } from '@/services/api';
-<<<<<<< HEAD
-import type { Actividad as DbActividad, ConfiguracionUsuario, Notificacion as DbNotificacion, Usuario } from '@/types/database';
-=======
 import type {
   Actividad as DbActividad,
   ActividadAsignada as DbActividadAsignada,
@@ -15,8 +12,8 @@ import type {
   Perteneciente as DbPerteneciente,
   SaldoPuntos as DbSaldoPuntos,
   Usuario,
+  ConfiguracionUsuario,
 } from '@/types/database';
->>>>>>> 211aeeee75722da831bd3972b25d6baa3ec507c6
 
 export type UserRole = legacy.UserRole;
 export type User = legacy.User;
@@ -172,7 +169,6 @@ function toLegacyNotification(notification: DbNotificacion): Notification {
   } as Notification;
 }
 
-<<<<<<< HEAD
 function isBackendUserId(userId: string): boolean {
   return Number.isInteger(Number(userId));
 }
@@ -298,7 +294,8 @@ async function fetchBackendAchievementDashboard(userId: string): Promise<Achieve
       avatarExperience: experience,
     },
   };
-=======
+}
+
 function isCompletedStatus(status?: DbEstadoActividad, assigned?: DbActividadAsignada) {
   const name = (status?.nombre || '').toLowerCase();
   return Boolean(assigned?.fecha_completada || name.includes('complet') || name.includes('finaliz'));
@@ -309,7 +306,6 @@ function formatBackendDate(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short' }).format(date);
->>>>>>> 211aeeee75722da831bd3972b25d6baa3ec507c6
 }
 
 export async function findUser(username: string, password: string): Promise<User | Tutor | Professional | Admin | null> {
