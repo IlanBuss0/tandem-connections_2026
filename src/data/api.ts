@@ -334,11 +334,61 @@ export async function deleteEmotionRecord(recordId: string): Promise<void> {
 }
 
 export interface DayRoutine { id: string; name: string; dayOfWeek: number | null; items: RoutineItem[] }
+const ROUTINES_CONFIG_KEY = 'routines.mi-dia';
+
+function normalizeRoutinesPayload(payload: unknown): DayRoutine[] {
+  if (!Array.isArray(payload)) return [];
+  return payload.map((routine, index) => {
+    const r = routine as Partial<DayRoutine>;
+    return {
+      id: String(r.id || `dr-${Date.now()}-${index}`),
+      name: String(r.name || 'Mi dÃ­a'),
+      dayOfWeek: typeof r.dayOfWeek === 'number' ? r.dayOfWeek : null,
+      items: Array.isArray(r.items)
+        ? r.items.map((item, itemIndex) => {
+            const it = item as Partial<RoutineItem>;
+            return {
+              id: String(it.id || `i-${Date.now()}-${index}-${itemIndex}`),
+              time: String(it.time || '08:00'),
+              title: String(it.title || ''),
+              icon: String(it.icon || 'â­'),
+              completed: Boolean(it.completed),
+              category: String(it.category || 'maÃ±ana'),
+            };
+          })
+        : [],
+    };
+  });
+}
+
 export async function fetchRoutinesForUser(userId: string): Promise<DayRoutine[]> {
-  return apiFetchWithFallback<DayRoutine[]>([`/routines?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/routines`]);
+  try {
+    const numericUserId = Number(userId);
+    const rows = await tandemApi.configuracionesUsuarios.getAll();
+    const config = rows.find(row => row.id_usuario === numericUserId && row.clave === ROUTINES_CONFIG_KEY);
+    if (!config?.valor) return [];
+    return normalizeRoutinesPayload(JSON.parse(config.valor));
+  } catch {
+    return apiFetchWithFallback<DayRoutine[]>([`/routines?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/routines`]);
+  }
 }
 export async function saveRoutinesForUser(userId: string, routines: DayRoutine[]): Promise<DayRoutine[]> {
-  return apiFetchWithFallback<DayRoutine[]>([`/routines/bulk`, `/users/${encodeURIComponent(userId)}/routines`], { method: 'PUT', body: JSON.stringify({ userId, routines }) });
+  try {
+    const numericUserId = Number(userId);
+    const payload = {
+      id_usuario: numericUserId,
+      clave: ROUTINES_CONFIG_KEY,
+      valor: JSON.stringify(routines),
+      fecha_modificacion: new Date().toISOString(),
+    };
+    const rows = await tandemApi.configuracionesUsuarios.getAll();
+    const config = rows.find(row => row.id_usuario === numericUserId && row.clave === ROUTINES_CONFIG_KEY);
+    if (config?.id) await tandemApi.configuracionesUsuarios.update(config.id, payload);
+    else await tandemApi.configuracionesUsuarios.create(payload);
+    return routines;
+  } catch {
+    return apiFetchWithFallback<DayRoutine[]>([`/routines/bulk`, `/users/${encodeURIComponent(userId)}/routines`], { method: 'PUT', body: JSON.stringify({ userId, routines }) });
+  }
 }
 
 export async function fetchConversationsForUser(userId: string): Promise<Conversation[]> {

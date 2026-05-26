@@ -36,20 +36,34 @@ export function RoutinesProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [routines, setRoutines] = useState<DayRoutine[]>([]);
   const [selectedRoutineId, setSelectedRoutineId] = useState<string | null>(null);
+  const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
-    if (!user) return;
+    if (!user) {
+      setRoutines([]);
+      setLoadedUserId(null);
+      return;
+    }
+    setLoadedUserId(null);
     fetchRoutinesForUser(user.id)
-      .then(rows => { if (mounted) setRoutines(rows as DayRoutine[]); })
-      .catch(() => { if (mounted) setRoutines([]); });
+      .then(rows => {
+        if (!mounted) return;
+        setRoutines(rows as DayRoutine[]);
+        setLoadedUserId(user.id);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setRoutines([]);
+        setLoadedUserId(user.id);
+      });
     return () => { mounted = false; };
   }, [user]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || loadedUserId !== user.id) return;
     saveRoutinesForUser(user.id, routines as ApiDayRoutine[]).catch(() => undefined);
-  }, [routines, user]);
+  }, [routines, user, loadedUserId]);
 
   const todayDow = new Date().getDay() as DayKey;
   const todayRoutine = useMemo(() => {
