@@ -1,127 +1,239 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
-import { fetchPricingPlans, fetchProfessionalById, fetchTutorById, PricingPlan, Professional, Tutor } from '@/data/api';
-import { Crown, Check } from 'lucide-react';
+import { fetchUserProfileDashboard, type ProfileSupportPerson, type UserProfileDashboard } from '@/data/api';
+import { AlertCircle, Check, Crown, Loader2, Mail, Phone, RefreshCw, ShieldCheck, Sparkles, Star, UserRound, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AvatarPreview from '@/components/AvatarPreview';
 import CoinBadge from '@/components/CoinBadge';
 
+function InfoItem({ label, value }: { label: string; value: string | number | boolean }) {
+  return (
+    <div className="rounded-lg border border-border bg-background p-3">
+      <p className="text-[11px] font-medium uppercase tracking-normal text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-foreground">{String(value)}</p>
+    </div>
+  );
+}
+
+function SupportCard({ person }: { person: ProfileSupportPerson }) {
+  const isTutor = person.role === 'tutor';
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <div className="flex items-start gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          {isTutor ? <Users size={22} /> : <ShieldCheck size={22} />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-semibold text-sm text-foreground">{person.name}</p>
+            {person.isPrimary && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                Principal
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">{person.detail}</p>
+          <p className="mt-1 text-[11px] font-medium text-primary">{person.status}</p>
+          <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+            {person.email && (
+              <p className="flex items-center gap-2">
+                <Mail size={13} />
+                {person.email}
+              </p>
+            )}
+            {person.phone && (
+              <p className="flex items-center gap-2">
+                <Phone size={13} />
+                {person.phone}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function UserProfile() {
   const { user } = useAuth();
   const { state: wallet } = useWallet();
-  if (!user || user.role !== 'user') return null;
+  const [profile, setProfile] = useState<UserProfileDashboard | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const [tutor, setTutor] = useState<Tutor | null>(null);
-  const [professional, setProfessional] = useState<Professional | null>(null);
-  const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>([]);
+  const load = async () => {
+    if (!user || user.role !== 'user') return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      setProfile(await fetchUserProfileDashboard(user.id));
+    } catch {
+      setProfile(null);
+      setError('No se pudo cargar el perfil.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    let mounted = true;
-    if (!user) return;
-    Promise.all([
-      user.linkedTutorIds?.[0] ? fetchTutorById(user.linkedTutorIds[0]) : Promise.resolve(null),
-      user.linkedProfessionalIds?.[0] ? fetchProfessionalById(user.linkedProfessionalIds[0]) : Promise.resolve(null),
-      fetchPricingPlans().catch(() => []),
-    ]).then(([t, p, plans]) => {
-      if (!mounted) return;
-      setTutor(t);
-      setProfessional(p);
-      setPricingPlans(plans);
-    });
-    return () => { mounted = false; };
+    load();
   }, [user]);
 
+  if (!user || user.role !== 'user') return null;
+
+  const fullName = profile?.usuario
+    ? [profile.usuario.nombre, profile.usuario.apellido].filter(Boolean).join(' ')
+    : user.name;
+  const username = profile?.usuario?.nombre_usuario || user.username;
+  const email = profile?.usuario?.correo || user.email;
+  const birthDate = profile?.usuario?.fecha_nacimiento
+    ? new Date(profile.usuario.fecha_nacimiento).toLocaleDateString('es-AR')
+    : 'Sin registrar';
+  const joinedAt = profile?.usuario?.fecha_ingreso
+    ? new Date(profile.usuario.fecha_ingreso).toLocaleDateString('es-AR')
+    : 'Sin registrar';
+  const allSupport = [...(profile?.tutors || []), ...(profile?.professionals || [])];
+
   return (
-    <div className="space-y-6 pb-20 lg:pb-6">
-      <div>
-        <h2 className="text-2xl font-heading font-bold text-foreground">Mi perfil</h2>
-      </div>
-
-      {/* Avatar & info */}
-      <div className="bg-card rounded-xl p-5 sm:p-6 border border-border shadow-sm flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left">
-        <AvatarPreview equipped={wallet.equipped} size={140} />
-        <div className="flex-1 min-w-0">
-          <h3 className="text-xl font-heading font-bold text-foreground">{user.name}</h3>
-          <p className="text-sm text-muted-foreground">@{user.username}</p>
-          {user.bio && <p className="text-sm text-muted-foreground mt-2">{user.bio}</p>}
-          <div className="flex flex-wrap justify-center sm:justify-start gap-4 mt-4">
-            <div className="text-center">
-              <p className="font-bold text-foreground">{user.level}</p>
-              <p className="text-xs text-muted-foreground">Nivel</p>
-            </div>
-            <div className="text-center">
-              <p className="font-bold text-foreground">{user.points}</p>
-              <p className="text-xs text-muted-foreground">Puntos</p>
-            </div>
-            <div className="text-center">
-              <p className="font-bold text-foreground">{user.streak}</p>
-              <p className="text-xs text-muted-foreground">Racha</p>
-            </div>
-            <CoinBadge size="md" />
-          </div>
-          {user.plan === 'premium' && (
-            <div className="mt-3 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
-              <Crown size={12} /> Premium
-            </div>
-          )}
+    <div className="space-y-5 pb-20 lg:pb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-heading font-bold text-foreground">Mi perfil</h2>
+          <p className="text-muted-foreground text-sm">Datos personales, apoyo y progreso.</p>
         </div>
+        <Button variant="outline" size="sm" onClick={load} disabled={loading} className="w-fit gap-2">
+          {loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+          Actualizar
+        </Button>
       </div>
 
-      {/* Linked people */}
-      <div className="space-y-3">
-        <h3 className="font-heading font-semibold text-foreground">Mi red de apoyo</h3>
-        {tutor && (
-          <div className="bg-card rounded-xl p-4 border border-border flex items-center gap-3">
-            <span className="text-3xl">{tutor.avatar}</span>
-            <div>
-              <p className="font-semibold text-sm text-foreground">{tutor.name}</p>
-              <p className="text-xs text-muted-foreground">{tutor.relation}</p>
-              <p className="text-xs text-primary">{tutor.phone}</p>
-            </div>
-          </div>
-        )}
-        {professional && (
-          <div className="bg-card rounded-xl p-4 border border-border flex items-center gap-3">
-            <span className="text-3xl">{professional.avatar}</span>
-            <div>
-              <p className="font-semibold text-sm text-foreground">{professional.name}</p>
-              <p className="text-xs text-muted-foreground">{professional.specialty}</p>
-              <p className="text-xs text-primary">{professional.modality}</p>
-            </div>
-          </div>
-        )}
-      </div>
+      {error && (
+        <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <AlertCircle size={16} />
+          {error}
+        </div>
+      )}
 
-      {/* Plan */}
-      <div>
-        <h3 className="font-heading font-semibold text-foreground mb-3">Plan actual</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {pricingPlans.map(plan => (
-            <div key={plan.id} className={`rounded-xl p-5 border ${plan.highlighted ? 'gradient-primary text-primary-foreground border-transparent relative' : 'bg-card border-border'}`}>
-              {plan.badge && (
-                <span className="absolute -top-2 right-4 px-2 py-0.5 rounded-full bg-amber-400 text-amber-900 text-[10px] font-bold">{plan.badge}</span>
-              )}
-              <h4 className="font-heading font-bold text-lg">{plan.name}</h4>
-              <p className="text-2xl font-bold mt-1">{plan.price}<span className="text-sm font-normal opacity-70"> {plan.period}</span></p>
+      {loading && !profile && (
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
+          <Loader2 size={16} className="animate-spin" />
+          Cargando perfil...
+        </div>
+      )}
+
+      <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+        <div className="flex flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
+          <AvatarPreview equipped={wallet.equipped} size={136} />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-xl font-heading font-bold text-foreground">{fullName}</h3>
+                <p className="text-sm text-muted-foreground">@{username}</p>
+              </div>
+              <div className="flex justify-center sm:justify-end">
+                <CoinBadge size="md" />
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <InfoItem label="Nivel" value={profile?.level ?? user.level} />
+              <InfoItem label="Puntos" value={profile?.points ?? user.points} />
+              <InfoItem label="Experiencia" value={profile?.experience ?? 0} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <InfoItem label="Correo" value={email} />
+        <InfoItem label="Telefono" value={profile?.usuario?.telefono ? String(profile.usuario.telefono) : 'Sin registrar'} />
+        <InfoItem label="Nacimiento" value={birthDate} />
+        <InfoItem label="Ingreso" value={joinedAt} />
+      </section>
+
+      <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
+        <h3 className="mb-3 flex items-center gap-2 font-heading font-semibold text-foreground">
+          <UserRound size={16} className="text-primary" />
+          Perfil de autonomia
+        </h3>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <InfoItem label="Nivel de apoyo" value={profile?.supportLevel || 'Sin registrar'} />
+          <InfoItem label="Autonomia" value={profile?.autonomy || 'Sin registrar'} />
+          <InfoItem label="Autogestion" value={profile?.canSelfManage ? 'Habilitada' : 'Asistida'} />
+        </div>
+        {profile?.observation && (
+          <div className="mt-3 rounded-lg bg-muted/40 p-3">
+            <p className="text-[11px] font-medium uppercase tracking-normal text-muted-foreground">Observacion</p>
+            <p className="mt-1 text-sm text-foreground">{profile.observation}</p>
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h3 className="mb-3 flex items-center gap-2 font-heading font-semibold text-foreground">
+          <Users size={16} className="text-primary" />
+          Mi red de apoyo
+        </h3>
+        {allSupport.length ? (
+          <div className="grid gap-3 md:grid-cols-2">
+            {allSupport.map((person) => (
+              <SupportCard key={`${person.role}-${person.id}`} person={person} />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground">
+            No hay vinculos de apoyo registrados.
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h3 className="mb-3 flex items-center gap-2 font-heading font-semibold text-foreground">
+          <Crown size={16} className="text-amber-500" />
+          Planes disponibles
+        </h3>
+        <div className="grid gap-4 md:grid-cols-2">
+          {(profile?.plans || []).map((plan) => (
+            <div
+              key={plan.id}
+              className={`rounded-lg border p-5 ${
+                plan.highlighted ? 'border-primary bg-primary/10' : 'border-border bg-card'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h4 className="font-heading text-lg font-bold text-foreground">{plan.name}</h4>
+                  <p className="mt-1 text-2xl font-bold text-foreground">
+                    {plan.price}
+                    <span className="text-sm font-normal text-muted-foreground"> {plan.period}</span>
+                  </p>
+                </div>
+                {plan.badge && (
+                  <span className="rounded-full bg-muted px-2 py-1 text-[10px] font-semibold text-muted-foreground">
+                    {plan.badge}
+                  </span>
+                )}
+              </div>
               <ul className="mt-4 space-y-2">
-                {plan.features.map(f => (
-                  <li key={f} className="flex items-center gap-2 text-xs">
-                    <Check size={14} className="shrink-0" /> {f}
+                {plan.features.map((feature) => (
+                  <li key={feature} className="flex items-start gap-2 text-xs text-muted-foreground">
+                    <Check size={14} className="mt-0.5 shrink-0 text-primary" />
+                    {feature}
                   </li>
                 ))}
               </ul>
-              {plan.highlighted && user.plan === 'premium' ? (
-                <p className="mt-4 text-xs font-medium opacity-80">✓ Tu plan actual</p>
-              ) : plan.highlighted ? (
-                <Button size="sm" variant="outline" className="mt-4 w-full border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10">
-                  Probar gratis 1 mes
-                </Button>
-              ) : null}
             </div>
           ))}
+          {profile && profile.plans.length === 0 && (
+            <div className="rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground md:col-span-2">
+              No hay planes cargados.
+            </div>
+          )}
         </div>
-      </div>
+      </section>
     </div>
   );
 }

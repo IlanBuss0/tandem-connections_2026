@@ -1,22 +1,25 @@
 import * as legacy from './mockData';
 import { tandemApi } from '@/services/api';
-<<<<<<< HEAD
-import type { Actividad as DbActividad, ConfiguracionUsuario, Notificacion as DbNotificacion, Usuario } from '@/types/database';
-=======
 import type {
   Actividad as DbActividad,
   ActividadAsignada as DbActividadAsignada,
   ActividadPersonalizada as DbActividadPersonalizada,
   AutonomiaOperativa as DbAutonomiaOperativa,
   Avatar as DbAvatar,
+  ConfiguracionUsuario,
   EstadoActividad as DbEstadoActividad,
+  EstadoVinculo as DbEstadoVinculo,
   NivelApoyo as DbNivelApoyo,
   Notificacion as DbNotificacion,
   Perteneciente as DbPerteneciente,
+  PlanSuscripcion as DbPlanSuscripcion,
+  Profesional as DbProfesional,
   SaldoPuntos as DbSaldoPuntos,
+  Tutor as DbTutor,
   Usuario,
+  VinculoProfesionalPerteneciente as DbVinculoProfesionalPerteneciente,
+  VinculoTutorPerteneciente as DbVinculoTutorPerteneciente,
 } from '@/types/database';
->>>>>>> 211aeeee75722da831bd3972b25d6baa3ec507c6
 
 export type UserRole = legacy.UserRole;
 export type User = legacy.User;
@@ -172,9 +175,35 @@ function toLegacyNotification(notification: DbNotificacion): Notification {
   } as Notification;
 }
 
-<<<<<<< HEAD
 function isBackendUserId(userId: string): boolean {
   return Number.isInteger(Number(userId));
+}
+
+export interface ProfileSupportPerson {
+  id: string;
+  name: string;
+  username: string;
+  email: string;
+  phone: string;
+  role: 'tutor' | 'professional';
+  detail: string;
+  status: string;
+  isPrimary?: boolean;
+}
+
+export interface UserProfileDashboard {
+  usuario: Omit<Usuario, 'contrasena_hash'> | null;
+  perteneciente: DbPerteneciente | null;
+  supportLevel: string;
+  autonomy: string;
+  canSelfManage: boolean;
+  observation: string;
+  points: number;
+  level: number;
+  experience: number;
+  tutors: ProfileSupportPerson[];
+  professionals: ProfileSupportPerson[];
+  plans: PricingPlan[];
 }
 
 function parseEmotionConfig(config: ConfiguracionUsuario): EmotionalRecord | null {
@@ -234,6 +263,18 @@ function buildAchievement(
     points,
     requirement: unlocked ? `${target}/${target}` : `${Math.min(progress, target)}/${target} · ${requirement}`,
   };
+}
+
+function isCompletedStatus(status?: DbEstadoActividad, assigned?: DbActividadAsignada) {
+  const name = (status?.nombre || '').toLowerCase();
+  return Boolean(assigned?.fecha_completada || name.includes('complet') || name.includes('finaliz'));
+}
+
+function formatBackendDate(value?: string | null) {
+  if (!value) return 'Sin fecha';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short' }).format(date);
 }
 
 async function fetchBackendAchievementDashboard(userId: string): Promise<AchievementDashboard> {
@@ -298,18 +339,135 @@ async function fetchBackendAchievementDashboard(userId: string): Promise<Achieve
       avatarExperience: experience,
     },
   };
-=======
-function isCompletedStatus(status?: DbEstadoActividad, assigned?: DbActividadAsignada) {
-  const name = (status?.nombre || '').toLowerCase();
-  return Boolean(assigned?.fecha_completada || name.includes('complet') || name.includes('finaliz'));
 }
 
-function formatBackendDate(value?: string | null) {
-  if (!value) return 'Sin fecha';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short' }).format(date);
->>>>>>> 211aeeee75722da831bd3972b25d6baa3ec507c6
+function toPricingPlan(plan: DbPlanSuscripcion): PricingPlan {
+  const monthly = plan.precio_mensual == null ? '$0' : `$${Number(plan.precio_mensual).toLocaleString('es-AR')}`;
+  const features = [
+    plan.descripcion || 'Funciones principales de TANDEM',
+    plan.precio_anual ? `Precio anual: $${Number(plan.precio_anual).toLocaleString('es-AR')}` : 'Sin precio anual registrado',
+    plan.activo ? 'Disponible' : 'No disponible',
+  ];
+
+  return {
+    id: String(plan.id),
+    name: plan.nombre_plan,
+    price: monthly,
+    period: '/mes',
+    features,
+    highlighted: Boolean(plan.activo && Number(plan.precio_mensual || 0) > 0),
+    badge: plan.activo ? undefined : 'Inactivo',
+  };
+}
+
+async function fetchBackendUserProfileDashboard(userId: string): Promise<UserProfileDashboard> {
+  const idUsuario = Number(userId);
+  const [
+    usuarios,
+    pertenecientes,
+    nivelesApoyo,
+    autonomias,
+    saldos,
+    avatares,
+    vinculosTutor,
+    vinculosProfesional,
+    tutores,
+    profesionales,
+    estadosVinculos,
+    planes,
+  ] = await Promise.all([
+    tandemApi.usuarios.getAll(),
+    tandemApi.pertenecientes.getAll(),
+    tandemApi.nivelesApoyos.getAll(),
+    tandemApi.autonomiasOperativas.getAll(),
+    tandemApi.saldosPuntos.getAll(),
+    tandemApi.avatares.getAll(),
+    tandemApi.vinculosTutorPertenecientes.getAll(),
+    tandemApi.vinculosProfesionalesPertenecientes.getAll(),
+    tandemApi.tutores.getAll(),
+    tandemApi.profesionales.getAll(),
+    tandemApi.estadosVinculos.getAll(),
+    tandemApi.planesSuscripciones.getAll(),
+  ]);
+
+  const usuario = usuarios.find((item) => Number(item.id) === idUsuario) || null;
+  const perteneciente = (pertenecientes as DbPerteneciente[]).find((item) => Number(item.id_usuario) === idUsuario) || null;
+
+  if (!perteneciente) {
+    return {
+      usuario: usuario ? ({ ...usuario, contrasena_hash: undefined } as Omit<Usuario, 'contrasena_hash'>) : null,
+      perteneciente: null,
+      supportLevel: 'Sin registrar',
+      autonomy: 'Sin registrar',
+      canSelfManage: false,
+      observation: '',
+      points: 0,
+      level: 1,
+      experience: 0,
+      tutors: [],
+      professionals: [],
+      plans: (planes as DbPlanSuscripcion[]).map(toPricingPlan),
+    };
+  }
+
+  const usersById = new Map((usuarios as Usuario[]).map((item) => [Number(item.id), item]));
+  const tutorById = new Map((tutores as DbTutor[]).map((item) => [Number(item.id), item]));
+  const professionalById = new Map((profesionales as DbProfesional[]).map((item) => [Number(item.id), item]));
+  const statusById = new Map((estadosVinculos as DbEstadoVinculo[]).map((item) => [Number(item.id), item.nombre]));
+  const supportLevel = (nivelesApoyo as DbNivelApoyo[]).find((item) => Number(item.id) === Number(perteneciente.id_nivel_apoyo));
+  const autonomy = (autonomias as DbAutonomiaOperativa[]).find((item) => Number(item.id) === Number(perteneciente.id_autonomia_operativa));
+  const saldo = (saldos as DbSaldoPuntos[]).find((item) => Number(item.id_perteneciente) === Number(perteneciente.id));
+  const avatar = (avatares as DbAvatar[]).find((item) => Number(item.id_perteneciente) === Number(perteneciente.id));
+
+  const linkedTutors = (vinculosTutor as DbVinculoTutorPerteneciente[])
+    .filter((link) => Number(link.id_perteneciente) === Number(perteneciente.id))
+    .map((link) => {
+      const tutor = tutorById.get(Number(link.id_tutor));
+      const tutorUser = tutor ? usersById.get(Number(tutor.id_usuario)) : undefined;
+      return {
+        id: String(tutor?.id || link.id_tutor),
+        name: tutorUser ? [tutorUser.nombre, tutorUser.apellido].filter(Boolean).join(' ') : `Tutor #${link.id_tutor}`,
+        username: tutorUser?.nombre_usuario || '',
+        email: tutorUser?.correo || '',
+        phone: tutorUser?.telefono ? String(tutorUser.telefono) : '',
+        role: 'tutor' as const,
+        detail: tutor?.parentesco || 'Tutor',
+        status: statusById.get(Number(link.id_estado_vinculo)) || 'Sin estado',
+        isPrimary: Boolean(link.es_tutor_principal),
+      };
+    });
+
+  const linkedProfessionals = (vinculosProfesional as DbVinculoProfesionalPerteneciente[])
+    .filter((link) => Number(link.id_perteneciente) === Number(perteneciente.id))
+    .map((link) => {
+      const professional = professionalById.get(Number(link.id_profesional));
+      const professionalUser = professional ? usersById.get(Number(professional.id_usuario)) : undefined;
+      return {
+        id: String(professional?.id || link.id_profesional),
+        name: professionalUser ? [professionalUser.nombre, professionalUser.apellido].filter(Boolean).join(' ') : `Profesional #${link.id_profesional}`,
+        username: professionalUser?.nombre_usuario || '',
+        email: professionalUser?.correo || '',
+        phone: professionalUser?.telefono ? String(professionalUser.telefono) : '',
+        role: 'professional' as const,
+        detail: professional?.especialidad || professional?.profesion || 'Profesional',
+        status: statusById.get(Number(link.id_estado_vinculo)) || 'Sin estado',
+      };
+    });
+
+  return {
+    usuario: usuario ? ({ ...usuario, contrasena_hash: undefined } as Omit<Usuario, 'contrasena_hash'>) : null,
+    perteneciente,
+    supportLevel: supportLevel?.nombre || 'Sin registrar',
+    autonomy: autonomy?.nombre || 'Sin registrar',
+    canSelfManage: Boolean(perteneciente.puede_autogestionarse),
+    observation: perteneciente.observacion_general || '',
+    points: saldo?.saldo ?? 0,
+    level: avatar?.nivel ?? 1,
+    experience: avatar?.experiencia ?? 0,
+    tutors: linkedTutors,
+    professionals: linkedProfessionals,
+    plans: (planes as DbPlanSuscripcion[]).map(toPricingPlan),
+  };
 }
 
 export async function findUser(username: string, password: string): Promise<User | Tutor | Professional | Admin | null> {
@@ -669,6 +827,37 @@ export async function fetchProfessionalById(id: string): Promise<Professional | 
   try { return await apiFetchWithFallback<Professional>([`/professionals/${encodeURIComponent(id)}`]); } catch { return null; }
 }
 export async function fetchPricingPlans(): Promise<PricingPlan[]> {
+  try {
+    const plans = await tandemApi.planesSuscripciones.getAll();
+    return plans.map(toPricingPlan);
+  } catch {
+    return apiFetchWithFallback<PricingPlan[]>(['/pricing/plans', '/plans/pricing']);
+  }
+}
+
+export async function fetchUserProfileDashboard(userId: string): Promise<UserProfileDashboard> {
+  if (isBackendUserId(userId)) {
+    return fetchBackendUserProfileDashboard(userId);
+  }
+
+  const plans = await fetchPricingPlans().catch(() => []);
+  return {
+    usuario: null,
+    perteneciente: null,
+    supportLevel: 'Sin registrar',
+    autonomy: 'Sin registrar',
+    canSelfManage: false,
+    observation: '',
+    points: 0,
+    level: 1,
+    experience: 0,
+    tutors: [],
+    professionals: [],
+    plans,
+  };
+}
+
+export async function fetchLegacyPricingPlans(): Promise<PricingPlan[]> {
   return apiFetchWithFallback<PricingPlan[]>(['/pricing/plans', '/plans/pricing']);
 }
 
