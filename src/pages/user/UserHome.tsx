@@ -1,175 +1,270 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useWallet } from '@/contexts/WalletContext';
 import { motion } from 'framer-motion';
-import { Activity, fetchActivitiesForUser, fetchNotificationsForUser, fetchObjectivesForUser, Notification, Objective } from '@/data/api';
-import { CheckCircle2, Clock, Flame, Star, Trophy, Bell, Target, ShoppingBag, Heart } from 'lucide-react';
+import {
+  AlertCircle,
+  Bell,
+  CheckCircle2,
+  ClipboardList,
+  Clock3,
+  HeartHandshake,
+  RefreshCw,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Trophy,
+} from 'lucide-react';
 import AvatarPreview from '@/components/AvatarPreview';
 import CoinBadge from '@/components/CoinBadge';
-import { useEmotions, emotionOptions } from '@/contexts/EmotionsContext';
-import { useRoutines } from '@/contexts/RoutinesContext';
+import { fetchPertenecienteHome, PertenecienteHomeData } from '@/data/api';
 
-interface Props { onNavigate?: (tab: string) => void; }
+interface Props {
+  onNavigate?: (tab: string) => void;
+}
+
+const emptyHome: PertenecienteHomeData = {
+  perteneciente: null,
+  supportLevel: 'Sin registrar',
+  autonomy: 'Sin registrar',
+  canSelfManage: false,
+  points: 0,
+  level: 1,
+  experience: 0,
+  activities: [],
+  notifications: [],
+};
 
 export default function UserHome({ onNavigate }: Props) {
   const { user } = useAuth();
-  const { state: wallet } = useWallet();
-  const { records, quickLog } = useEmotions();
-  const { todayRoutine } = useRoutines();
-
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [objectives, setObjectives] = useState<Objective[]>([]);
+  const [home, setHome] = useState<PertenecienteHomeData>(emptyHome);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     let mounted = true;
     if (!user || user.role !== 'user') return;
-    Promise.all([
-      fetchActivitiesForUser(user.id).catch(() => []),
-      fetchNotificationsForUser(user.id).catch(() => []),
-      fetchObjectivesForUser(user.id).catch(() => []),
-    ]).then(([a, n, o]) => {
-      if (!mounted) return;
-      setActivities(a);
-      setNotifications(n.filter(x => !x.read));
-      setObjectives(o.filter(x => x.status === 'activo'));
-    });
-    return () => { mounted = false; };
+
+    setLoading(true);
+    setError('');
+    fetchPertenecienteHome(user.id)
+      .then(data => {
+        if (!mounted) return;
+        setHome(data);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setHome(emptyHome);
+        setError('No pude cargar tus datos del backend local.');
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
   }, [user]);
+
+  const stats = useMemo(() => {
+    const total = home.activities.length;
+    const completed = home.activities.filter(activity => activity.completed).length;
+    const pending = Math.max(total - completed, 0);
+    const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+    return { total, completed, pending, progress };
+  }, [home.activities]);
+
   if (!user || user.role !== 'user') return null;
 
-  const routine = todayRoutine?.items || [];
-  const completedToday = routine.filter(r => r.completed).length;
-  const totalRoutine = Math.max(routine.length, 1);
-  const completedActivities = activities.filter(a => a.status === 'completada').length;
-  const lastEmotion = records[0];
-
+  const firstName = user.name.split(' ')[0] || user.username;
+  const pendingActivities = home.activities.filter(activity => !activity.completed);
+  const recentActivities = pendingActivities.length > 0 ? pendingActivities : home.activities;
+  const unreadNotifications = home.notifications.filter(notification => !notification.read);
 
   return (
     <div className="space-y-5 sm:space-y-6 pb-24 lg:pb-6">
-      {/* Greeting + Avatar */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-2xl border border-border p-4 sm:p-5 flex items-center gap-4">
-        <AvatarPreview equipped={wallet.equipped} size={88} />
-        <div className="flex-1 min-w-0">
-          <h2 className="text-lg sm:text-xl font-heading font-bold text-foreground truncate">¡Hola, {user.name.split(' ')[0]}! 👋</h2>
-          <p className="text-xs sm:text-sm text-muted-foreground">Veamos cómo va tu día</p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <CoinBadge size="sm" onClick={() => onNavigate?.('shop')} />
-            <button onClick={() => onNavigate?.('shop')} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
-              <ShoppingBag size={12} /> Tienda
+      <motion.section
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-sm"
+      >
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-4 min-w-0 flex-1">
+            <AvatarPreview equipped={{}} size={88} />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-primary">Home de perteneciente</p>
+              <h2 className="font-heading text-2xl font-bold text-foreground sm:text-3xl">
+                Hola, {firstName}
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Tu resumen se actualiza desde el backend local de Tandem.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <CoinBadge size="sm" />
+            <button
+              onClick={() => onNavigate?.('activities')}
+              className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
+            >
+              <ClipboardList size={16} />
+              Actividades
             </button>
           </div>
         </div>
-      </motion.div>
 
-      {/* Stats cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {error && (
+          <div className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            <AlertCircle size={17} className="mt-0.5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+      </motion.section>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
-          { icon: Flame, label: 'Racha', value: `${user.streak} días`, color: 'text-orange-500', bg: 'bg-orange-50' },
-          { icon: Star, label: 'Puntos', value: user.points.toString(), color: 'text-amber-500', bg: 'bg-amber-50' },
-          { icon: Trophy, label: 'Nivel', value: user.level.toString(), color: 'text-purple-500', bg: 'bg-purple-50' },
-          { icon: CheckCircle2, label: 'Completadas', value: `${completedActivities}/${activities.length}`, color: 'text-emerald-500', bg: 'bg-emerald-50' },
-        ].map((stat, i) => (
-          <motion.div key={stat.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className={`${stat.bg} rounded-xl p-4 border border-border/30`}>
+          { icon: Star, label: 'Puntos', value: home.points.toString(), color: 'text-amber-600', bg: 'bg-amber-50' },
+          { icon: Trophy, label: 'Nivel', value: home.level.toString(), color: 'text-violet-600', bg: 'bg-violet-50' },
+          { icon: CheckCircle2, label: 'Completadas', value: `${stats.completed}/${stats.total}`, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { icon: Clock3, label: 'Pendientes', value: stats.pending.toString(), color: 'text-sky-600', bg: 'bg-sky-50' },
+        ].map((stat, index) => (
+          <motion.div
+            key={stat.label}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.05 }}
+            className={`${stat.bg} rounded-xl border border-border/40 p-4`}
+          >
             <stat.icon size={20} className={stat.color} />
-            <p className="text-lg font-bold text-foreground mt-2">{stat.value}</p>
-            <p className="text-xs text-muted-foreground">{stat.label}</p>
+            <p className="mt-2 text-xl font-bold text-foreground">{loading ? '...' : stat.value}</p>
+            <p className="text-xs font-medium text-muted-foreground">{stat.label}</p>
           </motion.div>
         ))}
       </div>
 
-      {/* Today's routine progress */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-card rounded-xl p-4 border border-border shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-heading font-semibold text-foreground flex items-center gap-2">
-            <Clock size={18} className="text-primary" /> Rutina de hoy
-          </h3>
-          <span className="text-sm font-medium text-primary">{completedToday}/{totalRoutine}</span>
-        </div>
-        <div className="w-full bg-muted rounded-full h-3 mb-3">
-          <div className="gradient-primary h-3 rounded-full transition-all" style={{ width: `${(completedToday / totalRoutine) * 100}%` }} />
-        </div>
-        <div className="space-y-2 max-h-48 overflow-y-auto">
-          {routine.slice(0, 8).map(item => (
-            <div key={item.id} className={`flex items-center gap-3 text-sm py-1 ${item.completed ? 'opacity-60' : ''}`}>
-              <span>{item.completed ? '✅' : '⬜'}</span>
-              <span className="text-muted-foreground w-12">{item.time}</span>
-              <span className={item.completed ? 'line-through text-muted-foreground' : 'text-foreground'}>{item.title}</span>
+      <div className="grid gap-5 lg:grid-cols-[1.35fr_0.85fr]">
+        <motion.section
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="rounded-xl border border-border bg-card p-4 shadow-sm"
+        >
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="font-heading text-lg font-semibold text-foreground">Actividades asignadas</h3>
+              <p className="text-sm text-muted-foreground">{stats.progress}% completado</p>
             </div>
-          ))}
-          {routine.length === 0 && (
-            <p className="text-xs text-muted-foreground text-center py-2">Sin pasos. Andá a "Mi día" para crear tu rutina.</p>
-          )}
-        </div>
-      </motion.div>
-
-      {/* Quick Emotion Logger */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="bg-card rounded-xl p-4 border border-border shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-heading font-semibold text-foreground flex items-center gap-2">
-            <Heart size={18} className="text-pink-500" /> ¿Cómo te sentís?
-          </h3>
-          <button onClick={() => onNavigate?.('emotions')} className="text-xs text-primary hover:underline">Ver todo</button>
-        </div>
-        {lastEmotion && (
-          <p className="text-xs text-muted-foreground mb-2">
-            Último: <span className="text-foreground font-medium">{lastEmotion.emoji} {lastEmotion.emotion}</span> · {lastEmotion.timestamp}
-          </p>
-        )}
-        <div className="grid grid-cols-7 gap-1.5">
-          {emotionOptions.slice(0, 7).map(opt => (
             <button
-              key={opt.label}
-              onClick={() => quickLog(opt.label)}
-              title={`Registrar: ${opt.label}`}
-              className="flex flex-col items-center p-2 rounded-lg hover:bg-muted/60 active:scale-95 transition"
+              onClick={() => onNavigate?.('activities')}
+              className="text-sm font-medium text-primary hover:underline"
             >
-              <span className="text-2xl">{opt.emoji}</span>
-              <span className="text-[9px] text-muted-foreground mt-0.5 leading-tight truncate w-full text-center">{opt.label}</span>
+              Ver todas
             </button>
-          ))}
-        </div>
-      </motion.div>
+          </div>
 
-      {/* Active objectives */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="bg-card rounded-xl p-4 border border-border shadow-sm">
-        <h3 className="font-heading font-semibold text-foreground flex items-center gap-2 mb-3">
-          <Target size={18} className="text-secondary" /> Objetivos activos
-        </h3>
-        <div className="space-y-3">
-          {objectives.slice(0, 4).map(obj => (
-            <div key={obj.id} className="space-y-1">
-              <div className="flex justify-between text-sm">
-                <span className="text-foreground font-medium">{obj.title}</span>
-                <span className="text-muted-foreground">{obj.progress}/{obj.target} {obj.unit}</span>
-              </div>
-              <div className="w-full bg-muted rounded-full h-2">
-                <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${(obj.progress / obj.target) * 100}%` }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </motion.div>
+          <div className="mb-4 h-3 overflow-hidden rounded-full bg-muted">
+            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${stats.progress}%` }} />
+          </div>
 
-      {/* Notifications */}
-      {notifications.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-card rounded-xl p-4 border border-border shadow-sm">
-          <h3 className="font-heading font-semibold text-foreground flex items-center gap-2 mb-3">
-            <Bell size={18} className="text-accent" /> Notificaciones nuevas
-          </h3>
-          <div className="space-y-2">
-            {notifications.slice(0, 5).map(n => (
-              <div key={n.id} className="flex items-start gap-3 p-2 rounded-lg bg-muted/30">
-                <span className="text-lg">{n.icon}</span>
-                <div>
-                  <p className="text-sm font-medium text-foreground">{n.title}</p>
-                  <p className="text-xs text-muted-foreground">{n.message}</p>
+          <div className="space-y-3">
+            {loading && (
+              <div className="flex items-center gap-2 rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
+                <RefreshCw size={16} className="animate-spin" />
+                Cargando actividades...
+              </div>
+            )}
+
+            {!loading && recentActivities.slice(0, 5).map(activity => (
+              <div key={activity.id} className="flex items-start gap-3 rounded-lg border border-border/60 p-3">
+                <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${activity.completed ? 'bg-emerald-100 text-emerald-700' : 'bg-primary/10 text-primary'}`}>
+                  {activity.completed ? <CheckCircle2 size={18} /> : <ClipboardList size={18} />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-medium text-foreground">{activity.title}</p>
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                      {activity.status}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">{activity.description}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">Asignada: {activity.assignedAt}</p>
                 </div>
               </div>
             ))}
+
+            {!loading && recentActivities.length === 0 && (
+              <div className="rounded-lg border border-dashed border-border p-5 text-center">
+                <Sparkles size={22} className="mx-auto text-primary" />
+                <p className="mt-2 font-medium text-foreground">Todavia no tenes actividades asignadas</p>
+                <p className="text-sm text-muted-foreground">Cuando tu equipo cargue actividades, van a aparecer aca.</p>
+              </div>
+            )}
           </div>
-        </motion.div>
-      )}
+        </motion.section>
+
+        <div className="space-y-5">
+          <motion.section
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="rounded-xl border border-border bg-card p-4 shadow-sm"
+          >
+            <h3 className="font-heading text-lg font-semibold text-foreground">Perfil de apoyo</h3>
+            <div className="mt-4 space-y-3">
+              <div className="flex items-start gap-3">
+                <HeartHandshake size={19} className="mt-0.5 text-primary" />
+                <div>
+                  <p className="text-xs font-medium uppercase text-muted-foreground">Nivel de apoyo</p>
+                  <p className="font-medium text-foreground">{loading ? 'Cargando...' : home.supportLevel}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <ShieldCheck size={19} className="mt-0.5 text-primary" />
+                <div>
+                  <p className="text-xs font-medium uppercase text-muted-foreground">Autonomia</p>
+                  <p className="font-medium text-foreground">{loading ? 'Cargando...' : home.autonomy}</p>
+                </div>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
+                {home.canSelfManage ? 'Autogestion habilitada para acciones permitidas.' : 'Autogestion pendiente de habilitacion o revision.'}
+              </div>
+            </div>
+          </motion.section>
+
+          <motion.section
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+            className="rounded-xl border border-border bg-card p-4 shadow-sm"
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="font-heading text-lg font-semibold text-foreground">Notificaciones</h3>
+              <button onClick={() => onNavigate?.('notifications')} className="text-sm font-medium text-primary hover:underline">
+                Ver
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {unreadNotifications.slice(0, 4).map(notification => (
+                <div key={notification.id} className="flex gap-3 rounded-lg bg-muted/50 p-3">
+                  <Bell size={17} className="mt-0.5 shrink-0 text-primary" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground">{notification.title}</p>
+                    <p className="text-xs text-muted-foreground">{notification.message}</p>
+                  </div>
+                </div>
+              ))}
+
+              {!loading && unreadNotifications.length === 0 && (
+                <p className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
+                  No tenes notificaciones nuevas.
+                </p>
+              )}
+            </div>
+          </motion.section>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,22 @@
 import * as legacy from './mockData';
 import { tandemApi } from '@/services/api';
+<<<<<<< HEAD
 import type { Actividad as DbActividad, ConfiguracionUsuario, Notificacion as DbNotificacion, Usuario } from '@/types/database';
+=======
+import type {
+  Actividad as DbActividad,
+  ActividadAsignada as DbActividadAsignada,
+  ActividadPersonalizada as DbActividadPersonalizada,
+  AutonomiaOperativa as DbAutonomiaOperativa,
+  Avatar as DbAvatar,
+  EstadoActividad as DbEstadoActividad,
+  NivelApoyo as DbNivelApoyo,
+  Notificacion as DbNotificacion,
+  Perteneciente as DbPerteneciente,
+  SaldoPuntos as DbSaldoPuntos,
+  Usuario,
+} from '@/types/database';
+>>>>>>> 211aeeee75722da831bd3972b25d6baa3ec507c6
 
 export type UserRole = legacy.UserRole;
 export type User = legacy.User;
@@ -156,6 +172,7 @@ function toLegacyNotification(notification: DbNotificacion): Notification {
   } as Notification;
 }
 
+<<<<<<< HEAD
 function isBackendUserId(userId: string): boolean {
   return Number.isInteger(Number(userId));
 }
@@ -281,6 +298,18 @@ async function fetchBackendAchievementDashboard(userId: string): Promise<Achieve
       avatarExperience: experience,
     },
   };
+=======
+function isCompletedStatus(status?: DbEstadoActividad, assigned?: DbActividadAsignada) {
+  const name = (status?.nombre || '').toLowerCase();
+  return Boolean(assigned?.fecha_completada || name.includes('complet') || name.includes('finaliz'));
+}
+
+function formatBackendDate(value?: string | null) {
+  if (!value) return 'Sin fecha';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short' }).format(date);
+>>>>>>> 211aeeee75722da831bd3972b25d6baa3ec507c6
 }
 
 export async function findUser(username: string, password: string): Promise<User | Tutor | Professional | Admin | null> {
@@ -296,6 +325,111 @@ export async function findUser(username: string, password: string): Promise<User
   } catch {
     return null;
   }
+}
+
+export interface PertenecienteHomeActivity {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  completed: boolean;
+  assignedAt: string;
+}
+
+export interface PertenecienteHomeData {
+  perteneciente: DbPerteneciente | null;
+  supportLevel: string;
+  autonomy: string;
+  canSelfManage: boolean;
+  points: number;
+  level: number;
+  experience: number;
+  activities: PertenecienteHomeActivity[];
+  notifications: Notification[];
+}
+
+export async function fetchPertenecienteHome(userId: string): Promise<PertenecienteHomeData> {
+  const perteneciente = await apiFetchWithFallback<DbPerteneciente | null>([`/api/pertenecientes/usuario/${encodeURIComponent(userId)}`]);
+  if (!perteneciente) {
+    return {
+      perteneciente: null,
+      supportLevel: 'Sin registrar',
+      autonomy: 'Sin registrar',
+      canSelfManage: false,
+      points: 0,
+      level: 1,
+      experience: 0,
+      activities: [],
+      notifications: [],
+    };
+  }
+
+  const [
+    asignadas,
+    actividades,
+    personalizadas,
+    estados,
+    notificaciones,
+    saldos,
+    avatares,
+    nivelesApoyo,
+    autonomias,
+  ] = await Promise.all([
+    tandemApi.actividadesAsignadas.getAll(),
+    tandemApi.actividades.getAll(),
+    tandemApi.actividadesPersonalizadas.getAll(),
+    tandemApi.estadosActividades.getAll(),
+    tandemApi.notificaciones.getAll(),
+    tandemApi.saldosPuntos.getAll(),
+    tandemApi.avatares.getAll(),
+    tandemApi.nivelesApoyos.getAll(),
+    tandemApi.autonomiasOperativas.getAll(),
+  ]);
+
+  const activitiesById = new Map((actividades as DbActividad[]).map(a => [Number(a.id), a]));
+  const customById = new Map((personalizadas as DbActividadPersonalizada[]).map(a => [Number(a.id), a]));
+  const statusById = new Map((estados as DbEstadoActividad[]).map(e => [Number(e.id), e]));
+  const saldo = (saldos as DbSaldoPuntos[]).find(s => Number(s.id_perteneciente) === Number(perteneciente.id));
+  const avatar = (avatares as DbAvatar[]).find(a => Number(a.id_perteneciente) === Number(perteneciente.id));
+  const supportLevel = (nivelesApoyo as DbNivelApoyo[]).find(n => Number(n.id) === Number(perteneciente.id_nivel_apoyo));
+  const autonomy = (autonomias as DbAutonomiaOperativa[]).find(a => Number(a.id) === Number(perteneciente.id_autonomia_operativa));
+
+  return {
+    perteneciente,
+    supportLevel: supportLevel?.nombre || 'Sin registrar',
+    autonomy: autonomy?.nombre || 'Sin registrar',
+    canSelfManage: Boolean(perteneciente.puede_autogestionarse),
+    points: saldo?.saldo ?? 0,
+    level: avatar?.nivel ?? 1,
+    experience: avatar?.experiencia ?? 0,
+    activities: (asignadas as DbActividadAsignada[])
+      .filter(a => Number(a.id_perteneciente) === Number(perteneciente.id))
+      .map(a => {
+        const base = a.id_actividad ? activitiesById.get(Number(a.id_actividad)) : undefined;
+        const custom = a.id_actividad_personalizada ? customById.get(Number(a.id_actividad_personalizada)) : undefined;
+        const status = a.id_estado_actividad ? statusById.get(Number(a.id_estado_actividad)) : undefined;
+        return {
+          id: String(a.id),
+          title: base?.titulo || custom?.titulo || `Actividad #${a.id}`,
+          description: base?.descripcion || custom?.descripcion || 'Actividad asignada desde el equipo de apoyo.',
+          status: status?.nombre || (a.fecha_completada ? 'Completada' : 'Pendiente'),
+          completed: isCompletedStatus(status, a),
+          assignedAt: formatBackendDate(a.fecha_asignacion),
+        };
+      }),
+    notifications: (notificaciones as DbNotificacion[])
+      .filter(n => Number(n.id_usuario_destino) === Number(userId))
+      .map(n => ({
+        id: String(n.id),
+        userId,
+        title: n.titulo || 'Notificacion',
+        message: n.cuerpo || '',
+        type: 'reminder',
+        icon: '!',
+        read: Boolean(n.leida),
+        timestamp: formatBackendDate(n.fecha_creacion),
+      } as Notification)),
+  };
 }
 
 export async function fetchActivitiesForUser(userId: string): Promise<Activity[]> {
@@ -385,11 +519,61 @@ export async function deleteEmotionRecord(recordId: string): Promise<void> {
 }
 
 export interface DayRoutine { id: string; name: string; dayOfWeek: number | null; items: RoutineItem[] }
+const ROUTINES_CONFIG_KEY = 'routines.mi-dia';
+
+function normalizeRoutinesPayload(payload: unknown): DayRoutine[] {
+  if (!Array.isArray(payload)) return [];
+  return payload.map((routine, index) => {
+    const r = routine as Partial<DayRoutine>;
+    return {
+      id: String(r.id || `dr-${Date.now()}-${index}`),
+      name: String(r.name || 'Mi dÃ­a'),
+      dayOfWeek: typeof r.dayOfWeek === 'number' ? r.dayOfWeek : null,
+      items: Array.isArray(r.items)
+        ? r.items.map((item, itemIndex) => {
+            const it = item as Partial<RoutineItem>;
+            return {
+              id: String(it.id || `i-${Date.now()}-${index}-${itemIndex}`),
+              time: String(it.time || '08:00'),
+              title: String(it.title || ''),
+              icon: String(it.icon || 'â­'),
+              completed: Boolean(it.completed),
+              category: String(it.category || 'maÃ±ana'),
+            };
+          })
+        : [],
+    };
+  });
+}
+
 export async function fetchRoutinesForUser(userId: string): Promise<DayRoutine[]> {
-  return apiFetchWithFallback<DayRoutine[]>([`/routines?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/routines`]);
+  try {
+    const numericUserId = Number(userId);
+    const rows = await tandemApi.configuracionesUsuarios.getAll();
+    const config = rows.find(row => row.id_usuario === numericUserId && row.clave === ROUTINES_CONFIG_KEY);
+    if (!config?.valor) return [];
+    return normalizeRoutinesPayload(JSON.parse(config.valor));
+  } catch {
+    return apiFetchWithFallback<DayRoutine[]>([`/routines?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/routines`]);
+  }
 }
 export async function saveRoutinesForUser(userId: string, routines: DayRoutine[]): Promise<DayRoutine[]> {
-  return apiFetchWithFallback<DayRoutine[]>([`/routines/bulk`, `/users/${encodeURIComponent(userId)}/routines`], { method: 'PUT', body: JSON.stringify({ userId, routines }) });
+  try {
+    const numericUserId = Number(userId);
+    const payload = {
+      id_usuario: numericUserId,
+      clave: ROUTINES_CONFIG_KEY,
+      valor: JSON.stringify(routines),
+      fecha_modificacion: new Date().toISOString(),
+    };
+    const rows = await tandemApi.configuracionesUsuarios.getAll();
+    const config = rows.find(row => row.id_usuario === numericUserId && row.clave === ROUTINES_CONFIG_KEY);
+    if (config?.id) await tandemApi.configuracionesUsuarios.update(config.id, payload);
+    else await tandemApi.configuracionesUsuarios.create(payload);
+    return routines;
+  } catch {
+    return apiFetchWithFallback<DayRoutine[]>([`/routines/bulk`, `/users/${encodeURIComponent(userId)}/routines`], { method: 'PUT', body: JSON.stringify({ userId, routines }) });
+  }
 }
 
 export async function fetchConversationsForUser(userId: string): Promise<Conversation[]> {
