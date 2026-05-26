@@ -22,7 +22,16 @@ export type Pictogram = legacy.Pictogram;
 export type Resource = legacy.Resource;
 export type PricingPlan = legacy.PricingPlan;
 
-const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE = ((import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3000/api').replace(/\/$/, '');
+
+type BackendEnvelope<T> = { ok?: boolean; data?: T };
+
+function unwrapBackendResponse<T>(payload: T | BackendEnvelope<T>): T {
+  if (payload && typeof payload === 'object' && 'data' in payload) {
+    return (payload as BackendEnvelope<T>).data as T;
+  }
+  return payload as T;
+}
 
 async function apiFetchWithFallback<T>(paths: string[], init?: RequestInit): Promise<T> {
   let last: unknown = null;
@@ -36,7 +45,7 @@ async function apiFetchWithFallback<T>(paths: string[], init?: RequestInit): Pro
         last = new Error(`HTTP ${res.status} on ${p}`);
         continue;
       }
-      return (await res.json()) as T;
+      return unwrapBackendResponse<T>(await res.json());
     } catch (e) {
       last = e;
     }
@@ -44,15 +53,229 @@ async function apiFetchWithFallback<T>(paths: string[], init?: RequestInit): Pro
   throw last instanceof Error ? last : new Error('Request failed');
 }
 
+type BackendUser = {
+  id: number;
+  id_tipo_usuario?: number;
+  nombre_usuario?: string;
+  nombre?: string;
+  apellido?: string;
+  correo?: string;
+  telefono?: string | null;
+  fecha_nacimiento?: string | null;
+  activo?: boolean;
+};
+
+type BackendCatalog = { id: number; nombre?: string; orden?: number };
+type BackendPerteneciente = {
+  id: number;
+  id_usuario: number;
+  id_nivel_apoyo?: number | null;
+  id_autonomia_operativa?: number | null;
+  puede_autogestionarse?: boolean;
+  observacion_general?: string | null;
+};
+type BackendActividadAsignada = {
+  id: number;
+  id_actividad?: number | null;
+  id_actividad_personalizada?: number | null;
+  id_perteneciente: number;
+  id_usuario_asignador?: number | null;
+  id_estado_actividad?: number | null;
+  fecha_asignacion?: string | null;
+  fecha_completada?: string | null;
+};
+type BackendActividad = {
+  id: number;
+  titulo?: string;
+  descripcion?: string | null;
+  activa?: boolean;
+};
+type BackendActividadPersonalizada = {
+  id: number;
+  titulo?: string;
+  descripcion?: string | null;
+  activa?: boolean;
+};
+type BackendNotificacion = {
+  id: number;
+  id_usuario_destino: number;
+  titulo?: string;
+  cuerpo?: string | null;
+  leida?: boolean;
+  fecha_creacion?: string | null;
+};
+type BackendSaldoPunto = { id: number; id_perteneciente: number; saldo: number };
+type BackendAvatar = { id: number; id_perteneciente: number; nivel?: number; experiencia?: number };
+
+function normalizeRole(typeName?: string): UserRole {
+  const name = (typeName || '').toLowerCase();
+  if (name.includes('admin')) return 'admin';
+  if (name.includes('tutor')) return 'tutor';
+  if (name.includes('profesional')) return 'professional';
+  return 'user';
+}
+
+function normalizeUser(user: BackendUser, typeName?: string): User {
+  const fullName = `${user.nombre || ''} ${user.apellido || ''}`.trim() || user.nombre_usuario || `Usuario ${user.id}`;
+  return {
+    id: String(user.id),
+    username: user.nombre_usuario || String(user.id),
+    password: '',
+    name: fullName,
+    role: normalizeRole(typeName),
+    email: user.correo || '',
+    avatar: '',
+    points: 0,
+    streak: 0,
+    level: 1,
+    plan: 'free',
+    onboarded: true,
+  };
+}
+
+function isCompletedStatus(status?: BackendCatalog, assigned?: BackendActividadAsignada) {
+  const name = (status?.nombre || '').toLowerCase();
+  return Boolean(assigned?.fecha_completada || name.includes('complet') || name.includes('finaliz'));
+}
+
+function formatBackendDate(value?: string | null) {
+  if (!value) return 'Sin fecha';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short' }).format(date);
+}
+
+async function fetchList<T>(path: string): Promise<T[]> {
+  try {
+    return await apiFetchWithFallback<T[]>([path]);
+  } catch {
+    return [];
+  }
+}
+
 export async function findUser(username: string, password: string): Promise<User | Tutor | Professional | Admin | null> {
   try {
-    return await apiFetchWithFallback<User | Tutor | Professional | Admin | null>(['/auth/login', '/login'], {
+    const login = await apiFetchWithFallback<{ user: BackendUser; token: string }>(['/auth/login'], {
       method: 'POST',
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({
+        nombre_usuario: username,
+        correo: username.includes('@') ? username : undefined,
+        contrasena: password,
+      }),
     });
+    if (!login?.user) return null;
+
+    const tipos = await fetchList<BackendCatalog>('/tipos-usuarios');
+    const tipo = tipos.find(t => Number(t.id) === Number(login.user.id_tipo_usuario));
+    return normalizeUser(login.user, tipo?.nombre);
   } catch {
     return null;
   }
+}
+
+export interface PertenecienteHomeActivity {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  completed: boolean;
+  assignedAt: string;
+}
+
+export interface PertenecienteHomeData {
+  perteneciente: BackendPerteneciente | null;
+  supportLevel: string;
+  autonomy: string;
+  canSelfManage: boolean;
+  points: number;
+  level: number;
+  experience: number;
+  activities: PertenecienteHomeActivity[];
+  notifications: Notification[];
+}
+
+export async function fetchPertenecienteHome(userId: string): Promise<PertenecienteHomeData> {
+  const perteneciente = await apiFetchWithFallback<BackendPerteneciente | null>([`/pertenecientes/usuario/${encodeURIComponent(userId)}`]);
+  if (!perteneciente) {
+    return {
+      perteneciente: null,
+      supportLevel: 'Sin registrar',
+      autonomy: 'Sin registrar',
+      canSelfManage: false,
+      points: 0,
+      level: 1,
+      experience: 0,
+      activities: [],
+      notifications: [],
+    };
+  }
+
+  const [
+    asignadas,
+    actividades,
+    personalizadas,
+    estados,
+    notificaciones,
+    saldos,
+    avatares,
+    nivelesApoyo,
+    autonomias,
+  ] = await Promise.all([
+    fetchList<BackendActividadAsignada>('/actividades-asignadas'),
+    fetchList<BackendActividad>('/actividades'),
+    fetchList<BackendActividadPersonalizada>('/actividades-personalizadas'),
+    fetchList<BackendCatalog>('/estados-actividades'),
+    fetchList<BackendNotificacion>('/notificaciones'),
+    fetchList<BackendSaldoPunto>('/saldos-puntos'),
+    fetchList<BackendAvatar>('/avatares'),
+    fetchList<BackendCatalog>('/niveles-apoyos'),
+    fetchList<BackendCatalog>('/autonomias-operativas'),
+  ]);
+
+  const activitiesById = new Map(actividades.map(a => [Number(a.id), a]));
+  const customById = new Map(personalizadas.map(a => [Number(a.id), a]));
+  const statusById = new Map(estados.map(e => [Number(e.id), e]));
+  const saldo = saldos.find(s => Number(s.id_perteneciente) === Number(perteneciente.id));
+  const avatar = avatares.find(a => Number(a.id_perteneciente) === Number(perteneciente.id));
+  const supportLevel = nivelesApoyo.find(n => Number(n.id) === Number(perteneciente.id_nivel_apoyo));
+  const autonomy = autonomias.find(a => Number(a.id) === Number(perteneciente.id_autonomia_operativa));
+
+  return {
+    perteneciente,
+    supportLevel: supportLevel?.nombre || 'Sin registrar',
+    autonomy: autonomy?.nombre || 'Sin registrar',
+    canSelfManage: Boolean(perteneciente.puede_autogestionarse),
+    points: saldo?.saldo ?? 0,
+    level: avatar?.nivel ?? 1,
+    experience: avatar?.experiencia ?? 0,
+    activities: asignadas
+      .filter(a => Number(a.id_perteneciente) === Number(perteneciente.id))
+      .map(a => {
+        const base = a.id_actividad ? activitiesById.get(Number(a.id_actividad)) : undefined;
+        const custom = a.id_actividad_personalizada ? customById.get(Number(a.id_actividad_personalizada)) : undefined;
+        const status = a.id_estado_actividad ? statusById.get(Number(a.id_estado_actividad)) : undefined;
+        return {
+          id: String(a.id),
+          title: base?.titulo || custom?.titulo || `Actividad #${a.id}`,
+          description: base?.descripcion || custom?.descripcion || 'Actividad asignada desde el equipo de apoyo.',
+          status: status?.nombre || (a.fecha_completada ? 'Completada' : 'Pendiente'),
+          completed: isCompletedStatus(status, a),
+          assignedAt: formatBackendDate(a.fecha_asignacion),
+        };
+      }),
+    notifications: notificaciones
+      .filter(n => Number(n.id_usuario_destino) === Number(userId))
+      .map(n => ({
+        id: String(n.id),
+        userId,
+        title: n.titulo || 'Notificacion',
+        message: n.cuerpo || '',
+        type: 'info',
+        icon: 'bell',
+        read: Boolean(n.leida),
+        timestamp: formatBackendDate(n.fecha_creacion),
+      } as Notification)),
+  };
 }
 
 export async function fetchActivitiesForUser(userId: string): Promise<Activity[]> {
