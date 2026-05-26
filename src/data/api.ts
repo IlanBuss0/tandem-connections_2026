@@ -17,12 +17,8 @@ import type {
   SaldoPuntos as DbSaldoPuntos,
   Tutor as DbTutor,
   Usuario,
-<<<<<<< HEAD
   VinculoProfesionalPerteneciente as DbVinculoProfesionalPerteneciente,
   VinculoTutorPerteneciente as DbVinculoTutorPerteneciente,
-=======
-  ConfiguracionUsuario,
->>>>>>> ac521ccabdadc95cc7e69d451298e423e55ba842
 } from '@/types/database';
 
 export type UserRole = legacy.UserRole;
@@ -343,7 +339,6 @@ async function fetchBackendAchievementDashboard(userId: string): Promise<Achieve
       avatarExperience: experience,
     },
   };
-<<<<<<< HEAD
 }
 
 function toPricingPlan(plan: DbPlanSuscripcion): PricingPlan {
@@ -473,20 +468,6 @@ async function fetchBackendUserProfileDashboard(userId: string): Promise<UserPro
     professionals: linkedProfessionals,
     plans: (planes as DbPlanSuscripcion[]).map(toPricingPlan),
   };
-=======
-}
-
-function isCompletedStatus(status?: DbEstadoActividad, assigned?: DbActividadAsignada) {
-  const name = (status?.nombre || '').toLowerCase();
-  return Boolean(assigned?.fecha_completada || name.includes('complet') || name.includes('finaliz'));
-}
-
-function formatBackendDate(value?: string | null) {
-  if (!value) return 'Sin fecha';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short' }).format(date);
->>>>>>> ac521ccabdadc95cc7e69d451298e423e55ba842
 }
 
 export async function findUser(username: string, password: string): Promise<User | Tutor | Professional | Admin | null> {
@@ -617,6 +598,7 @@ export async function fetchActivitiesForUser(userId: string): Promise<Activity[]
     return apiFetchWithFallback<Activity[]>([`/activities?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/activities`]);
   }
 }
+
 export async function fetchNotificationsForUser(userId: string): Promise<Notification[]> {
   try {
     const numericUserId = Number(userId);
@@ -628,9 +610,11 @@ export async function fetchNotificationsForUser(userId: string): Promise<Notific
     return apiFetchWithFallback<Notification[]>([`/notifications?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/notifications`]);
   }
 }
+
 export async function fetchObjectivesForUser(userId: string): Promise<Objective[]> {
   return apiFetchWithFallback<Objective[]>([`/objectives?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/objectives`]);
 }
+
 export async function fetchCalendarEventsForUser(userId: string): Promise<CalendarEvent[]> {
   if (isBackendUserId(userId)) {
     const config = await getUserConfig(Number(userId), CALENDAR_CONFIG_KEY);
@@ -640,6 +624,7 @@ export async function fetchCalendarEventsForUser(userId: string): Promise<Calend
 
   return apiFetchWithFallback<CalendarEvent[]>([`/calendar/events?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/calendar/events`]);
 }
+
 export async function createCalendarEvent(userId: string, data: Omit<CalendarEvent, 'id' | 'userId'>): Promise<CalendarEvent> {
   if (isBackendUserId(userId)) {
     const events = await fetchCalendarEventsForUser(userId);
@@ -654,6 +639,7 @@ export async function createCalendarEvent(userId: string, data: Omit<CalendarEve
 
   return apiFetchWithFallback<CalendarEvent>([`/calendar/events`, `/users/${encodeURIComponent(userId)}/calendar/events`], { method: 'POST', body: JSON.stringify({ ...data, userId }) });
 }
+
 export async function updateCalendarEvent(eventId: string, patch: Partial<CalendarEvent>): Promise<CalendarEvent> {
   const config = await findCalendarConfigByEventId(eventId);
   if (config) {
@@ -668,6 +654,7 @@ export async function updateCalendarEvent(eventId: string, patch: Partial<Calend
 
   return apiFetchWithFallback<CalendarEvent>([`/calendar/events/${encodeURIComponent(eventId)}`], { method: 'PATCH', body: JSON.stringify(patch) });
 }
+
 export async function deleteCalendarEvent(eventId: string): Promise<void> {
   const config = await findCalendarConfigByEventId(eventId);
   if (config) {
@@ -698,6 +685,7 @@ export async function fetchEmotionRecordsForUser(userId: string): Promise<Emotio
 
   return apiFetchWithFallback<EmotionalRecord[]>([`/emotions?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/emotions`]);
 }
+
 export async function createEmotionRecord(userId: string, payload: Omit<EmotionalRecord, 'id' | 'userId'>): Promise<EmotionalRecord> {
   if (isBackendUserId(userId)) {
     const now = new Date();
@@ -722,6 +710,7 @@ export async function createEmotionRecord(userId: string, payload: Omit<Emotiona
 
   return apiFetchWithFallback<EmotionalRecord>([`/emotions`, `/users/${encodeURIComponent(userId)}/emotions`], { method: 'POST', body: JSON.stringify({ ...payload, userId }) });
 }
+
 export async function deleteEmotionRecord(recordId: string): Promise<void> {
   if (isBackendUserId(recordId)) {
     await tandemApi.configuracionesUsuarios.delete(recordId);
@@ -769,7 +758,6 @@ function calendarTypeColor(type: CalendarEvent['type']): string {
     terapia: 'hsl(270 40% 75%)',
     escuela: 'hsl(210 70% 55%)',
     personal: 'hsl(30 80% 60%)',
-    'mÃ©dico': 'hsl(0 72% 55%)',
     social: 'hsl(150 60% 45%)',
     actividad: 'hsl(45 90% 55%)',
   };
@@ -841,6 +829,7 @@ export async function fetchRoutinesForUser(userId: string): Promise<DayRoutine[]
     return apiFetchWithFallback<DayRoutine[]>([`/routines?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/routines`]);
   }
 }
+
 export async function saveRoutinesForUser(userId: string, routines: DayRoutine[]): Promise<DayRoutine[]> {
   try {
     const numericUserId = Number(userId);
@@ -863,18 +852,22 @@ export async function saveRoutinesForUser(userId: string, routines: DayRoutine[]
 export async function fetchConversationsForUser(userId: string): Promise<Conversation[]> {
   return apiFetchWithFallback<Conversation[]>([`/chat/conversations?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/conversations`]);
 }
+
 export async function fetchMessagesForConversation(conversationId: string): Promise<ChatMessage[]> {
   return apiFetchWithFallback<ChatMessage[]>([`/chat/conversations/${encodeURIComponent(conversationId)}/messages`, `/conversations/${encodeURIComponent(conversationId)}/messages`]);
 }
+
 export async function sendMessage(conversationId: string, senderId: string, senderName: string, text: string): Promise<ChatMessage> {
   return apiFetchWithFallback<ChatMessage>([`/chat/conversations/${encodeURIComponent(conversationId)}/messages`, `/conversations/${encodeURIComponent(conversationId)}/messages`], {
     method: 'POST', body: JSON.stringify({ senderId, senderName, text, type: 'text' }),
   });
 }
+
 export async function fetchAllUsers(): Promise<User[]> {
   const usuarios = await tandemApi.usuarios.getAll();
   return usuarios.map(toLegacyUser).filter((user): user is User => user.role === 'user');
 }
+
 export async function fetchAllTutors(): Promise<Tutor[]> {
   const [usuarios, tutoresBackend] = await Promise.all([
     tandemApi.usuarios.getAll(),
@@ -891,6 +884,7 @@ export async function fetchAllTutors(): Promise<Tutor[]> {
     };
   });
 }
+
 export async function fetchAllProfessionals(): Promise<Professional[]> {
   const [usuarios, profesionalesBackend] = await Promise.all([
     tandemApi.usuarios.getAll(),
@@ -908,7 +902,6 @@ export async function fetchAllProfessionals(): Promise<Professional[]> {
     };
   });
 }
-
 
 export async function fetchAchievementsForUser(userId: string): Promise<Achievement[]> {
   if (isBackendUserId(userId)) {
@@ -936,9 +929,11 @@ export async function fetchAchievementDashboardForUser(userId: string): Promise<
     },
   };
 }
+
 export async function fetchResourcesForUser(userId: string): Promise<Resource[]> {
   return apiFetchWithFallback<Resource[]>([`/resources?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/resources`]);
 }
+
 export async function fetchPictograms(query?: { category?: string; search?: string }): Promise<Pictogram[]> {
   const params = new URLSearchParams();
   if (query?.category && query.category !== 'todas') params.set('category', query.category);
@@ -946,12 +941,15 @@ export async function fetchPictograms(query?: { category?: string; search?: stri
   const q = params.toString();
   return apiFetchWithFallback<Pictogram[]>([q ? `/pictograms?${q}` : '/pictograms']);
 }
+
 export async function fetchTutorById(id: string): Promise<Tutor | null> {
   try { return await apiFetchWithFallback<Tutor>([`/tutors/${encodeURIComponent(id)}`]); } catch { return null; }
 }
+
 export async function fetchProfessionalById(id: string): Promise<Professional | null> {
   try { return await apiFetchWithFallback<Professional>([`/professionals/${encodeURIComponent(id)}`]); } catch { return null; }
 }
+
 export async function fetchPricingPlans(): Promise<PricingPlan[]> {
   try {
     const plans = await tandemApi.planesSuscripciones.getAll();
