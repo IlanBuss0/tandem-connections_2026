@@ -451,15 +451,51 @@ export async function fetchObjectivesForUser(userId: string): Promise<Objective[
   return apiFetchWithFallback<Objective[]>([`/objectives?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/objectives`]);
 }
 export async function fetchCalendarEventsForUser(userId: string): Promise<CalendarEvent[]> {
+  if (isBackendUserId(userId)) {
+    const config = await getUserConfig(Number(userId), CALENDAR_CONFIG_KEY);
+    if (!config?.valor) return [];
+    return normalizeCalendarEventsPayload(JSON.parse(config.valor), userId);
+  }
+
   return apiFetchWithFallback<CalendarEvent[]>([`/calendar/events?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/calendar/events`]);
 }
 export async function createCalendarEvent(userId: string, data: Omit<CalendarEvent, 'id' | 'userId'>): Promise<CalendarEvent> {
+  if (isBackendUserId(userId)) {
+    const events = await fetchCalendarEventsForUser(userId);
+    const created: CalendarEvent = {
+      ...data,
+      id: `ce-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      userId,
+    };
+    await saveCalendarEventsForUser(userId, [...events, created]);
+    return created;
+  }
+
   return apiFetchWithFallback<CalendarEvent>([`/calendar/events`, `/users/${encodeURIComponent(userId)}/calendar/events`], { method: 'POST', body: JSON.stringify({ ...data, userId }) });
 }
 export async function updateCalendarEvent(eventId: string, patch: Partial<CalendarEvent>): Promise<CalendarEvent> {
+  const config = await findCalendarConfigByEventId(eventId);
+  if (config) {
+    const userId = String(config.id_usuario);
+    const events = normalizeCalendarEventsPayload(JSON.parse(config.valor || '[]'), userId);
+    const previous = events.find(event => event.id === eventId);
+    if (!previous) throw new Error(`No se encontro el evento ${eventId}.`);
+    const updated = { ...previous, ...patch, id: previous.id, userId: previous.userId };
+    await saveCalendarEventsForUser(userId, events.map(event => event.id === eventId ? updated : event));
+    return updated;
+  }
+
   return apiFetchWithFallback<CalendarEvent>([`/calendar/events/${encodeURIComponent(eventId)}`], { method: 'PATCH', body: JSON.stringify(patch) });
 }
 export async function deleteCalendarEvent(eventId: string): Promise<void> {
+  const config = await findCalendarConfigByEventId(eventId);
+  if (config) {
+    const userId = String(config.id_usuario);
+    const events = normalizeCalendarEventsPayload(JSON.parse(config.valor || '[]'), userId);
+    await saveCalendarEventsForUser(userId, events.filter(event => event.id !== eventId));
+    return;
+  }
+
   await apiFetchWithFallback<unknown>([`/calendar/events/${encodeURIComponent(eventId)}`], { method: 'DELETE' });
 }
 
@@ -512,6 +548,77 @@ export async function deleteEmotionRecord(recordId: string): Promise<void> {
   }
 
   await apiFetchWithFallback<unknown>([`/emotions/${encodeURIComponent(recordId)}`], { method: 'DELETE' });
+}
+
+const CALENDAR_CONFIG_KEY = 'calendar.events';
+
+async function getUserConfig(userId: number, key: string): Promise<ConfiguracionUsuario | undefined> {
+  const rows = await tandemApi.configuracionesUsuarios.getAll();
+  return rows.find(row => row.id_usuario === userId && row.clave === key);
+}
+
+function normalizeCalendarEventsPayload(payload: unknown, userId: string): CalendarEvent[] {
+  if (!Array.isArray(payload)) return [];
+  return payload
+    .map((item, index) => {
+      const event = item as Partial<CalendarEvent>;
+      const type = event.type || 'personal';
+      const date = event.date || '';
+      const time = event.time || '09:00';
+      const title = event.title || '';
+
+      if (!date || !title) return null;
+
+      return {
+        id: String(event.id || `ce-${Date.now()}-${index}`),
+        userId: String(event.userId || userId),
+        title: String(title),
+        date: String(date),
+        time: String(time),
+        type,
+        description: String(event.description || ''),
+        color: String(event.color || calendarTypeColor(type)),
+      } as CalendarEvent;
+    })
+    .filter((event): event is CalendarEvent => Boolean(event));
+}
+
+function calendarTypeColor(type: CalendarEvent['type']): string {
+  const colors: Record<CalendarEvent['type'], string> = {
+    terapia: 'hsl(270 40% 75%)',
+    escuela: 'hsl(210 70% 55%)',
+    personal: 'hsl(30 80% 60%)',
+    'mÃ©dico': 'hsl(0 72% 55%)',
+    social: 'hsl(150 60% 45%)',
+    actividad: 'hsl(45 90% 55%)',
+  };
+  return colors[type] || colors.personal;
+}
+
+async function saveCalendarEventsForUser(userId: string, events: CalendarEvent[]): Promise<void> {
+  const numericUserId = Number(userId);
+  const payload = {
+    id_usuario: numericUserId,
+    clave: CALENDAR_CONFIG_KEY,
+    valor: JSON.stringify(events),
+    fecha_modificacion: new Date().toISOString(),
+  };
+  const config = await getUserConfig(numericUserId, CALENDAR_CONFIG_KEY);
+  if (config?.id) await tandemApi.configuracionesUsuarios.update(config.id, payload);
+  else await tandemApi.configuracionesUsuarios.create(payload);
+}
+
+async function findCalendarConfigByEventId(eventId: string): Promise<ConfiguracionUsuario | undefined> {
+  const rows = await tandemApi.configuracionesUsuarios.getAll();
+  return rows.find(row => {
+    if (row.clave !== CALENDAR_CONFIG_KEY || !row.valor) return false;
+    try {
+      return normalizeCalendarEventsPayload(JSON.parse(row.valor), String(row.id_usuario))
+        .some(event => event.id === eventId);
+    } catch {
+      return false;
+    }
+  });
 }
 
 export interface DayRoutine { id: string; name: string; dayOfWeek: number | null; items: RoutineItem[] }
