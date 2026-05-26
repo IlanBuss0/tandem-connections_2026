@@ -1,4 +1,18 @@
 import * as legacy from './mockData';
+import { tandemApi } from '@/services/api';
+import type {
+  Actividad as DbActividad,
+  ActividadAsignada as DbActividadAsignada,
+  ActividadPersonalizada as DbActividadPersonalizada,
+  AutonomiaOperativa as DbAutonomiaOperativa,
+  Avatar as DbAvatar,
+  EstadoActividad as DbEstadoActividad,
+  NivelApoyo as DbNivelApoyo,
+  Notificacion as DbNotificacion,
+  Perteneciente as DbPerteneciente,
+  SaldoPuntos as DbSaldoPuntos,
+  Usuario,
+} from '@/types/database';
 
 export type UserRole = legacy.UserRole;
 export type User = legacy.User;
@@ -22,22 +36,11 @@ export type Pictogram = legacy.Pictogram;
 export type Resource = legacy.Resource;
 export type PricingPlan = legacy.PricingPlan;
 
-const API_BASE = ((import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3000/api').replace(/\/$/, '');
-
-type BackendEnvelope<T> = { ok?: boolean; data?: T };
-
-function unwrapBackendResponse<T>(payload: T | BackendEnvelope<T>): T {
-  if (payload && typeof payload === 'object' && 'data' in payload) {
-    return (payload as BackendEnvelope<T>).data as T;
-  }
-  return payload as T;
-}
-
 async function apiFetchWithFallback<T>(paths: string[], init?: RequestInit): Promise<T> {
   let last: unknown = null;
   for (const p of paths) {
     try {
-      const res = await fetch(`${API_BASE}${p}`, {
+      const res = await fetch(`${((import.meta as any).env?.VITE_BACKEND_URL || (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/$/, '')}${p}`, {
         headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
         ...init,
       });
@@ -45,7 +48,8 @@ async function apiFetchWithFallback<T>(paths: string[], init?: RequestInit): Pro
         last = new Error(`HTTP ${res.status} on ${p}`);
         continue;
       }
-      return unwrapBackendResponse<T>(await res.json());
+      const payload = await res.json();
+      return (payload && typeof payload === 'object' && 'ok' in payload && 'data' in payload ? payload.data : payload) as T;
     } catch (e) {
       last = e;
     }
@@ -53,87 +57,106 @@ async function apiFetchWithFallback<T>(paths: string[], init?: RequestInit): Pro
   throw last instanceof Error ? last : new Error('Request failed');
 }
 
-type BackendUser = {
-  id: number;
-  id_tipo_usuario?: number;
-  nombre_usuario?: string;
-  nombre?: string;
-  apellido?: string;
-  correo?: string;
-  telefono?: string | null;
-  fecha_nacimiento?: string | null;
-  activo?: boolean;
-};
-
-type BackendCatalog = { id: number; nombre?: string; orden?: number };
-type BackendPerteneciente = {
-  id: number;
-  id_usuario: number;
-  id_nivel_apoyo?: number | null;
-  id_autonomia_operativa?: number | null;
-  puede_autogestionarse?: boolean;
-  observacion_general?: string | null;
-};
-type BackendActividadAsignada = {
-  id: number;
-  id_actividad?: number | null;
-  id_actividad_personalizada?: number | null;
-  id_perteneciente: number;
-  id_usuario_asignador?: number | null;
-  id_estado_actividad?: number | null;
-  fecha_asignacion?: string | null;
-  fecha_completada?: string | null;
-};
-type BackendActividad = {
-  id: number;
-  titulo?: string;
-  descripcion?: string | null;
-  activa?: boolean;
-};
-type BackendActividadPersonalizada = {
-  id: number;
-  titulo?: string;
-  descripcion?: string | null;
-  activa?: boolean;
-};
-type BackendNotificacion = {
-  id: number;
-  id_usuario_destino: number;
-  titulo?: string;
-  cuerpo?: string | null;
-  leida?: boolean;
-  fecha_creacion?: string | null;
-};
-type BackendSaldoPunto = { id: number; id_perteneciente: number; saldo: number };
-type BackendAvatar = { id: number; id_perteneciente: number; nivel?: number; experiencia?: number };
-
-function normalizeRole(typeName?: string): UserRole {
-  const name = (typeName || '').toLowerCase();
-  if (name.includes('admin')) return 'admin';
-  if (name.includes('tutor')) return 'tutor';
-  if (name.includes('profesional')) return 'professional';
-  return 'user';
+function backendRoleToLegacyRole(idTipoUsuario?: number): UserRole {
+  switch (idTipoUsuario) {
+    case 2:
+      return 'tutor';
+    case 3:
+      return 'professional';
+    case 4:
+      return 'admin';
+    case 1:
+    default:
+      return 'user';
+  }
 }
 
-function normalizeUser(user: BackendUser, typeName?: string): User {
-  const fullName = `${user.nombre || ''} ${user.apellido || ''}`.trim() || user.nombre_usuario || `Usuario ${user.id}`;
-  return {
-    id: String(user.id),
-    username: user.nombre_usuario || String(user.id),
+function toLegacyUser(user: Partial<Usuario>): User | Tutor | Professional | Admin {
+  const role = backendRoleToLegacyRole(user.id_tipo_usuario);
+  const base = {
+    id: String(user.id ?? ''),
+    username: user.nombre_usuario ?? user.correo ?? '',
     password: '',
-    name: fullName,
-    role: normalizeRole(typeName),
-    email: user.correo || '',
-    avatar: '',
+    name: [user.nombre, user.apellido].filter(Boolean).join(' ') || user.nombre_usuario || user.correo || 'Usuario',
+    email: user.correo ?? '',
+    avatar: '🙂',
+  };
+
+  if (role === 'admin') {
+    return { ...base, role, clearance: 'superadmin' } as Admin;
+  }
+
+  if (role === 'tutor') {
+    return { ...base, role, relation: '', linkedUserIds: [], phone: user.telefono ? String(user.telefono) : '' } as Tutor;
+  }
+
+  if (role === 'professional') {
+    return {
+      ...base,
+      role,
+      specialty: '',
+      description: '',
+      modality: '',
+      availability: '',
+      linkedUserIds: [],
+      phone: user.telefono ? String(user.telefono) : '',
+    } as Professional;
+  }
+
+  return {
+    ...base,
+    role,
     points: 0,
     streak: 0,
     level: 1,
     plan: 'free',
     onboarded: true,
+  } as User;
+}
+
+function toLegacyActivity(activity: DbActividad, userId?: string): Activity {
+  const typeById: Record<number, ActivityType> = {
+    1: 'guiada',
+    2: 'juego',
+    3: 'regulaciÃ³n',
+    4: 'decisiÃ³n',
+    5: 'guiada',
+  };
+
+  return {
+    id: String(activity.id),
+    title: activity.titulo,
+    category: 'autonomÃ­a personal',
+    objective: activity.descripcion || activity.titulo,
+    description: activity.descripcion || activity.titulo,
+    difficulty: 'medio',
+    duration: '10 min',
+    steps: [activity.descripcion || activity.titulo],
+    stepIcons: ['1'],
+    status: 'pendiente',
+    recommendedBy: 'app',
+    progress: 0,
+    assignedTo: userId,
+    points: activity.id_punto_otorgado ? activity.id_punto_otorgado * 10 : 10,
+    type: typeById[activity.id_tipo_actividad] || 'guiada',
+    completionMessage: 'Actividad completada.',
   };
 }
 
-function isCompletedStatus(status?: BackendCatalog, assigned?: BackendActividadAsignada) {
+function toLegacyNotification(notification: DbNotificacion): Notification {
+  return {
+    id: String(notification.id),
+    userId: String(notification.id_usuario_destino),
+    title: notification.titulo,
+    message: notification.cuerpo || '',
+    type: 'reminder',
+    icon: '!',
+    read: notification.leida,
+    timestamp: notification.fecha_creacion,
+  } as Notification;
+}
+
+function isCompletedStatus(status?: DbEstadoActividad, assigned?: DbActividadAsignada) {
   const name = (status?.nombre || '').toLowerCase();
   return Boolean(assigned?.fecha_completada || name.includes('complet') || name.includes('finaliz'));
 }
@@ -145,29 +168,16 @@ function formatBackendDate(value?: string | null) {
   return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short' }).format(date);
 }
 
-async function fetchList<T>(path: string): Promise<T[]> {
-  try {
-    return await apiFetchWithFallback<T[]>([path]);
-  } catch {
-    return [];
-  }
-}
-
 export async function findUser(username: string, password: string): Promise<User | Tutor | Professional | Admin | null> {
   try {
-    const login = await apiFetchWithFallback<{ user: BackendUser; token: string }>(['/auth/login'], {
-      method: 'POST',
-      body: JSON.stringify({
-        nombre_usuario: username,
-        correo: username.includes('@') ? username : undefined,
-        contrasena: password,
-      }),
+    const auth = await tandemApi.auth.login({
+      nombre_usuario: username,
+      correo: username.includes('@') ? username : undefined,
+      contrasena: password,
     });
-    if (!login?.user) return null;
 
-    const tipos = await fetchList<BackendCatalog>('/tipos-usuarios');
-    const tipo = tipos.find(t => Number(t.id) === Number(login.user.id_tipo_usuario));
-    return normalizeUser(login.user, tipo?.nombre);
+    localStorage.setItem('tandem_auth_token', auth.token);
+    return toLegacyUser(auth.user);
   } catch {
     return null;
   }
@@ -183,7 +193,7 @@ export interface PertenecienteHomeActivity {
 }
 
 export interface PertenecienteHomeData {
-  perteneciente: BackendPerteneciente | null;
+  perteneciente: DbPerteneciente | null;
   supportLevel: string;
   autonomy: string;
   canSelfManage: boolean;
@@ -195,7 +205,7 @@ export interface PertenecienteHomeData {
 }
 
 export async function fetchPertenecienteHome(userId: string): Promise<PertenecienteHomeData> {
-  const perteneciente = await apiFetchWithFallback<BackendPerteneciente | null>([`/pertenecientes/usuario/${encodeURIComponent(userId)}`]);
+  const perteneciente = await apiFetchWithFallback<DbPerteneciente | null>([`/api/pertenecientes/usuario/${encodeURIComponent(userId)}`]);
   if (!perteneciente) {
     return {
       perteneciente: null,
@@ -221,24 +231,24 @@ export async function fetchPertenecienteHome(userId: string): Promise<Pertenecie
     nivelesApoyo,
     autonomias,
   ] = await Promise.all([
-    fetchList<BackendActividadAsignada>('/actividades-asignadas'),
-    fetchList<BackendActividad>('/actividades'),
-    fetchList<BackendActividadPersonalizada>('/actividades-personalizadas'),
-    fetchList<BackendCatalog>('/estados-actividades'),
-    fetchList<BackendNotificacion>('/notificaciones'),
-    fetchList<BackendSaldoPunto>('/saldos-puntos'),
-    fetchList<BackendAvatar>('/avatares'),
-    fetchList<BackendCatalog>('/niveles-apoyos'),
-    fetchList<BackendCatalog>('/autonomias-operativas'),
+    tandemApi.actividadesAsignadas.getAll(),
+    tandemApi.actividades.getAll(),
+    tandemApi.actividadesPersonalizadas.getAll(),
+    tandemApi.estadosActividades.getAll(),
+    tandemApi.notificaciones.getAll(),
+    tandemApi.saldosPuntos.getAll(),
+    tandemApi.avatares.getAll(),
+    tandemApi.nivelesApoyos.getAll(),
+    tandemApi.autonomiasOperativas.getAll(),
   ]);
 
-  const activitiesById = new Map(actividades.map(a => [Number(a.id), a]));
-  const customById = new Map(personalizadas.map(a => [Number(a.id), a]));
-  const statusById = new Map(estados.map(e => [Number(e.id), e]));
-  const saldo = saldos.find(s => Number(s.id_perteneciente) === Number(perteneciente.id));
-  const avatar = avatares.find(a => Number(a.id_perteneciente) === Number(perteneciente.id));
-  const supportLevel = nivelesApoyo.find(n => Number(n.id) === Number(perteneciente.id_nivel_apoyo));
-  const autonomy = autonomias.find(a => Number(a.id) === Number(perteneciente.id_autonomia_operativa));
+  const activitiesById = new Map((actividades as DbActividad[]).map(a => [Number(a.id), a]));
+  const customById = new Map((personalizadas as DbActividadPersonalizada[]).map(a => [Number(a.id), a]));
+  const statusById = new Map((estados as DbEstadoActividad[]).map(e => [Number(e.id), e]));
+  const saldo = (saldos as DbSaldoPuntos[]).find(s => Number(s.id_perteneciente) === Number(perteneciente.id));
+  const avatar = (avatares as DbAvatar[]).find(a => Number(a.id_perteneciente) === Number(perteneciente.id));
+  const supportLevel = (nivelesApoyo as DbNivelApoyo[]).find(n => Number(n.id) === Number(perteneciente.id_nivel_apoyo));
+  const autonomy = (autonomias as DbAutonomiaOperativa[]).find(a => Number(a.id) === Number(perteneciente.id_autonomia_operativa));
 
   return {
     perteneciente,
@@ -248,7 +258,7 @@ export async function fetchPertenecienteHome(userId: string): Promise<Pertenecie
     points: saldo?.saldo ?? 0,
     level: avatar?.nivel ?? 1,
     experience: avatar?.experiencia ?? 0,
-    activities: asignadas
+    activities: (asignadas as DbActividadAsignada[])
       .filter(a => Number(a.id_perteneciente) === Number(perteneciente.id))
       .map(a => {
         const base = a.id_actividad ? activitiesById.get(Number(a.id_actividad)) : undefined;
@@ -263,15 +273,15 @@ export async function fetchPertenecienteHome(userId: string): Promise<Pertenecie
           assignedAt: formatBackendDate(a.fecha_asignacion),
         };
       }),
-    notifications: notificaciones
+    notifications: (notificaciones as DbNotificacion[])
       .filter(n => Number(n.id_usuario_destino) === Number(userId))
       .map(n => ({
         id: String(n.id),
         userId,
         title: n.titulo || 'Notificacion',
         message: n.cuerpo || '',
-        type: 'info',
-        icon: 'bell',
+        type: 'reminder',
+        icon: '!',
         read: Boolean(n.leida),
         timestamp: formatBackendDate(n.fecha_creacion),
       } as Notification)),
@@ -279,10 +289,23 @@ export async function fetchPertenecienteHome(userId: string): Promise<Pertenecie
 }
 
 export async function fetchActivitiesForUser(userId: string): Promise<Activity[]> {
-  return apiFetchWithFallback<Activity[]>([`/activities?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/activities`]);
+  try {
+    const rows = await tandemApi.actividades.getAll();
+    return rows.map((row) => toLegacyActivity(row, userId));
+  } catch {
+    return apiFetchWithFallback<Activity[]>([`/activities?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/activities`]);
+  }
 }
 export async function fetchNotificationsForUser(userId: string): Promise<Notification[]> {
-  return apiFetchWithFallback<Notification[]>([`/notifications?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/notifications`]);
+  try {
+    const numericUserId = Number(userId);
+    const rows = await tandemApi.notificaciones.getAll();
+    return rows
+      .filter((row) => Number.isNaN(numericUserId) || row.id_usuario_destino === numericUserId)
+      .map(toLegacyNotification);
+  } catch {
+    return apiFetchWithFallback<Notification[]>([`/notifications?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/notifications`]);
+  }
 }
 export async function fetchObjectivesForUser(userId: string): Promise<Objective[]> {
   return apiFetchWithFallback<Objective[]>([`/objectives?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/objectives`]);
@@ -329,9 +352,43 @@ export async function sendMessage(conversationId: string, senderId: string, send
     method: 'POST', body: JSON.stringify({ senderId, senderName, text, type: 'text' }),
   });
 }
-export async function fetchAllUsers(): Promise<User[]> { return apiFetchWithFallback<User[]>(['/users']); }
-export async function fetchAllTutors(): Promise<Tutor[]> { return apiFetchWithFallback<Tutor[]>(['/tutors']); }
-export async function fetchAllProfessionals(): Promise<Professional[]> { return apiFetchWithFallback<Professional[]>(['/professionals']); }
+export async function fetchAllUsers(): Promise<User[]> {
+  const usuarios = await tandemApi.usuarios.getAll();
+  return usuarios.map(toLegacyUser).filter((user): user is User => user.role === 'user');
+}
+export async function fetchAllTutors(): Promise<Tutor[]> {
+  const [usuarios, tutoresBackend] = await Promise.all([
+    tandemApi.usuarios.getAll(),
+    tandemApi.tutores.getAll(),
+  ]);
+  const usuarioById = new Map(usuarios.map((user) => [user.id, user]));
+
+  return tutoresBackend.map((tutor) => {
+    const legacyUser = toLegacyUser(usuarioById.get(tutor.id_usuario) || { id: tutor.id_usuario, id_tipo_usuario: 2 });
+    return {
+      ...(legacyUser as Tutor),
+      id: String(tutor.id),
+      relation: tutor.parentesco || '',
+    };
+  });
+}
+export async function fetchAllProfessionals(): Promise<Professional[]> {
+  const [usuarios, profesionalesBackend] = await Promise.all([
+    tandemApi.usuarios.getAll(),
+    tandemApi.profesionales.getAll(),
+  ]);
+  const usuarioById = new Map(usuarios.map((user) => [user.id, user]));
+
+  return profesionalesBackend.map((professional) => {
+    const legacyUser = toLegacyUser(usuarioById.get(professional.id_usuario) || { id: professional.id_usuario, id_tipo_usuario: 3 });
+    return {
+      ...(legacyUser as Professional),
+      id: String(professional.id),
+      specialty: professional.especialidad || professional.profesion || '',
+      description: professional.institucion || '',
+    };
+  });
+}
 
 
 export async function fetchAchievementsForUser(userId: string): Promise<Achievement[]> {
