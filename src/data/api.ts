@@ -1,6 +1,6 @@
 import * as legacy from './mockData';
 import { tandemApi } from '@/services/api';
-import type { Actividad as DbActividad, Notificacion as DbNotificacion, Usuario } from '@/types/database';
+import type { Actividad as DbActividad, ConfiguracionUsuario, Notificacion as DbNotificacion, Usuario } from '@/types/database';
 
 export type UserRole = legacy.UserRole;
 export type User = legacy.User;
@@ -23,6 +23,18 @@ export type Recommendation = legacy.Recommendation;
 export type Pictogram = legacy.Pictogram;
 export type Resource = legacy.Resource;
 export type PricingPlan = legacy.PricingPlan;
+
+export interface AchievementDashboard {
+  achievements: Achievement[];
+  stats: {
+    points: number;
+    level: number;
+    completedActivities: number;
+    assignedActivities: number;
+    emotionDays: number;
+    avatarExperience: number;
+  };
+}
 
 async function apiFetchWithFallback<T>(paths: string[], init?: RequestInit): Promise<T> {
   let last: unknown = null;
@@ -106,15 +118,15 @@ function toLegacyActivity(activity: DbActividad, userId?: string): Activity {
   const typeById: Record<number, ActivityType> = {
     1: 'guiada',
     2: 'juego',
-    3: 'regulaciÃ³n',
-    4: 'decisiÃ³n',
+    3: 'regulación',
+    4: 'decisión',
     5: 'guiada',
   };
 
   return {
     id: String(activity.id),
     title: activity.titulo,
-    category: 'autonomÃ­a personal',
+    category: 'autonomía personal',
     objective: activity.descripcion || activity.titulo,
     description: activity.descripcion || activity.titulo,
     difficulty: 'medio',
@@ -142,6 +154,133 @@ function toLegacyNotification(notification: DbNotificacion): Notification {
     read: notification.leida,
     timestamp: notification.fecha_creacion,
   } as Notification;
+}
+
+function isBackendUserId(userId: string): boolean {
+  return Number.isInteger(Number(userId));
+}
+
+function parseEmotionConfig(config: ConfiguracionUsuario): EmotionalRecord | null {
+  if (!config.clave?.startsWith('emotion:')) return null;
+
+  try {
+    const value = JSON.parse(config.valor || '{}') as Partial<EmotionalRecord>;
+    if (!value.emotion) return null;
+
+    return {
+      id: String(config.id),
+      userId: String(config.id_usuario),
+      emotion: value.emotion,
+      emoji: value.emoji || '🙂',
+      intensity: Number(value.intensity || 3),
+      context: value.context || '',
+      whatHelped: value.whatHelped || '',
+      timestamp: value.timestamp || new Date(config.fecha_modificacion).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+      date: value.date || config.fecha_modificacion.split('T')[0],
+    };
+  } catch {
+    return null;
+  }
+}
+
+function daysAgoLabel(date?: string | null): string | undefined {
+  if (!date) return undefined;
+  const then = new Date(date);
+  if (Number.isNaN(then.getTime())) return undefined;
+  const diff = Math.max(0, Math.floor((Date.now() - then.getTime()) / 86400000));
+  if (diff === 0) return 'Hoy';
+  if (diff === 1) return 'Ayer';
+  return `Hace ${diff} dias`;
+}
+
+function buildAchievement(
+  id: string,
+  title: string,
+  description: string,
+  icon: string,
+  category: string,
+  points: number,
+  requirement: string,
+  progress: number,
+  target: number,
+  unlockedDate?: string | null,
+): Achievement {
+  const unlocked = progress >= target;
+  return {
+    id,
+    title,
+    description,
+    icon,
+    category,
+    unlocked,
+    unlockedDate: unlocked ? daysAgoLabel(unlockedDate) || 'Desbloqueado' : undefined,
+    points,
+    requirement: unlocked ? `${target}/${target}` : `${Math.min(progress, target)}/${target} · ${requirement}`,
+  };
+}
+
+async function fetchBackendAchievementDashboard(userId: string): Promise<AchievementDashboard> {
+  const idUsuario = Number(userId);
+  const [pertenecientes, assigned, saldos, avatares, configs] = await Promise.all([
+    tandemApi.pertenecientes.getAll(),
+    tandemApi.actividadesAsignadas.getAll(),
+    tandemApi.saldosPuntos.getAll(),
+    tandemApi.avatares.getAll(),
+    tandemApi.configuracionesUsuarios.getAll(),
+  ]);
+
+  const perteneciente = pertenecientes.find((item) => item.id_usuario === idUsuario);
+  const idPerteneciente = perteneciente?.id;
+  const assignedForUser = idPerteneciente
+    ? assigned.filter((item) => item.id_perteneciente === idPerteneciente)
+    : [];
+  const completed = assignedForUser.filter((item) => item.fecha_completada || item.id_estado_actividad === 3);
+  const completedDates = completed
+    .map((item) => item.fecha_completada || item.fecha_asignacion)
+    .filter(Boolean)
+    .sort();
+  const latestCompletedDate = completedDates[completedDates.length - 1];
+  const saldo = idPerteneciente
+    ? saldos.find((item) => item.id_perteneciente === idPerteneciente)?.saldo || 0
+    : 0;
+  const avatar = idPerteneciente
+    ? avatares.find((item) => item.id_perteneciente === idPerteneciente)
+    : undefined;
+  const emotionDays = new Set(
+    configs
+      .filter((config) => config.id_usuario === idUsuario && config.clave.startsWith('emotion:'))
+      .map((config) => parseEmotionConfig(config)?.date || config.fecha_modificacion.split('T')[0])
+      .filter(Boolean)
+  ).size;
+
+  const completedCount = completed.length;
+  const level = avatar?.nivel || 1;
+  const experience = avatar?.experiencia || 0;
+
+  return {
+    achievements: [
+      buildAchievement('ach-first-activity', 'Primer paso', 'Completaste tu primera actividad asignada.', '🌟', 'actividades', 50, 'Completar 1 actividad', completedCount, 1, latestCompletedDate),
+      buildAchievement('ach-five-activities', 'En marcha', 'Completaste 5 actividades.', '✅', 'actividades', 100, 'Completar 5 actividades', completedCount, 5, latestCompletedDate),
+      buildAchievement('ach-ten-activities', 'Explorador', 'Completaste 10 actividades.', '🧭', 'actividades', 150, 'Completar 10 actividades', completedCount, 10, latestCompletedDate),
+      buildAchievement('ach-twenty-activities', 'Constante', 'Completaste 20 actividades.', '🔥', 'constancia', 200, 'Completar 20 actividades', completedCount, 20, latestCompletedDate),
+      buildAchievement('ach-emotion-first', 'Me conozco', 'Registraste tu primera emocion.', '💭', 'emociones', 50, 'Registrar 1 dia emocional', emotionDays, 1),
+      buildAchievement('ach-emotion-five', 'En sintonia', 'Registraste emociones en 5 dias distintos.', '🎯', 'emociones', 80, 'Registrar 5 dias emocionales', emotionDays, 5),
+      buildAchievement('ach-points-100', 'Primer ahorro', 'Alcanzaste 100 puntos disponibles.', '🪙', 'puntos', 75, 'Llegar a 100 puntos', saldo, 100),
+      buildAchievement('ach-points-500', 'Gran ahorro', 'Alcanzaste 500 puntos disponibles.', '💰', 'puntos', 150, 'Llegar a 500 puntos', saldo, 500),
+      buildAchievement('ach-level-3', 'Subiendo de nivel', 'Tu avatar alcanzo el nivel 3.', '🎖️', 'avatar', 120, 'Llegar a nivel 3', level, 3),
+      buildAchievement('ach-level-5', 'Nivel 5', 'Tu avatar alcanzo el nivel 5.', '🏆', 'avatar', 180, 'Llegar a nivel 5', level, 5),
+      buildAchievement('ach-exp-250', 'Aprendiz activo', 'Tu avatar sumo 250 puntos de experiencia.', '📈', 'avatar', 100, 'Llegar a 250 XP', experience, 250),
+      buildAchievement('ach-exp-1000', 'Maestria', 'Tu avatar sumo 1000 puntos de experiencia.', '⭐', 'avatar', 250, 'Llegar a 1000 XP', experience, 1000),
+    ],
+    stats: {
+      points: saldo,
+      level,
+      completedActivities: completedCount,
+      assignedActivities: assignedForUser.length,
+      emotionDays,
+      avatarExperience: experience,
+    },
+  };
 }
 
 export async function findUser(username: string, password: string): Promise<User | Tutor | Professional | Admin | null> {
@@ -195,12 +334,53 @@ export async function deleteCalendarEvent(eventId: string): Promise<void> {
 }
 
 export async function fetchEmotionRecordsForUser(userId: string): Promise<EmotionalRecord[]> {
+  if (isBackendUserId(userId)) {
+    try {
+      const idUsuario = Number(userId);
+      const configs = await tandemApi.configuracionesUsuarios.getAll();
+
+      return configs
+        .filter((config) => config.id_usuario === idUsuario && config.clave.startsWith('emotion:'))
+        .map(parseEmotionConfig)
+        .filter((record): record is EmotionalRecord => Boolean(record))
+        .sort((a, b) => `${b.date} ${b.timestamp}`.localeCompare(`${a.date} ${a.timestamp}`));
+    } catch {
+      return [];
+    }
+  }
+
   return apiFetchWithFallback<EmotionalRecord[]>([`/emotions?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/emotions`]);
 }
 export async function createEmotionRecord(userId: string, payload: Omit<EmotionalRecord, 'id' | 'userId'>): Promise<EmotionalRecord> {
+  if (isBackendUserId(userId)) {
+    const now = new Date();
+    const record = {
+      ...payload,
+      timestamp: payload.timestamp || now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+      date: payload.date || now.toISOString().split('T')[0],
+    };
+    const result = await tandemApi.configuracionesUsuarios.create({
+      id_usuario: Number(userId),
+      clave: `emotion:${now.toISOString()}`,
+      valor: JSON.stringify(record),
+      fecha_modificacion: now.toISOString(),
+    });
+
+    return {
+      id: String(result.id || now.getTime()),
+      userId,
+      ...record,
+    };
+  }
+
   return apiFetchWithFallback<EmotionalRecord>([`/emotions`, `/users/${encodeURIComponent(userId)}/emotions`], { method: 'POST', body: JSON.stringify({ ...payload, userId }) });
 }
 export async function deleteEmotionRecord(recordId: string): Promise<void> {
+  if (isBackendUserId(recordId)) {
+    await tandemApi.configuracionesUsuarios.delete(recordId);
+    return;
+  }
+
   await apiFetchWithFallback<unknown>([`/emotions/${encodeURIComponent(recordId)}`], { method: 'DELETE' });
 }
 
@@ -263,7 +443,30 @@ export async function fetchAllProfessionals(): Promise<Professional[]> {
 
 
 export async function fetchAchievementsForUser(userId: string): Promise<Achievement[]> {
+  if (isBackendUserId(userId)) {
+    return (await fetchBackendAchievementDashboard(userId)).achievements;
+  }
+
   return apiFetchWithFallback<Achievement[]>([`/achievements?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/achievements`]);
+}
+
+export async function fetchAchievementDashboardForUser(userId: string): Promise<AchievementDashboard> {
+  if (isBackendUserId(userId)) {
+    return fetchBackendAchievementDashboard(userId);
+  }
+
+  const achievements = await fetchAchievementsForUser(userId);
+  return {
+    achievements,
+    stats: {
+      points: achievements.filter((item) => item.unlocked).reduce((sum, item) => sum + item.points, 0),
+      level: 1,
+      completedActivities: 0,
+      assignedActivities: 0,
+      emotionDays: 0,
+      avatarExperience: 0,
+    },
+  };
 }
 export async function fetchResourcesForUser(userId: string): Promise<Resource[]> {
   return apiFetchWithFallback<Resource[]>([`/resources?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/resources`]);
