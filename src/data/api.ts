@@ -206,6 +206,40 @@ export interface UserProfileDashboard {
   plans: PricingPlan[];
 }
 
+export interface UserProfileSettings {
+  usuario: Omit<Usuario, 'contrasena_hash'> | null;
+  perteneciente: DbPerteneciente | null;
+  supportLevels: DbNivelApoyo[];
+  autonomies: DbAutonomiaOperativa[];
+  preferences: {
+    recibir_notificaciones: boolean;
+    recordatorios_actividad: boolean;
+    resumen_semanal: boolean;
+    compartir_ubicacion: boolean;
+    permitir_mensajes: boolean;
+    mostrar_progreso_red_apoyo: boolean;
+  };
+  accessibility: {
+    tamanio_texto: 'normal' | 'grande' | 'muy_grande';
+    contraste_alto: boolean;
+    reducir_movimiento: boolean;
+    pictogramas_grandes: boolean;
+  };
+}
+
+export type UserProfileSettingsPayload = {
+  usuario: Pick<Usuario, 'nombre_usuario' | 'nombre' | 'apellido' | 'correo'> & {
+    telefono: number | null;
+    fecha_nacimiento: string | null;
+  };
+  perteneciente: Pick<
+    DbPerteneciente,
+    'id_nivel_apoyo' | 'id_autonomia_operativa' | 'puede_autogestionarse' | 'observacion_general'
+  >;
+  preferences: UserProfileSettings['preferences'];
+  accessibility: UserProfileSettings['accessibility'];
+};
+
 function parseEmotionConfig(config: ConfiguracionUsuario): EmotionalRecord | null {
   if (!config.clave?.startsWith('emotion:')) return null;
 
@@ -979,6 +1013,141 @@ export async function fetchUserProfileDashboard(userId: string): Promise<UserPro
     professionals: [],
     plans,
   };
+}
+
+const PROFILE_PREFERENCES_KEY = 'profile.preferences';
+const PROFILE_ACCESSIBILITY_KEY = 'profile.accessibility';
+
+const defaultProfilePreferences: UserProfileSettings['preferences'] = {
+  recibir_notificaciones: true,
+  recordatorios_actividad: true,
+  resumen_semanal: false,
+  compartir_ubicacion: false,
+  permitir_mensajes: true,
+  mostrar_progreso_red_apoyo: true,
+};
+
+const defaultProfileAccessibility: UserProfileSettings['accessibility'] = {
+  tamanio_texto: 'normal',
+  contraste_alto: false,
+  reducir_movimiento: false,
+  pictogramas_grandes: false,
+};
+
+function parseJsonConfig<T extends object>(value: string | null | undefined, fallback: T): T {
+  if (!value) return fallback;
+  try {
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== 'object') return fallback;
+    return { ...fallback, ...parsed };
+  } catch {
+    return fallback;
+  }
+}
+
+async function upsertUserConfig(userId: number, key: string, value: unknown): Promise<void> {
+  const now = new Date().toISOString();
+  const payload = {
+    id_usuario: userId,
+    clave: key,
+    valor: JSON.stringify(value),
+    fecha_modificacion: now,
+  };
+  const config = await getUserConfig(userId, key);
+  if (config?.id) await tandemApi.configuracionesUsuarios.update(config.id, payload);
+  else await tandemApi.configuracionesUsuarios.create(payload);
+}
+
+async function getAccessibilityConfig(userId: number, key: string) {
+  const rows = await tandemApi.configuracionesAccesibilidad.getAll();
+  return rows.find(row => row.id_usuario === userId && row.clave === key);
+}
+
+async function upsertAccessibilityConfig(userId: number, key: string, value: unknown): Promise<void> {
+  const now = new Date().toISOString();
+  const payload = {
+    id_usuario: userId,
+    clave: key,
+    valor: JSON.stringify(value),
+    fecha_modificacion: now,
+  };
+  const config = await getAccessibilityConfig(userId, key);
+  if (config?.id) await tandemApi.configuracionesAccesibilidad.update(config.id, payload);
+  else await tandemApi.configuracionesAccesibilidad.create(payload);
+}
+
+export async function fetchUserProfileSettings(userId: string): Promise<UserProfileSettings> {
+  if (!isBackendUserId(userId)) {
+    return {
+      usuario: null,
+      perteneciente: null,
+      supportLevels: [],
+      autonomies: [],
+      preferences: defaultProfilePreferences,
+      accessibility: defaultProfileAccessibility,
+    };
+  }
+
+  const idUsuario = Number(userId);
+  const [
+    usuario,
+    perteneciente,
+    supportLevels,
+    autonomies,
+    preferencesConfig,
+    accessibilityConfig,
+  ] = await Promise.all([
+    tandemApi.usuarios.getById(idUsuario),
+    apiFetchWithFallback<DbPerteneciente | null>([`/api/pertenecientes/usuario/${encodeURIComponent(userId)}`]).catch(() => null),
+    tandemApi.nivelesApoyos.getAll(),
+    tandemApi.autonomiasOperativas.getAll(),
+    getUserConfig(idUsuario, PROFILE_PREFERENCES_KEY),
+    getAccessibilityConfig(idUsuario, PROFILE_ACCESSIBILITY_KEY),
+  ]);
+
+  return {
+    usuario: usuario ? ({ ...usuario, contrasena_hash: undefined } as Omit<Usuario, 'contrasena_hash'>) : null,
+    perteneciente,
+    supportLevels,
+    autonomies,
+    preferences: parseJsonConfig(preferencesConfig?.valor, defaultProfilePreferences),
+    accessibility: parseJsonConfig(accessibilityConfig?.valor, defaultProfileAccessibility),
+  };
+}
+
+export async function saveUserProfileSettings(userId: string, payload: UserProfileSettingsPayload): Promise<void> {
+  if (!isBackendUserId(userId)) throw new Error('El usuario no esta conectado al backend.');
+
+  const idUsuario = Number(userId);
+  const [currentUsuario, currentPerteneciente] = await Promise.all([
+    tandemApi.usuarios.getById(idUsuario),
+    apiFetchWithFallback<DbPerteneciente | null>([`/api/pertenecientes/usuario/${encodeURIComponent(userId)}`]).catch(() => null),
+  ]);
+
+  await tandemApi.usuarios.update(idUsuario, {
+    ...currentUsuario,
+    ...payload.usuario,
+    telefono: payload.usuario.telefono,
+    fecha_nacimiento: payload.usuario.fecha_nacimiento || null,
+  });
+
+  if (currentPerteneciente?.id) {
+    await tandemApi.pertenecientes.update(currentPerteneciente.id, {
+      ...currentPerteneciente,
+      ...payload.perteneciente,
+      id_usuario: idUsuario,
+    });
+  } else {
+    await tandemApi.pertenecientes.create({
+      ...payload.perteneciente,
+      id_usuario: idUsuario,
+    });
+  }
+
+  await Promise.all([
+    upsertUserConfig(idUsuario, PROFILE_PREFERENCES_KEY, payload.preferences),
+    upsertAccessibilityConfig(idUsuario, PROFILE_ACCESSIBILITY_KEY, payload.accessibility),
+  ]);
 }
 
 export async function fetchLegacyPricingPlans(): Promise<PricingPlan[]> {

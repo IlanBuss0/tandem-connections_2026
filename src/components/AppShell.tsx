@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
-import { Home, Calendar, CheckSquare, MessageCircle, Heart, Trophy, User, Sun, Star, Bell, LogOut, Menu, X, Image, BookOpen, ShoppingBag } from 'lucide-react';
+import { Home, Calendar, CheckSquare, MessageCircle, Heart, Trophy, User, Sun, Star, Bell, LogOut, Menu, X, Image, BookOpen, ShoppingBag, Settings } from 'lucide-react';
 import AvatarPreview from '@/components/AvatarPreview';
 import CoinBadge from '@/components/CoinBadge';
 import UserHome from '@/pages/user/UserHome';
@@ -12,6 +12,7 @@ import UserChat from '@/pages/user/UserChat';
 import UserEmotions from '@/pages/user/UserEmotions';
 import UserAchievements from '@/pages/user/UserAchievements';
 import UserProfile from '@/pages/user/UserProfile';
+import UserProfileSettings from '@/pages/user/UserProfileSettings';
 import UserPictograms from '@/pages/user/UserPictograms';
 import UserNotifications from '@/pages/user/UserNotifications';
 import UserResources from '@/pages/user/UserResources';
@@ -34,10 +35,12 @@ const userNav = [
   { id: 'notifications', label: 'Notificaciones', icon: Bell },
   { id: 'resources', label: 'Recursos', icon: BookOpen },
   { id: 'profile', label: 'Perfil', icon: User },
+  { id: 'profile-settings', label: 'Configuracion', icon: Settings },
 ];
 
 export default function AppShell() {
   const { user, logout } = useAuth();
+  const { state: wallet } = useWallet();
   const [activeTab, setActiveTab] = useState('home');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -61,7 +64,8 @@ export default function AppShell() {
       case 'achievements': return <UserAchievements />;
       case 'notifications': return <UserNotifications />;
       case 'resources': return <UserResources />;
-      case 'profile': return <UserProfile />;
+      case 'profile': return <UserProfile onConfigure={() => setActiveTab('profile-settings')} />;
+      case 'profile-settings': return <UserProfileSettings onBack={() => setActiveTab('profile')} />;
       default: return <UserHome onNavigate={setActiveTab} />;
     }
   };
@@ -97,7 +101,7 @@ export default function AppShell() {
               onClick={() => { setActiveTab('shop'); setSidebarOpen(false); }}
               className="w-full flex items-center gap-3 p-3 rounded-xl bg-muted/50 mb-4 hover:bg-muted transition-colors text-left"
             >
-              <AvatarPreview equipped={useWalletEquipped()} size={48} showBackground={false} />
+              <AvatarPreview equipped={wallet.equipped} size={48} showBackground={false} />
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-sm text-foreground truncate">{user.name}</p>
                 <p className="text-xs text-muted-foreground">Nivel {'level' in user ? user.level : 1}</p>
@@ -136,7 +140,7 @@ export default function AppShell() {
           onClick={() => setActiveTab('shop')}
           className="flex items-center gap-3 p-3 mx-3 mt-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors text-left"
         >
-          <AvatarPreview equipped={useWalletEquipped()} size={56} showBackground={false} />
+          <AvatarPreview equipped={wallet.equipped} size={56} showBackground={false} />
           <div className="min-w-0 flex-1">
             <p className="font-semibold text-sm text-foreground truncate">{user.name}</p>
             <p className="text-xs text-muted-foreground">Nivel {'level' in user ? user.level : 1}</p>
@@ -185,10 +189,4 @@ export default function AppShell() {
       </nav>
     </div>
   );
-}
-
-// Hook helper local para no llamar useWallet en el render de cada item
-function useWalletEquipped() {
-  const { state } = useWallet();
-  return state.equipped;
 }
