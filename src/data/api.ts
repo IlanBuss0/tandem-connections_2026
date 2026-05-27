@@ -7,6 +7,7 @@ import type {
   AutonomiaOperativa as DbAutonomiaOperativa,
   Avatar as DbAvatar,
   ConfiguracionUsuario,
+  Dispositivo as DbDispositivo,
   EstadoActividad as DbEstadoActividad,
   EstadoVinculo as DbEstadoVinculo,
   NivelApoyo as DbNivelApoyo,
@@ -14,11 +15,14 @@ import type {
   Perteneciente as DbPerteneciente,
   PlanSuscripcion as DbPlanSuscripcion,
   Profesional as DbProfesional,
+  PuntoOtorgado as DbPuntoOtorgado,
   SaldoPuntos as DbSaldoPuntos,
   Tutor as DbTutor,
+  UbicacionActual as DbUbicacionActual,
   Usuario,
   VinculoProfesionalPerteneciente as DbVinculoProfesionalPerteneciente,
   VinculoTutorPerteneciente as DbVinculoTutorPerteneciente,
+  ZonaSegura as DbZonaSegura,
 } from '@/types/database';
 
 export type UserRole = legacy.UserRole;
@@ -563,6 +567,51 @@ export interface PertenecienteHomeData {
   notifications: Notification[];
 }
 
+export interface TutorHomeLinkedUser extends User {
+  pertenecienteId: number;
+  linkId: number;
+  linkStatus: string;
+  isPrimaryTutor: boolean;
+  supportLevel: string;
+  autonomy: string;
+  canSelfManage: boolean;
+  observation: string;
+}
+
+export interface TutorHomeActivity {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  difficulty: string;
+  points: number;
+  status: string;
+  completed: boolean;
+  assignedAt: string;
+  completedAt: string | null;
+}
+
+export interface TutorHomeLocation {
+  id: string;
+  name: string;
+  address: string;
+  type: 'actual' | 'seguro';
+  timestamp?: string;
+}
+
+export interface TutorHomeData {
+  tutorId: number | null;
+  linkedUsers: TutorHomeLinkedUser[];
+  byUserId: Record<string, {
+    activities: TutorHomeActivity[];
+    emotions: EmotionalRecord[];
+    events: CalendarEvent[];
+    locations: TutorHomeLocation[];
+    notifications: Notification[];
+    recommendations: Recommendation[];
+  }>;
+}
+
 export async function fetchPertenecienteHome(userId: string): Promise<PertenecienteHomeData> {
   const perteneciente = await apiFetchWithFallback<DbPerteneciente | null>([`/api/pertenecientes/usuario/${encodeURIComponent(userId)}`]);
   if (!perteneciente) {
@@ -647,6 +696,174 @@ export async function fetchPertenecienteHome(userId: string): Promise<Pertenecie
   };
 }
 
+export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
+  const idUsuarioTutor = Number(userId);
+
+  if (!Number.isFinite(idUsuarioTutor)) {
+    return { tutorId: null, linkedUsers: [], byUserId: {} };
+  }
+
+  const [
+    usuarios,
+    tutores,
+    pertenecientes,
+    vinculosTutor,
+    estadosVinculos,
+    nivelesApoyo,
+    autonomias,
+    saldos,
+    avatares,
+    asignadas,
+    actividades,
+    personalizadas,
+    estadosActividades,
+    puntosOtorgados,
+    notificaciones,
+    zonasSeguras,
+    dispositivos,
+    ubicacionesActuales,
+  ] = await Promise.all([
+    tandemApi.usuarios.getAll(),
+    tandemApi.tutores.getAll(),
+    tandemApi.pertenecientes.getAll(),
+    tandemApi.vinculosTutorPertenecientes.getAll(),
+    tandemApi.estadosVinculos.getAll(),
+    tandemApi.nivelesApoyos.getAll(),
+    tandemApi.autonomiasOperativas.getAll(),
+    tandemApi.saldosPuntos.getAll(),
+    tandemApi.avatares.getAll(),
+    tandemApi.actividadesAsignadas.getAll(),
+    tandemApi.actividades.getAll(),
+    tandemApi.actividadesPersonalizadas.getAll(),
+    tandemApi.estadosActividades.getAll(),
+    tandemApi.puntosOtorgados.getAll(),
+    tandemApi.notificaciones.getAll(),
+    tandemApi.zonasSeguras.getAll(),
+    tandemApi.dispositivos.getAll(),
+    tandemApi.ubicacionesActuales.getAll(),
+  ]);
+
+  const tutor = (tutores as DbTutor[]).find(item => Number(item.id_usuario) === idUsuarioTutor);
+
+  if (!tutor) {
+    return { tutorId: null, linkedUsers: [], byUserId: {} };
+  }
+
+  const usersById = new Map((usuarios as Usuario[]).map(item => [Number(item.id), item]));
+  const pertenecienteById = new Map((pertenecientes as DbPerteneciente[]).map(item => [Number(item.id), item]));
+  const statusById = new Map((estadosVinculos as DbEstadoVinculo[]).map(item => [Number(item.id), item.nombre]));
+  const supportById = new Map((nivelesApoyo as DbNivelApoyo[]).map(item => [Number(item.id), item.nombre]));
+  const autonomyById = new Map((autonomias as DbAutonomiaOperativa[]).map(item => [Number(item.id), item.nombre]));
+  const activityById = new Map((actividades as DbActividad[]).map(item => [Number(item.id), item]));
+  const customActivityById = new Map((personalizadas as DbActividadPersonalizada[]).map(item => [Number(item.id), item]));
+  const activityStatusById = new Map((estadosActividades as DbEstadoActividad[]).map(item => [Number(item.id), item]));
+  const pointById = new Map((puntosOtorgados as DbPuntoOtorgado[]).map(item => [Number(item.id), item]));
+  const deviceByUserId = new Map((dispositivos as DbDispositivo[]).map(item => [Number(item.id_usuario), item]));
+  const currentLocationByDeviceId = new Map((ubicacionesActuales as DbUbicacionActual[]).map(item => [Number(item.id_dispositivo), item]));
+
+  const activeLinks = (vinculosTutor as DbVinculoTutorPerteneciente[])
+    .filter(link => Number(link.id_tutor) === Number(tutor.id))
+    .filter(link => !link.fecha_fin && (statusById.get(Number(link.id_estado_vinculo)) || '').toLowerCase() === 'activo');
+
+  const linkedUsers = activeLinks
+    .map(link => {
+      const perteneciente = pertenecienteById.get(Number(link.id_perteneciente));
+      const usuario = perteneciente ? usersById.get(Number(perteneciente.id_usuario)) : undefined;
+      if (!perteneciente || !usuario) return null;
+
+      const legacy = toLegacyUser(usuario) as User;
+      const saldo = (saldos as DbSaldoPuntos[]).find(item => Number(item.id_perteneciente) === Number(perteneciente.id));
+      const avatar = (avatares as DbAvatar[]).find(item => Number(item.id_perteneciente) === Number(perteneciente.id));
+      const completedCount = (asignadas as DbActividadAsignada[])
+        .filter(item => Number(item.id_perteneciente) === Number(perteneciente.id))
+        .filter(item => isCompletedStatus(activityStatusById.get(Number(item.id_estado_actividad)), item))
+        .length;
+
+      return {
+        ...legacy,
+        points: saldo?.saldo ?? legacy.points,
+        level: avatar?.nivel ?? legacy.level,
+        streak: completedCount,
+        pertenecienteId: Number(perteneciente.id),
+        linkId: Number(link.id),
+        linkStatus: statusById.get(Number(link.id_estado_vinculo)) || 'Sin estado',
+        isPrimaryTutor: Boolean(link.es_tutor_principal),
+        supportLevel: supportById.get(Number(perteneciente.id_nivel_apoyo)) || 'Sin registrar',
+        autonomy: autonomyById.get(Number(perteneciente.id_autonomia_operativa)) || 'Sin registrar',
+        canSelfManage: Boolean(perteneciente.puede_autogestionarse),
+        observation: perteneciente.observacion_general || '',
+      } as TutorHomeLinkedUser;
+    })
+    .filter((item): item is TutorHomeLinkedUser => Boolean(item))
+    .sort((a, b) => Number(b.isPrimaryTutor) - Number(a.isPrimaryTutor) || a.name.localeCompare(b.name));
+
+  const byUserId: TutorHomeData['byUserId'] = {};
+
+  await Promise.all(linkedUsers.map(async linked => {
+    const assignedForUser = (asignadas as DbActividadAsignada[])
+      .filter(item => Number(item.id_perteneciente) === Number(linked.pertenecienteId))
+      .sort((a, b) => String(b.fecha_asignacion || '').localeCompare(String(a.fecha_asignacion || '')))
+      .map(item => {
+        const base = item.id_actividad ? activityById.get(Number(item.id_actividad)) : undefined;
+        const custom = item.id_actividad_personalizada ? customActivityById.get(Number(item.id_actividad_personalizada)) : undefined;
+        const status = activityStatusById.get(Number(item.id_estado_actividad));
+        const pointId = base?.id_punto_otorgado || custom?.id_punto_otorgado;
+        const pointName = pointId ? pointById.get(Number(pointId))?.nombre : undefined;
+        const pointsByName: Record<string, number> = { Bajo: 10, Medio: 20, Alto: 30, Bonus: 50 };
+
+        return {
+          id: String(item.id),
+          title: base?.titulo || custom?.titulo || `Actividad #${item.id}`,
+          description: base?.descripcion || custom?.descripcion || 'Actividad asignada desde el equipo de apoyo.',
+          category: custom ? 'Personalizada' : 'Integrada',
+          difficulty: 'Medio',
+          points: pointName ? pointsByName[pointName] ?? 10 : 10,
+          status: status?.nombre || (item.fecha_completada ? 'Completada' : 'Pendiente'),
+          completed: isCompletedStatus(status, item),
+          assignedAt: formatBackendDate(item.fecha_asignacion),
+          completedAt: item.fecha_completada ? formatBackendDate(item.fecha_completada) : null,
+        } satisfies TutorHomeActivity;
+      });
+
+    const device = deviceByUserId.get(Number(linked.id));
+    const currentLocation = device ? currentLocationByDeviceId.get(Number(device.id)) : undefined;
+    const safeZones = (zonasSeguras as DbZonaSegura[])
+      .filter(item => Number(item.id_perteneciente) === Number(linked.pertenecienteId) && item.activa)
+      .map(item => ({
+        id: `zone-${item.id}`,
+        name: item.nombre,
+        address: `${Number(item.latitud).toFixed(5)}, ${Number(item.longitud).toFixed(5)} - radio ${item.radio_metro} m`,
+        type: 'seguro' as const,
+      }));
+
+    byUserId[linked.id] = {
+      activities: assignedForUser,
+      emotions: await fetchEmotionRecordsForUser(linked.id).catch(() => []),
+      events: await fetchCalendarEventsForUser(linked.id).catch(() => []),
+      locations: [
+        ...(currentLocation ? [{
+          id: `current-${currentLocation.id}`,
+          name: device?.nombre || 'Ubicacion actual',
+          address: `${Number(currentLocation.latitud).toFixed(5)}, ${Number(currentLocation.longitud).toFixed(5)}`,
+          type: 'actual' as const,
+          timestamp: formatBackendDate(currentLocation.fecha_registro),
+        }] : []),
+        ...safeZones,
+      ],
+      notifications: (notificaciones as DbNotificacion[])
+        .filter(item => Number(item.id_usuario_destino) === Number(linked.id))
+        .map(toLegacyNotification),
+      recommendations: [],
+    };
+  }));
+
+  return {
+    tutorId: Number(tutor.id),
+    linkedUsers,
+    byUserId,
+  };
+}
+
 export async function fetchActivitiesForUser(userId: string): Promise<Activity[]> {
   try {
     const rows = await tandemApi.actividades.getAll();
@@ -674,9 +891,20 @@ export async function fetchObjectivesForUser(userId: string): Promise<Objective[
 
 export async function fetchCalendarEventsForUser(userId: string): Promise<CalendarEvent[]> {
   if (isBackendUserId(userId)) {
-    const config = await getUserConfig(Number(userId), CALENDAR_CONFIG_KEY);
-    if (!config?.valor) return [];
-    return normalizeCalendarEventsPayload(JSON.parse(config.valor), userId);
+    const configs = await getUserCalendarConfigs(Number(userId));
+    const events = configs.flatMap(config => {
+      if (!config.valor) return [];
+      try {
+        const parsed = JSON.parse(config.valor);
+        return config.clave === CALENDAR_CONFIG_KEY
+          ? normalizeCalendarEventsPayload(parsed, userId)
+          : normalizeCalendarEventsPayload([parsed], userId);
+      } catch {
+        return [];
+      }
+    });
+
+    return events.sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
   }
 
   return apiFetchWithFallback<CalendarEvent[]>([`/calendar/events?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/calendar/events`]);
@@ -684,13 +912,13 @@ export async function fetchCalendarEventsForUser(userId: string): Promise<Calend
 
 export async function createCalendarEvent(userId: string, data: Omit<CalendarEvent, 'id' | 'userId'>): Promise<CalendarEvent> {
   if (isBackendUserId(userId)) {
-    const events = await fetchCalendarEventsForUser(userId);
     const created: CalendarEvent = {
       ...data,
+      color: data.color || calendarTypeColor(data.type),
       id: `ce-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       userId,
     };
-    await saveCalendarEventsForUser(userId, [...events, created]);
+    await saveCalendarEventForUser(userId, created);
     return created;
   }
 
@@ -701,11 +929,24 @@ export async function updateCalendarEvent(eventId: string, patch: Partial<Calend
   const config = await findCalendarConfigByEventId(eventId);
   if (config) {
     const userId = String(config.id_usuario);
-    const events = normalizeCalendarEventsPayload(JSON.parse(config.valor || '[]'), userId);
+    const parsed = JSON.parse(config.valor || (config.clave === CALENDAR_CONFIG_KEY ? '[]' : '{}'));
+    const events = config.clave === CALENDAR_CONFIG_KEY
+      ? normalizeCalendarEventsPayload(parsed, userId)
+      : normalizeCalendarEventsPayload([parsed], userId);
     const previous = events.find(event => event.id === eventId);
     if (!previous) throw new Error(`No se encontro el evento ${eventId}.`);
-    const updated = { ...previous, ...patch, id: previous.id, userId: previous.userId };
-    await saveCalendarEventsForUser(userId, events.map(event => event.id === eventId ? updated : event));
+    const updated = {
+      ...previous,
+      ...patch,
+      color: patch.color || (patch.type ? calendarTypeColor(patch.type) : previous.color),
+      id: previous.id,
+      userId: previous.userId,
+    };
+    if (config.clave === CALENDAR_CONFIG_KEY) {
+      await saveCalendarEventsForUser(userId, events.map(event => event.id === eventId ? updated : event));
+    } else {
+      await saveCalendarEventForUser(userId, updated, config);
+    }
     return updated;
   }
 
@@ -716,8 +957,12 @@ export async function deleteCalendarEvent(eventId: string): Promise<void> {
   const config = await findCalendarConfigByEventId(eventId);
   if (config) {
     const userId = String(config.id_usuario);
-    const events = normalizeCalendarEventsPayload(JSON.parse(config.valor || '[]'), userId);
-    await saveCalendarEventsForUser(userId, events.filter(event => event.id !== eventId));
+    if (config.clave === CALENDAR_CONFIG_KEY) {
+      const events = normalizeCalendarEventsPayload(JSON.parse(config.valor || '[]'), userId);
+      await saveCalendarEventsForUser(userId, events.filter(event => event.id !== eventId));
+    } else {
+      await tandemApi.configuracionesUsuarios.delete(config.id);
+    }
     return;
   }
 
@@ -778,10 +1023,16 @@ export async function deleteEmotionRecord(recordId: string): Promise<void> {
 }
 
 const CALENDAR_CONFIG_KEY = 'calendar.events';
+const CALENDAR_EVENT_KEY_PREFIX = 'calendar.event:';
 
 async function getUserConfig(userId: number, key: string): Promise<ConfiguracionUsuario | undefined> {
   const rows = await tandemApi.configuracionesUsuarios.getAll();
   return rows.find(row => row.id_usuario === userId && row.clave === key);
+}
+
+async function getUserCalendarConfigs(userId: number): Promise<ConfiguracionUsuario[]> {
+  const rows = await tandemApi.configuracionesUsuarios.getAll();
+  return rows.filter(row => row.id_usuario === userId && (row.clave === CALENDAR_CONFIG_KEY || row.clave.startsWith(CALENDAR_EVENT_KEY_PREFIX)));
 }
 
 function normalizeCalendarEventsPayload(payload: unknown, userId: string): CalendarEvent[] {
@@ -811,10 +1062,13 @@ function normalizeCalendarEventsPayload(payload: unknown, userId: string): Calen
 }
 
 function calendarTypeColor(type: CalendarEvent['type']): string {
-  const colors: Record<CalendarEvent['type'], string> = {
+  const colors: Partial<Record<CalendarEvent['type'] | string, string>> = {
     terapia: 'hsl(270 40% 75%)',
     escuela: 'hsl(210 70% 55%)',
     personal: 'hsl(30 80% 60%)',
+    médico: 'hsl(0 72% 55%)',
+    medico: 'hsl(0 72% 55%)',
+    'mÃ©dico': 'hsl(0 72% 55%)',
     social: 'hsl(150 60% 45%)',
     actividad: 'hsl(45 90% 55%)',
   };
@@ -830,21 +1084,50 @@ async function saveCalendarEventsForUser(userId: string, events: CalendarEvent[]
     fecha_modificacion: new Date().toISOString(),
   };
   const config = await getUserConfig(numericUserId, CALENDAR_CONFIG_KEY);
-  if (config?.id) await tandemApi.configuracionesUsuarios.update(config.id, payload);
-  else await tandemApi.configuracionesUsuarios.create(payload);
+  if (config?.id) {
+    await tandemApi.configuracionesUsuarios.update(config.id, payload);
+    return;
+  }
+
+  try {
+    await tandemApi.configuracionesUsuarios.create(payload);
+  } catch (error) {
+    const latestConfig = await getUserConfig(numericUserId, CALENDAR_CONFIG_KEY);
+    if (!latestConfig?.id) throw error;
+    await tandemApi.configuracionesUsuarios.update(latestConfig.id, payload);
+  }
 }
 
 async function findCalendarConfigByEventId(eventId: string): Promise<ConfiguracionUsuario | undefined> {
   const rows = await tandemApi.configuracionesUsuarios.getAll();
   return rows.find(row => {
-    if (row.clave !== CALENDAR_CONFIG_KEY || !row.valor) return false;
+    if ((!row.clave.startsWith(CALENDAR_EVENT_KEY_PREFIX) && row.clave !== CALENDAR_CONFIG_KEY) || !row.valor) return false;
     try {
-      return normalizeCalendarEventsPayload(JSON.parse(row.valor), String(row.id_usuario))
+      const parsed = JSON.parse(row.valor);
+      const payload = row.clave === CALENDAR_CONFIG_KEY ? parsed : [parsed];
+      return normalizeCalendarEventsPayload(payload, String(row.id_usuario))
         .some(event => event.id === eventId);
     } catch {
       return false;
     }
   });
+}
+
+async function saveCalendarEventForUser(userId: string, event: CalendarEvent, existingConfig?: ConfiguracionUsuario): Promise<void> {
+  const numericUserId = Number(userId);
+  const payload = {
+    id_usuario: numericUserId,
+    clave: `${CALENDAR_EVENT_KEY_PREFIX}${event.id}`,
+    valor: JSON.stringify(event),
+    fecha_modificacion: new Date().toISOString(),
+  };
+
+  if (existingConfig?.id) {
+    await tandemApi.configuracionesUsuarios.update(existingConfig.id, payload);
+    return;
+  }
+
+  await tandemApi.configuracionesUsuarios.create(payload);
 }
 
 export interface DayRoutine { id: string; name: string; dayOfWeek: number | null; items: RoutineItem[] }
