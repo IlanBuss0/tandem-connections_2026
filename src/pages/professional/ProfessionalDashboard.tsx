@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { users, getActivitiesForUser, getEmotionsForUser, getObjectivesForUser, calendarEvents, professionals as allProfessionals, getRecommendationsForUser } from '@/data/api';
+import { fetchAllProfessionals, fetchLinkedPertenecientesForSupportUser, getActivitiesForUser, getEmotionsForUser, getObjectivesForUser, calendarEvents, getRecommendationsForUser, type Professional, type User } from '@/data/api';
 import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, MessageSquare, Sparkles, Clock, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
@@ -14,9 +14,30 @@ export default function ProfessionalDashboard() {
   const [tab, setTab] = useState('patients');
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
   const [patientTab, setPatientTab] = useState<'overview' | 'stats' | 'agenda'>('overview');
-  if (!user || user.role !== 'professional') return null;
+  const [linkedUsers, setLinkedUsers] = useState<User[]>([]);
+  const [allProfessionals, setAllProfessionals] = useState<Professional[]>([]);
+  const [loadingPatients, setLoadingPatients] = useState(true);
 
-  const linkedUsers = users.filter(u => (user as any).linkedUserIds?.includes(u.id));
+  useEffect(() => {
+    if (!user || user.role !== 'professional') return;
+    let cancelled = false;
+    setLoadingPatients(true);
+    Promise.all([
+      fetchLinkedPertenecientesForSupportUser(user.id, 'professional'),
+      fetchAllProfessionals().catch(() => []),
+    ])
+      .then(([patients, professionals]) => {
+        if (cancelled) return;
+        setLinkedUsers(patients);
+        setAllProfessionals(professionals);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingPatients(false);
+    });
+    return () => { cancelled = true; };
+  }, [user]);
+
+  if (!user || user.role !== 'professional') return null;
 
   const tabs = [
     { id: 'patients', label: 'Pacientes', icon: Users },
@@ -51,6 +72,16 @@ export default function ProfessionalDashboard() {
         {tab === 'patients' && !selectedPatient && (
           <>
             <h2 className="font-heading font-bold text-xl text-foreground">Mis pacientes ({linkedUsers.length})</h2>
+            {loadingPatients && (
+              <div className="bg-card rounded-xl border border-border p-6 text-sm text-muted-foreground">
+                Cargando pertenecientes vinculados...
+              </div>
+            )}
+            {!loadingPatients && linkedUsers.length === 0 && (
+              <div className="bg-card rounded-xl border border-border p-6 text-sm text-muted-foreground">
+                No hay pertenecientes vinculados a este profesional.
+              </div>
+            )}
             {linkedUsers.map(u => {
               const acts = getActivitiesForUser(u.id);
               const completed = acts.filter(a => a.status === 'completada').length;
@@ -65,7 +96,7 @@ export default function ProfessionalDashboard() {
                     <span className="text-4xl">{u.avatar}</span>
                     <div className="flex-1">
                       <p className="font-heading font-bold text-foreground">{u.name}</p>
-                      <p className="text-xs text-muted-foreground">{u.age} años · Nivel {u.level} · Racha {u.streak} días</p>
+                      <p className="text-xs text-muted-foreground">{u.age ? `${u.age} años · ` : ''}Nivel {u.level} · Racha {u.streak} días</p>
                     </div>
                     <div className="text-right">
                       <p className={`text-lg font-bold ${adherence >= 70 ? 'text-success' : adherence >= 40 ? 'text-amber-500' : 'text-destructive'}`}>{adherence}%</p>

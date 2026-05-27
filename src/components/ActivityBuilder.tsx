@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Trash2, GripVertical, Save, Send, Sparkles, Search, X, Gamepad2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
 import { ACTIVITY_TEMPLATES, ActivityTemplate, STEP_ICON_OPTIONS } from '@/data/activityTemplates';
 import { GAME_TEMPLATES, GameTemplate } from '@/data/miniGames';
-import { users, ActivityCategory, ActivityType } from '@/data/api';
+import { fetchLinkedPertenecientesForSupportUser, ActivityCategory, ActivityType, type User } from '@/data/api';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const CATEGORIES: ActivityCategory[] = ['autonomía personal','higiene','organización','escuela','cocina básica','transporte','compras','manejo del dinero','emociones','comunicación','vida social','seguridad personal','rutinas del hogar','regulación emocional','preparación para salidas','anticipación de cambios'];
@@ -21,15 +21,29 @@ interface Props {
 
 export default function ActivityBuilder({ initialId, onClose }: Props) {
   const { user } = useAuth();
-  const { items, createOrUpdate, publish } = useCustomActivities();
+  const { items, createOrUpdate } = useCustomActivities();
   const editing = initialId ? items.find(a => a.id === initialId) : undefined;
 
   const [step, setStep] = useState(editing ? 1 : 0); // 0 = plantilla
   const [tplSearch, setTplSearch] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [assignableUsers, setAssignableUsers] = useState<User[]>([]);
 
   const linkedUserIds: string[] = useMemo(() => {
-    if (!user) return [];
-    return (user as any).linkedUserIds || [];
+    return assignableUsers.map(item => item.id);
+  }, [assignableUsers]);
+
+  useEffect(() => {
+    if (!user || (user.role !== 'professional' && user.role !== 'tutor')) return;
+    let cancelled = false;
+    fetchLinkedPertenecientesForSupportUser(user.id, user.role === 'professional' ? 'professional' : 'tutor')
+      .then((items) => {
+        if (!cancelled) setAssignableUsers(items);
+      })
+      .catch(() => {
+        if (!cancelled) setAssignableUsers([]);
+      });
+    return () => { cancelled = true; };
   }, [user]);
 
   const [form, setForm] = useState(() => {
@@ -133,31 +147,35 @@ export default function ActivityBuilder({ initialId, onClose }: Props) {
   };
   const canNext = !errors[step];
 
-  const persist = (publishNow: boolean) => {
+  const persist = async (publishNow: boolean) => {
+    setSaving(true);
     const cleanSteps = form.steps.map((s, i) => ({ s, ic: form.stepIcons[i] || '📌' })).filter(x => x.s.trim());
-    const saved = createOrUpdate({
-      id: form.id,
-      title: form.title.trim() || 'Actividad sin título',
-      category: form.category,
-      type: form.type,
-      difficulty: form.difficulty,
-      duration: form.duration,
-      objective: form.objective.trim(),
-      description: form.description.trim(),
-      steps: cleanSteps.map(x => x.s),
-      stepIcons: cleanSteps.map(x => x.ic),
-      points: form.points,
-      completionMessage: form.completionMessage,
-      assignedToIds: form.assignedToIds,
-      assignedTo: form.assignedToIds[0],
-      dueDate: form.dueDate || undefined,
-      notes: form.notes,
-      draft: !publishNow,
-      gameType: form.gameType,
-      gameData: form.gameData,
-    } as any);
-    if (saved && publishNow) publish(saved.id);
-    onClose();
+    try {
+      await createOrUpdate({
+        id: form.id,
+        title: form.title.trim() || 'Actividad sin título',
+        category: form.category,
+        type: form.type,
+        difficulty: form.difficulty,
+        duration: form.duration,
+        objective: form.objective.trim(),
+        description: form.description.trim(),
+        steps: cleanSteps.map(x => x.s),
+        stepIcons: cleanSteps.map(x => x.ic),
+        points: form.points,
+        completionMessage: form.completionMessage,
+        assignedToIds: form.assignedToIds,
+        assignedTo: form.assignedToIds[0],
+        dueDate: form.dueDate || undefined,
+        notes: form.notes,
+        draft: !publishNow,
+        gameType: form.gameType,
+        gameData: form.gameData,
+      } as any);
+      onClose();
+    } finally {
+      setSaving(false);
+    }
   };
 
   const q = tplSearch.toLowerCase();
@@ -381,7 +399,7 @@ export default function ActivityBuilder({ initialId, onClose }: Props) {
                   <p className="text-sm text-muted-foreground">No hay usuarios vinculados. Podés guardar como borrador y asignar luego.</p>
                 ) : (
                   <div className="space-y-2">
-                    {users.filter(u => linkedUserIds.includes(u.id)).map(u => {
+                    {assignableUsers.filter(u => linkedUserIds.includes(u.id)).map(u => {
                       const checked = form.assignedToIds.includes(u.id);
                       return (
                         <button key={u.id} onClick={() => toggleAssign(u.id)} className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${checked ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/40'}`}>
@@ -429,16 +447,16 @@ export default function ActivityBuilder({ initialId, onClose }: Props) {
                   <div className="pt-2 text-xs">
                     <span className="text-muted-foreground">Asignada a: </span>
                     <span className="text-foreground">
-                      {form.assignedToIds.length === 0 ? '— (borrador)' : form.assignedToIds.map(id => users.find(u => u.id === id)?.name.split(' ')[0]).filter(Boolean).join(', ')}
+                      {form.assignedToIds.length === 0 ? '— (borrador)' : form.assignedToIds.map(id => assignableUsers.find(u => u.id === id)?.name.split(' ')[0]).filter(Boolean).join(', ')}
                     </span>
                   </div>
                   {form.dueDate && <p className="text-xs text-muted-foreground">📅 Hasta {form.dueDate}</p>}
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2">
-                  <Button variant="outline" className="flex-1" onClick={() => persist(false)}>
+                  <Button variant="outline" className="flex-1" onClick={() => persist(false)} disabled={saving}>
                     <Save size={14} className="mr-1" /> Guardar como borrador
                   </Button>
-                  <Button className="flex-1 gradient-primary text-primary-foreground" onClick={() => persist(true)} disabled={form.assignedToIds.length === 0}>
+                  <Button className="flex-1 gradient-primary text-primary-foreground" onClick={() => persist(true)} disabled={saving || form.assignedToIds.length === 0}>
                     <Send size={14} className="mr-1" /> Publicar y asignar
                   </Button>
                 </div>

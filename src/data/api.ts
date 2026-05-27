@@ -133,6 +133,29 @@ function toLegacyUser(user: Partial<Usuario>): User | Tutor | Professional | Adm
   } as User;
 }
 
+function ageFromDate(value?: string | null): number | undefined {
+  if (!value) return undefined;
+  const birthDate = new Date(value);
+  if (Number.isNaN(birthDate.getTime())) return undefined;
+  const now = new Date();
+  let age = now.getFullYear() - birthDate.getFullYear();
+  const monthDiff = now.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birthDate.getDate())) age -= 1;
+  return age >= 0 ? age : undefined;
+}
+
+function enrichPertenecienteUser(user: Usuario, perteneciente?: DbPerteneciente, points = 0, level = 1): User {
+  return {
+    ...(toLegacyUser(user) as User),
+    age: ageFromDate(user.fecha_nacimiento),
+    bio: perteneciente?.observacion_general || '',
+    points,
+    level,
+    streak: 0,
+    supportLevel: 'medio',
+  };
+}
+
 function toLegacyActivity(activity: DbActividad, userId?: string): Activity {
   const typeById: Record<number, ActivityType> = {
     1: 'guiada',
@@ -935,6 +958,67 @@ export async function fetchAllProfessionals(): Promise<Professional[]> {
       description: professional.institucion || '',
     };
   });
+}
+
+export async function fetchLinkedPertenecientesForSupportUser(
+  userId: string,
+  role: 'professional' | 'tutor',
+): Promise<User[]> {
+  const numericUserId = Number(userId);
+  if (!Number.isFinite(numericUserId)) return [];
+
+  const [
+    usuarios,
+    pertenecientes,
+    saldos,
+    avatares,
+  ] = await Promise.all([
+    tandemApi.usuarios.getAll(),
+    tandemApi.pertenecientes.getAll(),
+    tandemApi.saldosPuntos.getAll().catch(() => []),
+    tandemApi.avatares.getAll().catch(() => []),
+  ]);
+
+  const usuariosById = new Map((usuarios as Usuario[]).map((item) => [Number(item.id), item]));
+  const pertenecientesById = new Map((pertenecientes as DbPerteneciente[]).map((item) => [Number(item.id), item]));
+
+  let linkedPertenecienteIds: number[] = [];
+
+  if (role === 'professional') {
+    const [profesionalesBackend, vinculos] = await Promise.all([
+      tandemApi.profesionales.getAll(),
+      tandemApi.vinculosProfesionalesPertenecientes.getAll(),
+    ]);
+    const profesional = (profesionalesBackend as DbProfesional[]).find((item) => Number(item.id_usuario) === numericUserId);
+    if (!profesional) return [];
+    linkedPertenecienteIds = (vinculos as DbVinculoProfesionalPerteneciente[])
+      .filter((link) => Number(link.id_profesional) === Number(profesional.id))
+      .filter((link) => Number(link.id_estado_vinculo) !== 3)
+      .map((link) => Number(link.id_perteneciente));
+  } else {
+    const [tutoresBackend, vinculos] = await Promise.all([
+      tandemApi.tutores.getAll(),
+      tandemApi.vinculosTutorPertenecientes.getAll(),
+    ]);
+    const tutor = (tutoresBackend as DbTutor[]).find((item) => Number(item.id_usuario) === numericUserId);
+    if (!tutor) return [];
+    linkedPertenecienteIds = (vinculos as DbVinculoTutorPerteneciente[])
+      .filter((link) => Number(link.id_tutor) === Number(tutor.id))
+      .filter((link) => Number(link.id_estado_vinculo) !== 3)
+      .map((link) => Number(link.id_perteneciente));
+  }
+
+  return Array.from(new Set(linkedPertenecienteIds))
+    .map((id) => pertenecientesById.get(id))
+    .filter((item): item is DbPerteneciente => Boolean(item))
+    .map((perteneciente) => {
+      const usuario = usuariosById.get(Number(perteneciente.id_usuario));
+      if (!usuario) return null;
+      const saldo = (saldos as DbSaldoPuntos[]).find((item) => Number(item.id_perteneciente) === Number(perteneciente.id));
+      const avatar = (avatares as DbAvatar[]).find((item) => Number(item.id_perteneciente) === Number(perteneciente.id));
+      return enrichPertenecienteUser(usuario, perteneciente, saldo?.saldo ?? 0, avatar?.nivel ?? 1);
+    })
+    .filter((item): item is User => Boolean(item));
 }
 
 export async function fetchAchievementsForUser(userId: string): Promise<Achievement[]> {
