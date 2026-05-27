@@ -3,9 +3,10 @@ import { Plus, Edit2, Copy, Trash2, Send, EyeOff, Sparkles, Users, Calendar } fr
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
+import type { User } from '@/data/api';
 import ActivityBuilder from './ActivityBuilder';
 
-export default function ActivityManager() {
+export default function ActivityManager({ assignableUsers }: { assignableUsers?: User[] }) {
   const { user } = useAuth();
   const { byCreator, remove, duplicate, publish, unpublish } = useCustomActivities();
   const [builderOpen, setBuilderOpen] = useState(false);
@@ -15,6 +16,7 @@ export default function ActivityManager() {
   const list = byCreator(user.id);
   const drafts = list.filter(a => a.draft);
   const published = list.filter(a => !a.draft);
+  const userNameById = new Map((assignableUsers || []).map(item => [item.id, item.name]));
 
   const open = (id?: string) => { setEditingId(id); setBuilderOpen(true); };
   const close = () => { setBuilderOpen(false); setEditingId(undefined); };
@@ -42,7 +44,7 @@ export default function ActivityManager() {
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Publicadas ({published.length})</p>
           <div className="space-y-2">
-            {published.map(a => <Row key={a.id} a={a} onEdit={() => open(a.id)} onDuplicate={() => duplicate(a.id)} onRemove={() => remove(a.id)} onUnpublish={() => unpublish(a.id)} />)}
+            {published.map(a => <Row key={a.id} a={a} userNameById={userNameById} onEdit={() => open(a.id)} onDuplicate={() => duplicate(a.id)} onRemove={() => remove(a.id)} onUnpublish={() => unpublish(a.id)} />)}
           </div>
         </div>
       )}
@@ -51,18 +53,18 @@ export default function ActivityManager() {
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Borradores ({drafts.length})</p>
           <div className="space-y-2">
-            {drafts.map(a => <Row key={a.id} a={a} onEdit={() => open(a.id)} onDuplicate={() => duplicate(a.id)} onRemove={() => remove(a.id)} onPublish={() => publish(a.id)} draft />)}
+            {drafts.map(a => <Row key={a.id} a={a} userNameById={userNameById} onEdit={() => open(a.id)} onDuplicate={() => duplicate(a.id)} onRemove={() => remove(a.id)} onPublish={() => publish(a.id)} draft />)}
           </div>
         </div>
       )}
 
-      {builderOpen && <ActivityBuilder initialId={editingId} onClose={close} />}
+      {builderOpen && <ActivityBuilder initialId={editingId} onClose={close} assignableUsersOverride={assignableUsers} />}
     </div>
   );
 }
 
-function Row({ a, draft, onEdit, onDuplicate, onRemove, onPublish, onUnpublish }: any) {
-  const assignedNames = (a.assignedToIds || []).map((id: string) => a.assignedNames?.[id] || `Usuario ${id}`);
+function Row({ a, draft, userNameById, onEdit, onDuplicate, onRemove, onPublish, onUnpublish }: any) {
+  const assignedNames = (a.assignedToIds || []).map((id: string) => a.assignedNames?.[id] || userNameById?.get(id) || `Usuario ${id}`);
   return (
     <div className="bg-card rounded-lg border border-border p-3">
       <div className="flex items-start gap-3">

@@ -8,18 +8,70 @@ import { ACTIVITY_TEMPLATES, ActivityTemplate, STEP_ICON_OPTIONS } from '@/data/
 import { GAME_TEMPLATES, GameTemplate } from '@/data/miniGames';
 import { fetchLinkedPertenecientesForSupportUser, ActivityCategory, ActivityType, type User } from '@/data/api';
 import { motion, AnimatePresence } from 'framer-motion';
+import type { GameData, GameType } from '@/data/miniGames';
 
 const CATEGORIES: ActivityCategory[] = ['autonomía personal','higiene','organización','escuela','cocina básica','transporte','compras','manejo del dinero','emociones','comunicación','vida social','seguridad personal','rutinas del hogar','regulación emocional','preparación para salidas','anticipación de cambios'];
 const TYPES: ActivityType[] = ['guiada','juego','regulación','decisión'];
 const DIFFICULTIES = ['fácil','medio','avanzado'] as const;
 const DURATIONS = ['3 min','5 min','10 min','15 min','20 min','30 min','45 min'];
 
+function serializeGameContent(gameType?: GameType, gameData?: GameData) {
+  if (!gameType || !gameData) return '';
+  if (gameType === 'wheel') return gameData.wheel?.words?.join('\n') || '';
+  if (gameType === 'drag-word') return (gameData.dragRounds || []).map(item => `${item.image}|${item.words.join(',')}|${item.correct}`).join('\n');
+  if (gameType === 'fill-blank') return (gameData.fill || []).map(item => `${item.sentence}|${item.options.join(',')}|${item.correct}`).join('\n');
+  if (gameType === 'multiple-choice') return (gameData.rounds || []).map(item => `${item.image}|${item.prompt}|${item.options.join(',')}|${item.correct}`).join('\n');
+  if (gameType === 'true-false') return (gameData.tf || []).map(item => `${item.statement}|${item.answer ? 'true' : 'false'}`).join('\n');
+  if (gameType === 'sequence-order') return gameData.sequence ? `${gameData.sequence.prompt}\n${gameData.sequence.steps.join('\n')}` : '';
+  if (gameType === 'memory') return (gameData.memory?.pairs || []).map(item => `${item.a}|${item.b}`).join('\n');
+  if (gameType === 'count-objects') return (gameData.count || []).map(item => `${item.emoji}|${item.count}`).join('\n');
+  if (gameType === 'matching-pairs') return gameData.matching ? `${gameData.matching.left.join(',')}\n${gameData.matching.right.join(',')}\n${gameData.matching.correctMap.join(',')}` : '';
+  if (gameType === 'category-sort') return (gameData.category?.items || []).map(item => `${item.label}|${item.categoryIndex}`).join('\n');
+  if (gameType === 'sound-match') return (gameData.sound || []).map(item => `${item.sound}|${item.options.join(',')}|${item.correct}`).join('\n');
+  if (gameType === 'tap-correct') return (gameData.tap || []).map(item => `${item.prompt}|${item.options.join(',')}|${item.correctIdx.join(',')}`).join('\n');
+  return '';
+}
+
+function parseGameContent(gameType: GameType, text: string, previous?: GameData): GameData {
+  const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
+  if (gameType === 'wheel') return { wheel: { words: lines } };
+  if (gameType === 'drag-word') return { dragRounds: lines.map(line => { const [image = '', words = '', correct = ''] = line.split('|'); return { image, words: words.split(',').map(item => item.trim()).filter(Boolean), correct: correct.trim() }; }) };
+  if (gameType === 'fill-blank') return { fill: lines.map(line => { const [sentence = '', options = '', correct = '0'] = line.split('|'); return { sentence, options: options.split(',').map(item => item.trim()).filter(Boolean), correct: Number(correct) || 0 }; }) };
+  if (gameType === 'multiple-choice') return { rounds: lines.map(line => { const [image = '', prompt = '', options = '', correct = '0'] = line.split('|'); return { image, prompt, options: options.split(',').map(item => item.trim()).filter(Boolean), correct: Number(correct) || 0 }; }) };
+  if (gameType === 'true-false') return { tf: lines.map(line => { const [statement = '', answer = 'false'] = line.split('|'); return { statement, answer: answer.trim().toLowerCase() === 'true' }; }) };
+  if (gameType === 'sequence-order') return { sequence: { prompt: lines[0] || 'Ordena los pasos', steps: lines.slice(1) } };
+  if (gameType === 'memory') return { memory: { pairs: lines.map(line => { const [a = '', b = ''] = line.split('|'); return { a, b }; }) } };
+  if (gameType === 'count-objects') return { count: lines.map(line => { const [emoji = '', count = '0'] = line.split('|'); return { emoji, count: Number(count) || 0 }; }) };
+  if (gameType === 'matching-pairs') { const [left = '', right = '', correctMap = ''] = lines; return { matching: { left: left.split(',').map(item => item.trim()).filter(Boolean), right: right.split(',').map(item => item.trim()).filter(Boolean), correctMap: correctMap.split(',').map(item => Number(item.trim()) || 0) } }; }
+  if (gameType === 'category-sort') return { category: { categories: previous?.category?.categories || [{ name: 'Categoria 1', emoji: '1' }, { name: 'Categoria 2', emoji: '2' }], items: lines.map(line => { const [label = '', categoryIndex = '0'] = line.split('|'); return { label, categoryIndex: Number(categoryIndex) || 0 }; }) } };
+  if (gameType === 'sound-match') return { sound: lines.map(line => { const [sound = '', options = '', correct = '0'] = line.split('|'); return { sound, options: options.split(',').map(item => item.trim()).filter(Boolean), correct: Number(correct) || 0 }; }) };
+  if (gameType === 'tap-correct') return { tap: lines.map(line => { const [prompt = '', options = '', correct = ''] = line.split('|'); return { prompt, options: options.split(',').map(item => item.trim()).filter(Boolean), correctIdx: correct.split(',').map(item => Number(item.trim())).filter(Number.isFinite) }; }) };
+  return previous || {};
+}
+
+function contentHelp(gameType?: GameType) {
+  if (gameType === 'wheel') return 'Una palabra/frase por linea.';
+  if (gameType === 'drag-word') return 'Formato: emoji|opcion1,opcion2,opcion3|respuesta correcta';
+  if (gameType === 'fill-blank') return 'Formato: frase con ___|opcion1,opcion2,opcion3|indice correcto empezando en 0';
+  if (gameType === 'multiple-choice') return 'Formato: emoji|pregunta|opcion1,opcion2,opcion3,opcion4|indice correcto empezando en 0';
+  if (gameType === 'true-false') return 'Formato: afirmacion|true o false';
+  if (gameType === 'sequence-order') return 'Primera linea: consigna. Lineas siguientes: pasos en orden.';
+  if (gameType === 'memory') return 'Formato: elemento A|elemento B';
+  if (gameType === 'count-objects') return 'Formato: emoji|cantidad correcta';
+  if (gameType === 'matching-pairs') return 'Linea 1: palabras. Linea 2: pictogramas. Linea 3: mapa de indices correctos.';
+  if (gameType === 'category-sort') return 'Formato: palabra|indice de categoria empezando en 0';
+  if (gameType === 'sound-match') return 'Formato: sonido|opcion1,opcion2,opcion3|indice correcto empezando en 0';
+  if (gameType === 'tap-correct') return 'Formato: consigna|opcion1,opcion2,opcion3|indices correctos separados por coma';
+  return '';
+}
+
 interface Props {
   initialId?: string;
   onClose: () => void;
+  assignableUsersOverride?: User[];
 }
 
-export default function ActivityBuilder({ initialId, onClose }: Props) {
+export default function ActivityBuilder({ initialId, onClose, assignableUsersOverride }: Props) {
   const { user } = useAuth();
   const { items, createOrUpdate } = useCustomActivities();
   const editing = initialId ? items.find(a => a.id === initialId) : undefined;
@@ -34,6 +86,10 @@ export default function ActivityBuilder({ initialId, onClose }: Props) {
   }, [assignableUsers]);
 
   useEffect(() => {
+    if (assignableUsersOverride) {
+      setAssignableUsers(assignableUsersOverride);
+      return;
+    }
     if (!user || (user.role !== 'professional' && user.role !== 'tutor')) return;
     let cancelled = false;
     fetchLinkedPertenecientesForSupportUser(user.id, user.role === 'professional' ? 'professional' : 'tutor')
@@ -44,7 +100,7 @@ export default function ActivityBuilder({ initialId, onClose }: Props) {
         if (!cancelled) setAssignableUsers([]);
       });
     return () => { cancelled = true; };
-  }, [user]);
+  }, [user, assignableUsersOverride]);
 
   const [form, setForm] = useState(() => {
     if (editing) {
@@ -90,9 +146,14 @@ export default function ActivityBuilder({ initialId, onClose }: Props) {
       gameData: undefined as undefined | import('@/data/miniGames').GameData,
     };
   });
+  const [gameContentText, setGameContentText] = useState(() =>
+    serializeGameContent(form.gameType, form.gameData)
+  );
 
   const applyTemplate = (tpl: ActivityTemplate | GameTemplate) => {
     const isGame = (tpl as GameTemplate).gameType !== undefined;
+    const nextGameType = isGame ? (tpl as GameTemplate).gameType : undefined;
+    const nextGameData = isGame ? (tpl as GameTemplate).gameData : undefined;
     setForm(prev => ({
       ...prev,
       title: tpl.id === 'tpl-blank' ? '' : tpl.name,
@@ -106,9 +167,10 @@ export default function ActivityBuilder({ initialId, onClose }: Props) {
       stepIcons: [...tpl.stepIcons],
       points: tpl.points,
       completionMessage: tpl.completionMessage,
-      gameType: isGame ? (tpl as GameTemplate).gameType : undefined,
-      gameData: isGame ? (tpl as GameTemplate).gameData : undefined,
+      gameType: nextGameType,
+      gameData: nextGameData,
     }));
+    setGameContentText(serializeGameContent(nextGameType, nextGameData));
     setStep(1);
   };
 
@@ -357,9 +419,34 @@ export default function ActivityBuilder({ initialId, onClose }: Props) {
             {step === 2 && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-heading font-semibold text-foreground">Pasos secuenciales</h3>
+                  <h3 className="font-heading font-semibold text-foreground">{form.gameType ? 'Contenido y pasos' : 'Pasos secuenciales'}</h3>
                   <Button size="sm" variant="outline" onClick={addStep}><Plus size={14} className="mr-1" />Agregar</Button>
                 </div>
+                {form.gameType && (
+                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">Contenido del juego: {form.gameType}</p>
+                        <p className="text-xs text-muted-foreground">{contentHelp(form.gameType)}</p>
+                      </div>
+                      <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">editable</span>
+                    </div>
+                    <textarea
+                      value={gameContentText}
+                      onChange={e => {
+                        const nextText = e.target.value;
+                        setGameContentText(nextText);
+                        setForm(prev => ({
+                          ...prev,
+                          gameData: prev.gameType ? parseGameContent(prev.gameType, nextText, prev.gameData) : prev.gameData,
+                        }));
+                      }}
+                      rows={6}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                      placeholder="Carga el contenido del juego..."
+                    />
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground">Pictograma + texto. Mantené pasos cortos y concretos.</p>
                 <div className="space-y-2">
                   {form.steps.map((s, i) => (

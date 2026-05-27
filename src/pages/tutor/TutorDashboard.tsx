@@ -34,10 +34,13 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import ActivityManager from '@/components/ActivityManager';
 import ChatScreen from '@/components/ChatScreen';
+import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
 import {
   createCalendarEvent,
   deleteCalendarEvent,
+  fetchCalendarEventsForUser,
   fetchUserProfileDashboard,
   fetchUserProfileSettings,
   fetchTutorHome,
@@ -128,17 +131,29 @@ export default function TutorDashboard() {
   const [tab, setTab] = useState<TabId>('overview');
   const [selectedUser, setSelectedUser] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [desktopMenuOpen, setDesktopMenuOpen] = useState(false);
   const [data, setData] = useState<TutorHomeData | null>(null);
+  const [tutorAgendaEvents, setTutorAgendaEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const loadTutorAgenda = async () => {
+    if (!user || user.role !== 'tutor') return;
+    const nextEvents = await fetchCalendarEventsForUser(user.id).catch(() => []);
+    setTutorAgendaEvents(nextEvents);
+  };
 
   const load = async (preferredUserId?: string) => {
     if (!user || user.role !== 'tutor') return;
     setLoading(true);
     setError(null);
     try {
-      const next = await fetchTutorHome(user.id);
+      const [next, nextAgendaEvents] = await Promise.all([
+        fetchTutorHome(user.id),
+        fetchCalendarEventsForUser(user.id).catch(() => []),
+      ]);
       setData(next);
+      setTutorAgendaEvents(nextAgendaEvents);
       const nextIndex = preferredUserId
         ? next.linkedUsers.findIndex(linked => linked.id === preferredUserId)
         : selectedUser;
@@ -196,11 +211,12 @@ export default function TutorDashboard() {
   if (!user || user.role !== 'tutor') return null;
 
   const primaryTabs = tabs.filter(item => ['overview', 'calendar', 'activities', 'chat', 'profile'].includes(item.id));
+  const secondaryTabs = tabs.filter(item => !primaryTabs.some(primary => primary.id === item.id));
 
   return (
     <div className="min-h-screen bg-background pb-24 md:pb-0">
-      <header className="sticky top-0 z-40 bg-card/95 backdrop-blur border-b border-border px-4 py-3">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
+      <header className="sticky top-0 z-40 border-b border-border bg-card/95 px-4 py-3 shadow-sm backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center gap-3">
           <button
             onClick={() => setMenuOpen(true)}
             className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border text-foreground md:hidden"
@@ -208,9 +224,64 @@ export default function TutorDashboard() {
           >
             <Menu size={20} />
           </button>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-[150px] flex-1 md:flex-none">
             <h1 className="font-heading font-bold text-gradient text-lg">TANDEM</h1>
             <p className="truncate text-xs text-muted-foreground">Panel de tutor - {user.name}</p>
+          </div>
+          <nav className="hidden min-w-0 flex-1 items-center justify-center gap-1 rounded-xl border border-border bg-background/70 p-1 md:flex">
+            {primaryTabs.map(t => (
+              <button
+                key={t.id}
+                onClick={() => {
+                  setTab(t.id);
+                  setDesktopMenuOpen(false);
+                }}
+                className={`flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition lg:px-4 ${
+                  tab === t.id
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:bg-card hover:text-foreground'
+                }`}
+              >
+                <t.icon size={14} />
+                {t.label}
+              </button>
+            ))}
+          </nav>
+          <div className="relative hidden md:block">
+            <button
+              onClick={() => setDesktopMenuOpen(open => !open)}
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-lg border text-foreground transition ${
+                secondaryTabs.some(item => item.id === tab)
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-border hover:bg-muted'
+              }`}
+              aria-label="Abrir mas secciones"
+              aria-expanded={desktopMenuOpen}
+            >
+              <Menu size={19} />
+            </button>
+            {desktopMenuOpen && (
+              <div className="absolute right-0 top-12 w-56 rounded-xl border border-border bg-card p-2 shadow-xl">
+                <p className="px-2 pb-2 pt-1 text-[11px] font-semibold uppercase text-muted-foreground">Mas secciones</p>
+                <div className="space-y-1">
+                  {secondaryTabs.map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        setTab(item.id);
+                        setDesktopMenuOpen(false);
+                      }}
+                      className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold transition ${
+                        tab === item.id ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted'
+                      }`}
+                    >
+                      <item.icon size={16} />
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="sm" onClick={() => load(mainUser?.id)} disabled={loading} aria-label="Recargar">
@@ -270,7 +341,7 @@ export default function TutorDashboard() {
       </AnimatePresence>
 
       {linkedUsers.length > 0 && (
-        <section className="border-b border-border bg-background px-4 py-4">
+        <section className="border-b border-border bg-background px-4 py-4 lg:hidden">
           <div className="mx-auto max-w-4xl space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -311,22 +382,58 @@ export default function TutorDashboard() {
         </section>
       )}
 
-      <div className="hidden md:flex gap-2 overflow-x-auto p-4 border-b border-border">
-        {tabs.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm whitespace-nowrap ${
-              tab === t.id ? 'gradient-primary text-primary-foreground' : 'bg-card border border-border text-muted-foreground'
-            }`}
-          >
-            <t.icon size={14} />
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <div className="mx-auto grid max-w-7xl gap-5 px-4 py-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+        {linkedUsers.length > 0 && (
+          <aside className="hidden lg:block">
+            <div className="sticky top-[86px] space-y-3 rounded-xl border border-border bg-card p-3 shadow-sm">
+              <div className="flex items-center justify-between gap-3 px-1">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Viendo datos de</p>
+                  <p className="truncate font-heading text-lg font-bold text-foreground">{mainUser?.name || 'Perteneciente'}</p>
+                </div>
+                {linkedUsers.length > 1 && (
+                  <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[10px] font-semibold text-muted-foreground">
+                    {linkedUsers.length}
+                  </span>
+                )}
+              </div>
+              <div className="space-y-2">
+                {linkedUsers.map((u, i) => (
+                  <button
+                    key={u.id}
+                    onClick={() => setSelectedUser(i)}
+                    className={`w-full rounded-lg border p-3 text-left transition ${
+                      selectedUser === i
+                        ? 'border-primary bg-primary/10 shadow-sm ring-2 ring-primary/15'
+                        : 'border-border bg-background hover:border-primary/40 hover:bg-primary/5'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-card text-2xl shadow-sm">
+                        {u.avatar}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-foreground">{u.name}</p>
+                        <p className="truncate text-xs text-muted-foreground">{u.supportLevel}</p>
+                      </div>
+                      {selectedUser === i && <CheckCircle2 size={17} className="shrink-0 text-primary" />}
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
+                      <span className="truncate text-muted-foreground">{u.autonomy}</span>
+                      {u.isPrimaryTutor && (
+                        <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700">
+                          Principal
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </aside>
+        )}
 
-      <main className="max-w-4xl mx-auto p-4 space-y-4">
+        <main className="min-w-0 space-y-4">
         {loading && (
           <div className="bg-card rounded-xl border border-border p-8 text-center">
             <Loader2 size={28} className="mx-auto animate-spin text-primary mb-3" />
@@ -374,7 +481,13 @@ export default function TutorDashboard() {
             </div>
 
             {tab === 'chat' && <ChatScreen />}
-            {tab === 'activities' && <AssignedActivities activities={activities} />}
+            {tab === 'activities' && (
+              <TutorActivitiesPanel
+                mainUser={mainUser}
+                linkedUsers={linkedUsers}
+                activities={activities}
+              />
+            )}
             {tab === 'overview' && (
               <Overview
                 mainUser={mainUser}
@@ -388,7 +501,7 @@ export default function TutorDashboard() {
             {tab === 'stats' && (
               <Stats activities={activities} emotions={emotions} events={events} adherence={adherence} />
             )}
-            {tab === 'agenda' && <TutorCalendar userId={mainUser.id} events={events} onChanged={() => load(mainUser.id)} compact />}
+            {tab === 'agenda' && <TutorCalendar userId={user.id} events={tutorAgendaEvents} onChanged={loadTutorAgenda} compact />}
             {tab === 'insights' && <Insights insights={insights} pending={pendingAct.length} />}
             {tab === 'location' && <Locations locations={locations} />}
             {tab === 'emotions' && <Emotions emotions={emotions} />}
@@ -397,7 +510,8 @@ export default function TutorDashboard() {
             {tab === 'settings' && <TutorLinkedSettings userId={mainUser.id} onSaved={() => load(mainUser.id)} />}
           </>
         )}
-      </main>
+        </main>
+      </div>
 
       <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur md:hidden">
         <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
@@ -543,7 +657,89 @@ function Stats({
   );
 }
 
-function AssignedActivities({ activities }: { activities: TutorHomeData['byUserId'][string]['activities'] }) {
+function TutorActivitiesPanel({
+  mainUser,
+  linkedUsers,
+  activities,
+}: {
+  mainUser: TutorHomeLinkedUser;
+  linkedUsers: TutorHomeLinkedUser[];
+  activities: TutorHomeData['byUserId'][string]['activities'];
+}) {
+  const { forUser } = useCustomActivities();
+  const customActivities = forUser(mainUser.id);
+  const visibleActivities = [
+    ...customActivities.map(activity => ({
+      id: activity.id,
+      title: activity.title,
+      description: activity.description,
+      category: activity.category,
+      difficulty: activity.difficulty,
+      points: activity.points,
+      status: activity.status,
+      completed: activity.status === 'completada',
+      assignedAt: new Date(activity.createdAt).toLocaleDateString('es-AR'),
+      completedAt: undefined,
+      source: activity.gameType ? `Juego: ${activity.gameType}` : 'Actividad creada',
+    })),
+    ...activities.map(activity => ({ ...activity, source: 'Backend' })),
+  ];
+  const completed = visibleActivities.filter(activity => activity.completed).length;
+  const pending = visibleActivities.length - completed;
+
+  return (
+    <div className="space-y-5">
+      <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="font-heading text-2xl font-bold text-foreground">Actividades</h2>
+            <p className="text-sm text-muted-foreground">
+              Seguimiento de {mainUser.name} y creacion de actividades para tus pertenecientes.
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 sm:min-w-[300px]">
+            <div className="rounded-lg bg-muted/50 p-2 text-center">
+              <p className="text-lg font-bold text-foreground">{visibleActivities.length}</p>
+              <p className="text-[10px] text-muted-foreground">total</p>
+            </div>
+            <div className="rounded-lg bg-green-50 p-2 text-center">
+              <p className="text-lg font-bold text-green-700">{completed}</p>
+              <p className="text-[10px] text-green-700/80">hechas</p>
+            </div>
+            <div className="rounded-lg bg-amber-50 p-2 text-center">
+              <p className="text-lg font-bold text-amber-700">{pending}</p>
+              <p className="text-[10px] text-amber-700/80">pendientes</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <section className="space-y-3">
+          <div>
+            <h3 className="font-heading text-lg font-semibold text-foreground">Lo que viene haciendo</h3>
+            <p className="text-sm text-muted-foreground">Actividades asignadas y publicadas para {shortName(mainUser)}.</p>
+          </div>
+          <AssignedActivities activities={visibleActivities} />
+        </section>
+
+        <section className="space-y-3">
+          <div>
+            <h3 className="font-heading text-lg font-semibold text-foreground">Crear y asignar</h3>
+            <p className="text-sm text-muted-foreground">Elegi una plantilla, carga el contenido y asignala a tus vinculados.</p>
+          </div>
+          <ActivityManager assignableUsers={linkedUsers} />
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function AssignedActivities({
+  activities,
+}: {
+  activities: Array<TutorHomeData['byUserId'][string]['activities'][number] & { source?: string }>;
+}) {
   return (
     <div className="space-y-3">
       {activities.map(activity => (
@@ -564,6 +760,7 @@ function AssignedActivities({ activities }: { activities: TutorHomeData['byUserI
                 <span>{activity.category}</span>
                 <span>{activity.difficulty}</span>
                 <span>{activity.points} pts</span>
+                {activity.source && <span>{activity.source}</span>}
                 <span>Asignada: {activity.assignedAt}</span>
                 {activity.completedAt && <span>Completada: {activity.completedAt}</span>}
               </div>
