@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
-import { fetchActivitiesForUser, Activity, ActivityCategory } from '@/data/api';
+import { completeAssignedActivity, fetchActivitiesForUser, Activity } from '@/data/api';
 import { CheckCircle2, Clock, Award, ChevronDown, ChevronUp, Play, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ActivityExecution from './ActivityExecution';
@@ -29,7 +29,7 @@ const typeColors: Record<string, string> = {
 
 export default function UserActivities({ filter }: { filter: 'all' | 'recommended' }) {
   const { user } = useAuth();
-  const { forUser } = useCustomActivities();
+  const { forUser, complete: completeCustomActivity } = useCustomActivities();
   const [selectedCategory, setSelectedCategory] = useState<string>('todas');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [localActivities, setLocalActivities] = useState<Activity[]>([]);
@@ -50,7 +50,12 @@ export default function UserActivities({ filter }: { filter: 'all' | 'recommende
   const customForUser = useMemo(() => user ? forUser(user.id) : [], [user, forUser]);
   const merged = useMemo(() => {
     // Custom siempre van primero (más recientes)
-    return [...customForUser, ...localActivities];
+    const customBackendIds = new Set(customForUser.map(activity => activity.backendId).filter(Boolean));
+    const localWithoutDuplicatedCustom = localActivities.filter(activity => {
+      const backendCustomId = (activity as any).backendCustomActivityId;
+      return !backendCustomId || !customBackendIds.has(Number(backendCustomId));
+    });
+    return [...customForUser, ...localWithoutDuplicatedCustom];
   }, [customForUser, localActivities]);
 
   if (!user) return null;
@@ -60,7 +65,7 @@ export default function UserActivities({ filter }: { filter: 'all' | 'recommende
       <ActivityExecution
         activity={executingActivity}
         onBack={() => setExecutingActivity(null)}
-        onComplete={(id) => setLocalActivities(prev => prev.map(a => a.id === id ? { ...a, status: 'completada' as const, progress: 100 } : a))}
+        onComplete={(id) => { void completeActivity(id); }}
       />
     );
   }
@@ -75,9 +80,16 @@ export default function UserActivities({ filter }: { filter: 'all' | 'recommende
 
   const categories = ['todas', ...Array.from(new Set(merged.map(a => a.category)))];
 
-  const completeActivity = (id: string) => {
+  async function completeActivity(id: string) {
+    const activity = merged.find(item => item.id === id);
+    if (!activity || !user) return;
+    if ((activity as any).isCustom) {
+      await completeCustomActivity(id, user.id);
+    } else {
+      await completeAssignedActivity(activity, user.id).catch(() => undefined);
+    }
     setLocalActivities(prev => prev.map(a => a.id === id ? { ...a, status: 'completada' as const, progress: 100 } : a));
-  };
+  }
 
   // Daily challenge
   const dailyActivity = localActivities.find(a => a.assignedTo === user.id && a.status === 'pendiente' && a.type === 'regulación') || localActivities.find(a => a.assignedTo === user.id && a.status === 'pendiente');

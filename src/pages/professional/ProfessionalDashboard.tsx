@@ -1,20 +1,21 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchAllProfessionals, fetchLinkedPertenecientesForSupportUser, getActivitiesForUser, getEmotionsForUser, getObjectivesForUser, calendarEvents, getRecommendationsForUser, type Professional, type User } from '@/data/api';
-import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, MessageSquare, Sparkles, Clock, MessageCircle } from 'lucide-react';
+import { fetchActivitiesForUser, fetchAllProfessionals, fetchLinkedPertenecientesForSupportUser, getEmotionsForUser, getObjectivesForUser, calendarEvents, getRecommendationsForUser, type Activity, type Professional, type User } from '@/data/api';
+import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, MessageSquare, Sparkles, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import ActivityManager from '@/components/ActivityManager';
 import AdvancedStats from '@/components/AdvancedStats';
-import WeeklyAgenda from '@/components/WeeklyAgenda';
 import ChatScreen from '@/components/ChatScreen';
+import ProfessionalAgenda from '@/components/ProfessionalAgenda';
 
 export default function ProfessionalDashboard() {
   const { user, logout } = useAuth();
   const [tab, setTab] = useState('patients');
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
-  const [patientTab, setPatientTab] = useState<'overview' | 'stats' | 'agenda'>('overview');
+  const [patientTab, setPatientTab] = useState<'overview' | 'stats'>('overview');
   const [linkedUsers, setLinkedUsers] = useState<User[]>([]);
+  const [activitiesByUser, setActivitiesByUser] = useState<Record<string, Activity[]>>({});
   const [allProfessionals, setAllProfessionals] = useState<Professional[]>([]);
   const [loadingPatients, setLoadingPatients] = useState(true);
 
@@ -30,6 +31,15 @@ export default function ProfessionalDashboard() {
         if (cancelled) return;
         setLinkedUsers(patients);
         setAllProfessionals(professionals);
+        Promise.all(
+          patients.map(patient =>
+            fetchActivitiesForUser(patient.id)
+              .then(activities => [patient.id, activities] as const)
+              .catch(() => [patient.id, []] as const)
+          )
+        ).then(entries => {
+          if (!cancelled) setActivitiesByUser(Object.fromEntries(entries));
+        });
       })
       .finally(() => {
         if (!cancelled) setLoadingPatients(false);
@@ -41,13 +51,14 @@ export default function ProfessionalDashboard() {
 
   const tabs = [
     { id: 'patients', label: 'Pacientes', icon: Users },
+    { id: 'agenda', label: 'Agenda', icon: Calendar },
     { id: 'create', label: 'Crear actividad', icon: Sparkles },
     { id: 'chat', label: 'Chat', icon: MessageCircle },
     { id: 'tools', label: 'Herramientas', icon: ClipboardPlus },
     { id: 'directory', label: 'Directorio', icon: FileText },
   ];
 
-  const patientDetail = selectedPatient ? users.find(u => u.id === selectedPatient) : null;
+  const patientDetail = selectedPatient ? linkedUsers.find(u => u.id === selectedPatient) : null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -83,7 +94,7 @@ export default function ProfessionalDashboard() {
               </div>
             )}
             {linkedUsers.map(u => {
-              const acts = getActivitiesForUser(u.id);
+              const acts = activitiesByUser[u.id] || [];
               const completed = acts.filter(a => a.status === 'completada').length;
               const adherence = acts.length > 0 ? Math.round((completed / acts.length) * 100) : 0;
               const emotions = getEmotionsForUser(u.id);
@@ -91,7 +102,7 @@ export default function ProfessionalDashboard() {
               const nextSession = calendarEvents.find(e => e.userId === u.id && e.type === 'terapia' && e.date >= new Date().toISOString().split('T')[0]);
 
               return (
-                <motion.button key={u.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} onClick={() => setSelectedPatient(u.id)} className="w-full bg-card rounded-xl border border-border overflow-hidden text-left hover:border-primary/30 transition-all">
+                <motion.button key={u.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} onClick={() => { setSelectedPatient(u.id); setPatientTab('stats'); }} className="w-full bg-card rounded-xl border border-border overflow-hidden text-left hover:border-primary/30 transition-all">
                   <div className="p-4 flex items-center gap-4">
                     <span className="text-4xl">{u.avatar}</span>
                     <div className="flex-1">
@@ -119,7 +130,7 @@ export default function ProfessionalDashboard() {
         )}
 
         {tab === 'patients' && selectedPatient && patientDetail && (() => {
-          const acts = getActivitiesForUser(patientDetail.id);
+          const acts = activitiesByUser[patientDetail.id] || [];
           const completed = acts.filter(a => a.status === 'completada').length;
           const adherence = acts.length > 0 ? Math.round((completed / acts.length) * 100) : 0;
           const emotions = getEmotionsForUser(patientDetail.id);
@@ -132,7 +143,6 @@ export default function ProfessionalDashboard() {
                 {([
                   { id: 'overview', label: 'Resumen', icon: BarChart3 },
                   { id: 'stats', label: 'Estadísticas', icon: TrendingUp },
-                  { id: 'agenda', label: 'Agenda', icon: Clock },
                 ] as const).map(t => (
                   <button key={t.id} onClick={() => setPatientTab(t.id)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm whitespace-nowrap ${patientTab === t.id ? 'gradient-primary text-primary-foreground' : 'bg-card border border-border text-muted-foreground'}`}>
                     <t.icon size={14} /> {t.label}
@@ -140,8 +150,7 @@ export default function ProfessionalDashboard() {
                 ))}
               </div>
 
-              {patientTab === 'stats' && <AdvancedStats user={patientDetail} />}
-              {patientTab === 'agenda' && <WeeklyAgenda user={patientDetail} />}
+              {patientTab === 'stats' && <AdvancedStats user={patientDetail} activities={acts} />}
               {patientTab === 'overview' && (<>
               <div className="bg-card rounded-xl p-5 border border-border">
                 <div className="flex items-center gap-4 mb-4">
@@ -203,6 +212,8 @@ export default function ProfessionalDashboard() {
 
         {tab === 'create' && <ActivityManager />}
 
+        {tab === 'agenda' && <ProfessionalAgenda patients={linkedUsers} />}
+
         {tab === 'tools' && (
           <div className="space-y-4">
             <h2 className="font-heading font-bold text-xl text-foreground">Herramientas profesionales</h2>
@@ -210,7 +221,7 @@ export default function ProfessionalDashboard() {
               <h3 className="font-heading font-semibold text-foreground mb-2">📊 Métricas globales</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div className="text-center p-3 bg-muted/50 rounded-lg"><p className="text-xl font-bold text-foreground">{linkedUsers.length}</p><p className="text-xs text-muted-foreground">Pacientes activos</p></div>
-                <div className="text-center p-3 bg-muted/50 rounded-lg"><p className="text-xl font-bold text-foreground">{Math.round(linkedUsers.reduce((sum,u) => { const a=getActivitiesForUser(u.id); return sum + (a.length>0?a.filter(x=>x.status==='completada').length/a.length:0); },0)/linkedUsers.length*100)}%</p><p className="text-xs text-muted-foreground">Adherencia promedio</p></div>
+                <div className="text-center p-3 bg-muted/50 rounded-lg"><p className="text-xl font-bold text-foreground">{linkedUsers.length ? Math.round(linkedUsers.reduce((sum,u) => { const a=activitiesByUser[u.id] || []; return sum + (a.length>0?a.filter(x=>x.status==='completada').length/a.length:0); },0)/linkedUsers.length*100) : 0}%</p><p className="text-xs text-muted-foreground">Adherencia promedio</p></div>
               </div>
             </div>
             <div className="bg-card rounded-xl p-4 border border-border">

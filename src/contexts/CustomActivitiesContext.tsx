@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
-import type { Activity, ActivityCategory, ActivityType } from '@/data/api';
+import { completeAssignedActivity, type Activity, type ActivityCategory, type ActivityType } from '@/data/api';
 import { tandemApi } from '@/services/api';
 
 export interface CustomActivity extends Activity {
@@ -90,6 +90,7 @@ interface Ctx {
   duplicate: (id: string) => void;
   publish: (id: string) => void;
   unpublish: (id: string) => void;
+  complete: (id: string, userId: string) => Promise<void>;
   byCreator: (creatorId: string) => CustomActivity[];
   forUser: (userId: string) => CustomActivity[];
 }
@@ -204,12 +205,20 @@ export function CustomActivitiesProvider({ children }: { children: ReactNode }) 
   const unpublish = useCallback((id: string) =>
     setItems(prev => prev.map(a => a.id === id ? { ...a, draft: true, updatedAt: Date.now() } : a)), []);
 
+  const complete: Ctx['complete'] = useCallback(async (id, userId) => {
+    const activity = items.find(a => a.id === id);
+    if (activity) {
+      await completeAssignedActivity(activity, userId).catch(() => undefined);
+    }
+    setItems(prev => prev.map(a => a.id === id ? { ...a, status: 'completada', progress: 100, updatedAt: Date.now() } : a));
+  }, [items]);
+
   const byCreator = useCallback((creatorId: string) => items.filter(a => a.createdBy === creatorId), [items]);
   const forUser = useCallback((userId: string) =>
     items.filter(a => !a.draft && (a.assignedToIds?.includes(userId) || a.assignedTo === userId)), [items]);
 
   return (
-    <CustomActivitiesContext.Provider value={{ items, createOrUpdate, remove, duplicate, publish, unpublish, byCreator, forUser }}>
+    <CustomActivitiesContext.Provider value={{ items, createOrUpdate, remove, duplicate, publish, unpublish, complete, byCreator, forUser }}>
       {children}
     </CustomActivitiesContext.Provider>
   );

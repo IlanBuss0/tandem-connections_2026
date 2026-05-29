@@ -189,6 +189,62 @@ function toLegacyActivity(activity: DbActividad, userId?: string): Activity {
   };
 }
 
+function extractCustomSteps(description?: string | null): string[] {
+  const stepsLine = (description || '').split('\n').find(line => line.trim().startsWith('Pasos:'));
+  if (!stepsLine) return [description || 'Completar la actividad asignada.'];
+  const steps = stepsLine.replace(/^Pasos:\s*/i, '').split('|').map(step => step.trim()).filter(Boolean);
+  return steps.length > 0 ? steps : [description || 'Completar la actividad asignada.'];
+}
+
+function customDescriptionWithoutMetadata(description?: string | null): string {
+  return (description || '')
+    .split('\n')
+    .filter(line => !line.trim().startsWith('Objetivo:') && !line.trim().startsWith('Pasos:'))
+    .join('\n')
+    .trim();
+}
+
+function toAssignedLegacyActivity(
+  assignment: DbActividadAsignada,
+  activity: DbActividad | DbActividadPersonalizada,
+  status: DbEstadoActividad | undefined,
+  userId: string,
+): Activity {
+  const base = toLegacyActivity({
+    id: activity.id,
+    id_tipo_actividad: activity.id_tipo_actividad,
+    id_punto_otorgado: activity.id_punto_otorgado,
+    titulo: activity.titulo,
+    descripcion: activity.descripcion,
+    es_integrada: 'es_integrada' in activity ? activity.es_integrada : false,
+    activa: activity.activa,
+  }, userId);
+  const completed = isCompletedStatus(status, assignment);
+  const customDescription = 'id_actividad_base' in activity ? customDescriptionWithoutMetadata(activity.descripcion) : '';
+  const customSteps = 'id_actividad_base' in activity ? extractCustomSteps(activity.descripcion) : null;
+
+  return {
+    ...base,
+    id: String(assignment.id),
+    title: activity.titulo,
+    description: customDescription || activity.descripcion || base.description,
+    objective: activity.descripcion?.match(/Objetivo:\s*([^\n]+)/)?.[1] || base.objective,
+    steps: customSteps || base.steps,
+    stepIcons: customSteps ? customSteps.map((_, index) => String(index + 1)) : base.stepIcons,
+    status: completed ? 'completada' : 'pendiente',
+    progress: completed ? 100 : 0,
+    assignedTo: userId,
+    recommendedBy: 'profesional',
+    assignedActivityId: assignment.id,
+    backendActivityId: assignment.id_actividad,
+    backendCustomActivityId: assignment.id_actividad_personalizada,
+  } as Activity & {
+    assignedActivityId: number;
+    backendActivityId: number | null;
+    backendCustomActivityId: number | null;
+  };
+}
+
 function toLegacyNotification(notification: DbNotificacion): Notification {
   return {
     id: String(notification.id),
@@ -866,11 +922,73 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
 
 export async function fetchActivitiesForUser(userId: string): Promise<Activity[]> {
   try {
-    const rows = await tandemApi.actividades.getAll();
-    return rows.map((row) => toLegacyActivity(row, userId));
+    const numericUserId = Number(userId);
+    const [pertenecientes, asignadas, actividades, personalizadas, estados] = await Promise.all([
+      tandemApi.pertenecientes.getAll(),
+      tandemApi.actividadesAsignadas.getAll(),
+      tandemApi.actividades.getAll(),
+      tandemApi.actividadesPersonalizadas.getAll(),
+      tandemApi.estadosActividades.getAll(),
+    ]);
+    const perteneciente = pertenecientes.find(item => Number(item.id_usuario) === numericUserId);
+    if (!perteneciente) return [];
+
+    const activityById = new Map((actividades as DbActividad[]).map(item => [Number(item.id), item]));
+    const customById = new Map((personalizadas as DbActividadPersonalizada[]).map(item => [Number(item.id), item]));
+    const statusById = new Map((estados as DbEstadoActividad[]).map(item => [Number(item.id), item]));
+
+    return (asignadas as DbActividadAsignada[])
+      .filter(item => Number(item.id_perteneciente) === Number(perteneciente.id))
+      .sort((a, b) => String(b.fecha_asignacion || '').localeCompare(String(a.fecha_asignacion || '')))
+      .map(item => {
+        const activity = item.id_actividad
+          ? activityById.get(Number(item.id_actividad))
+          : item.id_actividad_personalizada
+            ? customById.get(Number(item.id_actividad_personalizada))
+            : undefined;
+        return activity ? toAssignedLegacyActivity(item, activity, statusById.get(Number(item.id_estado_actividad)), userId) : null;
+      })
+      .filter((item): item is Activity => Boolean(item));
   } catch {
     return apiFetchWithFallback<Activity[]>([`/activities?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/activities`]);
   }
+}
+
+export async function completeAssignedActivity(activity: Activity, userId: string): Promise<void> {
+  let assignedActivityId = Number((activity as any).assignedActivityId || activity.id);
+  if (!Number.isFinite(assignedActivityId)) {
+    const numericUserId = Number(userId);
+    const backendCustomActivityId = Number((activity as any).backendCustomActivityId || (activity as any).backendId);
+    const backendActivityId = Number((activity as any).backendActivityId);
+    const [pertenecientes, asignadas] = await Promise.all([
+      tandemApi.pertenecientes.getAll(),
+      tandemApi.actividadesAsignadas.getAll(),
+    ]);
+    const perteneciente = pertenecientes.find(item => Number(item.id_usuario) === numericUserId);
+    const assignment = (asignadas as DbActividadAsignada[]).find(item =>
+      Number(item.id_perteneciente) === Number(perteneciente?.id) &&
+      (
+        (Number.isFinite(backendCustomActivityId) && Number(item.id_actividad_personalizada) === backendCustomActivityId) ||
+        (Number.isFinite(backendActivityId) && Number(item.id_actividad) === backendActivityId)
+      )
+    );
+    assignedActivityId = Number(assignment?.id);
+  }
+  if (!Number.isFinite(assignedActivityId)) return;
+
+  const [assignment, estados] = await Promise.all([
+    tandemApi.actividadesAsignadas.getById(assignedActivityId),
+    tandemApi.estadosActividades.getAll(),
+  ]);
+  const completedStatus = (estados as DbEstadoActividad[]).find(item =>
+    item.nombre.toLowerCase().includes('complet')
+  );
+
+  await tandemApi.actividadesAsignadas.update(assignedActivityId, {
+    ...assignment,
+    id_estado_actividad: completedStatus?.id || 3,
+    fecha_completada: new Date().toISOString(),
+  });
 }
 
 export async function fetchNotificationsForUser(userId: string): Promise<Notification[]> {

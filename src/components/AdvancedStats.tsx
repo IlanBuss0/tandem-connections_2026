@@ -1,18 +1,34 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, Activity as ActivityIcon, Heart, Target, Award, Calendar, Clock, Sparkles } from 'lucide-react';
 import {
-  getActivitiesForUser, getEmotionsForUser, getObjectivesForUser, calendarEvents,
+  Activity, fetchActivitiesForUser, getEmotionsForUser, getObjectivesForUser, calendarEvents,
   achievements as allAchievements, User,
 } from '@/data/api';
 
 interface Props {
   user: User;
+  activities?: Activity[];
 }
 
-export default function AdvancedStats({ user }: Props) {
+export default function AdvancedStats({ user, activities }: Props) {
+  const [loadedActivities, setLoadedActivities] = useState<Activity[]>([]);
+
+  useEffect(() => {
+    if (activities) return;
+    let mounted = true;
+    fetchActivitiesForUser(user.id)
+      .then(rows => {
+        if (mounted) setLoadedActivities(rows);
+      })
+      .catch(() => {
+        if (mounted) setLoadedActivities([]);
+      });
+    return () => { mounted = false; };
+  }, [activities, user.id]);
+
   const stats = useMemo(() => {
-    const acts = getActivitiesForUser(user.id);
+    const acts = activities ?? loadedActivities;
     const completed = acts.filter(a => a.status === 'completada');
     const inProgress = acts.filter(a => a.status === 'en progreso');
     const pending = acts.filter(a => a.status === 'pendiente');
@@ -75,7 +91,7 @@ export default function AdvancedStats({ user }: Props) {
       objsActive, objsCompleted, avgObjProgress,
       upcomingEvents, userAchievements, minutesThisWeek,
     };
-  }, [user]);
+  }, [activities, loadedActivities, user]);
 
   return (
     <div className="space-y-4">

@@ -19,6 +19,7 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
   const [completedSteps, setCompletedSteps] = useState<boolean[]>(activity.steps.map(() => false));
   const [paused, setPaused] = useState(false);
   const [finished, setFinished] = useState(false);
+  const [completionReported, setCompletionReported] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
 
   const progress = (completedSteps.filter(Boolean).length / activity.steps.length) * 100;
@@ -44,6 +45,13 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
     }
   }, [finished, coinsAwarded, activity, earn]);
 
+  useEffect(() => {
+    if (finished && !completionReported) {
+      onComplete(activity.id);
+      setCompletionReported(true);
+    }
+  }, [finished, completionReported, activity.id, onComplete]);
+
   if (finished) {
     const reward = Math.max(10, Math.round(activity.points / 2));
     return (
@@ -63,7 +71,7 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
             </span>
           </div>
         </motion.div>
-        <Button onClick={() => { onComplete(activity.id); onBack(); }} className="gradient-primary text-primary-foreground mt-4">
+        <Button onClick={onBack} className="gradient-primary text-primary-foreground mt-4">
           Volver a actividades
         </Button>
       </div>
