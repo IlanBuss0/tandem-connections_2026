@@ -42,6 +42,7 @@ export default function AppShell() {
   const { user, logout } = useAuth();
   const { state: wallet } = useWallet();
   const [activeTab, setActiveTab] = useState('home');
+  const [editingProfilePersonalData, setEditingProfilePersonalData] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   if (!user) return null;
@@ -50,9 +51,15 @@ export default function AppShell() {
   if (user.role === 'tutor') return <TutorDashboard />;
   if (user.role === 'professional') return <ProfessionalDashboard />;
 
+  const goToTab = (tab: string) => {
+    setEditingProfilePersonalData(false);
+    setActiveTab(tab);
+    setSidebarOpen(false);
+  };
+
   const renderContent = () => {
     switch (activeTab) {
-      case 'home': return <UserHome onNavigate={setActiveTab} />;
+      case 'home': return <UserHome onNavigate={goToTab} />;
       case 'routines': return <UserRoutines />;
       case 'calendar': return <UserCalendar />;
       case 'activities': return <UserActivities filter="all" />;
@@ -64,9 +71,12 @@ export default function AppShell() {
       case 'achievements': return <UserAchievements />;
       case 'notifications': return <UserNotifications />;
       case 'resources': return <UserResources />;
-      case 'profile': return <UserProfile onConfigure={() => setActiveTab('profile-settings')} />;
-      case 'profile-settings': return <UserProfileSettings onBack={() => setActiveTab('profile')} />;
-      default: return <UserHome onNavigate={setActiveTab} />;
+      case 'profile':
+        return editingProfilePersonalData
+          ? <UserProfileSettings mode="personal" onBack={() => setEditingProfilePersonalData(false)} />
+          : <UserProfile onConfigure={() => setEditingProfilePersonalData(true)} />;
+      case 'profile-settings': return <UserProfileSettings onBack={() => goToTab('profile')} />;
+      default: return <UserHome onNavigate={goToTab} />;
     }
   };
 
@@ -81,8 +91,8 @@ export default function AppShell() {
         </button>
         <h1 className="font-heading font-bold text-gradient text-lg">TÁNDEM</h1>
         <div className="flex items-center gap-2">
-          <CoinBadge size="sm" onClick={() => setActiveTab('shop')} />
-          <button onClick={() => setActiveTab('notifications')} className="relative text-muted-foreground p-1.5" aria-label="Notificaciones">
+          <CoinBadge size="sm" onClick={() => goToTab('shop')} />
+          <button onClick={() => goToTab('notifications')} className="relative text-muted-foreground p-1.5" aria-label="Notificaciones">
             <Bell size={20} />
             {unreadNotifs > 0 && <span className="absolute top-0 right-0 w-4 h-4 rounded-full gradient-primary text-primary-foreground text-[8px] flex items-center justify-center font-bold">{unreadNotifs}</span>}
           </button>
@@ -98,7 +108,7 @@ export default function AppShell() {
               <button onClick={() => setSidebarOpen(false)} className="p-1.5" aria-label="Cerrar menú"><X size={20} /></button>
             </div>
             <button
-              onClick={() => { setActiveTab('shop'); setSidebarOpen(false); }}
+              onClick={() => goToTab('shop')}
               className="w-full flex items-center gap-3 p-3 rounded-xl bg-muted/50 mb-4 hover:bg-muted transition-colors text-left"
             >
               <AvatarPreview equipped={wallet.equipped} size={48} showBackground={false} />
@@ -112,7 +122,7 @@ export default function AppShell() {
               {userNav.map(item => (
                 <button
                   key={item.id}
-                  onClick={() => { setActiveTab(item.id); setSidebarOpen(false); }}
+                  onClick={() => goToTab(item.id)}
                   className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm transition-colors ${activeTab === item.id ? 'bg-primary/10 text-primary font-semibold' : 'text-muted-foreground hover:bg-muted/50'}`}
                 >
                   <item.icon size={18} className="shrink-0" />
@@ -137,7 +147,7 @@ export default function AppShell() {
           <p className="text-xs text-muted-foreground">Avanzamos juntos</p>
         </div>
         <button
-          onClick={() => setActiveTab('shop')}
+          onClick={() => goToTab('shop')}
           className="flex items-center gap-3 p-3 mx-3 mt-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors text-left"
         >
           <AvatarPreview equipped={wallet.equipped} size={56} showBackground={false} />
@@ -151,7 +161,7 @@ export default function AppShell() {
           {userNav.map(item => (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => goToTab(item.id)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${activeTab === item.id ? 'bg-primary/10 text-primary font-semibold' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'}`}
             >
               <item.icon size={18} className="shrink-0" />
@@ -179,7 +189,7 @@ export default function AppShell() {
         {[userNav[0], userNav[1], userNav[3], userNav[5], userNav[7]].map(item => (
           <button
             key={item.id}
-            onClick={() => setActiveTab(item.id)}
+            onClick={() => goToTab(item.id)}
             className={`flex flex-col items-center gap-0.5 px-2 py-1 text-[10px] min-w-[56px] transition-colors ${activeTab === item.id ? 'text-primary' : 'text-muted-foreground'}`}
           >
             <item.icon size={20} />

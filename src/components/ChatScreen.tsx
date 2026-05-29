@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import { useChat, ContactPerson } from '@/contexts/ChatContext';
+import { useChat } from '@/contexts/ChatContext';
 import { Conversation } from '@/data/api';
 import { ArrowLeft, Send, Plus, Search, X, MessageCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -11,21 +11,28 @@ const quickReplies = [
   '👍 ¡Dale!', '✅ Llegué bien', '🙋 Necesito ayuda', '⏰ Ya salgo', '😊 Estoy bien', '🔄 Hubo un cambio'
 ];
 
+const MESSAGE_PREVIEW_LIMIT = 220;
+
 export default function ChatScreen() {
   const { user } = useAuth();
-  const { conversationsForUser, messagesFor, send, markRead, ensureConversationWith, allContacts } = useChat();
+  const { conversationsForUser, messagesFor, send, markRead, ensureConversationWith, allContacts, getPersonById } = useChat();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [showNew, setShowNew] = useState(false);
   const [newSearch, setNewSearch] = useState('');
   const [filterRole, setFilterRole] = useState<'all' | 'user' | 'tutor' | 'profesional'>('all');
+  const [expandedMessageIds, setExpandedMessageIds] = useState<Set<string>>(new Set());
 
-  if (!user) return null;
-  const myConvs = conversationsForUser(user.id);
+  const myConvs = useMemo(
+    () => user ? conversationsForUser(user.id) : [],
+    [conversationsForUser, user]
+  );
   const selectedConv: Conversation | null = useMemo(
     () => myConvs.find(c => c.id === selectedId) || null,
     [myConvs, selectedId]
   );
+
+  if (!user) return null;
 
   const handleSelect = (c: Conversation) => {
     setSelectedId(c.id);
@@ -44,6 +51,18 @@ export default function ChatScreen() {
     if (!text.trim() || !selectedConv) return;
     send(selectedConv.id, text);
     setDraft('');
+  };
+
+  const toggleMessageExpansion = (messageId: string) => {
+    setExpandedMessageIds(prev => {
+      const next = new Set(prev);
+      if (next.has(messageId)) {
+        next.delete(messageId);
+      } else {
+        next.add(messageId);
+      }
+      return next;
+    });
   };
 
   const contacts = allContacts().filter(c => c.id !== user.id);
@@ -80,10 +99,22 @@ export default function ChatScreen() {
           )}
           {msgs.map(msg => {
             const isMine = msg.senderId === user.id;
+            const isLong = msg.text.length > MESSAGE_PREVIEW_LIMIT;
+            const isExpanded = expandedMessageIds.has(msg.id);
+            const visibleText = isLong && !isExpanded ? `${msg.text.slice(0, MESSAGE_PREVIEW_LIMIT).trimEnd()}...` : msg.text;
             return (
               <motion.div key={msg.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm ${msg.type === 'activity' ? 'bg-amber-50 text-amber-800 border border-amber-200 rounded-xl' : isMine ? 'gradient-primary text-primary-foreground rounded-br-md' : 'bg-muted text-foreground rounded-bl-md'}`}>
-                  <p className="whitespace-pre-wrap break-words">{msg.text}</p>
+                  <p className="whitespace-pre-wrap break-words">{visibleText}</p>
+                  {isLong && (
+                    <button
+                      type="button"
+                      onClick={() => toggleMessageExpansion(msg.id)}
+                      className={`mt-1 text-xs font-bold underline-offset-2 hover:underline ${isMine ? 'text-yellow-200 hover:text-yellow-100' : 'text-sky-600 hover:text-sky-700'}`}
+                    >
+                      {isExpanded ? 'Ver Menos' : 'Leer Más'}
+                    </button>
+                  )}
                   <p className={`text-[10px] mt-1 ${isMine ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>{msg.timestamp}</p>
                 </div>
               </motion.div>

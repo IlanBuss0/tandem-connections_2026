@@ -91,15 +91,27 @@ function ToggleRow({ label, description, checked, onChange }: {
   );
 }
 
-export default function UserProfileSettings({ onBack }: { onBack?: () => void }) {
+type UserProfileSettingsMode = 'settings' | 'personal';
+
+export default function UserProfileSettings({ onBack, mode = 'settings' }: { onBack?: () => void; mode?: UserProfileSettingsMode }) {
   const { user } = useAuth();
   const [settings, setSettings] = useState<UserProfileSettings | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isPersonalMode = mode === 'personal';
 
   const canSave = useMemo(() => {
+    if (isPersonalMode) {
+      return Boolean(
+        form.usuario.nombre_usuario.trim() &&
+        form.usuario.nombre.trim() &&
+        form.usuario.apellido.trim() &&
+        form.usuario.correo.trim()
+      );
+    }
+
     return Boolean(
       form.usuario.nombre_usuario.trim() &&
       form.usuario.nombre.trim() &&
@@ -108,7 +120,7 @@ export default function UserProfileSettings({ onBack }: { onBack?: () => void })
       form.perteneciente.id_nivel_apoyo &&
       form.perteneciente.id_autonomia_operativa
     );
-  }, [form]);
+  }, [form, isPersonalMode]);
 
   const load = async () => {
     if (!user || user.role !== 'user') return;
@@ -222,8 +234,10 @@ export default function UserProfileSettings({ onBack }: { onBack?: () => void })
     <form className="space-y-5 pb-20 lg:pb-6" onSubmit={handleSubmit}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-2xl font-heading font-bold text-foreground">Configuracion de perfil</h2>
-          <p className="text-sm text-muted-foreground">Datos personales, autonomia, privacidad y accesibilidad.</p>
+          <h2 className="text-2xl font-heading font-bold text-foreground">{isPersonalMode ? 'Datos personales' : 'Configuracion de perfil'}</h2>
+          <p className="text-sm text-muted-foreground">
+            {isPersonalMode ? 'Informacion visible para tu cuenta y tu red de apoyo.' : 'Autonomia, privacidad y accesibilidad.'}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {onBack && (
@@ -253,45 +267,48 @@ export default function UserProfileSettings({ onBack }: { onBack?: () => void })
         </div>
       ) : (
         <>
-          <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
-            <SectionHeader
-              icon={UserRound}
-              title="Datos personales"
-              description="Informacion visible para tu cuenta y tu red de apoyo."
-            />
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="profile-name">Nombre</Label>
-                <Input id="profile-name" value={form.usuario.nombre} onChange={e => updateUsuario('nombre', e.target.value)} />
+          {isPersonalMode && (
+            <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
+              <SectionHeader
+                icon={UserRound}
+                title="Datos personales"
+                description="Informacion visible para tu cuenta y tu red de apoyo."
+              />
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="profile-name">Nombre</Label>
+                  <Input id="profile-name" value={form.usuario.nombre} onChange={e => updateUsuario('nombre', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="profile-lastname">Apellido</Label>
+                  <Input id="profile-lastname" value={form.usuario.apellido} onChange={e => updateUsuario('apellido', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="profile-username">Usuario</Label>
+                  <Input id="profile-username" value={form.usuario.nombre_usuario} onChange={e => updateUsuario('nombre_usuario', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="profile-email">Correo</Label>
+                  <Input id="profile-email" type="email" value={form.usuario.correo} onChange={e => updateUsuario('correo', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="profile-phone">Telefono</Label>
+                  <Input id="profile-phone" inputMode="numeric" value={form.telefonoText} onChange={e => handlePhoneChange(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="profile-birthdate">Fecha de nacimiento</Label>
+                  <Input
+                    id="profile-birthdate"
+                    type="date"
+                    value={form.usuario.fecha_nacimiento || ''}
+                    onChange={e => updateUsuario('fecha_nacimiento', e.target.value || null)}
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="profile-lastname">Apellido</Label>
-                <Input id="profile-lastname" value={form.usuario.apellido} onChange={e => updateUsuario('apellido', e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="profile-username">Usuario</Label>
-                <Input id="profile-username" value={form.usuario.nombre_usuario} onChange={e => updateUsuario('nombre_usuario', e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="profile-email">Correo</Label>
-                <Input id="profile-email" type="email" value={form.usuario.correo} onChange={e => updateUsuario('correo', e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="profile-phone">Telefono</Label>
-                <Input id="profile-phone" inputMode="numeric" value={form.telefonoText} onChange={e => handlePhoneChange(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="profile-birthdate">Fecha de nacimiento</Label>
-                <Input
-                  id="profile-birthdate"
-                  type="date"
-                  value={form.usuario.fecha_nacimiento || ''}
-                  onChange={e => updateUsuario('fecha_nacimiento', e.target.value || null)}
-                />
-              </div>
-            </div>
-          </section>
+            </section>
+          )}
 
+          {!isPersonalMode && (
           <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
             <SectionHeader
               icon={Shield}
@@ -350,7 +367,9 @@ export default function UserProfileSettings({ onBack }: { onBack?: () => void })
               </div>
             </div>
           </section>
+          )}
 
+          {!isPersonalMode && (
           <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
             <SectionHeader
               icon={Bell}
@@ -366,7 +385,9 @@ export default function UserProfileSettings({ onBack }: { onBack?: () => void })
               <ToggleRow label="Progreso visible" description="Mostrar progreso a la red de apoyo." checked={form.preferences.mostrar_progreso_red_apoyo} onChange={value => updatePreference('mostrar_progreso_red_apoyo', value)} />
             </div>
           </section>
+          )}
 
+          {!isPersonalMode && (
           <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
             <SectionHeader
               icon={Eye}
@@ -395,6 +416,7 @@ export default function UserProfileSettings({ onBack }: { onBack?: () => void })
               <ToggleRow label="Pictogramas grandes" description="Mostrar pictogramas con mayor tamano." checked={form.accessibility.pictogramas_grandes} onChange={value => updateAccessibility('pictogramas_grandes', value)} />
             </div>
           </section>
+          )}
         </>
       )}
     </form>

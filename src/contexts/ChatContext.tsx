@@ -86,7 +86,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const send = useCallback(async (cid: string, text: string) => {
     if (!user || !text.trim()) return;
-    const sent = await sendMessage(cid, user.id, user.name, text.trim());
+    const messageText = text.trim();
+    let sent: ChatMessage;
+    try {
+      sent = await sendMessage(cid, user.id, user.name, messageText);
+    } catch {
+      sent = {
+        id: `local-msg-${Date.now()}`,
+        conversationId: cid,
+        senderId: user.id,
+        senderName: user.name,
+        text: messageText,
+        timestamp: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+        read: true,
+        type: 'text',
+      };
+    }
     setMessages(prev => [...prev, sent]);
     setConversations(prev => prev.map(c => c.id === cid ? { ...c, lastMessage: sent.text, lastMessageTime: sent.timestamp, unreadCount: 0 } : c));
   }, [user]);
