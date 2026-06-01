@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChat } from '@/contexts/ChatContext';
 import { Conversation } from '@/data/api';
-import { ArrowLeft, Send, Plus, Search, X, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Send, Plus, Search, X, MessageCircle, Pencil, Trash2, Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
@@ -13,15 +13,22 @@ const quickReplies = [
 
 const MESSAGE_PREVIEW_LIMIT = 220;
 
+function sameId(a: string | number | null | undefined, b: string | number | null | undefined) {
+  return String(a ?? '') === String(b ?? '');
+}
+
 export default function ChatScreen() {
   const { user } = useAuth();
-  const { conversationsForUser, messagesFor, send, markRead, ensureConversationWith, allContacts, getPersonById } = useChat();
+  const { conversationsForUser, messagesFor, send, edit, remove, markRead, ensureConversationWith, allContacts, getPersonById } = useChat();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [showNew, setShowNew] = useState(false);
   const [newSearch, setNewSearch] = useState('');
   const [filterRole, setFilterRole] = useState<'all' | 'user' | 'tutor' | 'profesional'>('all');
   const [expandedMessageIds, setExpandedMessageIds] = useState<Set<string>>(new Set());
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const myConvs = useMemo(
     () => user ? conversationsForUser(user.id) : [],
@@ -31,6 +38,17 @@ export default function ChatScreen() {
     () => myConvs.find(c => c.id === selectedId) || null,
     [myConvs, selectedId]
   );
+  const selectedMessages = useMemo(
+    () => selectedConv ? messagesFor(selectedConv.id) : [],
+    [messagesFor, selectedConv]
+  );
+
+  useEffect(() => {
+    if (!selectedConv) return;
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ block: 'end' });
+    });
+  }, [selectedConv, selectedMessages.length]);
 
   if (!user) return null;
 
@@ -51,6 +69,27 @@ export default function ChatScreen() {
     if (!text.trim() || !selectedConv) return;
     send(selectedConv.id, text);
     setDraft('');
+  };
+
+  const startEdit = (messageId: string, text: string) => {
+    setEditingMessageId(messageId);
+    setEditingText(text);
+  };
+
+  const cancelEdit = () => {
+    setEditingMessageId(null);
+    setEditingText('');
+  };
+
+  const saveEdit = async () => {
+    if (!editingMessageId || !editingText.trim()) return;
+    await edit(editingMessageId, editingText);
+    cancelEdit();
+  };
+
+  const removeMessage = async (messageId: string) => {
+    await remove(messageId);
+    if (editingMessageId === messageId) cancelEdit();
   };
 
   const toggleMessageExpansion = (messageId: string) => {
@@ -77,7 +116,7 @@ export default function ChatScreen() {
   if (selectedConv) {
     const otherId = selectedConv.participants.find(p => p !== user.id) || '';
     const other = getPersonById(otherId);
-    const msgs = messagesFor(selectedConv.id);
+    const msgs = selectedMessages;
 
     return (
       <div className="flex flex-col h-[calc(100vh-9rem)] lg:h-[calc(100vh-3rem)]">
@@ -98,15 +137,48 @@ export default function ChatScreen() {
             <p className="text-center text-xs text-muted-foreground mt-8">Empezá la conversación 👋</p>
           )}
           {msgs.map(msg => {
-            const isMine = msg.senderId === user.id;
+            const sender = getPersonById(msg.senderId);
+            const isMine = sameId(msg.senderId, user.id);
+            const isEditing = editingMessageId === msg.id;
             const isLong = msg.text.length > MESSAGE_PREVIEW_LIMIT;
             const isExpanded = expandedMessageIds.has(msg.id);
             const visibleText = isLong && !isExpanded ? `${msg.text.slice(0, MESSAGE_PREVIEW_LIMIT).trimEnd()}...` : msg.text;
             return (
-              <motion.div key={msg.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm ${msg.type === 'activity' ? 'bg-amber-50 text-amber-800 border border-amber-200 rounded-xl' : isMine ? 'gradient-primary text-primary-foreground rounded-br-md' : 'bg-muted text-foreground rounded-bl-md'}`}>
-                  <p className="whitespace-pre-wrap break-words">{visibleText}</p>
-                  {isLong && (
+              <motion.div
+                key={msg.id}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`flex w-full ${isMine ? 'justify-end pl-10' : 'justify-start pr-10'}`}
+              >
+                <div className={`max-w-[78%] px-4 py-2.5 rounded-2xl text-sm shadow-sm ${msg.type === 'activity' ? 'bg-amber-50 text-amber-800 border border-amber-200 rounded-xl' : isMine ? 'gradient-primary text-primary-foreground rounded-br-md' : 'bg-muted text-foreground border border-border rounded-bl-md'}`}>
+                  {!isMine && (
+                    <p className="mb-1 text-[10px] font-semibold text-muted-foreground">
+                      {sender?.name || other?.name || msg.senderName || 'Contacto'}
+                    </p>
+                  )}
+                  {isEditing ? (
+                    <div className="space-y-2">
+                      <Input
+                        value={editingText}
+                        onChange={e => setEditingText(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') saveEdit();
+                          if (e.key === 'Escape') cancelEdit();
+                        }}
+                        className="h-9 bg-background text-foreground"
+                        autoFocus
+                      />
+                      <div className="flex justify-end gap-1">
+                        <button type="button" onClick={cancelEdit} className="h-7 px-2 rounded-md bg-background/80 text-foreground text-xs">Cancelar</button>
+                        <button type="button" onClick={saveEdit} className="h-7 px-2 rounded-md bg-background text-primary text-xs font-semibold inline-flex items-center gap-1">
+                          <Check size={12} /> Guardar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-wrap break-words">{visibleText}</p>
+                  )}
+                  {!isEditing && isLong && (
                     <button
                       type="button"
                       onClick={() => toggleMessageExpansion(msg.id)}
@@ -115,11 +187,24 @@ export default function ChatScreen() {
                       {isExpanded ? 'Ver Menos' : 'Leer Más'}
                     </button>
                   )}
-                  <p className={`text-[10px] mt-1 ${isMine ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>{msg.timestamp}</p>
+                  <div className="mt-1 flex items-center justify-between gap-2">
+                    <p className={`text-[10px] ${isMine ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>{msg.timestamp}</p>
+                    {isMine && !isEditing && /^\d+$/.test(msg.id) && (
+                      <div className="flex items-center gap-1 opacity-80">
+                        <button type="button" onClick={() => startEdit(msg.id, msg.text)} className="p-1 rounded hover:bg-background/20" aria-label="Editar mensaje">
+                          <Pencil size={12} />
+                        </button>
+                        <button type="button" onClick={() => removeMessage(msg.id)} className="p-1 rounded hover:bg-background/20" aria-label="Eliminar mensaje">
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             );
           })}
+          <div ref={messagesEndRef} />
         </div>
 
         <div className="flex gap-1.5 overflow-x-auto py-2 -mx-1 px-1">
