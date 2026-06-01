@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { findUser, User, Tutor, Professional, Admin } from '@/data/api';
+import { clearStoredAuthToken, findUser, User, Tutor, Professional, Admin } from '@/data/api';
 
 type AuthUser = User | Tutor | Professional | Admin;
 
@@ -26,7 +26,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const loginAs = (u: AuthUser) => setUser(u);
-  const logout = () => setUser(null);
+  const logout = () => {
+    clearStoredAuthToken();
+    setUser(null);
+  };
 
   return (
     <AuthContext.Provider value={{ user, login, loginAs, logout, isAuthenticated: !!user }}>

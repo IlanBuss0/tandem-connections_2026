@@ -1,5 +1,6 @@
 import * as legacy from './mockData';
 import { tandemApi } from '@/services/api';
+import { apiRequest } from '@/services/api/client';
 import type {
   Actividad as DbActividad,
   ActividadAsignada as DbActividadAsignada,
@@ -7,10 +8,12 @@ import type {
   AutonomiaOperativa as DbAutonomiaOperativa,
   Avatar as DbAvatar,
   ConfiguracionUsuario,
+  Chat as DbChat,
   Dispositivo as DbDispositivo,
   EstadoActividad as DbEstadoActividad,
   EstadoVinculo as DbEstadoVinculo,
   NivelApoyo as DbNivelApoyo,
+  Mensaje as DbMensaje,
   Notificacion as DbNotificacion,
   Perteneciente as DbPerteneciente,
   PlanSuscripcion as DbPlanSuscripcion,
@@ -46,6 +49,14 @@ export type Recommendation = legacy.Recommendation;
 export type Pictogram = legacy.Pictogram;
 export type Resource = legacy.Resource;
 export type PricingPlan = legacy.PricingPlan;
+
+export interface ChatContact {
+  id: string;
+  name: string;
+  avatar: string;
+  role: 'user' | 'tutor' | 'profesional';
+  subtitle?: string;
+}
 
 export interface AchievementDashboard {
   achievements: Achievement[];
@@ -260,6 +271,27 @@ function toLegacyNotification(notification: DbNotificacion): Notification {
 
 function isBackendUserId(userId: string): boolean {
   return Number.isInteger(Number(userId));
+}
+
+export function getStoredAuthToken(): string | null {
+  return sessionStorage.getItem('tandem_auth_token') || localStorage.getItem('tandem_auth_token');
+}
+
+function storeAuthToken(token: string): void {
+  sessionStorage.setItem('tandem_auth_token', token);
+  localStorage.setItem('tandem_auth_token', token);
+}
+
+export function clearStoredAuthToken(): void {
+  sessionStorage.removeItem('tandem_auth_token');
+  localStorage.removeItem('tandem_auth_token');
+}
+
+function formatChatTime(value?: string | null): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
 }
 
 export interface ProfileSupportPerson {
@@ -595,7 +627,7 @@ export async function findUser(username: string, password: string): Promise<User
       contrasena: password,
     });
 
-    localStorage.setItem('tandem_auth_token', auth.token);
+    storeAuthToken(auth.token);
     return toLegacyUser(auth.user);
   } catch {
     return null;
@@ -1307,17 +1339,150 @@ export async function saveRoutinesForUser(userId: string, routines: DayRoutine[]
   }
 }
 
+type BackendChatRow = DbChat & {
+  id_otro_usuario?: number | null;
+  nombre_otro_usuario?: string | null;
+  apellido_otro_usuario?: string | null;
+  ultimo_mensaje_contenido?: string | null;
+  ultimo_mensaje_fecha?: string | null;
+  cantidad_no_leidos?: number | null;
+};
+
+function backendChatToConversation(chat: BackendChatRow, currentUserId: string): Conversation {
+  const otherId = chat.id_otro_usuario ? String(chat.id_otro_usuario) : `chat-${chat.id}`;
+  const otherName = [chat.nombre_otro_usuario, chat.apellido_otro_usuario].filter(Boolean).join(' ') || chat.nombre || 'Chat';
+
+  return {
+    id: String(chat.id),
+    participants: [currentUserId, otherId],
+    participantNames: ['Yo', otherName],
+    lastMessage: chat.ultimo_mensaje_contenido || 'Sin mensajes todavia',
+    lastMessageTime: formatChatTime(chat.ultimo_mensaje_fecha || chat.fecha_creacion),
+    unreadCount: chat.cantidad_no_leidos || 0,
+    avatar: '💬',
+    type: 'tutor',
+  };
+}
+
+function backendMessageToChatMessage(message: DbMensaje): ChatMessage {
+  return {
+    id: String(message.id),
+    conversationId: String(message.id_chat),
+    senderId: String(message.id_usuario_emisor),
+    senderName: '',
+    text: message.contenido || '',
+    timestamp: formatChatTime(message.fecha_envio),
+    read: true,
+    type: 'text',
+  };
+}
+
 export async function fetchConversationsForUser(userId: string): Promise<Conversation[]> {
+  const token = getStoredAuthToken();
+  if (token && isBackendUserId(userId)) {
+    const chats = await apiRequest<BackendChatRow[]>('/api/chats/me', { token });
+    return chats.map((chat) => backendChatToConversation(chat, userId));
+  }
+
   return apiFetchWithFallback<Conversation[]>([`/chat/conversations?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/conversations`]);
 }
 
 export async function fetchMessagesForConversation(conversationId: string): Promise<ChatMessage[]> {
+  const token = getStoredAuthToken();
+  if (token && isBackendUserId(conversationId)) {
+    const messages = await apiRequest<DbMensaje[]>(`/api/mensajes/chat/${encodeURIComponent(conversationId)}`, { token });
+    return messages.map(backendMessageToChatMessage).reverse();
+  }
+
   return apiFetchWithFallback<ChatMessage[]>([`/chat/conversations/${encodeURIComponent(conversationId)}/messages`, `/conversations/${encodeURIComponent(conversationId)}/messages`]);
 }
 
 export async function sendMessage(conversationId: string, senderId: string, senderName: string, text: string): Promise<ChatMessage> {
+  const token = getStoredAuthToken();
+  if (token && isBackendUserId(conversationId)) {
+    const message = await apiRequest<DbMensaje>(`/api/mensajes/chat/${encodeURIComponent(conversationId)}`, {
+      method: 'POST',
+      token,
+      body: {
+        id_tipo_mensaje: 1,
+        contenido: text,
+      },
+    });
+    return backendMessageToChatMessage(message);
+  }
+
   return apiFetchWithFallback<ChatMessage>([`/chat/conversations/${encodeURIComponent(conversationId)}/messages`, `/conversations/${encodeURIComponent(conversationId)}/messages`], {
     method: 'POST', body: JSON.stringify({ senderId, senderName, text, type: 'text' }),
+  });
+}
+
+export async function updateMessage(messageId: string, text: string): Promise<void> {
+  const token = getStoredAuthToken();
+  if (!token || !isBackendUserId(messageId)) {
+    throw new Error('No hay sesion backend activa para editar el mensaje.');
+  }
+
+  await apiRequest(`/api/mensajes/${encodeURIComponent(messageId)}`, {
+    method: 'PUT',
+    token,
+    body: {
+      contenido: text,
+    },
+  });
+}
+
+export async function deleteMessage(messageId: string): Promise<void> {
+  const token = getStoredAuthToken();
+  if (!token || !isBackendUserId(messageId)) {
+    throw new Error('No hay sesion backend activa para eliminar el mensaje.');
+  }
+
+  await apiRequest(`/api/mensajes/${encodeURIComponent(messageId)}`, {
+    method: 'DELETE',
+    token,
+  });
+}
+
+export async function markConversationRead(conversationId: string, messageId?: string): Promise<void> {
+  const token = getStoredAuthToken();
+  if (!token || !isBackendUserId(conversationId)) return;
+
+  await apiRequest(`/api/participantes-chats/leer/${encodeURIComponent(conversationId)}`, {
+    method: 'PUT',
+    token,
+    body: messageId && isBackendUserId(messageId) ? { id_mensaje: Number(messageId) } : {},
+  });
+}
+
+export async function createDirectConversationWith(selfId: string, otherUserId: string): Promise<Conversation> {
+  const token = getStoredAuthToken();
+  if (!token || !isBackendUserId(otherUserId)) {
+    throw new Error('No hay sesion backend activa para crear el chat.');
+  }
+
+  const chat = await apiRequest<BackendChatRow>('/api/chats/direct', {
+    method: 'POST',
+    token,
+    body: {
+      id_usuario_destino: Number(otherUserId),
+      id_tipo_chat: 1,
+    },
+  });
+
+  return backendChatToConversation({ ...chat, id_otro_usuario: Number(otherUserId) }, selfId);
+}
+
+export async function fetchChatContacts(): Promise<ChatContact[]> {
+  const usuarios = await tandemApi.usuarios.getAll();
+  return usuarios.map((usuario) => {
+    const role = backendRoleToLegacyRole(usuario.id_tipo_usuario);
+    return {
+      id: String(usuario.id),
+      name: [usuario.nombre, usuario.apellido].filter(Boolean).join(' ') || usuario.nombre_usuario || usuario.correo || `Usuario #${usuario.id}`,
+      avatar: role === 'professional' ? '👩‍⚕️' : role === 'tutor' ? '👩' : '🙂',
+      role: role === 'professional' ? 'profesional' : role === 'tutor' ? 'tutor' : 'user',
+      subtitle: role === 'professional' ? 'Profesional' : role === 'tutor' ? 'Tutor/a' : 'Usuario',
+    };
   });
 }
 
