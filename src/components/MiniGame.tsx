@@ -11,6 +11,14 @@ interface Props {
 }
 
 // Helper UI
+function VisualValue({ value, className = '' }: { value?: string; className?: string }) {
+  if (value?.startsWith('http')) {
+    return <img src={value} alt="" className={`object-contain ${className}`} loading="lazy" />;
+  }
+
+  return <>{value}</>;
+}
+
 function FeedbackBanner({ ok, msg }: { ok: boolean | null; msg?: string }) {
   if (ok === null) return null;
   return (
@@ -59,7 +67,9 @@ function MultipleChoice({ data, onFinish }: { data: GameData; onFinish: (n: numb
       <p className="text-xs text-muted-foreground text-center">Pregunta {Math.min(i + 1, rounds.length)} de {rounds.length}</p>
       <div className="bg-card border border-border rounded-2xl p-6 text-center">
         <p className="font-medium text-foreground mb-3">{r.prompt}</p>
-        <div className="text-7xl my-4">{r.image}</div>
+        <div className="my-4 flex min-h-28 items-center justify-center text-7xl">
+          <VisualValue value={r.image} className="h-28 w-28" />
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         {r.options.map((opt, idx) => {
@@ -117,7 +127,9 @@ function DragWord({ data, onFinish }: { data: GameData; onFinish: (n: number) =>
         onDragOver={e => e.preventDefault()}
         onDrop={e => { e.preventDefault(); const w = e.dataTransfer.getData('text/plain'); if (w) tryWord(w); }}
       >
-        <div className="text-8xl my-4">{r.image}</div>
+        <div className="my-4 flex min-h-32 items-center justify-center text-8xl">
+          <VisualValue value={r.image} className="h-32 w-32" />
+        </div>
         <p className="text-xs text-muted-foreground">Arrastrá o tocá la palabra correcta</p>
       </div>
       <FeedbackBanner ok={feedback} />
@@ -513,7 +525,7 @@ function MatchingPairs({ data, onFinish }: { data: GameData; onFinish: (n: numbe
                   : isWrong ? 'bg-red-100 border-red-500'
                   : 'bg-card border-border hover:border-primary'
                 }`}
-              >{rg}</button>
+              ><VisualValue value={rg} className="mx-auto h-12 w-12" /></button>
             );
           })}
         </div>

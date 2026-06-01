@@ -12,6 +12,16 @@ interface Props {
   onComplete: (id: string) => void;
 }
 
+const isImageIcon = (value?: string) => Boolean(value?.startsWith('http'));
+
+function StepIcon({ value, fallback, className = '' }: { value?: string; fallback: string | number; className?: string }) {
+  if (isImageIcon(value)) {
+    return <img src={value} alt="" className={`object-contain ${className}`} loading="lazy" />;
+  }
+
+  return <>{value || fallback}</>;
+}
+
 export default function ActivityExecution({ activity, onBack, onComplete }: Props) {
   const { earn } = useWallet();
   const [coinsAwarded, setCoinsAwarded] = useState(false);
@@ -140,9 +150,9 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
           exit={{ opacity: 0, x: -30 }}
           className="bg-card rounded-2xl p-6 border border-border shadow-sm text-center min-h-[200px] flex flex-col items-center justify-center"
         >
-          {activity.stepIcons?.[currentStep] && (
-            <span className="text-5xl mb-4 block">{activity.stepIcons[currentStep]}</span>
-          )}
+          <span className="w-28 h-28 mb-4 rounded-2xl bg-primary/10 flex items-center justify-center overflow-hidden text-5xl">
+            <StepIcon value={activity.stepIcons?.[currentStep]} fallback={currentStep + 1} className="w-24 h-24" />
+          </span>
           <p className="text-lg font-medium text-foreground leading-relaxed">{activity.steps[currentStep]}</p>
           <p className="text-xs text-muted-foreground mt-3">+{pointsPerStep} pts por completar este paso</p>
         </motion.div>
@@ -190,7 +200,7 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
         <div className="space-y-1.5">
           {activity.steps.map((step, i) => (
             <button key={i} onClick={() => setCurrentStep(i)} className={`w-full flex items-center gap-2 text-xs p-2 rounded-lg text-left transition-colors ${i === currentStep ? 'bg-primary/10' : ''}`}>
-              {completedSteps[i] ? <CheckCircle2 size={14} className="text-success shrink-0" /> : <span className="w-3.5 h-3.5 rounded-full border border-muted-foreground/30 shrink-0" />}
+              {completedSteps[i] ? <CheckCircle2 size={14} className="text-success shrink-0" /> : <span className="w-8 h-8 rounded-lg border border-muted-foreground/30 shrink-0 flex items-center justify-center overflow-hidden"><StepIcon value={activity.stepIcons?.[i]} fallback={i + 1} className="w-7 h-7" /></span>}
               <span className={completedSteps[i] ? 'line-through text-muted-foreground' : 'text-foreground'}>{step}</span>
             </button>
           ))}

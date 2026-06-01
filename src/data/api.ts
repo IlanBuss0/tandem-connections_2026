@@ -1623,7 +1623,7 @@ export async function fetchPictograms(query?: { category?: string; search?: stri
   if (query?.category && query.category !== 'todas') params.set('category', query.category);
   if (query?.search) params.set('search', query.search);
   const q = params.toString();
-  return apiFetchWithFallback<Pictogram[]>([q ? `/pictograms?${q}` : '/pictograms']);
+  return apiFetchWithFallback<Pictogram[]>([q ? `/api/pictograms?${q}` : '/api/pictograms', q ? `/pictograms?${q}` : '/pictograms']);
 }
 
 export async function fetchTutorById(id: string): Promise<Tutor | null> {

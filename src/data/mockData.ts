@@ -580,6 +580,8 @@ export interface Pictogram {
   id: string;
   name: string;
   emoji: string;
+  imageUrl?: string;
+  downloadUrl?: string;
   category: string;
   tags: string[];
   favorite?: boolean;

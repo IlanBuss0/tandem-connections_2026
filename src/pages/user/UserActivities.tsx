@@ -27,6 +27,51 @@ const typeColors: Record<string, string> = {
   decisión: 'bg-amber-100 text-amber-700',
 };
 
+const pictogramUrl = (id: number) => `https://static.arasaac.org/pictograms/${id}/${id}_300.png`;
+const isImageIcon = (value?: string) => Boolean(value?.startsWith('http'));
+
+function StepIcon({ value, fallback, className = '' }: { value?: string; fallback: string | number; className?: string }) {
+  if (isImageIcon(value)) {
+    return <img src={value} alt="" className={`object-contain ${className}`} loading="lazy" />;
+  }
+
+  return <>{value || fallback}</>;
+}
+
+function buildPictogramDemoActivity(userId: string): Activity {
+  return {
+    id: `demo-pictogramas-${userId}`,
+    title: 'Preparar una merienda con pictogramas',
+    category: 'comunicación',
+    objective: 'Usar apoyos visuales para seguir una rutina simple',
+    description: 'Actividad de ejemplo para ver pictogramas reales de ARASAAC dentro de los pasos.',
+    difficulty: 'fácil',
+    duration: '5 min',
+    steps: [
+      'Lavarse las manos antes de empezar',
+      'Elegir una comida para la merienda',
+      'Servir agua o bebida',
+      'Sentarse en la mesa',
+      'Comer tranquilo y guardar lo usado',
+    ],
+    stepIcons: [
+      pictogramUrl(4576),
+      pictogramUrl(4610),
+      pictogramUrl(5599),
+      pictogramUrl(7284),
+      pictogramUrl(2349),
+    ],
+    status: 'pendiente',
+    recommendedBy: 'app',
+    recommendedByName: 'TANDEM',
+    progress: 0,
+    assignedTo: userId,
+    points: 30,
+    type: 'guiada',
+    completionMessage: '¡Muy bien! Seguiste una rutina usando pictogramas.',
+  };
+}
+
 export default function UserActivities({ filter }: { filter: 'all' | 'recommended' }) {
   const { user } = useAuth();
   const { forUser, complete: completeCustomActivity } = useCustomActivities();
@@ -55,8 +100,9 @@ export default function UserActivities({ filter }: { filter: 'all' | 'recommende
       const backendCustomId = (activity as any).backendCustomActivityId;
       return !backendCustomId || !customBackendIds.has(Number(backendCustomId));
     });
-    return [...customForUser, ...localWithoutDuplicatedCustom];
-  }, [customForUser, localActivities]);
+    const demoActivity = user ? buildPictogramDemoActivity(user.id) : null;
+    return [demoActivity, ...customForUser, ...localWithoutDuplicatedCustom].filter(Boolean) as Activity[];
+  }, [customForUser, localActivities, user]);
 
   if (!user) return null;
 
@@ -181,7 +227,9 @@ export default function UserActivities({ filter }: { filter: 'all' | 'recommende
                   <ol className="space-y-1.5">
                     {activity.steps.map((step, si) => (
                       <li key={si} className="flex items-start gap-2 text-xs text-muted-foreground">
-                        <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] flex items-center justify-center shrink-0 font-bold">{activity.stepIcons?.[si] || si + 1}</span>
+                        <span className="w-9 h-9 rounded-lg bg-primary/10 text-primary text-[10px] flex items-center justify-center shrink-0 font-bold overflow-hidden">
+                          <StepIcon value={activity.stepIcons?.[si]} fallback={si + 1} className="w-8 h-8" />
+                        </span>
                         {step}
                       </li>
                     ))}

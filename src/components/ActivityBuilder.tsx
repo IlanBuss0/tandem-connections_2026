@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
 import { ACTIVITY_TEMPLATES, ActivityTemplate, STEP_ICON_OPTIONS } from '@/data/activityTemplates';
 import { GAME_TEMPLATES, GameTemplate } from '@/data/miniGames';
-import { fetchLinkedPertenecientesForSupportUser, ActivityCategory, ActivityType, type User } from '@/data/api';
+import { fetchLinkedPertenecientesForSupportUser, fetchPictograms, ActivityCategory, ActivityType, type Pictogram, type User } from '@/data/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { GameData, GameType } from '@/data/miniGames';
 
@@ -63,6 +63,205 @@ function contentHelp(gameType?: GameType) {
   if (gameType === 'sound-match') return 'Formato: sonido|opcion1,opcion2,opcion3|indice correcto empezando en 0';
   if (gameType === 'tap-correct') return 'Formato: consigna|opcion1,opcion2,opcion3|indices correctos separados por coma';
   return '';
+}
+
+const emptyMcRound = () => ({
+  image: '',
+  prompt: '¿Qué pictograma es?',
+  options: ['', '', '', ''],
+  correct: 0,
+});
+
+function isImageValue(value?: string) {
+  return Boolean(value?.startsWith('http'));
+}
+
+function VisualValue({ value, className = '' }: { value?: string; className?: string }) {
+  if (isImageValue(value)) {
+    return <img src={value} alt="" className={`object-contain ${className}`} loading="lazy" />;
+  }
+
+  return <span className={className}>{value || 'Soltá un pictograma'}</span>;
+}
+
+function MultipleChoiceSandbox({
+  value,
+  onChange,
+}: {
+  value?: GameData;
+  onChange: (next: GameData) => void;
+}) {
+  const rounds = value?.rounds?.length ? value.rounds : [emptyMcRound()];
+  const [roundIndex, setRoundIndex] = useState(0);
+  const [search, setSearch] = useState('comer');
+  const [pictograms, setPictograms] = useState<Pictogram[]>([]);
+
+  const current = rounds[Math.min(roundIndex, rounds.length - 1)] || emptyMcRound();
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      fetchPictograms({ search })
+        .then((items) => {
+          if (!cancelled) setPictograms(items.slice(0, 24));
+        })
+        .catch(() => {
+          if (!cancelled) setPictograms([]);
+        });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [search]);
+
+  const updateRounds = (nextRounds: typeof rounds) => {
+    onChange({ ...value, rounds: nextRounds });
+  };
+
+  const updateRound = (patch: Partial<typeof current>) => {
+    updateRounds(rounds.map((round, index) => index === roundIndex ? { ...round, ...patch } : round));
+  };
+
+  const updateOption = (optionIndex: number, option: string) => {
+    updateRound({
+      options: current.options.map((item, index) => index === optionIndex ? option : item),
+    });
+  };
+
+  const setPictogram = (picto: Pictogram) => {
+    updateRound({
+      image: picto.imageUrl || picto.emoji,
+      prompt: current.prompt || `¿Cuál es "${picto.name}"?`,
+      options: current.options.map((option, index) => index === current.correct && !option.trim() ? picto.name : option),
+    });
+  };
+
+  const addRound = () => {
+    updateRounds([...rounds, emptyMcRound()]);
+    setRoundIndex(rounds.length);
+  };
+
+  const removeRound = () => {
+    if (rounds.length === 1) return;
+    const next = rounds.filter((_, index) => index !== roundIndex);
+    updateRounds(next);
+    setRoundIndex(Math.max(0, roundIndex - 1));
+  };
+
+  return (
+    <div className="space-y-4 rounded-lg border border-primary/20 bg-primary/5 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-foreground">Constructor visual de opción múltiple</p>
+          <p className="text-xs text-muted-foreground">Arrastrá un pictograma al espacio central, escribí las opciones y marcá la correcta.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={removeRound} disabled={rounds.length === 1}><Trash2 size={14} /></Button>
+          <Button size="sm" variant="outline" onClick={addRound}><Plus size={14} className="mr-1" />Pregunta</Button>
+        </div>
+      </div>
+
+      <div className="flex gap-1 overflow-x-auto pb-1">
+        {rounds.map((_, index) => (
+          <button
+            key={index}
+            onClick={() => setRoundIndex(index)}
+            className={`h-8 min-w-8 rounded-md border text-xs font-semibold ${roundIndex === index ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-muted-foreground'}`}
+          >
+            {index + 1}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_240px]">
+        <div className="space-y-3">
+          <Input
+            value={current.prompt}
+            onChange={e => updateRound({ prompt: e.target.value })}
+            placeholder="Pregunta que verá el perteneciente"
+          />
+
+          <div
+            className="flex min-h-48 flex-col items-center justify-center rounded-xl border-2 border-dashed border-primary/40 bg-card p-4 text-center"
+            onDragOver={e => e.preventDefault()}
+            onDrop={e => {
+              e.preventDefault();
+              const raw = e.dataTransfer.getData('application/json');
+              if (!raw) return;
+              try {
+                setPictogram(JSON.parse(raw));
+              } catch {
+                // noop
+              }
+            }}
+          >
+            <VisualValue value={current.image} className={isImageValue(current.image) ? 'h-28 w-28' : 'text-sm text-muted-foreground'} />
+            <p className="mt-2 text-xs text-muted-foreground">Slot central del pictograma</p>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            {current.options.map((option, index) => (
+              <label key={index} className={`flex items-center gap-2 rounded-lg border p-2 ${current.correct === index ? 'border-primary bg-primary/5' : 'border-border bg-card'}`}>
+                <input
+                  type="radio"
+                  checked={current.correct === index}
+                  onChange={() => updateRound({ correct: index })}
+                  className="accent-primary"
+                />
+                <Input
+                  value={option}
+                  onChange={e => updateOption(index, e.target.value)}
+                  placeholder={`Opción ${index + 1}`}
+                />
+              </label>
+            ))}
+          </div>
+
+          <div className="rounded-lg border border-border bg-card p-3">
+            <p className="mb-2 text-xs font-semibold text-muted-foreground">Vista previa</p>
+            <div className="rounded-xl border border-border p-4 text-center">
+              <p className="text-sm font-medium text-foreground">{current.prompt || 'Pregunta'}</p>
+              <div className="my-3 flex min-h-24 items-center justify-center text-6xl">
+                <VisualValue value={current.image} className={isImageValue(current.image) ? 'h-24 w-24' : ''} />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {current.options.map((option, index) => (
+                  <div key={index} className={`rounded-lg border p-2 text-xs ${current.correct === index ? 'border-green-500 bg-green-50 text-green-800' : 'border-border'}`}>
+                    {option || `Opción ${index + 1}`}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar pictograma..." className="pl-8" />
+          </div>
+          <div className="grid max-h-[420px] grid-cols-3 gap-2 overflow-y-auto rounded-lg border border-border bg-card p-2">
+            {pictograms.map((picto) => (
+              <button
+                key={picto.id}
+                draggable
+                onDragStart={e => e.dataTransfer.setData('application/json', JSON.stringify(picto))}
+                onClick={() => setPictogram(picto)}
+                className="rounded-lg border border-border p-2 text-center hover:border-primary hover:bg-primary/5"
+                title={picto.name}
+              >
+                {picto.imageUrl ? <img src={picto.imageUrl} alt={picto.name} className="mx-auto h-12 w-12 object-contain" loading="lazy" /> : <span className="text-2xl">{picto.emoji}</span>}
+                <span className="mt-1 block truncate text-[10px] text-muted-foreground">{picto.name}</span>
+              </button>
+            ))}
+            {pictograms.length === 0 && <p className="col-span-3 py-6 text-center text-xs text-muted-foreground">Sin resultados</p>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 interface Props {
@@ -422,7 +621,16 @@ export default function ActivityBuilder({ initialId, onClose, assignableUsersOve
                   <h3 className="font-heading font-semibold text-foreground">{form.gameType ? 'Contenido y pasos' : 'Pasos secuenciales'}</h3>
                   <Button size="sm" variant="outline" onClick={addStep}><Plus size={14} className="mr-1" />Agregar</Button>
                 </div>
-                {form.gameType && (
+                {form.gameType === 'multiple-choice' && (
+                  <MultipleChoiceSandbox
+                    value={form.gameData}
+                    onChange={(nextGameData) => {
+                      setForm(prev => ({ ...prev, gameData: nextGameData }));
+                      setGameContentText(serializeGameContent('multiple-choice', nextGameData));
+                    }}
+                  />
+                )}
+                {form.gameType && form.gameType !== 'multiple-choice' && (
                   <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
                     <div className="mb-2 flex items-center justify-between gap-3">
                       <div>
