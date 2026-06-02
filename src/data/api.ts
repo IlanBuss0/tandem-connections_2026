@@ -1352,6 +1352,7 @@ type BackendChatRow = DbChat & {
     nombre?: string | null;
     apellido?: string | null;
     id_tipo_usuario?: number | null;
+    es_admin?: boolean | null;
   }[] | null;
 };
 
@@ -1363,6 +1364,9 @@ function backendChatToConversation(chat: BackendChatRow, currentUserId: string):
   const participantNames = participants.length > 0
     ? participants.map((participant) => [participant.nombre, participant.apellido].filter(Boolean).join(' ') || `Usuario #${participant.id_usuario}`)
     : ['Yo', [chat.nombre_otro_usuario, chat.apellido_otro_usuario].filter(Boolean).join(' ') || chat.nombre || 'Chat'];
+  const adminIds = participants
+    .filter((participant) => participant.es_admin)
+    .map((participant) => String(participant.id_usuario));
   const isGroup = (chat.cantidad_participantes || participantIds.length) > 2;
 
   return {
@@ -1371,6 +1375,7 @@ function backendChatToConversation(chat: BackendChatRow, currentUserId: string):
     description: chat.descripcion || undefined,
     participants: participantIds,
     participantNames,
+    adminIds,
     lastMessage: chat.ultimo_mensaje_contenido || 'Sin mensajes todavia',
     lastMessageTime: formatChatTime(chat.ultimo_mensaje_fecha || chat.fecha_creacion),
     unreadCount: chat.cantidad_no_leidos || 0,
@@ -1496,7 +1501,7 @@ export async function createGroupConversation(
     throw new Error('No hay sesion backend activa para crear el grupo.');
   }
 
-  const response = await apiRequest<{ chat: BackendChatRow; participantes?: { id_usuario: number }[] }>('/api/chats/group', {
+  const response = await apiRequest<{ chat: BackendChatRow; participantes?: { id_usuario: number; es_admin?: boolean | null }[] }>('/api/chats/group', {
     method: 'POST',
     token,
     body: {
@@ -1506,7 +1511,7 @@ export async function createGroupConversation(
     },
   });
 
-  const participantes = response.participantes?.map((participant) => ({ id_usuario: participant.id_usuario })) || [];
+  const participantes = response.participantes?.map((participant) => ({ id_usuario: participant.id_usuario, es_admin: participant.es_admin })) || [];
   return backendChatToConversation({
     ...response.chat,
     participantes,
@@ -1516,24 +1521,25 @@ export async function createGroupConversation(
 
 export async function updateConversationDetails(
   conversationId: string,
-  payload: { nombre?: string; descripcion?: string; participantIds?: string[] },
+  payload: { nombre?: string; descripcion?: string; participantIds?: string[]; adminIds?: string[] },
 ): Promise<Conversation> {
   const token = getStoredAuthToken();
   if (!token || !isBackendUserId(conversationId)) {
     throw new Error('No hay sesion backend activa para administrar el chat.');
   }
 
-  const response = await apiRequest<{ chat: BackendChatRow; participantes?: { id_usuario: number }[] }>(`/api/chats/${encodeURIComponent(conversationId)}/manage`, {
+  const response = await apiRequest<{ chat: BackendChatRow; participantes?: { id_usuario: number; es_admin?: boolean | null }[] }>(`/api/chats/${encodeURIComponent(conversationId)}/manage`, {
     method: 'PATCH',
     token,
     body: {
       nombre: payload.nombre,
       descripcion: payload.descripcion,
       participantes: payload.participantIds?.map(Number).filter(Number.isFinite),
+      administradores: payload.adminIds?.map(Number).filter(Number.isFinite),
     },
   });
 
-  const participantes = response.participantes?.map((participant) => ({ id_usuario: participant.id_usuario })) || [];
+  const participantes = response.participantes?.map((participant) => ({ id_usuario: participant.id_usuario, es_admin: participant.es_admin })) || [];
   return backendChatToConversation({
     ...response.chat,
     participantes,

@@ -49,6 +49,8 @@ export default function ChatScreen() {
   const [manageTitle, setManageTitle] = useState('');
   const [manageDescription, setManageDescription] = useState('');
   const [manageParticipantIds, setManageParticipantIds] = useState<string[]>([]);
+  const [manageAdminIds, setManageAdminIds] = useState<string[]>([]);
+  const [showAddParticipants, setShowAddParticipants] = useState(false);
   const [savingManage, setSavingManage] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -77,6 +79,8 @@ export default function ChatScreen() {
     setManageTitle(selectedConv.title || '');
     setManageDescription(selectedConv.description || '');
     setManageParticipantIds(selectedConv.participants);
+    setManageAdminIds(selectedConv.adminIds || []);
+    setShowAddParticipants(false);
   }, [selectedConv, showManage]);
 
   if (!user) return null;
@@ -141,6 +145,16 @@ export default function ChatScreen() {
         ? prev.filter(id => id !== contactId)
         : [...prev, contactId]
     ));
+    setManageAdminIds(prev => prev.filter(id => id !== contactId));
+  };
+
+  const toggleManageAdmin = (contactId: string) => {
+    if (!manageParticipantIds.includes(contactId)) return;
+    setManageAdminIds(prev => (
+      prev.includes(contactId)
+        ? prev.filter(id => id !== contactId)
+        : [...prev, contactId]
+    ));
   };
 
   const saveManage = async () => {
@@ -148,10 +162,12 @@ export default function ChatScreen() {
     setSavingManage(true);
     try {
       const participantIds = Array.from(new Set([user.id, ...manageParticipantIds]));
+      const adminIds = Array.from(new Set([user.id, ...manageAdminIds])).filter(id => participantIds.includes(id));
       const updated = await updateConversation(selectedConv.id, {
         nombre: manageTitle.trim(),
         descripcion: manageDescription.trim(),
         participantIds,
+        adminIds,
       });
       setSelectedId(updated.id);
       setShowManage(false);
@@ -211,6 +227,7 @@ export default function ChatScreen() {
   // === Vista de conversación ===
   if (selectedConv) {
     const isGroup = selectedConv.type === 'grupo' || selectedConv.participants.length > 2;
+    const isCurrentUserAdmin = Boolean(selectedConv.adminIds?.includes(user.id));
     const otherId = selectedConv.participants.find(p => p !== user.id) || '';
     const other = getPersonById(otherId);
     const chatTitle = isGroup ? selectedConv.title || 'Grupo' : other?.name || 'Contacto';
@@ -228,8 +245,13 @@ export default function ChatScreen() {
             <p className="font-semibold text-sm text-foreground truncate">{chatTitle}</p>
             <p className="text-[10px] text-muted-foreground truncate">{chatSubtitle}</p>
           </div>
-          <button type="button" onClick={() => setShowManage(true)} className="p-2 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Administrar chat">
-            <Users size={17} />
+          {isGroup && isCurrentUserAdmin && (
+            <button type="button" onClick={() => setShowManage(true)} className="p-2 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Administrar grupo">
+              <Users size={17} />
+            </button>
+          )}
+          <button type="button" onClick={hideSelectedConversation} className="p-2 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label={isGroup ? 'Salir del grupo' : 'Eliminar chat para mi'}>
+            <Trash2 size={17} />
           </button>
         </div>
 
@@ -323,12 +345,12 @@ export default function ChatScreen() {
           {showManage && (
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[70] bg-foreground/30 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+              className="fixed inset-0 z-[70] bg-foreground/30 backdrop-blur-sm flex items-end sm:items-stretch sm:justify-end justify-center p-0"
               onClick={() => setShowManage(false)}
             >
               <motion.div
                 initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }}
-                className="bg-card rounded-t-2xl sm:rounded-2xl border border-border w-full max-w-md max-h-[85vh] flex flex-col"
+                className="bg-card rounded-t-2xl sm:rounded-none sm:rounded-l-2xl border border-border w-full sm:w-[520px] lg:w-[620px] max-h-[92vh] sm:max-h-none flex flex-col shadow-xl"
                 onClick={e => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between p-4 border-b border-border">
@@ -339,27 +361,80 @@ export default function ChatScreen() {
                   <Input value={manageTitle} onChange={e => setManageTitle(e.target.value)} placeholder="Nombre del chat" />
                   <Input value={manageDescription} onChange={e => setManageDescription(e.target.value)} placeholder="Descripcion" />
                   <p className="text-[11px] text-muted-foreground">Participantes: {manageParticipantIds.join(', ')}</p>
+                  <p className="text-[11px] text-muted-foreground">Admins: {manageAdminIds.join(', ') || user.id}</p>
                 </div>
-                <div className="overflow-y-auto p-2">
-                  {contacts.map(c => (
-                    <button key={c.id} onClick={() => toggleManageParticipant(c.id)} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors text-left">
-                      <span className={`w-5 h-5 rounded border flex items-center justify-center text-[10px] ${manageParticipantIds.includes(c.id) ? 'bg-primary text-primary-foreground border-primary' : 'border-border'}`}>
+                <div className="overflow-y-auto p-3 space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-semibold text-foreground">Personas en el grupo</p>
+                      <Button type="button" size="sm" onClick={() => setShowAddParticipants(prev => !prev)} className="h-8">
+                        <Plus size={13} className="mr-1" /> Agregar participante
+                      </Button>
+                    </div>
+                    {manageParticipantIds.map(participantId => {
+                      const c = getPersonById(participantId);
+                      const label = c?.name || selectedConv.participantNames[selectedConv.participants.indexOf(participantId)] || `Usuario ${participantId}`;
+                      return (
+                        <div key={participantId} className="w-full flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border text-left">
+                          <span className="text-2xl">{c?.avatar || selectedConv.avatar}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm text-foreground truncate">{label}</p>
+                            <p className="text-[11px] text-muted-foreground truncate">ID {participantId}</p>
+                          </div>
+                          <button type="button" onClick={() => toggleManageAdmin(participantId)} className={`h-7 px-2 rounded-md border text-[10px] font-semibold ${manageAdminIds.includes(participantId) ? 'bg-amber-100 text-amber-800 border-amber-200' : 'text-muted-foreground border-border'}`}>
+                            Admin
+                          </button>
+                          {participantId !== user.id && (
+                            <button type="button" onClick={() => toggleManageParticipant(participantId)} className="p-1.5 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label="Quitar participante">
+                              <X size={15} />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {showAddParticipants && (
+                    <div className="space-y-2 border-t border-border pt-4">
+                      <p className="text-xs font-semibold text-foreground">Agregar participantes</p>
+                      {contacts.filter(c => !manageParticipantIds.includes(c.id)).map(c => (
+                        <button key={c.id} type="button" onClick={() => toggleManageParticipant(c.id)} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors text-left">
+                          <span className="text-2xl">{c.avatar}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm text-foreground truncate">{c.name}</p>
+                            <p className="text-[11px] text-muted-foreground truncate">ID {c.id}{c.subtitle ? ` | ${c.subtitle}` : ''}</p>
+                          </div>
+                          <Plus size={16} className="text-muted-foreground" />
+                        </button>
+                      ))}
+                      {contacts.filter(c => !manageParticipantIds.includes(c.id)).length === 0 && (
+                        <p className="text-xs text-muted-foreground py-3 text-center">No hay contactos disponibles para agregar</p>
+                      )}
+                    </div>
+                  )}
+
+                  {false && contacts.map(c => (
+                    <div key={c.id} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors text-left">
+                      <button type="button" onClick={() => toggleManageParticipant(c.id)} className={`w-5 h-5 rounded border flex items-center justify-center text-[10px] ${manageParticipantIds.includes(c.id) ? 'bg-primary text-primary-foreground border-primary' : 'border-border'}`} aria-label="Cambiar participante">
                         {manageParticipantIds.includes(c.id) ? '✓' : ''}
-                      </span>
+                      </button>
                       <span className="text-2xl">{c.avatar}</span>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm text-foreground truncate">{c.name}</p>
                         <p className="text-[11px] text-muted-foreground truncate">ID {c.id}{c.subtitle ? ` | ${c.subtitle}` : ''}</p>
                       </div>
-                    </button>
+                      <button type="button" onClick={() => toggleManageAdmin(c.id)} disabled={!manageParticipantIds.includes(c.id)} className={`h-7 px-2 rounded-md border text-[10px] font-semibold ${manageAdminIds.includes(c.id) ? 'bg-amber-100 text-amber-800 border-amber-200' : 'text-muted-foreground border-border disabled:opacity-40'}`}>
+                        Admin
+                      </button>
+                    </div>
                   ))}
                 </div>
                 <div className="p-4 border-t border-border space-y-2">
-                  <Button type="button" onClick={saveManage} disabled={savingManage || manageParticipantIds.length < 2} className="w-full gradient-primary text-primary-foreground">
+                  <Button type="button" onClick={saveManage} disabled={savingManage || manageParticipantIds.length < 3} className="w-full gradient-primary text-primary-foreground">
                     Guardar cambios
                   </Button>
                   <button type="button" onClick={hideSelectedConversation} className="w-full h-10 rounded-md border border-destructive/30 text-sm font-semibold text-destructive hover:bg-destructive/10">
-                    Eliminar chat para mi
+                    {isGroup ? 'Salir del grupo' : 'Eliminar chat para mi'}
                   </button>
                 </div>
               </motion.div>

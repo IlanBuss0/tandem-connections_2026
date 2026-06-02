@@ -40,7 +40,7 @@ interface Ctx {
   ensureConversationWith: (selfId: string, otherId: string) => Conversation;
   createDirect: (otherId: string) => Promise<Conversation>;
   createGroup: (payload: { nombre: string; descripcion?: string; participantIds: string[] }) => Promise<Conversation>;
-  updateConversation: (conversationId: string, payload: { nombre?: string; descripcion?: string; participantIds?: string[] }) => Promise<Conversation>;
+  updateConversation: (conversationId: string, payload: { nombre?: string; descripcion?: string; participantIds?: string[]; adminIds?: string[] }) => Promise<Conversation>;
   hideConversation: (conversationId: string) => Promise<void>;
   allContacts: () => ContactPerson[];
   getPersonById: (id: string) => ContactPerson | undefined;
@@ -456,7 +456,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return backendConv;
   }, [socket, user]);
 
-  const updateConversation = useCallback(async (conversationId: string, payload: { nombre?: string; descripcion?: string; participantIds?: string[] }) => {
+  const updateConversation = useCallback(async (conversationId: string, payload: { nombre?: string; descripcion?: string; participantIds?: string[]; adminIds?: string[] }) => {
     const updated = await updateConversationDetails(conversationId, payload);
     setConversations(prev => prev.map(item => item.id === conversationId ? updated : item));
     await reloadChats().catch(() => undefined);

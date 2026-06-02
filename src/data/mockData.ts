@@ -291,6 +291,7 @@ export interface Conversation {
   description?: string;
   participants: string[];
   participantNames: string[];
+  adminIds?: string[];
   lastMessage: string;
   lastMessageTime: string;
   unreadCount: number;

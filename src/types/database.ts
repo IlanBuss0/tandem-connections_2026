@@ -537,6 +537,8 @@ export interface ParticipanteChat {
   id_usuario: number;
   fecha_ingreso: string;
   fecha_salida: string | null;
+  oculto_desde?: string | null;
+  es_admin?: boolean;
 }
 
 export interface Mensaje {
