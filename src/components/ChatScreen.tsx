@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import { useChat } from '@/contexts/ChatContext';
+import { ContactPerson, useChat } from '@/contexts/ChatContext';
 import { Conversation } from '@/data/api';
 import { ArrowLeft, Send, Plus, Search, X, MessageCircle, Pencil, Trash2, Check, Users } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,18 @@ const MESSAGE_PREVIEW_LIMIT = 220;
 
 function sameId(a: string | number | null | undefined, b: string | number | null | undefined) {
   return String(a ?? '') === String(b ?? '');
+}
+
+function participantLabel(conversation: Conversation, participantId: string, getPersonById: (id: string) => ContactPerson | undefined) {
+  const contact = getPersonById(participantId);
+  const fallbackName = conversation.participantNames[conversation.participants.indexOf(participantId)];
+  return `${contact?.name || fallbackName || 'Usuario'} ID ${participantId}`;
+}
+
+function participantsSummary(conversation: Conversation, getPersonById: (id: string) => ContactPerson | undefined) {
+  return conversation.participants
+    .map(participantId => participantLabel(conversation, participantId, getPersonById))
+    .join(' | ');
 }
 
 export default function ChatScreen() {
@@ -158,8 +170,8 @@ export default function ChatScreen() {
     const other = getPersonById(otherId);
     const chatTitle = isGroup ? selectedConv.title || 'Grupo' : other?.name || 'Contacto';
     const chatSubtitle = isGroup
-      ? `${selectedConv.participants.length} participantes${selectedConv.description ? ` · ${selectedConv.description}` : ''}`
-      : `${other?.role === 'profesional' ? 'Profesional' : other?.role === 'tutor' ? 'Tutor/a' : 'Usuario'}${other?.subtitle ? ` · ${other.subtitle}` : ''}`;
+      ? `Chat ID ${selectedConv.id} | ${selectedConv.participants.length} participantes | ${participantsSummary(selectedConv, getPersonById)}${selectedConv.description ? ` | ${selectedConv.description}` : ''}`
+      : `Chat ID ${selectedConv.id} | ${other?.role === 'profesional' ? 'Profesional' : other?.role === 'tutor' ? 'Tutor/a' : 'Usuario'} ID ${otherId}${other?.subtitle ? ` | ${other.subtitle}` : ''}`;
     const msgs = selectedMessages;
 
     return (
@@ -302,6 +314,9 @@ export default function ChatScreen() {
                   </div>
                   <span className="text-[10px] text-muted-foreground shrink-0">{conv.lastMessageTime}</span>
                 </div>
+                <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+                  Chat ID {conv.id} | Participantes: {conv.participants.join(', ')}
+                </p>
                 <p className="text-xs text-muted-foreground truncate mt-0.5">{conv.lastMessage}</p>
               </div>
               {conv.unreadCount > 0 && <span className="w-5 h-5 rounded-full gradient-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">{conv.unreadCount}</span>}
@@ -368,7 +383,7 @@ export default function ChatScreen() {
                     <span className="text-2xl">{c.avatar}</span>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm text-foreground truncate">{c.name}</p>
-                      <p className="text-[11px] text-muted-foreground truncate">{c.subtitle}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">ID {c.id}{c.subtitle ? ` | ${c.subtitle}` : ''}</p>
                     </div>
                     <span className={`text-[9px] px-1.5 py-0.5 rounded-full whitespace-nowrap ${c.role === 'profesional' ? 'bg-purple-100 text-purple-700' : c.role === 'tutor' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
                       {c.role === 'profesional' ? 'Profesional' : c.role === 'tutor' ? 'Tutor' : 'Usuario'}

@@ -207,6 +207,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       joinedChatIdsRef.current.clear();
       joiningChatIdsRef.current.clear();
       logRealtime('socket conectado', { socketId: nextSocket.id, userId: user.id, apiBaseUrl: API_BASE_URL });
+      reloadChats().catch(() => undefined);
     });
 
     nextSocket.on('connect_error', (error) => {
@@ -222,11 +223,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const chatMessage = socketMessageToChatMessage(message);
       const knownConversation = conversationsRef.current.some(conversation => conversation.id === chatMessage.conversationId);
 
-      if (knownConversation) {
-        upsertMessage(chatMessage);
-      } else {
-        reloadChats().catch(() => upsertMessage(chatMessage));
+      upsertMessage(chatMessage);
+
+      if (!knownConversation) {
+        logRealtime('message:new en chat no cargado; sincronizando conversaciones', {
+          id_chat: chatMessage.conversationId,
+          userId: user.id,
+        });
       }
+
+      reloadChats().catch(() => undefined);
     });
 
     nextSocket.on('chat:new', () => {
@@ -309,6 +315,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const send = useCallback(async (cid: string, text: string) => {
     if (!user || !text.trim()) return;
+
+    const conversation = conversationsRef.current.find(item => item.id === cid);
+    if (conversation && !conversation.participants.includes(user.id)) {
+      logRealtime('envio bloqueado: usuario no participa en el chat', {
+        id_chat: cid,
+        userId: user.id,
+        participants: conversation.participants,
+      });
+      throw new Error(`El usuario ${user.id} no participa en el chat ${cid}.`);
+    }
 
     const messageText = text.trim();
     let sent: ChatMessage;
