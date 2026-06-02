@@ -84,6 +84,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [contacts, setContacts] = useState<ContactPerson[]>([]);
   const [socket, setSocket] = useState<Socket | null>(null);
   const conversationsRef = useRef<Conversation[]>([]);
+  const joinedChatIdsRef = useRef<Set<string>>(new Set());
+  const joiningChatIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     conversationsRef.current = conversations;
@@ -193,6 +195,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
 
     nextSocket.on('connect', () => {
+      joinedChatIdsRef.current.clear();
+      joiningChatIdsRef.current.clear();
       logRealtime('socket conectado', { socketId: nextSocket.id, userId: user.id, apiBaseUrl: API_BASE_URL });
     });
 
@@ -250,8 +254,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const joinConversations = () => {
       conversations.forEach((conversation) => {
         if (!isNumericId(conversation.id)) return;
+        if (joinedChatIdsRef.current.has(conversation.id) || joiningChatIdsRef.current.has(conversation.id)) return;
 
+        joiningChatIdsRef.current.add(conversation.id);
         socket.timeout(5000).emit('chat:join', { id_chat: Number(conversation.id) }, (error: unknown, response: any) => {
+          joiningChatIdsRef.current.delete(conversation.id);
+
           if (error) {
             logRealtime('chat:join sin respuesta', { id_chat: conversation.id, error });
             return;
@@ -262,6 +270,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             return;
           }
 
+          joinedChatIdsRef.current.add(conversation.id);
           logRealtime('chat:join OK', { id_chat: conversation.id });
         });
       });
