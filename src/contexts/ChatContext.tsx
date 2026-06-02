@@ -92,6 +92,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     conversationsRef.current = conversations;
   }, [conversations]);
 
+  useEffect(() => {
+    joinedChatIdsRef.current.clear();
+    joiningChatIdsRef.current.clear();
+    conversationsRef.current = [];
+    setConversations([]);
+    setMessages([]);
+  }, [user?.id]);
+
   const reloadChats = useCallback(async () => {
     if (!user) return;
 
@@ -255,6 +263,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const joinConversations = () => {
       conversations.forEach((conversation) => {
         if (!isNumericId(conversation.id)) return;
+        if (!user?.id || !conversation.participants.includes(user.id)) return;
         if (joinedChatIdsRef.current.has(conversation.id) || joiningChatIdsRef.current.has(conversation.id)) return;
 
         joiningChatIdsRef.current.add(conversation.id);
@@ -286,7 +295,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return () => {
       socket.off('connect', joinConversations);
     };
-  }, [conversations, socket]);
+  }, [conversations, socket, user?.id]);
 
   const conversationsForUser = useCallback(
     (uid: string) => conversations.filter(c => c.participants.includes(uid)),
