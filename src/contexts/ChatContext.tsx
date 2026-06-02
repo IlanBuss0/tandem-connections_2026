@@ -195,6 +195,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [reloadChats, user]);
 
   useEffect(() => {
+    if (!user) return;
+
+    const intervalId = window.setInterval(() => {
+      reloadChats().catch(() => undefined);
+    }, 4000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [reloadChats, user]);
+
+  useEffect(() => {
     const token = getStoredAuthToken();
     if (!user || !token) return;
 
