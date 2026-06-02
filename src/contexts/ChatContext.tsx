@@ -51,6 +51,15 @@ function sameId(a: string | number | null | undefined, b: string | number | null
   return String(a ?? '') === String(b ?? '');
 }
 
+function logRealtime(message: string, payload?: unknown) {
+  if ((import.meta as any).env?.MODE === 'production') return;
+  if (payload === undefined) {
+    console.info(`[chat realtime] ${message}`);
+    return;
+  }
+  console.info(`[chat realtime] ${message}`, payload);
+}
+
 function socketMessageToChatMessage(message: any): ChatMessage {
   const date = new Date(message.fecha_envio);
   return {
@@ -183,7 +192,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       transports: ['websocket', 'polling'],
     });
 
+    nextSocket.on('connect', () => {
+      logRealtime('socket conectado', { socketId: nextSocket.id, userId: user.id, apiBaseUrl: API_BASE_URL });
+    });
+
+    nextSocket.on('connect_error', (error) => {
+      logRealtime('socket rechazo/fallo conexion', { message: error.message, apiBaseUrl: API_BASE_URL });
+    });
+
+    nextSocket.on('disconnect', (reason) => {
+      logRealtime('socket desconectado', { reason });
+    });
+
     nextSocket.on('message:new', (message) => {
+      logRealtime('message:new recibido', message);
       const chatMessage = socketMessageToChatMessage(message);
       const knownConversation = conversationsRef.current.some(conversation => conversation.id === chatMessage.conversationId);
 
@@ -195,6 +217,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
 
     nextSocket.on('chat:new', () => {
+      logRealtime('chat:new recibido');
       reloadChats().catch(() => undefined);
     });
 
@@ -224,11 +247,35 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!socket) return;
 
-    conversations.forEach((conversation) => {
-      if (isNumericId(conversation.id)) {
-        socket.emit('chat:join', { id_chat: Number(conversation.id) });
-      }
-    });
+    const joinConversations = () => {
+      conversations.forEach((conversation) => {
+        if (!isNumericId(conversation.id)) return;
+
+        socket.timeout(5000).emit('chat:join', { id_chat: Number(conversation.id) }, (error: unknown, response: any) => {
+          if (error) {
+            logRealtime('chat:join sin respuesta', { id_chat: conversation.id, error });
+            return;
+          }
+
+          if (!response?.ok) {
+            logRealtime('chat:join rechazado', { id_chat: conversation.id, response });
+            return;
+          }
+
+          logRealtime('chat:join OK', { id_chat: conversation.id });
+        });
+      });
+    };
+
+    if (socket.connected) {
+      joinConversations();
+    }
+
+    socket.on('connect', joinConversations);
+
+    return () => {
+      socket.off('connect', joinConversations);
+    };
   }, [conversations, socket]);
 
   const conversationsForUser = useCallback(
