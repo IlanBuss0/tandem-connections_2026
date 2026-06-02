@@ -31,7 +31,7 @@ function participantsSummary(conversation: Conversation, getPersonById: (id: str
 
 export default function ChatScreen() {
   const { user } = useAuth();
-  const { conversationsForUser, messagesFor, send, edit, remove, markRead, createDirect, createGroup, allContacts, getPersonById } = useChat();
+  const { conversationsForUser, messagesFor, send, edit, remove, markRead, createDirect, createGroup, updateConversation, hideConversation, allContacts, getPersonById } = useChat();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [showNew, setShowNew] = useState(false);
@@ -45,6 +45,11 @@ export default function ChatScreen() {
   const [expandedMessageIds, setExpandedMessageIds] = useState<Set<string>>(new Set());
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
+  const [showManage, setShowManage] = useState(false);
+  const [manageTitle, setManageTitle] = useState('');
+  const [manageDescription, setManageDescription] = useState('');
+  const [manageParticipantIds, setManageParticipantIds] = useState<string[]>([]);
+  const [savingManage, setSavingManage] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const myConvs = useMemo(
@@ -63,9 +68,16 @@ export default function ChatScreen() {
   useEffect(() => {
     if (!selectedConv) return;
     requestAnimationFrame(() => {
-      messagesEndRef.current?.scrollIntoView({ block: 'end' });
+      messagesEndRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
     });
   }, [selectedConv, selectedMessages.length]);
+
+  useEffect(() => {
+    if (!selectedConv || !showManage) return;
+    setManageTitle(selectedConv.title || '');
+    setManageDescription(selectedConv.description || '');
+    setManageParticipantIds(selectedConv.participants);
+  }, [selectedConv, showManage]);
 
   if (!user) return null;
 
@@ -120,6 +132,39 @@ export default function ChatScreen() {
     if (!text.trim() || !selectedConv) return;
     send(selectedConv.id, text);
     setDraft('');
+  };
+
+  const toggleManageParticipant = (contactId: string) => {
+    if (contactId === user.id) return;
+    setManageParticipantIds(prev => (
+      prev.includes(contactId)
+        ? prev.filter(id => id !== contactId)
+        : [...prev, contactId]
+    ));
+  };
+
+  const saveManage = async () => {
+    if (!selectedConv) return;
+    setSavingManage(true);
+    try {
+      const participantIds = Array.from(new Set([user.id, ...manageParticipantIds]));
+      const updated = await updateConversation(selectedConv.id, {
+        nombre: manageTitle.trim(),
+        descripcion: manageDescription.trim(),
+        participantIds,
+      });
+      setSelectedId(updated.id);
+      setShowManage(false);
+    } finally {
+      setSavingManage(false);
+    }
+  };
+
+  const hideSelectedConversation = async () => {
+    if (!selectedConv) return;
+    await hideConversation(selectedConv.id);
+    setShowManage(false);
+    setSelectedId(null);
   };
 
   const startEdit = (messageId: string, text: string) => {
@@ -179,10 +224,13 @@ export default function ChatScreen() {
         <div className="flex items-center gap-3 pb-3 border-b border-border">
           <button onClick={() => setSelectedId(null)} className="text-muted-foreground hover:text-foreground" aria-label="Volver"><ArrowLeft size={20} /></button>
           <span className="text-2xl">{isGroup ? 'G' : other?.avatar || selectedConv.avatar}</span>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="font-semibold text-sm text-foreground truncate">{chatTitle}</p>
             <p className="text-[10px] text-muted-foreground truncate">{chatSubtitle}</p>
           </div>
+          <button type="button" onClick={() => setShowManage(true)} className="p-2 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Administrar chat">
+            <Users size={17} />
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto py-4 space-y-3">
@@ -270,6 +318,54 @@ export default function ChatScreen() {
           <Input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendNow()} placeholder="Escribí un mensaje..." className="flex-1" />
           <button onClick={() => sendNow()} className="w-10 h-10 rounded-full gradient-primary text-primary-foreground flex items-center justify-center shrink-0" aria-label="Enviar"><Send size={16} /></button>
         </div>
+
+        <AnimatePresence>
+          {showManage && (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[70] bg-foreground/30 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+              onClick={() => setShowManage(false)}
+            >
+              <motion.div
+                initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }}
+                className="bg-card rounded-t-2xl sm:rounded-2xl border border-border w-full max-w-md max-h-[85vh] flex flex-col"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between p-4 border-b border-border">
+                  <h3 className="font-heading font-bold text-foreground">Administrar chat</h3>
+                  <button onClick={() => setShowManage(false)} className="p-1.5 hover:bg-muted rounded-md" aria-label="Cerrar"><X size={18} /></button>
+                </div>
+                <div className="p-4 space-y-3 border-b border-border">
+                  <Input value={manageTitle} onChange={e => setManageTitle(e.target.value)} placeholder="Nombre del chat" />
+                  <Input value={manageDescription} onChange={e => setManageDescription(e.target.value)} placeholder="Descripcion" />
+                  <p className="text-[11px] text-muted-foreground">Participantes: {manageParticipantIds.join(', ')}</p>
+                </div>
+                <div className="overflow-y-auto p-2">
+                  {contacts.map(c => (
+                    <button key={c.id} onClick={() => toggleManageParticipant(c.id)} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors text-left">
+                      <span className={`w-5 h-5 rounded border flex items-center justify-center text-[10px] ${manageParticipantIds.includes(c.id) ? 'bg-primary text-primary-foreground border-primary' : 'border-border'}`}>
+                        {manageParticipantIds.includes(c.id) ? '✓' : ''}
+                      </span>
+                      <span className="text-2xl">{c.avatar}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-foreground truncate">{c.name}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">ID {c.id}{c.subtitle ? ` | ${c.subtitle}` : ''}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                <div className="p-4 border-t border-border space-y-2">
+                  <Button type="button" onClick={saveManage} disabled={savingManage || manageParticipantIds.length < 2} className="w-full gradient-primary text-primary-foreground">
+                    Guardar cambios
+                  </Button>
+                  <button type="button" onClick={hideSelectedConversation} className="w-full h-10 rounded-md border border-destructive/30 text-sm font-semibold text-destructive hover:bg-destructive/10">
+                    Eliminar chat para mi
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     );
   }

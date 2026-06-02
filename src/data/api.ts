@@ -1514,6 +1514,45 @@ export async function createGroupConversation(
   }, selfId);
 }
 
+export async function updateConversationDetails(
+  conversationId: string,
+  payload: { nombre?: string; descripcion?: string; participantIds?: string[] },
+): Promise<Conversation> {
+  const token = getStoredAuthToken();
+  if (!token || !isBackendUserId(conversationId)) {
+    throw new Error('No hay sesion backend activa para administrar el chat.');
+  }
+
+  const response = await apiRequest<{ chat: BackendChatRow; participantes?: { id_usuario: number }[] }>(`/api/chats/${encodeURIComponent(conversationId)}/manage`, {
+    method: 'PATCH',
+    token,
+    body: {
+      nombre: payload.nombre,
+      descripcion: payload.descripcion,
+      participantes: payload.participantIds?.map(Number).filter(Number.isFinite),
+    },
+  });
+
+  const participantes = response.participantes?.map((participant) => ({ id_usuario: participant.id_usuario })) || [];
+  return backendChatToConversation({
+    ...response.chat,
+    participantes,
+    cantidad_participantes: participantes.length,
+  }, '');
+}
+
+export async function hideConversationForMe(conversationId: string): Promise<void> {
+  const token = getStoredAuthToken();
+  if (!token || !isBackendUserId(conversationId)) {
+    throw new Error('No hay sesion backend activa para eliminar el chat.');
+  }
+
+  await apiRequest(`/api/chats/${encodeURIComponent(conversationId)}/me`, {
+    method: 'DELETE',
+    token,
+  });
+}
+
 export async function fetchChatContacts(): Promise<ChatContact[]> {
   const usuarios = await tandemApi.usuarios.getAll();
   return usuarios.map((usuario) => {

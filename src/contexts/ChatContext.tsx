@@ -10,8 +10,10 @@ import {
   fetchConversationsForUser,
   fetchMessagesForConversation,
   getStoredAuthToken,
+  hideConversationForMe,
   markConversationRead,
   sendMessage,
+  updateConversationDetails,
   updateMessage,
   Conversation,
   ChatMessage,
@@ -38,6 +40,8 @@ interface Ctx {
   ensureConversationWith: (selfId: string, otherId: string) => Conversation;
   createDirect: (otherId: string) => Promise<Conversation>;
   createGroup: (payload: { nombre: string; descripcion?: string; participantIds: string[] }) => Promise<Conversation>;
+  updateConversation: (conversationId: string, payload: { nombre?: string; descripcion?: string; participantIds?: string[] }) => Promise<Conversation>;
+  hideConversation: (conversationId: string) => Promise<void>;
   allContacts: () => ContactPerson[];
   getPersonById: (id: string) => ContactPerson | undefined;
 }
@@ -452,6 +456,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return backendConv;
   }, [socket, user]);
 
+  const updateConversation = useCallback(async (conversationId: string, payload: { nombre?: string; descripcion?: string; participantIds?: string[] }) => {
+    const updated = await updateConversationDetails(conversationId, payload);
+    setConversations(prev => prev.map(item => item.id === conversationId ? updated : item));
+    await reloadChats().catch(() => undefined);
+    return updated;
+  }, [reloadChats]);
+
+  const hideConversation = useCallback(async (conversationId: string) => {
+    await hideConversationForMe(conversationId);
+    setConversations(prev => prev.filter(item => item.id !== conversationId));
+    setMessages(prev => prev.filter(item => item.conversationId !== conversationId));
+  }, []);
+
   const allContacts = useCallback(() => contacts, [contacts]);
   const getPersonById = useCallback((id: string) => contacts.find(c => c.id === id), [contacts]);
 
@@ -468,6 +485,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     ensureConversationWith,
     createDirect,
     createGroup,
+    updateConversation,
+    hideConversation,
     allContacts,
     getPersonById,
   }), [
@@ -483,6 +502,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     ensureConversationWith,
     createDirect,
     createGroup,
+    updateConversation,
+    hideConversation,
     allContacts,
     getPersonById,
   ]);
