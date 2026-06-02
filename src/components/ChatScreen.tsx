@@ -19,7 +19,7 @@ function sameId(a: string | number | null | undefined, b: string | number | null
 
 export default function ChatScreen() {
   const { user } = useAuth();
-  const { conversationsForUser, messagesFor, send, edit, remove, markRead, ensureConversationWith, createGroup, allContacts, getPersonById } = useChat();
+  const { conversationsForUser, messagesFor, send, edit, remove, markRead, createDirect, createGroup, allContacts, getPersonById } = useChat();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [showNew, setShowNew] = useState(false);
@@ -62,11 +62,16 @@ export default function ChatScreen() {
     markRead(c.id, user.id);
   };
 
-  const startWith = (otherId: string) => {
-    const conv = ensureConversationWith(user.id, otherId);
+  const startWith = async (otherId: string) => {
     setShowNew(false);
     setNewSearch('');
-    setSelectedId(conv.id);
+
+    try {
+      const conv = await createDirect(otherId);
+      setSelectedId(conv.id);
+    } catch {
+      setSelectedId(null);
+    }
   };
 
   const toggleGroupParticipant = (contactId: string) => {

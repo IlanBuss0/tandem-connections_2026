@@ -1523,7 +1523,7 @@ export async function fetchChatContacts(): Promise<ChatContact[]> {
       name: [usuario.nombre, usuario.apellido].filter(Boolean).join(' ') || usuario.nombre_usuario || usuario.correo || `Usuario #${usuario.id}`,
       avatar: role === 'professional' ? '👩‍⚕️' : role === 'tutor' ? '👩' : '🙂',
       role: role === 'professional' ? 'profesional' : role === 'tutor' ? 'tutor' : 'user',
-      subtitle: role === 'professional' ? 'Profesional' : role === 'tutor' ? 'Tutor/a' : 'Usuario',
+      subtitle: `${role === 'professional' ? 'Profesional' : role === 'tutor' ? 'Tutor/a' : 'Usuario'} · @${usuario.nombre_usuario || usuario.correo || usuario.id} · ID ${usuario.id}`,
     };
   });
 }

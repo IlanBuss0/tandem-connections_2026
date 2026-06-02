@@ -36,6 +36,7 @@ interface Ctx {
   remove: (messageId: string) => Promise<void>;
   markRead: (cid: string, uid: string) => void;
   ensureConversationWith: (selfId: string, otherId: string) => Conversation;
+  createDirect: (otherId: string) => Promise<Conversation>;
   createGroup: (payload: { nombre: string; descripcion?: string; participantIds: string[] }) => Promise<Conversation>;
   allContacts: () => ContactPerson[];
   getPersonById: (id: string) => ContactPerson | undefined;
@@ -380,6 +381,27 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return conv;
   }, [contacts, conversations]);
 
+  const createDirect = useCallback(async (otherId: string) => {
+    if (!user) throw new Error('No hay usuario autenticado.');
+
+    const existing = conversations.find(c => (
+      c.participants.length === 2 &&
+      c.participants.includes(user.id) &&
+      c.participants.includes(otherId)
+    ));
+    if (existing && isNumericId(existing.id)) return existing;
+
+    const backendConv = await createDirectConversationWith(user.id, otherId);
+    setConversations(prev => [backendConv, ...prev.filter(item => item.id !== backendConv.id)]);
+
+    if (socket && isNumericId(backendConv.id)) {
+      socket.emit('chat:join', { id_chat: Number(backendConv.id) });
+      joinedChatIdsRef.current.add(backendConv.id);
+    }
+
+    return backendConv;
+  }, [conversations, socket, user]);
+
   const createGroup = useCallback(async (payload: { nombre: string; descripcion?: string; participantIds: string[] }) => {
     if (!user) throw new Error('No hay usuario autenticado.');
 
@@ -407,6 +429,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     remove,
     markRead,
     ensureConversationWith,
+    createDirect,
     createGroup,
     allContacts,
     getPersonById,
@@ -421,6 +444,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     remove,
     markRead,
     ensureConversationWith,
+    createDirect,
     createGroup,
     allContacts,
     getPersonById,
