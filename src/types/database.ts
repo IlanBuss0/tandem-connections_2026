@@ -526,6 +526,7 @@ export interface Chat {
   id: number;
   id_tipo_chat: number;
   nombre: string | null;
+  descripcion?: string | null;
   fecha_creacion: string;
   activo: boolean;
 }

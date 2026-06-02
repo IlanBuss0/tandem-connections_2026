@@ -1,9 +1,10 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import { API_BASE_URL } from '@/services/api/client';
 import {
   createDirectConversationWith,
+  createGroupConversation,
   deleteMessage,
   fetchChatContacts,
   fetchConversationsForUser,
@@ -35,6 +36,7 @@ interface Ctx {
   remove: (messageId: string) => Promise<void>;
   markRead: (cid: string, uid: string) => void;
   ensureConversationWith: (selfId: string, otherId: string) => Conversation;
+  createGroup: (payload: { nombre: string; descripcion?: string; participantIds: string[] }) => Promise<Conversation>;
   allContacts: () => ContactPerson[];
   getPersonById: (id: string) => ContactPerson | undefined;
 }
@@ -72,6 +74,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [contacts, setContacts] = useState<ContactPerson[]>([]);
   const [socket, setSocket] = useState<Socket | null>(null);
+  const conversationsRef = useRef<Conversation[]>([]);
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+  const reloadChats = useCallback(async () => {
+    if (!user) return;
+
+    const convs = await fetchConversationsForUser(user.id);
+    setConversations(convs);
+    const byConv = await Promise.all(convs.map(async conversation => (
+      fetchMessagesForConversation(conversation.id).catch(() => [])
+    )));
+    setMessages(byConv.flat());
+  }, [user]);
 
   const upsertMessage = useCallback((message: ChatMessage) => {
     setMessages(prev => {
@@ -138,14 +156,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (!user) return;
 
     setLoading(true);
-    fetchConversationsForUser(user.id)
-      .then(async convs => {
+    reloadChats()
+      .then(() => {
         if (!mounted) return;
-        setConversations(convs);
-        const byConv = await Promise.all(convs.map(async conversation => (
-          fetchMessagesForConversation(conversation.id).catch(() => [])
-        )));
-        if (mounted) setMessages(byConv.flat());
       })
       .catch(() => {
         if (!mounted) return;
@@ -159,7 +172,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return () => {
       mounted = false;
     };
-  }, [user]);
+  }, [reloadChats, user]);
 
   useEffect(() => {
     const token = getStoredAuthToken();
@@ -171,7 +184,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
 
     nextSocket.on('message:new', (message) => {
-      upsertMessage(socketMessageToChatMessage(message));
+      const chatMessage = socketMessageToChatMessage(message);
+      const knownConversation = conversationsRef.current.some(conversation => conversation.id === chatMessage.conversationId);
+
+      if (knownConversation) {
+        upsertMessage(chatMessage);
+      } else {
+        reloadChats().catch(() => upsertMessage(chatMessage));
+      }
+    });
+
+    nextSocket.on('chat:new', () => {
+      reloadChats().catch(() => undefined);
     });
 
     nextSocket.on('message:updated', (message) => {
@@ -195,7 +219,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       nextSocket.disconnect();
       setSocket(null);
     };
-  }, [removeMessageFromState, upsertMessage, user]);
+  }, [reloadChats, removeMessageFromState, upsertMessage, user]);
 
   useEffect(() => {
     if (!socket) return;
@@ -300,6 +324,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return conv;
   }, [contacts, conversations]);
 
+  const createGroup = useCallback(async (payload: { nombre: string; descripcion?: string; participantIds: string[] }) => {
+    if (!user) throw new Error('No hay usuario autenticado.');
+
+    const backendConv = await createGroupConversation(user.id, payload);
+    setConversations(prev => [backendConv, ...prev.filter(item => item.id !== backendConv.id)]);
+
+    if (socket && isNumericId(backendConv.id)) {
+      socket.emit('chat:join', { id_chat: Number(backendConv.id) });
+    }
+
+    return backendConv;
+  }, [socket, user]);
+
   const allContacts = useCallback(() => contacts, [contacts]);
   const getPersonById = useCallback((id: string) => contacts.find(c => c.id === id), [contacts]);
 
@@ -314,6 +351,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     remove,
     markRead,
     ensureConversationWith,
+    createGroup,
     allContacts,
     getPersonById,
   }), [
@@ -327,6 +365,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     remove,
     markRead,
     ensureConversationWith,
+    createGroup,
     allContacts,
     getPersonById,
   ]);

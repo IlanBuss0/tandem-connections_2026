@@ -287,13 +287,15 @@ export const calendarEvents: CalendarEvent[] = [
 // ==================== CONVERSATIONS & CHAT ====================
 export interface Conversation {
   id: string;
+  title?: string;
+  description?: string;
   participants: string[];
   participantNames: string[];
   lastMessage: string;
   lastMessageTime: string;
   unreadCount: number;
   avatar: string;
-  type: 'tutor' | 'profesional';
+  type: 'tutor' | 'profesional' | 'grupo';
 }
 
 export const conversations: Conversation[] = [

@@ -1346,21 +1346,36 @@ type BackendChatRow = DbChat & {
   ultimo_mensaje_contenido?: string | null;
   ultimo_mensaje_fecha?: string | null;
   cantidad_no_leidos?: number | null;
+  cantidad_participantes?: number | null;
+  participantes?: {
+    id_usuario: number;
+    nombre?: string | null;
+    apellido?: string | null;
+    id_tipo_usuario?: number | null;
+  }[] | null;
 };
 
 function backendChatToConversation(chat: BackendChatRow, currentUserId: string): Conversation {
-  const otherId = chat.id_otro_usuario ? String(chat.id_otro_usuario) : `chat-${chat.id}`;
-  const otherName = [chat.nombre_otro_usuario, chat.apellido_otro_usuario].filter(Boolean).join(' ') || chat.nombre || 'Chat';
+  const participants = Array.isArray(chat.participantes) ? chat.participantes : [];
+  const participantIds = participants.length > 0
+    ? participants.map((participant) => String(participant.id_usuario))
+    : [currentUserId, chat.id_otro_usuario ? String(chat.id_otro_usuario) : `chat-${chat.id}`];
+  const participantNames = participants.length > 0
+    ? participants.map((participant) => [participant.nombre, participant.apellido].filter(Boolean).join(' ') || `Usuario #${participant.id_usuario}`)
+    : ['Yo', [chat.nombre_otro_usuario, chat.apellido_otro_usuario].filter(Boolean).join(' ') || chat.nombre || 'Chat'];
+  const isGroup = (chat.cantidad_participantes || participantIds.length) > 2;
 
   return {
     id: String(chat.id),
-    participants: [currentUserId, otherId],
-    participantNames: ['Yo', otherName],
+    title: isGroup ? chat.nombre || 'Grupo' : undefined,
+    description: chat.descripcion || undefined,
+    participants: participantIds,
+    participantNames,
     lastMessage: chat.ultimo_mensaje_contenido || 'Sin mensajes todavia',
     lastMessageTime: formatChatTime(chat.ultimo_mensaje_fecha || chat.fecha_creacion),
     unreadCount: chat.cantidad_no_leidos || 0,
-    avatar: '💬',
-    type: 'tutor',
+    avatar: isGroup ? 'G' : '💬',
+    type: isGroup ? 'grupo' : 'tutor',
   };
 }
 
@@ -1470,6 +1485,33 @@ export async function createDirectConversationWith(selfId: string, otherUserId: 
   });
 
   return backendChatToConversation({ ...chat, id_otro_usuario: Number(otherUserId) }, selfId);
+}
+
+export async function createGroupConversation(
+  selfId: string,
+  payload: { nombre: string; descripcion?: string; participantIds: string[] },
+): Promise<Conversation> {
+  const token = getStoredAuthToken();
+  if (!token) {
+    throw new Error('No hay sesion backend activa para crear el grupo.');
+  }
+
+  const response = await apiRequest<{ chat: BackendChatRow; participantes?: { id_usuario: number }[] }>('/api/chats/group', {
+    method: 'POST',
+    token,
+    body: {
+      nombre: payload.nombre,
+      descripcion: payload.descripcion || null,
+      participantes: payload.participantIds.map(Number).filter(Number.isFinite),
+    },
+  });
+
+  const participantes = response.participantes?.map((participant) => ({ id_usuario: participant.id_usuario })) || [];
+  return backendChatToConversation({
+    ...response.chat,
+    participantes,
+    cantidad_participantes: participantes.length,
+  }, selfId);
 }
 
 export async function fetchChatContacts(): Promise<ChatContact[]> {

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChat } from '@/contexts/ChatContext';
 import { Conversation } from '@/data/api';
-import { ArrowLeft, Send, Plus, Search, X, MessageCircle, Pencil, Trash2, Check } from 'lucide-react';
+import { ArrowLeft, Send, Plus, Search, X, MessageCircle, Pencil, Trash2, Check, Users } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
@@ -19,12 +19,17 @@ function sameId(a: string | number | null | undefined, b: string | number | null
 
 export default function ChatScreen() {
   const { user } = useAuth();
-  const { conversationsForUser, messagesFor, send, edit, remove, markRead, ensureConversationWith, allContacts, getPersonById } = useChat();
+  const { conversationsForUser, messagesFor, send, edit, remove, markRead, ensureConversationWith, createGroup, allContacts, getPersonById } = useChat();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [showNew, setShowNew] = useState(false);
+  const [newMode, setNewMode] = useState<'direct' | 'group'>('direct');
   const [newSearch, setNewSearch] = useState('');
   const [filterRole, setFilterRole] = useState<'all' | 'user' | 'tutor' | 'profesional'>('all');
+  const [groupTitle, setGroupTitle] = useState('');
+  const [groupDescription, setGroupDescription] = useState('');
+  const [groupParticipantIds, setGroupParticipantIds] = useState<string[]>([]);
+  const [creatingGroup, setCreatingGroup] = useState(false);
   const [expandedMessageIds, setExpandedMessageIds] = useState<Set<string>>(new Set());
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
@@ -62,6 +67,35 @@ export default function ChatScreen() {
     setShowNew(false);
     setNewSearch('');
     setSelectedId(conv.id);
+  };
+
+  const toggleGroupParticipant = (contactId: string) => {
+    setGroupParticipantIds(prev => (
+      prev.includes(contactId)
+        ? prev.filter(id => id !== contactId)
+        : [...prev, contactId]
+    ));
+  };
+
+  const createGroupNow = async () => {
+    if (!groupTitle.trim() || groupParticipantIds.length < 2) return;
+
+    setCreatingGroup(true);
+    try {
+      const conv = await createGroup({
+        nombre: groupTitle.trim(),
+        descripcion: groupDescription.trim(),
+        participantIds: groupParticipantIds,
+      });
+      setShowNew(false);
+      setNewSearch('');
+      setGroupTitle('');
+      setGroupDescription('');
+      setGroupParticipantIds([]);
+      setSelectedId(conv.id);
+    } finally {
+      setCreatingGroup(false);
+    }
   };
 
   const sendNow = (txt?: string) => {
@@ -114,21 +148,23 @@ export default function ChatScreen() {
 
   // === Vista de conversación ===
   if (selectedConv) {
+    const isGroup = selectedConv.type === 'grupo' || selectedConv.participants.length > 2;
     const otherId = selectedConv.participants.find(p => p !== user.id) || '';
     const other = getPersonById(otherId);
+    const chatTitle = isGroup ? selectedConv.title || 'Grupo' : other?.name || 'Contacto';
+    const chatSubtitle = isGroup
+      ? `${selectedConv.participants.length} participantes${selectedConv.description ? ` · ${selectedConv.description}` : ''}`
+      : `${other?.role === 'profesional' ? 'Profesional' : other?.role === 'tutor' ? 'Tutor/a' : 'Usuario'}${other?.subtitle ? ` · ${other.subtitle}` : ''}`;
     const msgs = selectedMessages;
 
     return (
       <div className="flex flex-col h-[calc(100vh-9rem)] lg:h-[calc(100vh-3rem)]">
         <div className="flex items-center gap-3 pb-3 border-b border-border">
           <button onClick={() => setSelectedId(null)} className="text-muted-foreground hover:text-foreground" aria-label="Volver"><ArrowLeft size={20} /></button>
-          <span className="text-2xl">{other?.avatar || selectedConv.avatar}</span>
+          <span className="text-2xl">{isGroup ? 'G' : other?.avatar || selectedConv.avatar}</span>
           <div className="min-w-0">
-            <p className="font-semibold text-sm text-foreground truncate">{other?.name || 'Contacto'}</p>
-            <p className="text-[10px] text-muted-foreground truncate">
-              {other?.role === 'profesional' ? '👩‍⚕️ Profesional' : other?.role === 'tutor' ? '👩 Tutor/a' : '🧒 Usuario'}
-              {other?.subtitle ? ` · ${other.subtitle}` : ''}
-            </p>
+            <p className="font-semibold text-sm text-foreground truncate">{chatTitle}</p>
+            <p className="text-[10px] text-muted-foreground truncate">{chatSubtitle}</p>
           </div>
         </div>
 
@@ -244,17 +280,19 @@ export default function ChatScreen() {
 
       <div className="space-y-2">
         {myConvs.map(conv => {
+          const isGroup = conv.type === 'grupo' || conv.participants.length > 2;
           const otherId = conv.participants.find(p => p !== user.id) || '';
           const other = getPersonById(otherId);
+          const title = isGroup ? conv.title || 'Grupo' : other?.name || conv.participantNames.find(n => n !== user.name) || 'Chat';
           return (
             <motion.button key={conv.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} onClick={() => handleSelect(conv)} className="w-full flex items-center gap-3 p-4 rounded-xl bg-card border border-border hover:border-primary/30 transition-all text-left">
-              <span className="text-3xl">{other?.avatar || conv.avatar}</span>
+              <span className="text-3xl">{isGroup ? 'G' : other?.avatar || conv.avatar}</span>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-center gap-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    <p className="font-semibold text-sm text-foreground truncate">{other?.name || conv.participantNames.find(n => n !== user.name) || 'Chat'}</p>
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full whitespace-nowrap ${other?.role === 'profesional' ? 'bg-purple-100 text-purple-700' : other?.role === 'tutor' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                      {other?.role === 'profesional' ? 'Profesional' : other?.role === 'tutor' ? 'Tutor' : 'Usuario'}
+                    <p className="font-semibold text-sm text-foreground truncate">{title}</p>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full whitespace-nowrap ${isGroup ? 'bg-amber-100 text-amber-700' : other?.role === 'profesional' ? 'bg-purple-100 text-purple-700' : other?.role === 'tutor' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                      {isGroup ? 'Grupo' : other?.role === 'profesional' ? 'Profesional' : other?.role === 'tutor' ? 'Tutor' : 'Usuario'}
                     </span>
                   </div>
                   <span className="text-[10px] text-muted-foreground shrink-0">{conv.lastMessageTime}</span>
@@ -285,6 +323,20 @@ export default function ChatScreen() {
                 <button onClick={() => setShowNew(false)} className="p-1.5 hover:bg-muted rounded-md" aria-label="Cerrar"><X size={18} /></button>
               </div>
               <div className="p-4 space-y-3 border-b border-border">
+                <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+                  <button type="button" onClick={() => setNewMode('direct')} className={`h-9 rounded-md text-xs font-semibold ${newMode === 'direct' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>
+                    Persona
+                  </button>
+                  <button type="button" onClick={() => setNewMode('group')} className={`h-9 rounded-md text-xs font-semibold inline-flex items-center justify-center gap-1 ${newMode === 'group' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>
+                    <Users size={13} /> Grupo
+                  </button>
+                </div>
+                {newMode === 'group' && (
+                  <div className="space-y-2">
+                    <Input value={groupTitle} onChange={e => setGroupTitle(e.target.value)} placeholder="Titulo del grupo" />
+                    <Input value={groupDescription} onChange={e => setGroupDescription(e.target.value)} placeholder="Descripcion opcional" />
+                  </div>
+                )}
                 <div className="relative">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <Input value={newSearch} onChange={e => setNewSearch(e.target.value)} placeholder="Buscar persona..." className="pl-9" />
@@ -302,7 +354,12 @@ export default function ChatScreen() {
                   <p className="text-center text-xs text-muted-foreground py-6">Sin resultados</p>
                 )}
                 {filteredContacts.map(c => (
-                  <button key={c.id} onClick={() => startWith(c.id)} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors text-left">
+                  <button key={c.id} onClick={() => newMode === 'group' ? toggleGroupParticipant(c.id) : startWith(c.id)} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors text-left">
+                    {newMode === 'group' && (
+                      <span className={`w-5 h-5 rounded border flex items-center justify-center text-[10px] ${groupParticipantIds.includes(c.id) ? 'bg-primary text-primary-foreground border-primary' : 'border-border'}`}>
+                        {groupParticipantIds.includes(c.id) ? '✓' : ''}
+                      </span>
+                    )}
                     <span className="text-2xl">{c.avatar}</span>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm text-foreground truncate">{c.name}</p>
@@ -314,6 +371,18 @@ export default function ChatScreen() {
                   </button>
                 ))}
               </div>
+              {newMode === 'group' && (
+                <div className="p-4 border-t border-border">
+                  <Button
+                    type="button"
+                    onClick={createGroupNow}
+                    disabled={!groupTitle.trim() || groupParticipantIds.length < 2 || creatingGroup}
+                    className="w-full gradient-primary text-primary-foreground"
+                  >
+                    Crear grupo ({groupParticipantIds.length + 1})
+                  </Button>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}
