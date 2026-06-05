@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
-import { Home, Calendar, CheckSquare, MessageCircle, Heart, Trophy, User, Sun, Star, Bell, LogOut, Menu, X, Image, BookOpen, ShoppingBag, Settings } from 'lucide-react';
+import { Home, Calendar, CheckSquare, MessageCircle, Heart, Trophy, User, Sun, Bell, LogOut, Menu, X, Image, BookOpen, ShoppingBag, Settings } from 'lucide-react';
 import AvatarPreview from '@/components/AvatarPreview';
 import CoinBadge from '@/components/CoinBadge';
 import UserHome from '@/pages/user/UserHome';
@@ -26,7 +26,6 @@ const userNav = [
   { id: 'routines', label: 'Mi día', icon: Sun },
   { id: 'calendar', label: 'Calendario', icon: Calendar },
   { id: 'activities', label: 'Actividades', icon: CheckSquare },
-  { id: 'recommended', label: 'Recomendadas', icon: Star },
   { id: 'shop', label: 'Tienda y avatar', icon: ShoppingBag },
   { id: 'pictograms', label: 'Pictogramas', icon: Image },
   { id: 'chat', label: 'Chat', icon: MessageCircle },
@@ -38,12 +37,32 @@ const userNav = [
   { id: 'profile-settings', label: 'Configuracion', icon: Settings },
 ];
 
+const ACTIVE_TAB_KEY = 'tandem_active_tab';
+const validUserTabs = new Set(userNav.map(item => item.id));
+
+function loadActiveTab() {
+  try {
+    const stored = localStorage.getItem(ACTIVE_TAB_KEY);
+    return stored && validUserTabs.has(stored) ? stored : 'home';
+  } catch {
+    return 'home';
+  }
+}
+
 export default function AppShell() {
   const { user, logout } = useAuth();
   const { state: wallet } = useWallet();
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTab] = useState(loadActiveTab);
   const [editingProfilePersonalData, setEditingProfilePersonalData] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(ACTIVE_TAB_KEY, activeTab);
+    } catch {
+      // Ignore storage failures; navigation still works in memory.
+    }
+  }, [activeTab]);
 
   if (!user) return null;
 
@@ -62,8 +81,7 @@ export default function AppShell() {
       case 'home': return <UserHome onNavigate={goToTab} />;
       case 'routines': return <UserRoutines />;
       case 'calendar': return <UserCalendar />;
-      case 'activities': return <UserActivities filter="all" />;
-      case 'recommended': return <UserActivities filter="recommended" />;
+      case 'activities': return <UserActivities />;
       case 'shop': return <UserShop />;
       case 'pictograms': return <UserPictograms />;
       case 'chat': return <UserChat />;
@@ -186,7 +204,7 @@ export default function AppShell() {
 
       {/* Mobile bottom nav */}
       <nav className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-sm border-t border-border flex justify-around py-1.5 z-40 lg:hidden" aria-label="Navegación principal">
-        {[userNav[0], userNav[1], userNav[3], userNav[5], userNav[7]].map(item => (
+        {[userNav[0], userNav[1], userNav[3], userNav[4], userNav[6]].map(item => (
           <button
             key={item.id}
             onClick={() => goToTab(item.id)}

@@ -634,6 +634,18 @@ export async function findUser(username: string, password: string): Promise<User
   }
 }
 
+export async function fetchStoredAuthUser(): Promise<User | Tutor | Professional | Admin | null> {
+  const token = getStoredAuthToken();
+  if (!token) return null;
+
+  try {
+    const user = await tandemApi.auth.me(token);
+    return toLegacyUser(user);
+  } catch {
+    return null;
+  }
+}
+
 export interface PertenecienteHomeActivity {
   id: string;
   title: string;

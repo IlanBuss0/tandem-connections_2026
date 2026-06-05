@@ -17,7 +17,19 @@ import '@/styles/accessibility.css';
 const queryClient = new QueryClient();
 
 function AuthGate() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <>
+        <div className="min-h-screen bg-background flex items-center justify-center text-sm font-medium text-muted-foreground">
+          Cargando sesion...
+        </div>
+        <AccessibilityWidget />
+      </>
+    );
+  }
+
   return (
     <>
       {isAuthenticated ? <AppShell /> : <Login />}

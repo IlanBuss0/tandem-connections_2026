@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { clearStoredAuthToken, findUser, User, Tutor, Professional, Admin } from '@/data/api';
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { clearStoredAuthToken, fetchStoredAuthUser, findUser, getStoredAuthToken, User, Tutor, Professional, Admin } from '@/data/api';
 
 type AuthUser = User | Tutor | Professional | Admin;
 
@@ -9,30 +9,92 @@ interface AuthContextType {
   loginAs: (user: AuthUser) => void;
   logout: () => void;
   isAuthenticated: boolean;
+  isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
+const AUTH_USER_KEY = 'tandem_auth_user';
+
+function loadStoredUser(): AuthUser | null {
+  try {
+    const raw = localStorage.getItem(AUTH_USER_KEY);
+    return raw ? JSON.parse(raw) as AuthUser : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeUser(user: AuthUser | null) {
+  try {
+    if (user) {
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+    } else {
+      localStorage.removeItem(AUTH_USER_KEY);
+    }
+  } catch {
+    // Storage can fail in private mode or restricted browsers.
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(() => loadStoredUser());
+  const [isLoading, setIsLoading] = useState(() => Boolean(getStoredAuthToken() && !loadStoredUser()));
+
+  useEffect(() => {
+    let mounted = true;
+    const token = getStoredAuthToken();
+
+    if (!token) {
+      storeUser(null);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(!user);
+    fetchStoredAuthUser()
+      .then(currentUser => {
+        if (!mounted) return;
+        if (currentUser) {
+          setUser(currentUser);
+          storeUser(currentUser);
+        } else if (!user) {
+          clearStoredAuthToken();
+          storeUser(null);
+          setUser(null);
+        }
+      })
+      .finally(() => {
+        if (mounted) setIsLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const login = async (username: string, password: string): Promise<boolean> => {
     const found = await findUser(username, password);
     if (found) {
       setUser(found);
+      storeUser(found);
       return true;
     }
     return false;
   };
 
-  const loginAs = (u: AuthUser) => setUser(u);
+  const loginAs = (u: AuthUser) => {
+    setUser(u);
+    storeUser(u);
+  };
+
   const logout = () => {
     clearStoredAuthToken();
+    storeUser(null);
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, loginAs, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, login, loginAs, logout, isAuthenticated: !!user, isLoading }}>
       {children}
     </AuthContext.Provider>
   );
