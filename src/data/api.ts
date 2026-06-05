@@ -1035,6 +1035,21 @@ export async function fetchNotificationsForUser(userId: string): Promise<Notific
   }
 }
 
+export async function markNotificationAsRead(notificationId: string): Promise<void> {
+  const numericId = Number(notificationId);
+  if (!Number.isFinite(numericId)) return;
+
+  await tandemApi.notificaciones.update(numericId, {
+    leida: true,
+    fecha_lectura: new Date().toISOString(),
+  });
+}
+
+export async function markNotificationsAsRead(notificationIds: string[]): Promise<void> {
+  const uniqueIds = Array.from(new Set(notificationIds));
+  await Promise.all(uniqueIds.map(markNotificationAsRead));
+}
+
 export async function fetchObjectivesForUser(userId: string): Promise<Objective[]> {
   return apiFetchWithFallback<Objective[]>([`/objectives?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/objectives`]);
 }
@@ -1400,7 +1415,7 @@ function backendMessageToChatMessage(message: DbMensaje): ChatMessage {
 export async function fetchConversationsForUser(userId: string): Promise<Conversation[]> {
   const token = getStoredAuthToken();
   if (token && isBackendUserId(userId)) {
-    const chats = await apiRequest<BackendChatRow[]>('/api/chats/me', { token });
+    const chats = await apiRequest<BackendChatRow[]>(`/api/chats/usuario/${encodeURIComponent(userId)}`, { token });
     return chats.map((chat) => backendChatToConversation(chat, userId));
   }
 
@@ -1415,6 +1430,16 @@ export async function fetchMessagesForConversation(conversationId: string): Prom
   }
 
   return apiFetchWithFallback<ChatMessage[]>([`/chat/conversations/${encodeURIComponent(conversationId)}/messages`, `/conversations/${encodeURIComponent(conversationId)}/messages`]);
+}
+
+export async function fetchMessagesForConversationAsUser(conversationId: string, userId: string): Promise<ChatMessage[]> {
+  const token = getStoredAuthToken();
+  if (token && isBackendUserId(conversationId) && isBackendUserId(userId)) {
+    const messages = await apiRequest<DbMensaje[]>(`/api/mensajes/chat/${encodeURIComponent(conversationId)}/usuario/${encodeURIComponent(userId)}`, { token });
+    return messages.map(backendMessageToChatMessage).reverse();
+  }
+
+  return fetchMessagesForConversation(conversationId);
 }
 
 export async function sendMessage(conversationId: string, senderId: string, senderName: string, text: string): Promise<ChatMessage> {

@@ -4,6 +4,7 @@ import { useWallet } from '@/contexts/WalletContext';
 import { Home, Calendar, CheckSquare, MessageCircle, Heart, Trophy, User, Sun, Star, Bell, LogOut, Menu, X, Image, BookOpen, ShoppingBag, Settings } from 'lucide-react';
 import AvatarPreview from '@/components/AvatarPreview';
 import CoinBadge from '@/components/CoinBadge';
+import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
 import UserHome from '@/pages/user/UserHome';
 import UserRoutines from '@/pages/user/UserRoutines';
 import UserCalendar from '@/pages/user/UserCalendar';
@@ -44,6 +45,9 @@ export default function AppShell() {
   const [activeTab, setActiveTab] = useState('home');
   const [editingProfilePersonalData, setEditingProfilePersonalData] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { unreadCount: unreadNotifs, setUnreadCount: setUnreadNotifs } = useUnreadNotifications(
+    user && user.role === 'user' ? { id: String(user.id) } : null
+  );
 
   if (!user) return null;
 
@@ -69,7 +73,7 @@ export default function AppShell() {
       case 'chat': return <UserChat />;
       case 'emotions': return <UserEmotions />;
       case 'achievements': return <UserAchievements />;
-      case 'notifications': return <UserNotifications />;
+      case 'notifications': return <UserNotifications onUnreadCountChange={setUnreadNotifs} />;
       case 'resources': return <UserResources />;
       case 'profile':
         return editingProfilePersonalData
@@ -79,8 +83,6 @@ export default function AppShell() {
       default: return <UserHome onNavigate={goToTab} />;
     }
   };
-
-  const unreadNotifs = 8;
 
   return (
     <div className="min-h-screen bg-background flex overflow-x-hidden">
@@ -92,12 +94,13 @@ export default function AppShell() {
         <h1 className="font-heading font-bold text-gradient text-lg">TÁNDEM</h1>
         <div className="flex items-center gap-2">
           <CoinBadge size="sm" onClick={() => goToTab('shop')} />
-          <button onClick={() => goToTab('notifications')} className="relative text-muted-foreground p-1.5" aria-label="Notificaciones">
-            <Bell size={20} />
-            {unreadNotifs > 0 && <span className="absolute top-0 right-0 w-4 h-4 rounded-full gradient-primary text-primary-foreground text-[8px] flex items-center justify-center font-bold">{unreadNotifs}</span>}
-          </button>
+          <NotificationBellButton count={unreadNotifs} onClick={() => goToTab('notifications')} className="h-9 w-9 border-0 bg-transparent" />
         </div>
       </header>
+
+      <div className="fixed right-4 top-4 z-50 hidden lg:block">
+        <NotificationBellButton count={unreadNotifs} onClick={() => goToTab('notifications')} />
+      </div>
 
       {/* Sidebar overlay mobile */}
       {sidebarOpen && (

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { ContactPerson, useChat } from '@/contexts/ChatContext';
-import { Conversation } from '@/data/api';
+import { ChatMessage, Conversation, fetchConversationsForUser, fetchMessagesForConversationAsUser } from '@/data/api';
 import { ArrowLeft, Send, Plus, Search, X, MessageCircle, Pencil, Trash2, Check, Users } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -13,8 +13,28 @@ const quickReplies = [
 
 const MESSAGE_PREVIEW_LIMIT = 220;
 
+export type ChatViewProfile = {
+  id: string;
+  name: string;
+  avatar?: string;
+  label?: string;
+};
+
 function sameId(a: string | number | null | undefined, b: string | number | null | undefined) {
   return String(a ?? '') === String(b ?? '');
+}
+
+function dedupeDirectConversations(conversations: Conversation[], viewerId: string) {
+  const seen = new Set<string>();
+  return conversations.filter(conversation => {
+    const isDirect = conversation.type !== 'grupo' && conversation.participants.length === 2;
+    if (!isDirect) return true;
+    const otherId = conversation.participants.find(participant => !sameId(participant, viewerId)) || '';
+    const key = [viewerId, otherId].map(String).sort().join(':');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function participantLabel(conversation: Conversation, participantId: string, getPersonById: (id: string) => ContactPerson | undefined) {
@@ -29,9 +49,19 @@ function participantsSummary(conversation: Conversation, getPersonById: (id: str
     .join(' | ');
 }
 
-export default function ChatScreen() {
+export default function ChatScreen({
+  profiles,
+  defaultProfileId,
+}: {
+  profiles?: ChatViewProfile[];
+  defaultProfileId?: string;
+}) {
   const { user } = useAuth();
   const { conversationsForUser, messagesFor, send, edit, remove, markRead, createDirect, createGroup, updateConversation, hideConversation, allContacts, getPersonById } = useChat();
+  const [activeProfileId, setActiveProfileId] = useState(defaultProfileId || '');
+  const [profileConvs, setProfileConvs] = useState<Conversation[]>([]);
+  const [profileMessages, setProfileMessages] = useState<ChatMessage[]>([]);
+  const [loadingProfileChats, setLoadingProfileChats] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [showNew, setShowNew] = useState(false);
@@ -54,17 +84,69 @@ export default function ChatScreen() {
   const [savingManage, setSavingManage] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
+  const resolvedProfileId = activeProfileId || user?.id || '';
+  const activeProfile = useMemo(() => (
+    profiles?.find(profile => sameId(profile.id, resolvedProfileId)) ||
+    (user ? { id: String(user.id), name: user.name, avatar: (user as any).avatar, label: 'Tutor' } : undefined)
+  ), [profiles, resolvedProfileId, user]);
+  const isOwnView = Boolean(user && sameId(resolvedProfileId, user.id));
+
+  useEffect(() => {
+    if (!user) return;
+    setActiveProfileId(defaultProfileId || String(user.id));
+  }, [defaultProfileId, user?.id]);
+
+  useEffect(() => {
+    setSelectedId(null);
+  }, [resolvedProfileId]);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!user || !resolvedProfileId || isOwnView) {
+      setProfileConvs([]);
+      setProfileMessages([]);
+      return;
+    }
+
+    setLoadingProfileChats(true);
+    fetchConversationsForUser(resolvedProfileId)
+      .then(async conversations => {
+        const byConv = await Promise.all(conversations.map(conversation => (
+          fetchMessagesForConversationAsUser(conversation.id, resolvedProfileId).catch(() => [])
+        )));
+        if (!mounted) return;
+        setProfileConvs(conversations);
+        setProfileMessages(byConv.flat());
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setProfileConvs([]);
+        setProfileMessages([]);
+      })
+      .finally(() => {
+        if (mounted) setLoadingProfileChats(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [isOwnView, resolvedProfileId, user]);
+
+  const rawConvs = useMemo(
+    () => user ? (isOwnView ? conversationsForUser(user.id) : profileConvs) : [],
+    [conversationsForUser, isOwnView, profileConvs, user]
+  );
   const myConvs = useMemo(
-    () => user ? conversationsForUser(user.id) : [],
-    [conversationsForUser, user]
+    () => dedupeDirectConversations(rawConvs, resolvedProfileId),
+    [rawConvs, resolvedProfileId]
   );
   const selectedConv: Conversation | null = useMemo(
     () => myConvs.find(c => c.id === selectedId) || null,
     [myConvs, selectedId]
   );
   const selectedMessages = useMemo(
-    () => selectedConv ? messagesFor(selectedConv.id) : [],
-    [messagesFor, selectedConv]
+    () => selectedConv ? (isOwnView ? messagesFor(selectedConv.id) : profileMessages.filter(message => sameId(message.conversationId, selectedConv.id))) : [],
+    [isOwnView, messagesFor, profileMessages, selectedConv]
   );
 
   useEffect(() => {
@@ -87,7 +169,9 @@ export default function ChatScreen() {
 
   const handleSelect = (c: Conversation) => {
     setSelectedId(c.id);
-    markRead(c.id, user.id);
+    if (c.participants.some(participant => sameId(participant, user.id))) {
+      markRead(c.id, user.id);
+    }
   };
 
   const startWith = async (otherId: string) => {
@@ -228,7 +312,8 @@ export default function ChatScreen() {
   if (selectedConv) {
     const isGroup = selectedConv.type === 'grupo' || selectedConv.participants.length > 2;
     const isCurrentUserAdmin = Boolean(selectedConv.adminIds?.includes(user.id));
-    const otherId = selectedConv.participants.find(p => p !== user.id) || '';
+    const canActAsCurrentUser = selectedConv.participants.some(participant => sameId(participant, user.id));
+    const otherId = selectedConv.participants.find(p => !sameId(p, resolvedProfileId)) || '';
     const other = getPersonById(otherId);
     const chatTitle = isGroup ? selectedConv.title || 'Grupo' : other?.name || 'Contacto';
     const chatSubtitle = isGroup
@@ -245,14 +330,16 @@ export default function ChatScreen() {
             <p className="font-semibold text-sm text-foreground truncate">{chatTitle}</p>
             <p className="text-[10px] text-muted-foreground truncate">{chatSubtitle}</p>
           </div>
-          {isGroup && isCurrentUserAdmin && (
+          {canActAsCurrentUser && isGroup && isCurrentUserAdmin && (
             <button type="button" onClick={() => setShowManage(true)} className="p-2 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Administrar grupo">
               <Users size={17} />
             </button>
           )}
-          <button type="button" onClick={hideSelectedConversation} className="p-2 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label={isGroup ? 'Salir del grupo' : 'Eliminar chat para mi'}>
-            <Trash2 size={17} />
-          </button>
+          {canActAsCurrentUser && (
+            <button type="button" onClick={hideSelectedConversation} className="p-2 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label={isGroup ? 'Salir del grupo' : 'Eliminar chat para mi'}>
+              <Trash2 size={17} />
+            </button>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto py-4 space-y-3">
@@ -261,7 +348,7 @@ export default function ChatScreen() {
           )}
           {msgs.map(msg => {
             const sender = getPersonById(msg.senderId);
-            const isMine = sameId(msg.senderId, user.id);
+            const isMine = sameId(msg.senderId, resolvedProfileId);
             const isEditing = editingMessageId === msg.id;
             const isLong = msg.text.length > MESSAGE_PREVIEW_LIMIT;
             const isExpanded = expandedMessageIds.has(msg.id);
@@ -312,7 +399,7 @@ export default function ChatScreen() {
                   )}
                   <div className="mt-1 flex items-center justify-between gap-2">
                     <p className={`text-[10px] ${isMine ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>{msg.timestamp}</p>
-                    {isMine && !isEditing && /^\d+$/.test(msg.id) && (
+                    {canActAsCurrentUser && sameId(msg.senderId, user.id) && !isEditing && /^\d+$/.test(msg.id) && (
                       <div className="flex items-center gap-1 opacity-80">
                         <button type="button" onClick={() => startEdit(msg.id, msg.text)} className="p-1 rounded hover:bg-background/20" aria-label="Editar mensaje">
                           <Pencil size={12} />
@@ -330,6 +417,8 @@ export default function ChatScreen() {
           <div ref={messagesEndRef} />
         </div>
 
+        {canActAsCurrentUser && (
+        <>
         <div className="flex gap-1.5 overflow-x-auto py-2 -mx-1 px-1">
           {quickReplies.map(qr => (
             <button key={qr} onClick={() => sendNow(qr)} className="whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] bg-muted text-muted-foreground border border-border hover:border-primary/30">{qr}</button>
@@ -340,6 +429,13 @@ export default function ChatScreen() {
           <Input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendNow()} placeholder="Escribí un mensaje..." className="flex-1" />
           <button onClick={() => sendNow()} className="w-10 h-10 rounded-full gradient-primary text-primary-foreground flex items-center justify-center shrink-0" aria-label="Enviar"><Send size={16} /></button>
         </div>
+        </>
+        )}
+        {!canActAsCurrentUser && (
+          <div className="rounded-lg border border-border bg-muted/40 p-3 text-center text-xs text-muted-foreground">
+            Vista de solo lectura: estas viendo los chats de {activeProfile?.name || 'este perfil'}.
+          </div>
+        )}
 
         <AnimatePresence>
           {showManage && (
@@ -453,10 +549,37 @@ export default function ChatScreen() {
           <h2 className="text-2xl font-heading font-bold text-foreground">Chat</h2>
           <p className="text-muted-foreground text-sm">Tus conversaciones</p>
         </div>
-        <Button size="sm" onClick={() => setShowNew(true)} className="gradient-primary text-primary-foreground shrink-0">
-          <Plus size={14} className="mr-1" /> Nuevo chat
-        </Button>
+        <div className="flex items-center gap-2">
+          {profiles && profiles.length > 0 && (
+            <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-right">
+              <span className="hidden sm:inline text-xs text-muted-foreground">Viendo</span>
+              <select
+                value={resolvedProfileId}
+                onChange={event => setActiveProfileId(event.target.value)}
+                className="max-w-[190px] bg-transparent text-sm font-semibold text-foreground outline-none"
+                aria-label="Perfil de chats"
+              >
+                {profiles.map(profile => (
+                  <option key={profile.id} value={profile.id}>
+                    {profile.label ? `${profile.label}: ` : ''}{profile.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {isOwnView && (
+            <Button size="sm" onClick={() => setShowNew(true)} className="gradient-primary text-primary-foreground shrink-0">
+              <Plus size={14} className="mr-1" /> Nuevo chat
+            </Button>
+          )}
+        </div>
       </div>
+
+      {loadingProfileChats && (
+        <div className="bg-card border border-border rounded-xl p-4 text-sm text-muted-foreground">
+          Cargando chats de {activeProfile?.name || 'este perfil'}...
+        </div>
+      )}
 
       {myConvs.length === 0 && (
         <div className="bg-card border border-border rounded-xl p-6 text-center">
@@ -469,7 +592,7 @@ export default function ChatScreen() {
       <div className="space-y-2">
         {myConvs.map(conv => {
           const isGroup = conv.type === 'grupo' || conv.participants.length > 2;
-          const otherId = conv.participants.find(p => p !== user.id) || '';
+          const otherId = conv.participants.find(p => !sameId(p, resolvedProfileId)) || '';
           const other = getPersonById(otherId);
           const title = isGroup ? conv.title || 'Grupo' : other?.name || conv.participantNames.find(n => n !== user.name) || 'Chat';
           return (

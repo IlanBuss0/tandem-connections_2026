@@ -10,11 +10,13 @@ import {
   Activity as ActivityIcon, AlertTriangle, Box, Cpu, Database, Filter, Flame,
   Globe2, Home, LogOut, Plus, Radio, Search, Server, Shield, Sparkles, Terminal,
   Users, Wand2, Zap, Eye, Edit, Ban, ArrowUpDown, RefreshCw, Download, Code2, Play,
-  Trash2, Coins, BookOpen, MessageSquare,
+  Trash2, Coins, BookOpen, MessageSquare, Bell,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
 import { users, tutors, professionals, activities, admins } from '@/data/api';
+import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
+import UserNotifications from '@/pages/user/UserNotifications';
 import { SHOP_ITEMS } from '@/data/shopItems';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,7 +38,7 @@ import { toast } from '@/hooks/ui/use-toast';
 // SUPER ADMIN / GOD MODE DASHBOARD — fully functional, real data
 // =============================================================
 
-type SectionId = 'overview' | 'live' | 'sql' | 'builder' | 'tables' | 'system';
+type SectionId = 'overview' | 'live' | 'sql' | 'builder' | 'tables' | 'system' | 'notifications';
 
 const NAV: { id: SectionId; label: string; icon: any }[] = [
   { id: 'overview', label: 'Overview', icon: Home },
@@ -45,6 +47,7 @@ const NAV: { id: SectionId; label: string; icon: any }[] = [
   { id: 'builder', label: 'God Builder', icon: Wand2 },
   { id: 'tables', label: 'Data Tables', icon: Database },
   { id: 'system', label: 'System', icon: Cpu },
+  { id: 'notifications', label: 'Notifications', icon: Bell },
 ];
 
 // ---------- Inject Bootstrap (scoped to admin dashboard only) ----------
@@ -192,6 +195,9 @@ export default function SuperAdminDashboard() {
   const { user, logout } = useAuth();
   const [section, setSection] = useState<SectionId>('overview');
   const [tick, setTick] = useState(0);
+  const { unreadCount, setUnreadCount } = useUnreadNotifications(
+    user && user.role === 'admin' ? { id: String(user.id) } : null
+  );
   // refresh data periodically (wallets etc.)
   useEffect(() => { const id = setInterval(() => setTick(t => t + 1), 4000); return () => clearInterval(id); }, []);
 
@@ -204,7 +210,7 @@ export default function SuperAdminDashboard() {
     }}>
       <Sidebar section={section} setSection={setSection} onLogout={logout} userName={user.name} clearance={(user as any).clearance} />
       <main className="flex-1 ms-lg-64 min-w-0 w-100" style={{ marginLeft: 256 }}>
-        <TopBar section={section} onRefresh={() => setTick(t => t + 1)} />
+        <TopBar section={section} onRefresh={() => setTick(t => t + 1)} unreadCount={unreadCount} onNotifications={() => setSection('notifications')} />
         <div className="p-3 p-md-4">
           {section === 'overview' && <OverviewSection tick={tick} />}
           {section === 'live' && <LiveFeedSection tick={tick} />}
@@ -212,6 +218,7 @@ export default function SuperAdminDashboard() {
           {section === 'builder' && <GodBuilderSection />}
           {section === 'tables' && <DataTablesSection tick={tick} />}
           {section === 'system' && <SystemSection tick={tick} />}
+          {section === 'notifications' && <UserNotifications onUnreadCountChange={setUnreadCount} />}
         </div>
       </main>
     </div>
@@ -271,7 +278,17 @@ function Sidebar({ section, setSection, onLogout, userName, clearance }: any) {
   );
 }
 
-function TopBar({ section, onRefresh }: { section: SectionId; onRefresh: () => void }) {
+function TopBar({
+  section,
+  onRefresh,
+  unreadCount,
+  onNotifications,
+}: {
+  section: SectionId;
+  onRefresh: () => void;
+  unreadCount: number;
+  onNotifications: () => void;
+}) {
   const [now, setNow] = useState(new Date());
   useEffect(() => { const id = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(id); }, []);
   return (
@@ -282,6 +299,7 @@ function TopBar({ section, onRefresh }: { section: SectionId; onRefresh: () => v
         <span className="font-monospace" style={{ fontSize: 11, color: '#7dd3fc' }}>{section}</span>
       </div>
       <div className="d-flex align-items-center gap-3 flex-wrap">
+        <NotificationBellButton count={unreadCount} onClick={onNotifications} dark />
         <button onClick={onRefresh} className="btn btn-sm d-flex align-items-center gap-1 font-monospace" style={{ background: 'rgba(30,41,59,0.6)', border: '1px solid #334155', color: '#cbd5e1', fontSize: 11 }}>
           <RefreshCw size={11} /> refresh
         </button>

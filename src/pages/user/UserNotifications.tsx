@@ -1,10 +1,19 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchNotificationsForUser, Notification } from '@/data/api';
+import {
+  fetchNotificationsForUser,
+  markNotificationAsRead,
+  markNotificationsAsRead,
+  Notification,
+} from '@/data/api';
 import { Bell, Check } from 'lucide-react';
 
-export default function UserNotifications() {
+type UserNotificationsProps = {
+  onUnreadCountChange?: (count: number) => void;
+};
+
+export default function UserNotifications({ onUnreadCountChange }: UserNotificationsProps) {
   const { user } = useAuth();
   const [notifs, setNotifs] = useState<Notification[]>([]);
 
@@ -12,18 +21,48 @@ export default function UserNotifications() {
     let mounted = true;
     if (!user) return;
     fetchNotificationsForUser(user.id).then((data) => {
-      if (mounted) setNotifs(data);
+      if (mounted) setNotifs(data.filter(notification => !notification.read));
     }).catch(() => {
       if (mounted) setNotifs([]);
     });
     return () => { mounted = false; };
   }, [user]);
 
+  const unreadCount = notifs.filter(n => !n.read).length;
+
+  useEffect(() => {
+    onUnreadCountChange?.(unreadCount);
+  }, [onUnreadCountChange, unreadCount]);
+
   if (!user) return null;
 
-  const markRead = (id: string) => setNotifs(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  const markAllRead = () => setNotifs(prev => prev.map(n => ({ ...n, read: true })));
-  const unreadCount = notifs.filter(n => !n.read).length;
+  const markRead = async (id: string) => {
+    const notification = notifs.find(n => n.id === id);
+    if (!notification || notification.read) return;
+
+    setNotifs(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+
+    try {
+      await markNotificationAsRead(id);
+      setNotifs(prev => prev.filter(n => n.id !== id));
+    } catch {
+      setNotifs(prev => prev.map(n => n.id === id ? { ...n, read: false } : n));
+    }
+  };
+
+  const markAllRead = async () => {
+    const unreadIds = notifs.filter(n => !n.read).map(n => n.id);
+    if (unreadIds.length === 0) return;
+
+    setNotifs(prev => prev.map(n => ({ ...n, read: true })));
+
+    try {
+      await markNotificationsAsRead(unreadIds);
+      setNotifs(prev => prev.filter(n => !unreadIds.includes(n.id)));
+    } catch {
+      setNotifs(prev => prev.map(n => unreadIds.includes(n.id) ? { ...n, read: false } : n));
+    }
+  };
 
   const typeColors: Record<string, string> = {
     reminder: 'border-l-blue-400', achievement: 'border-l-amber-400', message: 'border-l-green-400',

@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   AlertTriangle,
   BarChart3,
+  Bell,
   Calendar,
   CheckCircle2,
   ChevronLeft,
@@ -36,7 +37,9 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import ActivityManager from '@/components/ActivityManager';
 import ChatScreen from '@/components/ChatScreen';
+import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
+import UserNotifications from '@/pages/user/UserNotifications';
 import {
   createCalendarEvent,
   deleteCalendarEvent,
@@ -66,6 +69,7 @@ type TabId =
   | 'emotions'
   | 'calendar'
   | 'insights'
+  | 'notifications'
   | 'profile'
   | 'settings';
 
@@ -79,6 +83,7 @@ const tabs: { id: TabId; label: string; icon: typeof BarChart3 }[] = [
   { id: 'emotions', label: 'Emociones', icon: Heart },
   { id: 'calendar', label: 'Calendario', icon: Calendar },
   { id: 'insights', label: 'Tranquilidad', icon: Shield },
+  { id: 'notifications', label: 'Notificaciones', icon: Bell },
   { id: 'profile', label: 'Perfil', icon: UserRound },
   { id: 'settings', label: 'Config', icon: Settings },
 ];
@@ -136,6 +141,9 @@ export default function TutorDashboard() {
   const [tutorAgendaEvents, setTutorAgendaEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { unreadCount, setUnreadCount } = useUnreadNotifications(
+    user && user.role === 'tutor' ? { id: String(user.id) } : null
+  );
 
   const loadTutorAgenda = async () => {
     if (!user || user.role !== 'tutor') return;
@@ -212,6 +220,15 @@ export default function TutorDashboard() {
 
   const primaryTabs = tabs.filter(item => ['overview', 'calendar', 'activities', 'chat', 'profile'].includes(item.id));
   const secondaryTabs = tabs.filter(item => !primaryTabs.some(primary => primary.id === item.id));
+  const chatProfiles = [
+    { id: String(user.id), name: user.name, avatar: (user as any).avatar, label: 'Tutor' },
+    ...linkedUsers.map(linked => ({
+      id: String(linked.id),
+      name: linked.name,
+      avatar: linked.avatar,
+      label: 'Perteneciente',
+    })),
+  ];
 
   return (
     <div className="min-h-screen bg-background pb-24 md:pb-0">
@@ -284,6 +301,7 @@ export default function TutorDashboard() {
             )}
           </div>
           <div className="flex items-center gap-1">
+            <NotificationBellButton count={unreadCount} onClick={() => setTab('notifications')} />
             <Button variant="ghost" size="sm" onClick={() => load(mainUser?.id)} disabled={loading} aria-label="Recargar">
               {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
             </Button>
@@ -454,7 +472,7 @@ export default function TutorDashboard() {
           </div>
         )}
 
-        {!loading && !error && !mainUser && (
+        {!loading && !error && !mainUser && tab !== 'notifications' && (
           <div className="bg-card rounded-xl border border-border p-8 text-center">
             <Shield size={30} className="mx-auto text-muted-foreground mb-3" />
             <p className="font-semibold text-foreground">No hay pertenecientes vinculados</p>
@@ -464,7 +482,15 @@ export default function TutorDashboard() {
           </div>
         )}
 
-        {!loading && !error && mainUser && (
+        {!loading && !error && tab === 'notifications' && (
+          <UserNotifications onUnreadCountChange={setUnreadCount} />
+        )}
+
+        {!loading && !error && tab === 'chat' && (
+          <ChatScreen profiles={chatProfiles} defaultProfileId={String(user.id)} />
+        )}
+
+        {!loading && !error && mainUser && tab !== 'notifications' && tab !== 'chat' && (
           <>
             <div className="bg-card rounded-xl p-4 border border-border flex items-center gap-4">
               <span className="text-4xl">{mainUser.avatar}</span>
@@ -480,7 +506,6 @@ export default function TutorDashboard() {
               </div>
             </div>
 
-            {tab === 'chat' && <ChatScreen />}
             {tab === 'activities' && (
               <TutorActivitiesPanel
                 mainUser={mainUser}
