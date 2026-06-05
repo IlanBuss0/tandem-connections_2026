@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchActivitiesForUser, fetchAllProfessionals, fetchLinkedPertenecientesForSupportUser, getEmotionsForUser, getObjectivesForUser, calendarEvents, getRecommendationsForUser, type Activity, type Professional, type User } from '@/data/api';
-import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, MessageSquare, Sparkles, MessageCircle } from 'lucide-react';
+import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, MessageSquare, Sparkles, MessageCircle, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import ActivityManager from '@/components/ActivityManager';
 import AdvancedStats from '@/components/AdvancedStats';
 import ChatScreen from '@/components/ChatScreen';
+import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
 import ProfessionalAgenda from '@/components/ProfessionalAgenda';
+import UserNotifications from '@/pages/user/UserNotifications';
 
 export default function ProfessionalDashboard() {
   const { user, logout } = useAuth();
@@ -18,6 +20,9 @@ export default function ProfessionalDashboard() {
   const [activitiesByUser, setActivitiesByUser] = useState<Record<string, Activity[]>>({});
   const [allProfessionals, setAllProfessionals] = useState<Professional[]>([]);
   const [loadingPatients, setLoadingPatients] = useState(true);
+  const { unreadCount, setUnreadCount } = useUnreadNotifications(
+    user && user.role === 'professional' ? { id: String(user.id) } : null
+  );
 
   useEffect(() => {
     if (!user || user.role !== 'professional') return;
@@ -54,6 +59,7 @@ export default function ProfessionalDashboard() {
     { id: 'agenda', label: 'Agenda', icon: Calendar },
     { id: 'create', label: 'Crear actividad', icon: Sparkles },
     { id: 'chat', label: 'Chat', icon: MessageCircle },
+    { id: 'notifications', label: 'Notificaciones', icon: Bell },
     { id: 'tools', label: 'Herramientas', icon: ClipboardPlus },
     { id: 'directory', label: 'Directorio', icon: FileText },
   ];
@@ -67,7 +73,10 @@ export default function ProfessionalDashboard() {
           <h1 className="font-heading font-bold text-gradient text-lg">TÁNDEM</h1>
           <p className="text-xs text-muted-foreground">Panel profesional · {user.name}</p>
         </div>
-        <Button variant="ghost" size="sm" onClick={logout}><LogOut size={16} /></Button>
+        <div className="flex items-center gap-2">
+          <NotificationBellButton count={unreadCount} onClick={() => { setTab('notifications'); setSelectedPatient(null); }} />
+          <Button variant="ghost" size="sm" onClick={logout}><LogOut size={16} /></Button>
+        </div>
       </header>
 
       <div className="flex gap-2 overflow-x-auto p-4 border-b border-border">
@@ -80,6 +89,7 @@ export default function ProfessionalDashboard() {
 
       <div className="max-w-4xl mx-auto p-4 space-y-4">
         {tab === 'chat' && <ChatScreen />}
+        {tab === 'notifications' && <UserNotifications onUnreadCountChange={setUnreadCount} />}
         {tab === 'patients' && !selectedPatient && (
           <>
             <h2 className="font-heading font-bold text-xl text-foreground">Mis pacientes ({linkedUsers.length})</h2>
