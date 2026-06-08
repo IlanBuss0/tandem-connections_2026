@@ -1,6 +1,6 @@
 import * as legacy from './mockData';
 import { tandemApi } from '@/services/api';
-import { apiRequest } from '@/services/api/client';
+import { API_BASE_URL, apiRequest } from '@/services/api/client';
 import type {
   Actividad as DbActividad,
   ActividadAsignada as DbActividadAsignada,
@@ -1742,12 +1742,46 @@ export async function fetchResourcesForUser(userId: string): Promise<Resource[]>
   return apiFetchWithFallback<Resource[]>([`/resources?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/resources`]);
 }
 
+export interface PictogramCategory {
+  id: string;
+  name: string;
+  total: number;
+}
+
 export async function fetchPictograms(query?: { category?: string; search?: string }): Promise<Pictogram[]> {
   const params = new URLSearchParams();
   if (query?.category && query.category !== 'todas') params.set('category', query.category);
   if (query?.search) params.set('search', query.search);
   const q = params.toString();
   return apiFetchWithFallback<Pictogram[]>([q ? `/api/pictograms?${q}` : '/api/pictograms', q ? `/pictograms?${q}` : '/pictograms']);
+}
+
+export async function fetchPictogramCategories(): Promise<PictogramCategory[]> {
+  return apiFetchWithFallback<PictogramCategory[]>(['/api/pictograms/categories', '/pictograms/categories']);
+}
+
+export async function fetchFavoritePictograms(userId: string): Promise<Pictogram[]> {
+  const q = new URLSearchParams({ userId }).toString();
+  return apiFetchWithFallback<Pictogram[]>([`/api/pictograms/favorites?${q}`, `/pictograms/favorites?${q}`]);
+}
+
+export function getPictogramDownloadUrl(id: string): string {
+  return `${API_BASE_URL.replace(/\/$/, '')}/api/pictograms/${encodeURIComponent(id)}/download`;
+}
+
+export async function savePictogram(id: string, userId: string): Promise<void> {
+  await apiFetchWithFallback([
+    `/api/pictograms/${encodeURIComponent(id)}/save`,
+    `/pictograms/${encodeURIComponent(id)}/save`,
+  ], { method: 'POST', body: JSON.stringify({ userId }) });
+}
+
+export async function deleteFavoritePictogram(id: string, userId: string): Promise<void> {
+  const q = new URLSearchParams({ userId }).toString();
+  await apiFetchWithFallback([
+    `/api/pictograms/${encodeURIComponent(id)}/save?${q}`,
+    `/pictograms/${encodeURIComponent(id)}/save?${q}`,
+  ], { method: 'DELETE' });
 }
 
 export async function fetchTutorById(id: string): Promise<Tutor | null> {
