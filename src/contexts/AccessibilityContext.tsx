@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
+import { fetchAccessibilitySettings, saveAccessibilitySettings } from '@/data/api';
 
 // =================== Tipos ===================
 export type ContrastMode = 'normal' | 'high' | 'inverted' | 'dark' | 'light';
@@ -172,12 +173,42 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const uid = user?.id ?? '__guest__';
   const [settings, setSettings] = useState<AccessibilitySettings>(() => load(uid));
+  const [loadedUid, setLoadedUid] = useState(uid);
 
   // Recargar cuando cambia el usuario (login/logout)
-  useEffect(() => { setSettings(load(uid)); }, [uid]);
+  useEffect(() => {
+    let cancelled = false;
+    const localSettings = load(uid);
+    setSettings(localSettings);
+    setLoadedUid(user?.id ? '' : uid);
+
+    if (!user?.id) return () => { cancelled = true; };
+
+    fetchAccessibilitySettings(user.id, localSettings)
+      .then(remoteSettings => {
+        if (!cancelled) {
+          setSettings({ ...DEFAULT_SETTINGS, ...remoteSettings });
+          setLoadedUid(uid);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoadedUid(uid);
+      });
+
+    return () => { cancelled = true; };
+  }, [uid, user?.id]);
 
   // Persistir
   useEffect(() => { save(uid, settings); }, [uid, settings]);
+
+  useEffect(() => {
+    if (!user?.id || loadedUid !== uid) return;
+    const timer = window.setTimeout(() => {
+      saveAccessibilitySettings(user.id, settings).catch(() => undefined);
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+  }, [settings, user?.id, loadedUid, uid]);
 
   // Aplicar al <html>
   useEffect(() => { applyToDom(settings); }, [settings]);

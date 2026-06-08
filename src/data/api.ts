@@ -1825,6 +1825,7 @@ export async function fetchUserProfileDashboard(userId: string): Promise<UserPro
 
 const PROFILE_PREFERENCES_KEY = 'profile.preferences';
 const PROFILE_ACCESSIBILITY_KEY = 'profile.accessibility';
+const ACCESSIBILITY_SETTINGS_KEY = 'accessibility.settings';
 
 const defaultProfilePreferences: UserProfileSettings['preferences'] = {
   recibir_notificaciones: true,
@@ -1956,6 +1957,37 @@ export async function saveUserProfileSettings(userId: string, payload: UserProfi
     upsertUserConfig(idUsuario, PROFILE_PREFERENCES_KEY, payload.preferences),
     upsertAccessibilityConfig(idUsuario, PROFILE_ACCESSIBILITY_KEY, payload.accessibility),
   ]);
+}
+
+export async function saveOwnUserSettings(
+  userId: string,
+  payload: Pick<UserProfileSettingsPayload, 'usuario' | 'preferences'>,
+): Promise<void> {
+  if (!isBackendUserId(userId)) throw new Error('El usuario no esta conectado al backend.');
+
+  const idUsuario = Number(userId);
+  const currentUsuario = await tandemApi.usuarios.getById(idUsuario);
+
+  await tandemApi.usuarios.update(idUsuario, {
+    ...currentUsuario,
+    ...payload.usuario,
+    telefono: payload.usuario.telefono,
+    fecha_nacimiento: payload.usuario.fecha_nacimiento || null,
+  });
+
+  await upsertUserConfig(idUsuario, PROFILE_PREFERENCES_KEY, payload.preferences);
+}
+
+export async function fetchAccessibilitySettings<T extends object>(userId: string, fallback: T): Promise<T> {
+  if (!isBackendUserId(userId)) return fallback;
+
+  const config = await getAccessibilityConfig(Number(userId), ACCESSIBILITY_SETTINGS_KEY);
+  return parseJsonConfig(config?.valor, fallback);
+}
+
+export async function saveAccessibilitySettings(userId: string, settings: object): Promise<void> {
+  if (!isBackendUserId(userId)) return;
+  await upsertAccessibilityConfig(Number(userId), ACCESSIBILITY_SETTINGS_KEY, settings);
 }
 
 export async function fetchLegacyPricingPlans(): Promise<PricingPlan[]> {

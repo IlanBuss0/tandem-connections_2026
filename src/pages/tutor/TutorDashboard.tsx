@@ -17,7 +17,6 @@ import {
   MessageCircle,
   Pencil,
   Plus,
-  RefreshCw,
   Save,
   Settings,
   Shield,
@@ -302,9 +301,6 @@ export default function TutorDashboard() {
           </div>
           <div className="flex items-center gap-1">
             <NotificationBellButton count={unreadCount} onClick={() => setTab('notifications')} />
-            <Button variant="ghost" size="sm" onClick={() => load(mainUser?.id)} disabled={loading} aria-label="Recargar">
-              {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-            </Button>
             <Button variant="ghost" size="sm" onClick={logout} aria-label="Cerrar sesion">
               <LogOut size={16} />
             </Button>
@@ -1181,10 +1177,6 @@ function TutorLinkedProfile({
           <Button variant="default" size="sm" onClick={onConfigure} className="gap-2">
             <Settings size={15} />
             Configurar
-          </Button>
-          <Button variant="outline" size="sm" onClick={loadProfile} disabled={loading} className="gap-2">
-            {loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
-            Actualizar
           </Button>
         </div>
       </div>

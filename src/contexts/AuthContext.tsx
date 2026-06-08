@@ -7,6 +7,7 @@ interface AuthContextType {
   user: AuthUser | null;
   login: (username: string, password: string) => Promise<boolean>;
   loginAs: (user: AuthUser) => void;
+  refreshUser: () => Promise<AuthUser | null>;
   logout: () => void;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -87,6 +88,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     storeUser(u);
   };
 
+  const refreshUser = async (): Promise<AuthUser | null> => {
+    const currentUser = await fetchStoredAuthUser();
+    if (currentUser) {
+      setUser(currentUser);
+      storeUser(currentUser);
+      return currentUser;
+    }
+    return null;
+  };
+
   const logout = () => {
     clearStoredAuthToken();
     storeUser(null);
@@ -94,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, loginAs, logout, isAuthenticated: !!user, isLoading }}>
+    <AuthContext.Provider value={{ user, login, loginAs, refreshUser, logout, isAuthenticated: !!user, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

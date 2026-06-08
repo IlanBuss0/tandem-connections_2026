@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { fetchUserProfileDashboard, type ProfileSupportPerson, type UserProfileDashboard } from '@/data/api';
-import { AlertCircle, Check, Crown, Loader2, Mail, Phone, RefreshCw, Settings, ShieldCheck, UserRound, Users } from 'lucide-react';
+import { AlertCircle, Check, Crown, Loader2, Mail, Phone, Settings, ShieldCheck, UserRound, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AvatarPreview from '@/components/AvatarPreview';
 import CoinBadge from '@/components/CoinBadge';
@@ -104,18 +104,12 @@ export default function UserProfile({ onConfigure }: { onConfigure?: () => void 
           <h2 className="text-2xl font-heading font-bold text-foreground">Mi perfil</h2>
           <p className="text-muted-foreground text-sm">Datos personales, apoyo y progreso.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {onConfigure && (
-            <Button variant="default" size="sm" onClick={onConfigure} className="w-fit gap-2">
-              <Settings size={15} />
-              Configurar
-            </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={load} disabled={loading} className="w-fit gap-2">
-            {loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
-            Actualizar
+        {onConfigure && (
+          <Button variant="default" size="sm" onClick={onConfigure} className="w-fit gap-2">
+            <Settings size={15} />
+            Configurar
           </Button>
-        </div>
+        )}
       </div>
 
       {error && (

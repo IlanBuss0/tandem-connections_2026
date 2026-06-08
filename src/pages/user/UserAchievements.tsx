@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { AlertCircle, Award, CheckCircle2, Flame, Loader2, Lock, RefreshCw, Sparkles, Star, Trophy } from 'lucide-react';
+import { AlertCircle, Award, CheckCircle2, Flame, Loader2, Lock, Sparkles, Star, Trophy } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Achievement, AchievementDashboard, fetchAchievementDashboardForUser } from '@/data/api';
-import { Button } from '@/components/ui/button';
 
 function parseProgress(requirement: string): { current: number; target: number } | null {
   const match = requirement.match(/^(\d+)\/(\d+)/);
@@ -133,10 +132,6 @@ export default function UserAchievements() {
             {unlocked.length} de {achievements.length} desbloqueados con datos del backend.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={load} disabled={loading} className="w-fit gap-2">
-          {loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
-          Actualizar
-        </Button>
       </div>
 
       {error && (

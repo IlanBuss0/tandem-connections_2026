@@ -84,21 +84,21 @@ export default function AccessibilityWidget() {
       <button
         onClick={() => setOpen(true)}
         aria-label="Abrir menú de accesibilidad"
-        className="a11y-widget fixed left-3 bottom-3 sm:left-4 sm:bottom-4 z-[9998] w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-blue-600 text-white shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-transform ring-4 ring-blue-600/20"
+        className="a11y-widget fixed left-0 top-1/2 z-[9998] flex h-16 w-8 -translate-x-3 -translate-y-1/2 items-center justify-end rounded-r-full border border-l-0 border-blue-300 bg-blue-600 pr-1 text-white shadow-lg transition-all active:scale-95 sm:h-14 sm:w-12 sm:-translate-x-5 sm:pr-2 sm:hover:-translate-x-0 sm:hover:w-14 sm:hover:shadow-xl sm:ring-4 sm:ring-blue-600/20"
         style={{ filter: 'none' }}
       >
-        <Accessibility size={24} />
+        <Accessibility size={22} className="shrink-0" />
         {activeCount > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-orange-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white">
+          <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-orange-500 text-[10px] font-bold text-white">
             {activeCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="a11y-widget fixed inset-0 z-[9999] flex items-end sm:items-center justify-end sm:justify-end" role="dialog" aria-modal="true" aria-label="Panel de accesibilidad">
+        <div className="a11y-widget fixed inset-0 z-[9999] flex items-end justify-start sm:items-center" role="dialog" aria-modal="true" aria-label="Panel de accesibilidad">
           <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
-          <div className="relative bg-white text-gray-900 w-full sm:w-[440px] sm:max-w-[440px] h-[90vh] sm:h-[92vh] sm:mr-4 rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+          <div className="relative mb-16 ml-2 flex h-[78vh] w-[calc(100vw-2rem)] max-w-[380px] flex-col overflow-hidden rounded-2xl bg-white text-gray-900 shadow-2xl sm:mb-0 sm:ml-4 sm:h-[92vh] sm:w-[440px] sm:max-w-[440px]">
             {/* Header */}
             <div className="bg-blue-600 text-white p-4 flex items-center justify-between">
               <div className="flex items-center gap-2">

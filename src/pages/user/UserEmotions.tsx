@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { AlertCircle, BarChart3, CalendarDays, Loader2, RefreshCw, Save, Sparkles, Trash2 } from 'lucide-react';
+import { AlertCircle, BarChart3, CalendarDays, Loader2, Save, Sparkles, Trash2 } from 'lucide-react';
 import { useEmotions, emotionOptions } from '@/contexts/EmotionsContext';
 import { Button } from '@/components/ui/button';
 
@@ -107,10 +107,6 @@ export default function UserEmotions() {
           <h2 className="text-2xl font-heading font-bold text-foreground">Emociones</h2>
           <p className="text-muted-foreground text-sm">Seguimiento emocional personal.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={reload} disabled={loading} className="w-fit gap-2">
-          {loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
-          Actualizar
-        </Button>
       </div>
 
       {error && (

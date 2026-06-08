@@ -1,8 +1,10 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, ArrowLeft, Bell, Eye, Loader2, Save, Shield, UserRound } from 'lucide-react';
+import { ACCESSIBILITY_PROFILES, DEFAULT_SETTINGS, useAccessibility, type AccessibilitySettings } from '@/contexts/AccessibilityContext';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   fetchUserProfileSettings,
+  saveOwnUserSettings,
   saveUserProfileSettings,
   type UserProfileSettings,
   type UserProfileSettingsPayload,
@@ -91,10 +93,84 @@ function ToggleRow({ label, description, checked, onChange }: {
   );
 }
 
+function ReadOnlyInfo({ label, value, className = '' }: { label: string; value: string; className?: string }) {
+  return (
+    <div className={`rounded-lg border border-border bg-background p-3 ${className}`}>
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function AccessibilityProfileSummary({ settings }: { settings: AccessibilitySettings }) {
+  const activeProfile = ACCESSIBILITY_PROFILES.find(profile => profile.id === settings.activeProfile);
+  const changes = describeAccessibilityChanges(settings);
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-lg border border-border bg-background p-3">
+        <p className="text-xs font-medium text-muted-foreground">Perfil por default</p>
+        <div className="mt-2 flex items-start gap-3">
+          <span className="text-2xl">{activeProfile?.icon || 'A'}</span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground">{activeProfile?.name || 'Sin perfil activo'}</p>
+            <p className="text-xs text-muted-foreground">
+              {activeProfile?.description || 'No hay un preset aplicado. Se usan los ajustes base de la app.'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-border bg-background p-3">
+        <p className="text-xs font-medium text-muted-foreground">Cambios aplicados</p>
+        {changes.length > 0 ? (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {changes.map(change => (
+              <span key={change} className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+                {change}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-1 text-sm text-muted-foreground">Configuracion estandar.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function describeAccessibilityChanges(settings: AccessibilitySettings): string[] {
+  const changes: string[] = [];
+  if (settings.fontScale !== DEFAULT_SETTINGS.fontScale) changes.push(`Texto ${Math.round(settings.fontScale * 100)}%`);
+  if (settings.lineHeight !== DEFAULT_SETTINGS.lineHeight) changes.push(`Interlineado ${settings.lineHeight.toFixed(1)}`);
+  if (settings.letterSpacing !== DEFAULT_SETTINGS.letterSpacing) changes.push('Mayor espaciado de letras');
+  if (settings.wordSpacing !== DEFAULT_SETTINGS.wordSpacing) changes.push('Mayor espaciado de palabras');
+  if (settings.contentSpacing !== DEFAULT_SETTINGS.contentSpacing) changes.push('Mayor espaciado de contenido');
+  if (settings.dyslexiaFont) changes.push('Fuente para dislexia');
+  if (settings.textAlignLeft) changes.push('Texto alineado a la izquierda');
+  if (settings.uppercase) changes.push('Texto en mayusculas');
+  if (settings.contrast !== DEFAULT_SETTINGS.contrast) changes.push(`Contraste: ${settings.contrast}`);
+  if (settings.colorFilter !== DEFAULT_SETTINGS.colorFilter) changes.push(`Filtro de color: ${settings.colorFilter}`);
+  if (settings.saturation !== DEFAULT_SETTINGS.saturation) changes.push(`Saturacion ${Math.round(settings.saturation * 100)}%`);
+  if (settings.reduceMotion) changes.push('Movimiento reducido');
+  if (settings.pauseAnimations) changes.push('Animaciones pausadas');
+  if (settings.highlightLinks) changes.push('Enlaces resaltados');
+  if (settings.highlightHeadings) changes.push('Titulos resaltados');
+  if (settings.highlightFocus) changes.push('Foco resaltado');
+  if (settings.cursor !== DEFAULT_SETTINGS.cursor) changes.push(`Cursor: ${settings.cursor}`);
+  if (settings.bigCursor) changes.push('Cursor grande');
+  if (settings.hideImages) changes.push('Imagenes ocultas');
+  if (settings.muteSounds) changes.push('Sonidos silenciados');
+  if (settings.readingTooltip) changes.push('Tooltip de lectura');
+  if (settings.speakOnHover) changes.push('Lectura por voz');
+  return changes;
+}
+
 type UserProfileSettingsMode = 'settings' | 'personal';
 
 export default function UserProfileSettings({ onBack, mode = 'settings' }: { onBack?: () => void; mode?: UserProfileSettingsMode }) {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
+  const { settings: accessibilitySettings } = useAccessibility();
   const [settings, setSettings] = useState<UserProfileSettings | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [loading, setLoading] = useState(false);
@@ -116,9 +192,7 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
       form.usuario.nombre_usuario.trim() &&
       form.usuario.nombre.trim() &&
       form.usuario.apellido.trim() &&
-      form.usuario.correo.trim() &&
-      form.perteneciente.id_nivel_apoyo &&
-      form.perteneciente.id_autonomia_operativa
+      form.usuario.correo.trim()
     );
   }, [form, isPersonalMode]);
 
@@ -202,7 +276,7 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
     setError(null);
 
     try {
-      await saveUserProfileSettings(user.id, {
+      await saveOwnUserSettings(user.id, {
         usuario: {
           ...form.usuario,
           nombre_usuario: form.usuario.nombre_usuario.trim(),
@@ -211,15 +285,12 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
           correo: form.usuario.correo.trim(),
           fecha_nacimiento: form.usuario.fecha_nacimiento || null,
         },
-        perteneciente: {
-          ...form.perteneciente,
-          observacion_general: form.perteneciente.observacion_general?.trim() || null,
-        },
         preferences: form.preferences,
-        accessibility: form.accessibility,
       });
+      await refreshUser();
       toast({ title: 'Configuracion guardada' });
       await load();
+      onBack?.();
     } catch {
       setError('No se pudieron guardar los cambios.');
       toast({ title: 'No se pudo guardar', variant: 'destructive' });
@@ -313,59 +384,30 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
             <SectionHeader
               icon={Shield}
               title="Perfil perteneciente"
-              description="Configuracion de apoyo, autonomia y observaciones del perfil."
+              description="Informacion definida por tu tutor o profesional a cargo."
             />
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Nivel de apoyo</Label>
-                <Select
-                  value={String(form.perteneciente.id_nivel_apoyo || '')}
-                  onValueChange={value => updatePerteneciente('id_nivel_apoyo', Number(value))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar nivel" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(settings?.supportLevels || []).map(level => (
-                      <SelectItem key={level.id} value={String(level.id)}>{level.nombre}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Autonomia operativa</Label>
-                <Select
-                  value={String(form.perteneciente.id_autonomia_operativa || '')}
-                  onValueChange={value => updatePerteneciente('id_autonomia_operativa', Number(value))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar autonomia" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(settings?.autonomies || []).map(autonomy => (
-                      <SelectItem key={autonomy.id} value={String(autonomy.id)}>{autonomy.nombre}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="md:col-span-2">
-                <ToggleRow
-                  label="Autogestion habilitada"
-                  description="Permite completar acciones personales sin aprobacion previa."
-                  checked={form.perteneciente.puede_autogestionarse}
-                  onChange={value => updatePerteneciente('puede_autogestionarse', value)}
-                />
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="profile-observation">Observacion general</Label>
-                <Textarea
-                  id="profile-observation"
-                  value={form.perteneciente.observacion_general || ''}
-                  onChange={e => updatePerteneciente('observacion_general', e.target.value)}
-                  rows={4}
-                />
-              </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <ReadOnlyInfo
+                label="Nivel de apoyo"
+                value={settings?.supportLevels.find(level => level.id === form.perteneciente.id_nivel_apoyo)?.nombre || 'Sin registrar'}
+              />
+              <ReadOnlyInfo
+                label="Autonomia operativa"
+                value={settings?.autonomies.find(autonomy => autonomy.id === form.perteneciente.id_autonomia_operativa)?.nombre || 'Sin registrar'}
+              />
+              <ReadOnlyInfo
+                label="Autogestion"
+                value={form.perteneciente.puede_autogestionarse ? 'Habilitada' : 'Asistida'}
+              />
+              <ReadOnlyInfo
+                label="Observacion general"
+                value={form.perteneciente.observacion_general || 'Sin observaciones'}
+                className="md:col-span-2"
+              />
             </div>
+            <p className="mt-3 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
+              Estos datos no se editan desde tu cuenta porque requieren criterio de tu red de apoyo.
+            </p>
           </section>
           )}
 
@@ -392,28 +434,11 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
             <SectionHeader
               icon={Eye}
               title="Accesibilidad"
-              description="Preferencias visuales personales."
+              description="Perfil cargado automaticamente desde la burbuja de accesibilidad."
             />
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-2 rounded-lg border border-border bg-background p-3">
-                <Label>Tamanio de texto</Label>
-                <Select
-                  value={form.accessibility.tamanio_texto}
-                  onValueChange={value => updateAccessibility('tamanio_texto', value as FormState['accessibility']['tamanio_texto'])}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="normal">Normal</SelectItem>
-                    <SelectItem value="grande">Grande</SelectItem>
-                    <SelectItem value="muy_grande">Muy grande</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <ToggleRow label="Alto contraste" description="Preferencia visual para contraste alto." checked={form.accessibility.contraste_alto} onChange={value => updateAccessibility('contraste_alto', value)} />
-              <ToggleRow label="Reducir movimiento" description="Evitar animaciones intensas." checked={form.accessibility.reducir_movimiento} onChange={value => updateAccessibility('reducir_movimiento', value)} />
-              <ToggleRow label="Pictogramas grandes" description="Mostrar pictogramas con mayor tamano." checked={form.accessibility.pictogramas_grandes} onChange={value => updateAccessibility('pictogramas_grandes', value)} />
+            <AccessibilityProfileSummary settings={accessibilitySettings} />
+            <div className="mt-3 rounded-lg border border-border bg-background p-3 text-xs text-muted-foreground">
+              Para cambiar estos ajustes usa la burbuja flotante de accesibilidad. La configuracion se guarda y se carga automaticamente despues del login.
             </div>
           </section>
           )}
