@@ -7,17 +7,44 @@ import { EmotionsProvider } from '@/contexts/EmotionsContext';
 import { RoutinesProvider } from '@/contexts/RoutinesContext';
 import { CalendarProvider } from '@/contexts/CalendarContext';
 import AccessibilityWidget from '@/components/AccessibilityWidget';
+import Landing from '@/pages/Landing';
 import Login from '@/pages/Login';
 import AppShell from '@/components/AppShell';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useEffect, useState } from 'react';
 import '@/styles/accessibility.css';
 
 const queryClient = new QueryClient();
+type PublicView = 'landing' | 'login' | 'register';
+
+function publicViewFromPath(pathname: string): PublicView {
+  if (pathname === '/login') return 'login';
+  if (pathname === '/signup' || pathname === '/register') return 'register';
+  return 'landing';
+}
 
 function AuthGate() {
   const { isAuthenticated, isLoading } = useAuth();
+  const [publicView, setPublicView] = useState<PublicView>(() => publicViewFromPath(window.location.pathname));
+
+  useEffect(() => {
+    const syncPublicView = () => setPublicView(publicViewFromPath(window.location.pathname));
+
+    window.addEventListener('popstate', syncPublicView);
+    return () => window.removeEventListener('popstate', syncPublicView);
+  }, []);
+
+  const navigatePublic = (nextView: PublicView) => {
+    const path = nextView === 'login' ? '/login' : nextView === 'register' ? '/signup' : '/';
+
+    if (window.location.pathname !== path) {
+      window.history.pushState(null, '', path);
+    }
+
+    setPublicView(nextView);
+  };
 
   if (isLoading) {
     return (
@@ -32,7 +59,19 @@ function AuthGate() {
 
   return (
     <>
-      {isAuthenticated ? <AppShell /> : <Login />}
+      {isAuthenticated ? (
+        <AppShell />
+      ) : publicView === 'landing' ? (
+        <Landing onNavigate={navigatePublic} />
+      ) : (
+        <Login
+          initialView={publicView}
+          onBackToLanding={() => navigatePublic('landing')}
+          onViewChange={view => {
+            if (view === 'login' || view === 'register') navigatePublic(view);
+          }}
+        />
+      )}
       <AccessibilityWidget />
     </>
   );

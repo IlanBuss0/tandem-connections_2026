@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Eye, EyeOff, Sparkles } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,9 +11,15 @@ type SocialProvider = 'google' | 'facebook' | 'apple';
 
 const authGradient = 'linear-gradient(90deg, #6F518E 0%, #C9A7EB 100%)';
 
-export default function Login() {
+type LoginProps = {
+  initialView?: Exclude<AuthView, 'welcome'>;
+  onBackToLanding?: () => void;
+  onViewChange?: (view: AuthView) => void;
+};
+
+export default function Login({ initialView, onBackToLanding, onViewChange }: LoginProps) {
   const { login } = useAuth();
-  const [view, setView] = useState<AuthView>('welcome');
+  const [view, setView] = useState<AuthView>(initialView ?? 'welcome');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [registerName, setRegisterName] = useState('');
@@ -25,6 +31,13 @@ export default function Login() {
   const [error, setError] = useState('');
   const [showCredentials, setShowCredentials] = useState(false);
 
+  useEffect(() => {
+    if (initialView) {
+      setView(initialView);
+      resetFeedback();
+    }
+  }, [initialView]);
+
   const resetFeedback = () => {
     setError('');
     setShowCredentials(false);
@@ -33,6 +46,7 @@ export default function Login() {
   const goTo = (nextView: AuthView) => {
     resetFeedback();
     setView(nextView);
+    onViewChange?.(nextView);
   };
 
   const handleSocialAuth = (provider: SocialProvider) => {
@@ -110,7 +124,14 @@ export default function Login() {
           >
             <button
               type="button"
-              onClick={() => goTo('welcome')}
+              onClick={() => {
+                if (onBackToLanding) {
+                  resetFeedback();
+                  onBackToLanding();
+                } else {
+                  goTo('welcome');
+                }
+              }}
               className="mb-10 flex h-11 w-11 items-center justify-center rounded-full text-[#6F518E] transition hover:bg-[#C9A7EB]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A7EB]"
               aria-label="Volver"
             >
