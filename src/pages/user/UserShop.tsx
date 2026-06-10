@@ -275,6 +275,17 @@ const AVATAR_OPTIONS = {
     { value: 'rizado', label: 'Rizado' },
     { value: 'rapado', label: 'Rapado' },
   ] as Array<{ value: AvatarAppearance['peinado']; label: string }>,
+  colorPelo: [
+    { value: 'castanio', label: 'Castanio', swatch: 'bg-[#724133]' },
+    { value: 'negro', label: 'Negro', swatch: 'bg-[#2c1b18]' },
+    { value: 'rubio', label: 'Rubio', swatch: 'bg-[#d6b370]' },
+    { value: 'rojo', label: 'Rojizo', swatch: 'bg-[#a55728]' },
+  ] as Array<{ value: AvatarAppearance['colorPelo']; label: string; swatch: string }>,
+  expresion: [
+    { value: 'feliz', label: 'Feliz' },
+    { value: 'tranquilo', label: 'Tranquilo' },
+    { value: 'concentrado', label: 'Concentrado' },
+  ] as Array<{ value: AvatarAppearance['expresion']; label: string }>,
 };
 
 function AvatarSettingsTab() {
@@ -350,6 +361,23 @@ function AvatarSettingsTab() {
           <OptionGroup title="Peinado">
             {AVATAR_OPTIONS.peinado.map(option => (
               <OptionButton key={option.value} active={draft.peinado === option.value} onClick={() => update('peinado', option.value)}>
+                {option.label}
+              </OptionButton>
+            ))}
+          </OptionGroup>
+
+          <OptionGroup title="Color de pelo">
+            {AVATAR_OPTIONS.colorPelo.map(option => (
+              <OptionButton key={option.value} active={draft.colorPelo === option.value} onClick={() => update('colorPelo', option.value)}>
+                <span className={`h-4 w-4 rounded-full border border-border ${option.swatch}`} />
+                {option.label}
+              </OptionButton>
+            ))}
+          </OptionGroup>
+
+          <OptionGroup title="Expresion">
+            {AVATAR_OPTIONS.expresion.map(option => (
+              <OptionButton key={option.value} active={draft.expresion === option.value} onClick={() => update('expresion', option.value)}>
                 {option.label}
               </OptionButton>
             ))}

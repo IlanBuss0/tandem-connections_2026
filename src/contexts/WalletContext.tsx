@@ -25,12 +25,16 @@ export type AvatarGender = 'neutral' | 'femenino' | 'masculino';
 export type AvatarSkinTone = 'claro' | 'medio' | 'oscuro';
 export type AvatarFaceShape = 'redonda' | 'ovalada' | 'cuadrada';
 export type AvatarHairStyle = 'corto' | 'largo' | 'rizado' | 'rapado';
+export type AvatarHairColor = 'castanio' | 'negro' | 'rubio' | 'rojo';
+export type AvatarExpression = 'feliz' | 'tranquilo' | 'concentrado';
 
 export interface AvatarAppearance {
   genero: AvatarGender;
   colorPiel: AvatarSkinTone;
   formaCara: AvatarFaceShape;
   peinado: AvatarHairStyle;
+  colorPelo: AvatarHairColor;
+  expresion: AvatarExpression;
 }
 
 export interface WalletState {
@@ -46,6 +50,8 @@ const DEFAULT_APPEARANCE: AvatarAppearance = {
   colorPiel: 'medio',
   formaCara: 'redonda',
   peinado: 'corto',
+  colorPelo: 'castanio',
+  expresion: 'feliz',
 };
 
 const DEFAULT_EQUIPPED: AvatarEquipped = { ropa: 'shirt-blue', fondo: 'bg-default' };
