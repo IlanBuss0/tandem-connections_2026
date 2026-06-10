@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useWallet } from '@/contexts/WalletContext';
 import { motion } from 'framer-motion';
 import {
   AlertCircle,
@@ -36,6 +37,7 @@ const emptyHome: PertenecienteHomeData = {
 
 export default function UserHome({ onNavigate }: Props) {
   const { user } = useAuth();
+  const { state: wallet } = useWallet();
   const [home, setHome] = useState<PertenecienteHomeData>(emptyHome);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -90,7 +92,7 @@ export default function UserHome({ onNavigate }: Props) {
       >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <div className="flex items-center gap-4 min-w-0 flex-1">
-            <AvatarPreview equipped={{}} size={88} />
+            <AvatarPreview equipped={wallet.equipped} appearance={wallet.appearance} size={88} />
             <div className="min-w-0">
               <p className="text-sm font-medium text-primary">Home de perteneciente</p>
               <h2 className="font-heading text-2xl font-bold text-foreground sm:text-3xl">

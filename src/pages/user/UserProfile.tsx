@@ -128,7 +128,7 @@ export default function UserProfile({ onConfigure }: { onConfigure?: () => void 
 
       <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
         <div className="flex flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
-          <AvatarPreview equipped={wallet.equipped} size={136} />
+          <AvatarPreview equipped={wallet.equipped} appearance={wallet.appearance} size={136} />
           <div className="min-w-0 flex-1">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>

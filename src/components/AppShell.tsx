@@ -132,7 +132,7 @@ export default function AppShell() {
               onClick={() => goToTab('shop')}
               className="w-full flex items-center gap-3 p-3 rounded-xl bg-muted/50 mb-4 hover:bg-muted transition-colors text-left"
             >
-              <AvatarPreview equipped={wallet.equipped} size={48} showBackground={false} />
+              <AvatarPreview equipped={wallet.equipped} appearance={wallet.appearance} size={48} showBackground={false} />
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-sm text-foreground truncate">{user.name}</p>
                 <p className="text-xs text-muted-foreground">Nivel {'level' in user ? user.level : 1}</p>
@@ -171,7 +171,7 @@ export default function AppShell() {
           onClick={() => goToTab('shop')}
           className="flex items-center gap-3 p-3 mx-3 mt-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors text-left"
         >
-          <AvatarPreview equipped={wallet.equipped} size={56} showBackground={false} />
+          <AvatarPreview equipped={wallet.equipped} appearance={wallet.appearance} size={56} showBackground={false} />
           <div className="min-w-0 flex-1">
             <p className="font-semibold text-sm text-foreground truncate">{user.name}</p>
             <p className="text-xs text-muted-foreground">Nivel {'level' in user ? user.level : 1}</p>
