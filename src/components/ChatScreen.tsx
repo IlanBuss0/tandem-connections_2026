@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { ContactPerson, useChat } from '@/contexts/ChatContext';
-import { ChatMessage, Conversation, fetchConversationsForUser, fetchMessagesForConversationAsUser } from '@/data/api';
+import { ChatMessage, Conversation, fetchConversationsForUser, fetchMessagesForConversationAsUser, fetchPermissionContext } from '@/data/api';
 import { ArrowLeft, Send, Plus, Search, X, MessageCircle, Pencil, Trash2, Check, Users } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -82,6 +82,7 @@ export default function ChatScreen({
   const [manageAdminIds, setManageAdminIds] = useState<string[]>([]);
   const [showAddParticipants, setShowAddParticipants] = useState(false);
   const [savingManage, setSavingManage] = useState(false);
+  const [canSendMessages, setCanSendMessages] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const resolvedProfileId = activeProfileId || user?.id || '';
@@ -95,6 +96,29 @@ export default function ChatScreen({
     if (!user) return;
     setActiveProfileId(defaultProfileId || String(user.id));
   }, [defaultProfileId, user?.id]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    if (!user || user.role !== 'user') {
+      setCanSendMessages(true);
+      return;
+    }
+
+    fetchPermissionContext()
+      .then(context => {
+        if (!mounted) return;
+        const allowed = context.perteneciente?.permisos_efectivos?.permisos?.EnviarMensajes?.habilitado;
+        setCanSendMessages(allowed !== false);
+      })
+      .catch(() => {
+        if (mounted) setCanSendMessages(true);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [user?.id, user?.role]);
 
   useEffect(() => {
     setSelectedId(null);
@@ -217,7 +241,7 @@ export default function ChatScreen({
 
   const sendNow = (txt?: string) => {
     const text = txt ?? draft;
-    if (!text.trim() || !selectedConv) return;
+    if (!text.trim() || !selectedConv || !canSendMessages) return;
     send(selectedConv.id, text);
     setDraft('');
   };
@@ -417,7 +441,7 @@ export default function ChatScreen({
           <div ref={messagesEndRef} />
         </div>
 
-        {canActAsCurrentUser && (
+        {canActAsCurrentUser && canSendMessages && (
         <>
         <div className="flex gap-1.5 overflow-x-auto py-2 -mx-1 px-1">
           {quickReplies.map(qr => (
@@ -430,6 +454,11 @@ export default function ChatScreen({
           <button onClick={() => sendNow()} className="w-10 h-10 rounded-full gradient-primary text-primary-foreground flex items-center justify-center shrink-0" aria-label="Enviar"><Send size={16} /></button>
         </div>
         </>
+        )}
+        {canActAsCurrentUser && !canSendMessages && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-center text-xs font-medium text-amber-800">
+            Mensajes deshabilitados por tu tutor.
+          </div>
         )}
         {!canActAsCurrentUser && (
           <div className="rounded-lg border border-border bg-muted/40 p-3 text-center text-xs text-muted-foreground">

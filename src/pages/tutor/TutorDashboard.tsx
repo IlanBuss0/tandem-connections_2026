@@ -25,6 +25,7 @@ import {
   TrendingUp,
   Trash2,
   UserRound,
+  Users,
   X,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -39,6 +40,7 @@ import ChatScreen from '@/components/ChatScreen';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
 import UserNotifications from '@/pages/user/UserNotifications';
+import TutorConnections from '@/pages/tutor/TutorConnections';
 import {
   createCalendarEvent,
   deleteCalendarEvent,
@@ -60,6 +62,7 @@ import { toast } from '@/hooks/ui/use-toast';
 
 type TabId =
   | 'overview'
+  | 'connections'
   | 'stats'
   | 'agenda'
   | 'activities'
@@ -74,6 +77,7 @@ type TabId =
 
 const tabs: { id: TabId; label: string; icon: typeof BarChart3 }[] = [
   { id: 'overview', label: 'Resumen', icon: BarChart3 },
+  { id: 'connections', label: 'Vinculos', icon: Users },
   { id: 'stats', label: 'Estadisticas', icon: TrendingUp },
   { id: 'agenda', label: 'Agenda', icon: Clock },
   { id: 'activities', label: 'Actividades', icon: Sparkles },
@@ -217,7 +221,7 @@ export default function TutorDashboard() {
 
   if (!user || user.role !== 'tutor') return null;
 
-  const primaryTabs = tabs.filter(item => ['overview', 'calendar', 'activities', 'chat', 'profile'].includes(item.id));
+  const primaryTabs = tabs.filter(item => ['overview', 'connections', 'calendar', 'activities', 'chat', 'profile'].includes(item.id));
   const secondaryTabs = tabs.filter(item => !primaryTabs.some(primary => primary.id === item.id));
   const chatProfiles = [
     { id: String(user.id), name: user.name, avatar: (user as any).avatar, label: 'Tutor' },
@@ -468,7 +472,7 @@ export default function TutorDashboard() {
           </div>
         )}
 
-        {!loading && !error && !mainUser && tab !== 'notifications' && (
+        {!loading && !error && !mainUser && tab !== 'notifications' && tab !== 'connections' && (
           <div className="bg-card rounded-xl border border-border p-8 text-center">
             <Shield size={30} className="mx-auto text-muted-foreground mb-3" />
             <p className="font-semibold text-foreground">No hay pertenecientes vinculados</p>
@@ -486,7 +490,11 @@ export default function TutorDashboard() {
           <ChatScreen profiles={chatProfiles} defaultProfileId={String(user.id)} />
         )}
 
-        {!loading && !error && mainUser && tab !== 'notifications' && tab !== 'chat' && (
+        {!loading && !error && tab === 'connections' && (
+          <TutorConnections />
+        )}
+
+        {!loading && !error && mainUser && tab !== 'notifications' && tab !== 'chat' && tab !== 'connections' && (
           <>
             <div className="bg-card rounded-xl p-4 border border-border flex items-center gap-4">
               <span className="text-4xl">{mainUser.avatar}</span>
@@ -535,7 +543,7 @@ export default function TutorDashboard() {
       </div>
 
       <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur md:hidden">
-        <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
+        <div className="mx-auto grid max-w-lg grid-cols-6 gap-1">
           {primaryTabs.map(item => (
             <button
               key={item.id}

@@ -1,6 +1,6 @@
 import * as legacy from './mockData';
 import { tandemApi } from '@/services/api';
-import { API_BASE_URL, apiRequest } from '@/services/api/client';
+import { API_BASE_URL, apiRequest, unwrapApiData } from '@/services/api/client';
 import type {
   Actividad as DbActividad,
   ActividadAsignada as DbActividadAsignada,
@@ -57,6 +57,95 @@ export interface ChatContact {
   role: 'user' | 'tutor' | 'profesional';
   subtitle?: string;
 }
+
+export type EffectivePermission = {
+  habilitado: boolean;
+  source: 'otorgado' | 'default' | string;
+};
+
+export type EffectivePertenecientePermissions = {
+  id_perteneciente: number;
+  puede_autogestionarse: boolean;
+  mode: string;
+  permisos: Record<string, EffectivePermission>;
+};
+
+export type EffectiveProfessionalPermissions = {
+  id_vinculo_profesional_perteneciente: number;
+  vinculo_aprobado: boolean;
+  permisos: Record<string, EffectivePermission>;
+};
+
+export type PermissionContextUser = {
+  id: number;
+  nombre_usuario: string;
+  nombre: string;
+  apellido: string;
+  correo: string;
+  activo: boolean;
+};
+
+export type TutorPermissionContextPerteneciente = {
+  id: number;
+  usuario: PermissionContextUser;
+  perteneciente: DbPerteneciente;
+  vinculo: {
+    id: number;
+    id_tutor: number;
+    id_perteneciente: number;
+    es_tutor_principal: boolean;
+    id_estado_vinculo: number;
+    estado_vinculo: string;
+    fecha_alta: string;
+    fecha_fin: string | null;
+  };
+  permisos_efectivos: EffectivePertenecientePermissions;
+  profesionales_vinculados?: Array<{
+    id_vinculo: number;
+    profesional: {
+      id: number;
+      id_usuario: number;
+      usuario: PermissionContextUser;
+      profesion: string;
+      especialidad: string | null;
+      matricula: string;
+      institucion: string | null;
+      id_estado_validacion: number;
+      estado_validacion: string | null;
+    };
+    vinculo: {
+      id: number;
+      id_profesional: number;
+      id_perteneciente: number;
+      id_estado_vinculo: number;
+      estado_vinculo: string;
+      requiere_aprobacion_tutor: boolean;
+      fue_aprobado_por_tutor: boolean;
+      id_tutor_aprobador: number | null;
+      fecha_solicitud: string;
+      fecha_resolucion: string | null;
+    };
+    permisos_efectivos: EffectiveProfessionalPermissions;
+  }>;
+};
+
+export type PermissionContext = {
+  rol: string;
+  roles: string[];
+  usuario: PermissionContextUser;
+  tutor?: DbTutor;
+  pertenecientes?: TutorPermissionContextPerteneciente[];
+  perteneciente?: DbPerteneciente & { permisos_efectivos: EffectivePertenecientePermissions };
+  profesional?: DbProfesional;
+  vinculos?: Array<{
+    id_vinculo: number;
+    perteneciente: DbPerteneciente & { usuario: PermissionContextUser };
+    vinculo: DbVinculoProfesionalPerteneciente & { estado_vinculo?: string };
+    permisos_efectivos: EffectiveProfessionalPermissions;
+  }>;
+};
+
+export type PermissionPatchResult = EffectivePertenecientePermissions | EffectiveProfessionalPermissions;
 
 export interface AchievementDashboard {
   achievements: Achievement[];
@@ -287,6 +376,68 @@ export function clearStoredAuthToken(): void {
   localStorage.removeItem('tandem_auth_token');
 }
 
+export async function fetchPermissionContext(): Promise<PermissionContext> {
+  const token = getStoredAuthToken();
+  if (!token) throw new Error('Token requerido para consultar permisos.');
+
+  const response = await apiRequest<{ ok: true; data: PermissionContext }>('/api/permisos/contexto', { token });
+  return unwrapApiData(response);
+}
+
+export async function setPertenecientePermissionByName(
+  idPerteneciente: number,
+  permiso: string,
+  habilitado: boolean,
+  motivo = 'Actualizado desde frontend',
+): Promise<PermissionPatchResult> {
+  const token = getStoredAuthToken();
+  if (!token) throw new Error('Token requerido para modificar permisos.');
+
+  const response = await apiRequest<{ ok: true; data: PermissionPatchResult }>(
+    `/api/permisos/perteneciente/${encodeURIComponent(String(idPerteneciente))}`,
+    {
+      method: 'PATCH',
+      token,
+      body: { permiso, habilitado, motivo },
+    },
+  );
+
+  return unwrapApiData(response);
+}
+
+export async function setProfessionalPermissionByName(
+  idVinculo: number,
+  permiso: string,
+  habilitado: boolean,
+  motivo = 'Actualizado desde frontend',
+): Promise<PermissionPatchResult> {
+  const token = getStoredAuthToken();
+  if (!token) throw new Error('Token requerido para modificar permisos.');
+
+  const response = await apiRequest<{ ok: true; data: PermissionPatchResult }>(
+    `/api/permisos/profesional-vinculo/${encodeURIComponent(String(idVinculo))}`,
+    {
+      method: 'PATCH',
+      token,
+      body: { permiso, habilitado, motivo },
+    },
+  );
+
+  return unwrapApiData(response);
+}
+
+export async function fetchAssignedActivitiesByPerteneciente(
+  idPerteneciente: number,
+  token = getStoredAuthToken(),
+): Promise<DbActividadAsignada[]> {
+  if (!token) return [];
+
+  return apiRequest<DbActividadAsignada[]>(
+    `/api/actividades-asignadas?id_perteneciente=${encodeURIComponent(String(idPerteneciente))}`,
+    { token },
+  );
+}
+
 function formatChatTime(value?: string | null): string {
   if (!value) return '';
   const date = new Date(value);
@@ -428,9 +579,8 @@ function formatBackendDate(value?: string | null) {
 
 async function fetchBackendAchievementDashboard(userId: string): Promise<AchievementDashboard> {
   const idUsuario = Number(userId);
-  const [pertenecientes, assigned, saldos, avatares, configs] = await Promise.all([
+  const [pertenecientes, saldos, avatares, configs] = await Promise.all([
     tandemApi.pertenecientes.getAll(),
-    tandemApi.actividadesAsignadas.getAll(),
     tandemApi.saldosPuntos.getAll(),
     tandemApi.avatares.getAll(),
     tandemApi.configuracionesUsuarios.getAll(),
@@ -438,9 +588,7 @@ async function fetchBackendAchievementDashboard(userId: string): Promise<Achieve
 
   const perteneciente = pertenecientes.find((item) => item.id_usuario === idUsuario);
   const idPerteneciente = perteneciente?.id;
-  const assignedForUser = idPerteneciente
-    ? assigned.filter((item) => item.id_perteneciente === idPerteneciente)
-    : [];
+  const assignedForUser = idPerteneciente ? await fetchAssignedActivitiesByPerteneciente(idPerteneciente) : [];
   const completed = assignedForUser.filter((item) => item.fecha_completada || item.id_estado_actividad === 3);
   const completedDates = completed
     .map((item) => item.fecha_completada || item.fecha_asignacion)
@@ -731,7 +879,6 @@ export async function fetchPertenecienteHome(userId: string): Promise<Pertenecie
   const [
     asignadas,
     actividades,
-    personalizadas,
     estados,
     notificaciones,
     saldos,
@@ -739,9 +886,8 @@ export async function fetchPertenecienteHome(userId: string): Promise<Pertenecie
     nivelesApoyo,
     autonomias,
   ] = await Promise.all([
-    tandemApi.actividadesAsignadas.getAll(),
+    fetchAssignedActivitiesByPerteneciente(Number(perteneciente.id)),
     tandemApi.actividades.getAll(),
-    tandemApi.actividadesPersonalizadas.getAll(),
     tandemApi.estadosActividades.getAll(),
     tandemApi.notificaciones.getAll(),
     tandemApi.saldosPuntos.getAll(),
@@ -751,7 +897,7 @@ export async function fetchPertenecienteHome(userId: string): Promise<Pertenecie
   ]);
 
   const activitiesById = new Map((actividades as DbActividad[]).map(a => [Number(a.id), a]));
-  const customById = new Map((personalizadas as DbActividadPersonalizada[]).map(a => [Number(a.id), a]));
+  const customById = new Map<number, DbActividadPersonalizada>();
   const statusById = new Map((estados as DbEstadoActividad[]).map(e => [Number(e.id), e]));
   const saldo = (saldos as DbSaldoPuntos[]).find(s => Number(s.id_perteneciente) === Number(perteneciente.id));
   const avatar = (avatares as DbAvatar[]).find(a => Number(a.id_perteneciente) === Number(perteneciente.id));
@@ -813,15 +959,11 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
     autonomias,
     saldos,
     avatares,
-    asignadas,
     actividades,
-    personalizadas,
     estadosActividades,
     puntosOtorgados,
     notificaciones,
     zonasSeguras,
-    dispositivos,
-    ubicacionesActuales,
   ] = await Promise.all([
     tandemApi.usuarios.getAll(),
     tandemApi.tutores.getAll(),
@@ -832,15 +974,11 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
     tandemApi.autonomiasOperativas.getAll(),
     tandemApi.saldosPuntos.getAll(),
     tandemApi.avatares.getAll(),
-    tandemApi.actividadesAsignadas.getAll(),
     tandemApi.actividades.getAll(),
-    tandemApi.actividadesPersonalizadas.getAll(),
     tandemApi.estadosActividades.getAll(),
     tandemApi.puntosOtorgados.getAll(),
     tandemApi.notificaciones.getAll(),
     tandemApi.zonasSeguras.getAll(),
-    tandemApi.dispositivos.getAll(),
-    tandemApi.ubicacionesActuales.getAll(),
   ]);
 
   const tutor = (tutores as DbTutor[]).find(item => Number(item.id_usuario) === idUsuarioTutor);
@@ -855,11 +993,9 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
   const supportById = new Map((nivelesApoyo as DbNivelApoyo[]).map(item => [Number(item.id), item.nombre]));
   const autonomyById = new Map((autonomias as DbAutonomiaOperativa[]).map(item => [Number(item.id), item.nombre]));
   const activityById = new Map((actividades as DbActividad[]).map(item => [Number(item.id), item]));
-  const customActivityById = new Map((personalizadas as DbActividadPersonalizada[]).map(item => [Number(item.id), item]));
+  const customActivityById = new Map<number, DbActividadPersonalizada>();
   const activityStatusById = new Map((estadosActividades as DbEstadoActividad[]).map(item => [Number(item.id), item]));
   const pointById = new Map((puntosOtorgados as DbPuntoOtorgado[]).map(item => [Number(item.id), item]));
-  const deviceByUserId = new Map((dispositivos as DbDispositivo[]).map(item => [Number(item.id_usuario), item]));
-  const currentLocationByDeviceId = new Map((ubicacionesActuales as DbUbicacionActual[]).map(item => [Number(item.id_dispositivo), item]));
 
   const activeLinks = (vinculosTutor as DbVinculoTutorPerteneciente[])
     .filter(link => Number(link.id_tutor) === Number(tutor.id))
@@ -874,16 +1010,12 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
       const legacy = toLegacyUser(usuario) as User;
       const saldo = (saldos as DbSaldoPuntos[]).find(item => Number(item.id_perteneciente) === Number(perteneciente.id));
       const avatar = (avatares as DbAvatar[]).find(item => Number(item.id_perteneciente) === Number(perteneciente.id));
-      const completedCount = (asignadas as DbActividadAsignada[])
-        .filter(item => Number(item.id_perteneciente) === Number(perteneciente.id))
-        .filter(item => isCompletedStatus(activityStatusById.get(Number(item.id_estado_actividad)), item))
-        .length;
 
       return {
         ...legacy,
         points: saldo?.saldo ?? legacy.points,
         level: avatar?.nivel ?? legacy.level,
-        streak: completedCount,
+        streak: legacy.streak,
         pertenecienteId: Number(perteneciente.id),
         linkId: Number(link.id),
         linkStatus: statusById.get(Number(link.id_estado_vinculo)) || 'Sin estado',
@@ -900,8 +1032,8 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
   const byUserId: TutorHomeData['byUserId'] = {};
 
   await Promise.all(linkedUsers.map(async linked => {
-    const assignedForUser = (asignadas as DbActividadAsignada[])
-      .filter(item => Number(item.id_perteneciente) === Number(linked.pertenecienteId))
+    const assignedRows = await fetchAssignedActivitiesByPerteneciente(Number(linked.pertenecienteId));
+    const assignedForUser = assignedRows
       .sort((a, b) => String(b.fecha_asignacion || '').localeCompare(String(a.fecha_asignacion || '')))
       .map(item => {
         const base = item.id_actividad ? activityById.get(Number(item.id_actividad)) : undefined;
@@ -925,8 +1057,6 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
         } satisfies TutorHomeActivity;
       });
 
-    const device = deviceByUserId.get(Number(linked.id));
-    const currentLocation = device ? currentLocationByDeviceId.get(Number(device.id)) : undefined;
     const safeZones = (zonasSeguras as DbZonaSegura[])
       .filter(item => Number(item.id_perteneciente) === Number(linked.pertenecienteId) && item.activa)
       .map(item => ({
@@ -941,13 +1071,6 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
       emotions: await fetchEmotionRecordsForUser(linked.id).catch(() => []),
       events: await fetchCalendarEventsForUser(linked.id).catch(() => []),
       locations: [
-        ...(currentLocation ? [{
-          id: `current-${currentLocation.id}`,
-          name: device?.nombre || 'Ubicacion actual',
-          address: `${Number(currentLocation.latitud).toFixed(5)}, ${Number(currentLocation.longitud).toFixed(5)}`,
-          type: 'actual' as const,
-          timestamp: formatBackendDate(currentLocation.fecha_registro),
-        }] : []),
         ...safeZones,
       ],
       notifications: (notificaciones as DbNotificacion[])
@@ -967,21 +1090,20 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
 export async function fetchActivitiesForUser(userId: string): Promise<Activity[]> {
   try {
     const numericUserId = Number(userId);
-    const [pertenecientes, asignadas, actividades, personalizadas, estados] = await Promise.all([
+    const [pertenecientes, actividades, estados] = await Promise.all([
       tandemApi.pertenecientes.getAll(),
-      tandemApi.actividadesAsignadas.getAll(),
       tandemApi.actividades.getAll(),
-      tandemApi.actividadesPersonalizadas.getAll(),
       tandemApi.estadosActividades.getAll(),
     ]);
     const perteneciente = pertenecientes.find(item => Number(item.id_usuario) === numericUserId);
     if (!perteneciente) return [];
 
+    const asignadas = await fetchAssignedActivitiesByPerteneciente(Number(perteneciente.id));
     const activityById = new Map((actividades as DbActividad[]).map(item => [Number(item.id), item]));
-    const customById = new Map((personalizadas as DbActividadPersonalizada[]).map(item => [Number(item.id), item]));
+    const customById = new Map<number, DbActividadPersonalizada>();
     const statusById = new Map((estados as DbEstadoActividad[]).map(item => [Number(item.id), item]));
 
-    return (asignadas as DbActividadAsignada[])
+    return asignadas
       .filter(item => Number(item.id_perteneciente) === Number(perteneciente.id))
       .sort((a, b) => String(b.fecha_asignacion || '').localeCompare(String(a.fecha_asignacion || '')))
       .map(item => {
@@ -1004,13 +1126,10 @@ export async function completeAssignedActivity(activity: Activity, userId: strin
     const numericUserId = Number(userId);
     const backendCustomActivityId = Number((activity as any).backendCustomActivityId || (activity as any).backendId);
     const backendActivityId = Number((activity as any).backendActivityId);
-    const [pertenecientes, asignadas] = await Promise.all([
-      tandemApi.pertenecientes.getAll(),
-      tandemApi.actividadesAsignadas.getAll(),
-    ]);
+    const pertenecientes = await tandemApi.pertenecientes.getAll();
     const perteneciente = pertenecientes.find(item => Number(item.id_usuario) === numericUserId);
-    const assignment = (asignadas as DbActividadAsignada[]).find(item =>
-      Number(item.id_perteneciente) === Number(perteneciente?.id) &&
+    const asignadas = perteneciente ? await fetchAssignedActivitiesByPerteneciente(Number(perteneciente.id)) : [];
+    const assignment = asignadas.find(item =>
       (
         (Number.isFinite(backendCustomActivityId) && Number(item.id_actividad_personalizada) === backendCustomActivityId) ||
         (Number.isFinite(backendActivityId) && Number(item.id_actividad) === backendActivityId)
@@ -1020,8 +1139,9 @@ export async function completeAssignedActivity(activity: Activity, userId: strin
   }
   if (!Number.isFinite(assignedActivityId)) return;
 
+  const token = getStoredAuthToken();
   const [assignment, estados] = await Promise.all([
-    tandemApi.actividadesAsignadas.getById(assignedActivityId),
+    tandemApi.actividadesAsignadas.getById(assignedActivityId, { token }),
     tandemApi.estadosActividades.getAll(),
   ]);
   const completedStatus = (estados as DbEstadoActividad[]).find(item =>
@@ -1032,7 +1152,7 @@ export async function completeAssignedActivity(activity: Activity, userId: strin
     ...assignment,
     id_estado_actividad: completedStatus?.id || 3,
     fecha_completada: new Date().toISOString(),
-  });
+  }, { token });
 }
 
 export async function fetchNotificationsForUser(userId: string): Promise<Notification[]> {

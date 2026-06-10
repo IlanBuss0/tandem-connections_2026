@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
-import { completeAssignedActivity, type Activity, type ActivityCategory, type ActivityType } from '@/data/api';
+import { completeAssignedActivity, fetchAssignedActivitiesByPerteneciente, type Activity, type ActivityCategory, type ActivityType } from '@/data/api';
 import { tandemApi } from '@/services/api';
 
 export interface CustomActivity extends Activity {
@@ -58,17 +58,15 @@ async function assignBackendActivity(backendId: number, assignedToIds: string[],
   const numericAssignerId = Number(assignerUserId);
   if (!Number.isFinite(numericAssignerId)) return;
 
-  const [pertenecienteIds, currentAssignments] = await Promise.all([
-    resolvePertenecienteIds(assignedToIds),
-    tandemApi.actividadesAsignadas.getAll().catch(() => []),
-  ]);
+  const pertenecienteIds = await resolvePertenecienteIds(assignedToIds);
 
-  await Promise.all(pertenecienteIds.map((idPerteneciente) => {
+  await Promise.all(pertenecienteIds.map(async (idPerteneciente) => {
+    const currentAssignments = await fetchAssignedActivitiesByPerteneciente(idPerteneciente).catch(() => []);
     const alreadyAssigned = currentAssignments.some((item) =>
       Number(item.id_actividad_personalizada) === Number(backendId) &&
       Number(item.id_perteneciente) === Number(idPerteneciente)
     );
-    if (alreadyAssigned) return Promise.resolve(null);
+    if (alreadyAssigned) return null;
     return tandemApi.actividadesAsignadas.create({
       id_actividad: null,
       id_actividad_personalizada: backendId,
