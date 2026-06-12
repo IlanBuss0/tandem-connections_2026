@@ -16,18 +16,19 @@ export interface CoinTxn {
 
 export interface AvatarEquipped {
   pelo?: string;
-  accesorio?: string;
+  accenorio?: string;
   ropa?: string;
   fondo?: string;
   mascota?: string;
 }
 
-export type AvatarGender = 'neutral' | 'femenino' | 'masculino';
+export type AvatarGender = 'neutral' | 'femenino' | 'masculino' | 'enojado' | 'triste' | 'arribaAbajo' | 'ceno';
 export type AvatarSkinTone = 'claro' | 'medio' | 'oscuro';
-export type AvatarFaceShape = 'redonda' | 'ovalada' | 'cuadrada';
-export type AvatarHairStyle = 'corto' | 'largo' | 'rizado' | 'rapado';
+export type AvatarFaceShape = 'redonda' | 'ovalada' | 'cuadrada' | 'cerrados' | 'guino' | 'corazones' | 'sorprendidos' | 'llanto';
+export type AvatarHairStyle = 'corto' | 'largo' | 'rizado' | 'rapado' | 'cortoLiso' | 'mediaMelena' | 'despeinado' | 'afro' | 'bun' | 'trenzas';
 export type AvatarHairColor = 'castanio' | 'negro' | 'rubio' | 'rojo';
-export type AvatarExpression = 'feliz' | 'tranquilo' | 'concentrado';
+export type AvatarExpression = 'feliz' | 'tranquilo' | 'concentrado' | 'preocupado' | 'triste' | 'sorprendido' | 'lengua' | 'descreido';
+export type AvatarClothing = 'hoodie' | 'blazerCamisa' | 'blazerSueter' | 'cuelloSueter' | 'remeraGrafica' | 'overall' | 'remeraCuelloRedondo' | 'remeraEscote' | 'remeraCuelloV';
 
 export interface AvatarAppearance {
   genero: AvatarGender;
@@ -36,6 +37,7 @@ export interface AvatarAppearance {
   peinado: AvatarHairStyle;
   colorPelo: AvatarHairColor;
   expresion: AvatarExpression;
+  ropa: AvatarClothing;
 }
 
 export interface WalletState {
@@ -53,6 +55,7 @@ const DEFAULT_APPEARANCE: AvatarAppearance = {
   peinado: 'corto',
   colorPelo: 'castanio',
   expresion: 'feliz',
+  ropa: 'hoodie',
 };
 
 const DEFAULT_EQUIPPED: AvatarEquipped = { ropa: 'shirt-blue', fondo: 'bg-default' };
@@ -61,7 +64,7 @@ const KEY = (userId: string) => `tandem:wallet:${userId}`;
 
 const TYPE_BY_CATEGORY: Record<ShopCategory, string> = {
   pelo: 'Sombrero',
-  accesorio: 'Accesorio',
+  accenorio: 'Accenorio',
   ropa: 'Ropa',
   fondo: 'Fondo',
   mascota: 'Mascota',

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { AlertCircle, Backpack, Check, Coins, Loader2, Lock, RotateCcw, Save, Settings, ShoppingBag, Sparkles } from 'lucide-react';
-import { AvatarAppearance, useWallet } from '@/contexts/WalletContext';
+import { AvatarAppearance, AvatarClothing, useWallet } from '@/contexts/WalletContext';
 import { CATEGORY_LABELS, RARITY_STYLES, SHOP_ITEMS, ShopCategory } from '@/data/shopItems';
 import AvatarPreview from '@/components/AvatarPreview';
 import CoinBadge from '@/components/CoinBadge';
@@ -273,9 +273,13 @@ function AvatarTab() {
 
 const AVATAR_OPTIONS = {
   genero: [
-    { value: 'neutral', label: 'Neutral' },
-    { value: 'femenino', label: 'Femenino' },
-    { value: 'masculino', label: 'Masculino' },
+    { value: 'neutral', label: 'Por defecto' },
+    { value: 'femenino', label: 'Arqueadas' },
+    { value: 'masculino', label: 'Naturales' },
+    { value: 'enojado', label: 'Enojadas' },
+    { value: 'triste', label: 'Tristes' },
+    { value: 'arribaAbajo', label: 'Sube y baja' },
+    { value: 'ce�o', label: 'Fruncidas' },
   ] as Array<{ value: AvatarAppearance['genero']; label: string }>,
   colorPiel: [
     { value: 'claro', label: 'Claro', swatch: 'bg-[#f2c9a0]' },
@@ -283,14 +287,25 @@ const AVATAR_OPTIONS = {
     { value: 'oscuro', label: 'Oscuro', swatch: 'bg-[#7a4a31]' },
   ] as Array<{ value: AvatarAppearance['colorPiel']; label: string; swatch: string }>,
   formaCara: [
-    { value: 'redonda', label: 'Redonda' },
-    { value: 'ovalada', label: 'Ovalada' },
-    { value: 'cuadrada', label: 'Cuadrada' },
+    { value: 'redonda', label: 'Felices' },
+    { value: 'ovalada', label: 'Normales' },
+    { value: 'cuadrada', label: 'Entornados' },
+    { value: 'cerrados', label: 'Cerrados' },
+    { value: 'guino', label: 'Gui�o' },
+    { value: 'corazones', label: 'Corazones' },
+    { value: 'sorprendidos', label: 'Sorprendidos' },
+    { value: 'llanto', label: 'Llanto' },
   ] as Array<{ value: AvatarAppearance['formaCara']; label: string }>,
   peinado: [
     { value: 'corto', label: 'Corto' },
+    { value: 'cortoLiso', label: 'Corto liso' },
+    { value: 'mediaMelena', label: 'Media melena' },
     { value: 'largo', label: 'Largo' },
     { value: 'rizado', label: 'Rizado' },
+    { value: 'despeinado', label: 'Despeinado' },
+    { value: 'afro', label: 'Afro' },
+    { value: 'bun', label: 'Mo�o' },
+    { value: 'trenzas', label: 'Trenzas' },
     { value: 'rapado', label: 'Rapado' },
   ] as Array<{ value: AvatarAppearance['peinado']; label: string }>,
   colorPelo: [
@@ -300,10 +315,26 @@ const AVATAR_OPTIONS = {
     { value: 'rojo', label: 'Rojizo', swatch: 'bg-[#a55728]' },
   ] as Array<{ value: AvatarAppearance['colorPelo']; label: string; swatch: string }>,
   expresion: [
-    { value: 'feliz', label: 'Feliz' },
-    { value: 'tranquilo', label: 'Tranquilo' },
-    { value: 'concentrado', label: 'Concentrado' },
+    { value: 'feliz', label: 'Sonrisa' },
+    { value: 'tranquilo', label: 'Tranquila' },
+    { value: 'concentrado', label: 'Serio' },
+    { value: 'preocupado', label: 'Preocupado' },
+    { value: 'triste', label: 'Triste' },
+    { value: 'sorprendido', label: 'Sorprendido' },
+    { value: 'lengua', label: 'Lengua' },
+    { value: 'descreido', label: 'Descre�do' },
   ] as Array<{ value: AvatarAppearance['expresion']; label: string }>,
+  ropa: [
+    { value: 'hoodie', label: 'Buzo' },
+    { value: 'blazerCamisa', label: 'Blazer + camisa' },
+    { value: 'blazerSueter', label: 'Blazer + sweater' },
+    { value: 'cuelloSueter', label: 'Cuello + sweater' },
+    { value: 'remeraGrafica', label: 'Remera gr�fica' },
+    { value: 'overall', label: 'Overol' },
+    { value: 'remeraCuelloRedondo', label: 'Remera c. redondo' },
+    { value: 'remeraEscote', label: 'Remera escote' },
+    { value: 'remeraCuelloV', label: 'Remera c. V' },
+  ] as Array<{ value: AvatarClothing; label: string }>,
 };
 
 function AvatarSettingsTab() {
@@ -351,7 +382,7 @@ function AvatarSettingsTab() {
         </div>
 
         <div className="space-y-5">
-          <OptionGroup title="Genero">
+          <OptionGroup title="Cejas">
             {AVATAR_OPTIONS.genero.map(option => (
               <OptionButton key={option.value} active={draft.genero === option.value} onClick={() => update('genero', option.value)}>
                 {option.label}
@@ -368,7 +399,7 @@ function AvatarSettingsTab() {
             ))}
           </OptionGroup>
 
-          <OptionGroup title="Forma de la cara">
+          <OptionGroup title="Ojos">
             {AVATAR_OPTIONS.formaCara.map(option => (
               <OptionButton key={option.value} active={draft.formaCara === option.value} onClick={() => update('formaCara', option.value)}>
                 {option.label}
@@ -393,9 +424,17 @@ function AvatarSettingsTab() {
             ))}
           </OptionGroup>
 
-          <OptionGroup title="Expresion">
+          <OptionGroup title="Boca">
             {AVATAR_OPTIONS.expresion.map(option => (
               <OptionButton key={option.value} active={draft.expresion === option.value} onClick={() => update('expresion', option.value)}>
+                {option.label}
+              </OptionButton>
+            ))}
+          </OptionGroup>
+
+          <OptionGroup title="Vestimenta">
+            {AVATAR_OPTIONS.ropa.map(option => (
+              <OptionButton key={option.value} active={draft.ropa === option.value} onClick={() => update('ropa', option.value)}>
                 {option.label}
               </OptionButton>
             ))}

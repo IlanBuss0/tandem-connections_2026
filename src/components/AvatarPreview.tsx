@@ -43,7 +43,6 @@ export default function AvatarPreview({
         alt=""
         width={size}
         height={size}
-        loading="lazy"
         className="absolute inset-0 h-full w-full select-none object-cover pointer-events-none"
         draggable={false}
       />

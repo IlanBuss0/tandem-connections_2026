@@ -1,4 +1,4 @@
-import type { AvatarAppearance, AvatarEquipped } from '@/contexts/WalletContext';
+import type { AvatarAppearance, AvatarEquipped, AvatarClothing } from '@/contexts/WalletContext';
 
 const API_BASE = 'https://api.dicebear.com/9.x/avataaars';
 
@@ -10,40 +10,36 @@ const SKIN_COLOR: Record<AvatarAppearance['colorPiel'], string> = {
 
 const HAIR_STYLE: Record<AvatarAppearance['peinado'], string> = {
   corto: 'shortWaved',
+  cortoLiso: 'shortFlat',
+  mediaMelena: 'straight01',
   largo: 'straight02',
   rizado: 'curly',
+  despeinado: 'shaggy',
+  afro: 'fro',
+  bun: 'bun',
+  trenzas: 'frida',
   rapado: 'hat',
 };
 
 const GENDER_PRESET: Record<AvatarAppearance['genero'], Partial<Record<string, string>>> = {
-  neutral: {
-    eyebrows: 'default',
-    mouth: 'smile',
-  },
-  femenino: {
-    eyebrows: 'raisedExcited',
-    mouth: 'smile',
-  },
-  masculino: {
-    eyebrows: 'defaultNatural',
-    mouth: 'smile',
-    facialHair: 'beardLight',
-  },
+  neutral: { eyebrows: 'default' },
+  femenino: { eyebrows: 'raisedExcited' },
+  masculino: { eyebrows: 'defaultNatural' },
+  enojado: { eyebrows: 'angry' },
+  triste: { eyebrows: 'sadConcerned' },
+  arribaAbajo: { eyebrows: 'upDown' },
+  ceno: { eyebrows: 'frownNatural' },
 };
 
 const FACE_PRESET: Record<AvatarAppearance['formaCara'], Partial<Record<string, string>>> = {
-  redonda: {
-    eyes: 'happy',
-    nose: 'default',
-  },
-  ovalada: {
-    eyes: 'default',
-    nose: 'default',
-  },
-  cuadrada: {
-    eyes: 'squint',
-    nose: 'default',
-  },
+  redonda: { eyes: 'happy', nose: 'default' },
+  ovalada: { eyes: 'default', nose: 'default' },
+  cuadrada: { eyes: 'squint', nose: 'default' },
+  cerrados: { eyes: 'closed', nose: 'default' },
+  guino: { eyes: 'wink', nose: 'default' },
+  corazones: { eyes: 'hearts', nose: 'default' },
+  sorprendidos: { eyes: 'surprised', nose: 'default' },
+  llanto: { eyes: 'cry', nose: 'default' },
 };
 
 const HAIR_COLOR: Record<AvatarAppearance['colorPelo'], string> = {
@@ -57,6 +53,23 @@ const EXPRESSION: Record<AvatarAppearance['expresion'], string> = {
   feliz: 'smile',
   tranquilo: 'twinkle',
   concentrado: 'serious',
+  preocupado: 'concerned',
+  triste: 'sad',
+  sorprendido: 'screamOpen',
+  lengua: 'tongue',
+  descreido: 'disbelief',
+};
+
+const CLOTHING: Record<AvatarClothing, string> = {
+  hoodie: 'hoodie',
+  blazerCamisa: 'blazerAndShirt',
+  blazerSueter: 'blazerAndSweater',
+  cuelloSueter: 'collarAndSweater',
+  remeraGrafica: 'graphicShirt',
+  overall: 'overall',
+  remeraCuelloRedondo: 'shirtCrewNeck',
+  remeraEscote: 'shirtScoopNeck',
+  remeraCuelloV: 'shirtVNeck',
 };
 
 const SHIRT_COLOR: Record<string, string> = {
@@ -81,23 +94,28 @@ export function buildDiceBearAvatarUrl(
   seed = 'tandem-avatar',
   format: 'svg' | 'png' = 'svg',
 ) {
-  const options: Record<string, string> = {
-    seed,
-    radius: '18',
-    scale: '110',
-    backgroundType: 'solid',
-    backgroundColor: BACKGROUND_COLOR[equipped.fondo || 'bg-default'] || BACKGROUND_COLOR['bg-default'],
-    skinColor: SKIN_COLOR[appearance.colorPiel],
-    top: HAIR_STYLE[appearance.peinado],
-    hairColor: HAIR_COLOR[appearance.colorPelo],
-    clothesColor: SHIRT_COLOR[equipped.ropa || 'shirt-blue'] || SHIRT_COLOR['shirt-blue'],
-    clothing: 'hoodie',
-    mouth: EXPRESSION[appearance.expresion],
-    accessoriesColor: '25557c',
-    facialHairColor: HAIR_COLOR[appearance.colorPelo],
-    ...GENDER_PRESET[appearance.genero],
-    ...FACE_PRESET[appearance.formaCara],
-  };
+  const options: Record<string, string> = {};
+
+  options.seed = seed;
+  options.radius = '18';
+  options.scale = '110';
+  options.backgroundType = 'solid';
+  options.backgroundColor = BACKGROUND_COLOR[equipped.fondo || 'bg-default'] || BACKGROUND_COLOR['bg-default'];
+  options.skinColor = SKIN_COLOR[appearance.colorPiel];
+  options.top = HAIR_STYLE[appearance.peinado];
+  options.hairColor = HAIR_COLOR[appearance.colorPelo];
+  options.clothesColor = SHIRT_COLOR[equipped.ropa || 'shirt-blue'] || SHIRT_COLOR['shirt-blue'];
+  options.clothing = CLOTHING[appearance.ropa];
+
+  options.accessoriesColor = '25557c';
+
+  const gender = GENDER_PRESET[appearance.genero];
+  Object.assign(options, gender);
+
+  const face = FACE_PRESET[appearance.formaCara];
+  Object.assign(options, face);
+
+  options.mouth = EXPRESSION[appearance.expresion];
 
   if (equipped.accesorio === 'acc-glasses') {
     options.accessories = 'prescription02';
