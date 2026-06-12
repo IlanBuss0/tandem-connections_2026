@@ -106,7 +106,7 @@ export default function AppShell() {
   };
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden">
+    <div className="min-h-screen bg-gradient-to-b from-[#FAF7FF] via-[#FAF7FF] to-white overflow-x-hidden">
       <AppHeader
         position="fixed"
         onMenuClick={() => setSidebarOpen(true)}
@@ -230,7 +230,7 @@ export default function AppShell() {
 
       {/* Main content */}
       <main className="flex-1 lg:ml-64 min-w-0">
-        <div className="max-w-5xl mx-auto p-3 sm:p-4 lg:p-6">
+        <div className="max-w-7xl mx-auto p-3 sm:p-4 lg:p-6">
           {renderContent()}
         </div>
       </main>
