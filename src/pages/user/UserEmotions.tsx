@@ -73,7 +73,7 @@ export default function UserEmotions() {
 
   const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
   const canRegisterEmotions = isPermissionEnabled(
-    permissionContext?.perteneciente?.permisos_efectivos,
+    permissionContext?.perteneciente?.permisos_efectivos?.permisos,
     PERTENECIENTE_PERMISSIONS.REGISTRAR_EMOCIONES,
     true,
   );

@@ -33,7 +33,7 @@ export default function UserRoutines() {
   });
 
   const canUseMiDia = isPermissionEnabled(
-    permissionContext?.perteneciente?.permisos_efectivos,
+    permissionContext?.perteneciente?.permisos_efectivos?.permisos,
     PERTENECIENTE_PERMISSIONS.USAR_MI_DIA,
     true,
   );

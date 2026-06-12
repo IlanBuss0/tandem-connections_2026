@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   fetchPermissionContext,
   type EffectivePermission,
@@ -27,6 +27,7 @@ export const PROFESIONAL_PERMISSIONS = {
   VER_UBICACION: 'VerUbicacion',
   AGENDAR_SESIONES: 'AgendarSesiones',
   ENVIAR_MENSAJES: 'EnviarMensajes',
+  EDITAR_PERFIL_PROFESIONAL: 'EditarPerfilProfesional',
 } as const;
 
 export function isPermissionEnabled(
@@ -37,33 +38,55 @@ export function isPermissionEnabled(
   return permisos?.[permiso]?.habilitado ?? fallback;
 }
 
+async function loadContext(
+  setContext: (ctx: PermissionContext | null) => void,
+  setLoading: (v: boolean) => void,
+  setError: (e: string | null) => void,
+  cancelledRef: { current: boolean },
+) {
+  if (cancelledRef.current) return;
+  setLoading(true);
+  try {
+    const next = await fetchPermissionContext();
+    if (cancelledRef.current) return;
+    setContext(next);
+    setError(null);
+  } catch (err) {
+    if (cancelledRef.current) return;
+    setContext(null);
+    setError(err instanceof Error ? err.message : 'No se pudieron cargar los permisos.');
+  } finally {
+    if (!cancelledRef.current) setLoading(false);
+  }
+}
+
 export function usePermissionContext() {
   const [context, setContext] = useState<PermissionContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const cancelledRef = useRef(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    fetchPermissionContext()
-      .then(next => {
-        if (cancelled) return;
-        setContext(next);
-        setError(null);
-      })
-      .catch(err => {
-        if (cancelled) return;
-        setContext(null);
-        setError(err instanceof Error ? err.message : 'No se pudieron cargar los permisos.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
+  const refetch = useCallback(() => {
+    loadContext(setContext, setLoading, setError, cancelledRef);
   }, []);
 
-  return useMemo(() => ({ context, loading, error }), [context, loading, error]);
+  useEffect(() => {
+    cancelledRef.current = false;
+    loadContext(setContext, setLoading, setError, cancelledRef);
+
+    const handler = () => {
+      loadContext(setContext, setLoading, setError, cancelledRef);
+    };
+    window.addEventListener('permisos:updated', handler);
+
+    return () => {
+      cancelledRef.current = true;
+      window.removeEventListener('permisos:updated', handler);
+    };
+  }, [refetch]);
+
+  return useMemo(
+    () => ({ context, loading, error, refetch }),
+    [context, loading, error, refetch],
+  );
 }

@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { fetchPermissionContext, setPertenecientePermissionByName, setProfessionalPermissionByName, type PermissionContext, type TutorPermissionContextPerteneciente } from '@/data/api';
+import { fetchPermissionContext, setPertenecientePermissionByName, setProfessionalPermissionByName, type EffectivePertenecientePermissions, type EffectiveProfessionalPermissions, type PermissionContext, type TutorPermissionContextPerteneciente } from '@/data/api';
 import { toast } from '@/hooks/ui/use-toast';
 
 const PERTENECIENTE_PERMISSION_LABELS: Record<string, string> = {
@@ -23,6 +23,10 @@ const PERTENECIENTE_PERMISSION_LABELS: Record<string, string> = {
   CrearActividadesPropias: 'Crear actividades propias',
   CompartirUbicacion: 'Compartir ubicacion',
   GastarPuntos: 'Gastar puntos',
+  UsarMiDia: 'Usar Mi Día',
+  UsarCalendario: 'Usar calendario',
+  RegistrarEmociones: 'Registrar emociones',
+  UsarPictogramas: 'Usar pictogramas',
 };
 
 const PROFESSIONAL_PERMISSION_LABELS: Record<string, string> = {
@@ -83,13 +87,61 @@ export default function TutorConnections() {
 
   const togglePertenecientePermission = async (permiso: string, habilitado: boolean) => {
     if (!selected) return;
-    const key = `perteneciente:${selected.id}:${permiso}`;
+    const targetId = selected.id;
+    const key = `perteneciente:${targetId}:${permiso}`;
     setSavingKey(key);
+
+    const oldPermisos = selected.permisos_efectivos;
+
+    setContext(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        pertenecientes: prev.pertenecientes?.map(p =>
+          p.id === targetId
+            ? {
+                ...p,
+                permisos_efectivos: {
+                  ...p.permisos_efectivos,
+                  permisos: {
+                    ...p.permisos_efectivos.permisos,
+                    [permiso]: { habilitado, source: 'otorgado' as const },
+                  },
+                },
+              }
+            : p,
+        ),
+      };
+    });
+
     try {
-      await setPertenecientePermissionByName(selected.id, permiso, habilitado, 'Actualizado por tutor');
-      await load();
+      const result = await setPertenecientePermissionByName(targetId, permiso, habilitado, 'Actualizado por tutor');
+      if ('permisos' in result) {
+        setContext(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            pertenecientes: prev.pertenecientes?.map(p =>
+              p.id === targetId
+                ? { ...p, permisos_efectivos: result as EffectivePertenecientePermissions }
+                : p,
+            ),
+          };
+        });
+      }
       toast({ title: 'Permiso actualizado', description: `${PERTENECIENTE_PERMISSION_LABELS[permiso] || permiso}: ${habilitado ? 'habilitado' : 'deshabilitado'}` });
     } catch (err) {
+      setContext(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          pertenecientes: prev.pertenecientes?.map(p =>
+            p.id === targetId
+              ? { ...p, permisos_efectivos: oldPermisos }
+              : p,
+          ),
+        };
+      });
       toast({ title: 'No se pudo actualizar', description: err instanceof Error ? err.message : 'Error desconocido', variant: 'destructive' });
     } finally {
       setSavingKey(null);
@@ -99,11 +151,83 @@ export default function TutorConnections() {
   const toggleProfessionalPermission = async (idVinculo: number, permiso: string, habilitado: boolean) => {
     const key = `profesional:${idVinculo}:${permiso}`;
     setSavingKey(key);
+
+    const selectedPerteneciente = selected;
+    const oldVinculoPermisos = selectedPerteneciente?.profesionales_vinculados
+      ?.find(v => v.id_vinculo === idVinculo)?.permisos_efectivos;
+
+    setContext(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        pertenecientes: prev.pertenecientes?.map(p =>
+          p.id === selectedId
+            ? {
+                ...p,
+                profesionales_vinculados: p.profesionales_vinculados?.map(v =>
+                  v.id_vinculo === idVinculo
+                    ? {
+                        ...v,
+                        permisos_efectivos: {
+                          ...v.permisos_efectivos,
+                          permisos: {
+                            ...v.permisos_efectivos.permisos,
+                            [permiso]: { habilitado, source: 'otorgado' as const },
+                          },
+                        },
+                      }
+                    : v,
+                ),
+              }
+            : p,
+        ),
+      };
+    });
+
     try {
-      await setProfessionalPermissionByName(idVinculo, permiso, habilitado, 'Actualizado por tutor');
-      await load();
+      const result = await setProfessionalPermissionByName(idVinculo, permiso, habilitado, 'Actualizado por tutor');
+      if ('id_vinculo_profesional_perteneciente' in result) {
+        setContext(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            pertenecientes: prev.pertenecientes?.map(p =>
+              p.id === selectedId
+                ? {
+                    ...p,
+                    profesionales_vinculados: p.profesionales_vinculados?.map(v =>
+                      v.id_vinculo === idVinculo
+                        ? { ...v, permisos_efectivos: result as EffectiveProfessionalPermissions }
+                        : v,
+                    ),
+                  }
+                : p,
+            ),
+          };
+        });
+      }
       toast({ title: 'Permiso profesional actualizado', description: `${PROFESSIONAL_PERMISSION_LABELS[permiso] || permiso}: ${habilitado ? 'habilitado' : 'deshabilitado'}` });
     } catch (err) {
+      if (oldVinculoPermisos) {
+        setContext(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            pertenecientes: prev.pertenecientes?.map(p =>
+              p.id === selectedId
+                ? {
+                    ...p,
+                    profesionales_vinculados: p.profesionales_vinculados?.map(v =>
+                      v.id_vinculo === idVinculo
+                        ? { ...v, permisos_efectivos: oldVinculoPermisos }
+                        : v,
+                    ),
+                  }
+                : p,
+            ),
+          };
+        });
+      }
       toast({ title: 'No se pudo actualizar', description: err instanceof Error ? err.message : 'Error desconocido', variant: 'destructive' });
     } finally {
       setSavingKey(null);

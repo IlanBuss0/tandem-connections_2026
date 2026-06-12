@@ -101,17 +101,25 @@ export type TipoEventoZonaSeguraNombre = 'Entrada' | 'Salida';
 
 export type PermisoPertenecienteNombre =
   | 'EditarPerfil'
+  | 'EditarPerfilSensible'
   | 'CompletarActividades'
   | 'EnviarMensajes'
+  | 'ChatearConProfesional'
   | 'CrearActividadesPropias'
   | 'CompartirUbicacion'
-  | 'GastarPuntos';
+  | 'GastarPuntos'
+  | 'UsarMiDia'
+  | 'UsarCalendario'
+  | 'RegistrarEmociones'
+  | 'UsarPictogramas';
 
 export type PermisoProfesionalNombre =
   | 'AsignarActividades'
   | 'CrearActividadesPersonalizadas'
   | 'VerHistorial'
+  | 'VerUbicacion'
   | 'AgendarSesiones'
+  | 'EnviarMensajes'
   | 'EditarPerfilProfesional';
 
 export type TipoEventoAuditoriaNombre =

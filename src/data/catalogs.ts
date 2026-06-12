@@ -35,14 +35,27 @@ export const autonomiasOperativas: AutonomiaOperativa[] = seed([
 ]) as AutonomiaOperativa[];
 
 export const catalogoPermisosPertenecientes: CatalogoPermisoPerteneciente[] = seed([
-  { nombre: 'EditarPerfil' as const }, { nombre: 'CompletarActividades' as const },
-  { nombre: 'EnviarMensajes' as const }, { nombre: 'CrearActividadesPropias' as const },
-  { nombre: 'CompartirUbicacion' as const }, { nombre: 'GastarPuntos' as const },
+  { nombre: 'EditarPerfil' as const },
+  { nombre: 'EditarPerfilSensible' as const },
+  { nombre: 'CompletarActividades' as const },
+  { nombre: 'EnviarMensajes' as const },
+  { nombre: 'ChatearConProfesional' as const },
+  { nombre: 'CrearActividadesPropias' as const },
+  { nombre: 'CompartirUbicacion' as const },
+  { nombre: 'GastarPuntos' as const },
+  { nombre: 'UsarMiDia' as const },
+  { nombre: 'UsarCalendario' as const },
+  { nombre: 'RegistrarEmociones' as const },
+  { nombre: 'UsarPictogramas' as const },
 ]) as CatalogoPermisoPerteneciente[];
 
 export const catalogoPermisosProfesionales: CatalogoPermisoProfesional[] = seed([
-  { nombre: 'AsignarActividades' as const }, { nombre: 'CrearActividadesPersonalizadas' as const },
-  { nombre: 'VerHistorial' as const }, { nombre: 'AgendarSesiones' as const },
+  { nombre: 'AsignarActividades' as const },
+  { nombre: 'CrearActividadesPersonalizadas' as const },
+  { nombre: 'VerHistorial' as const },
+  { nombre: 'VerUbicacion' as const },
+  { nombre: 'AgendarSesiones' as const },
+  { nombre: 'EnviarMensajes' as const },
   { nombre: 'EditarPerfilProfesional' as const },
 ]) as CatalogoPermisoProfesional[];
 

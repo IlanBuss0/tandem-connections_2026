@@ -50,7 +50,7 @@ export default function UserCalendar() {
 
   const dayEvents = eventsOn(selectedDate).sort((a, b) => a.time.localeCompare(b.time));
   const canUseCalendar = isPermissionEnabled(
-    permissionContext?.perteneciente?.permisos_efectivos,
+    permissionContext?.perteneciente?.permisos_efectivos?.permisos,
     PERTENECIENTE_PERMISSIONS.USAR_CALENDARIO,
     true,
   );

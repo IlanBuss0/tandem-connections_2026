@@ -19,7 +19,7 @@ export default function UserPictograms() {
   const [selected, setSelected] = useState<Pictogram | null>(null);
   const [pictograms, setPictograms] = useState<Pictogram[]>([]);
   const canUsePictograms = isPermissionEnabled(
-    permissionContext?.perteneciente?.permisos_efectivos,
+    permissionContext?.perteneciente?.permisos_efectivos?.permisos,
     PERTENECIENTE_PERMISSIONS.USAR_PICTOGRAMAS,
     true,
   );

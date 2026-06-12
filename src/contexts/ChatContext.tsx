@@ -271,6 +271,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       removeMessageFromState(deletedId);
     });
 
+    nextSocket.on('permisos:updated', (payload) => {
+      logRealtime('permisos:updated recibido', payload);
+      window.dispatchEvent(new CustomEvent('permisos:updated', { detail: payload }));
+    });
+
     setSocket(nextSocket);
 
     return () => {
