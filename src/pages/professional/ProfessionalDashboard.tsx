@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchActivitiesForUser, fetchAllProfessionals, fetchLinkedPertenecientesForSupportUser, getEmotionsForUser, getObjectivesForUser, calendarEvents, getRecommendationsForUser, type Activity, type Professional, type User } from '@/data/api';
-import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, MessageSquare, Sparkles, MessageCircle, Bell } from 'lucide-react';
+import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, MessageSquare, Sparkles, MessageCircle, Bell, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import ActivityManager from '@/components/ActivityManager';
 import AdvancedStats from '@/components/AdvancedStats';
 import ChatScreen from '@/components/ChatScreen';
+import AppHeader from '@/components/AppHeader';
+import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
 import ProfessionalAgenda from '@/components/ProfessionalAgenda';
 import UserNotifications from '@/pages/user/UserNotifications';
@@ -16,6 +18,7 @@ export default function ProfessionalDashboard() {
   const [tab, setTab] = useState('patients');
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
   const [patientTab, setPatientTab] = useState<'overview' | 'stats'>('overview');
+  const [menuOpen, setMenuOpen] = useState(false);
   const [linkedUsers, setLinkedUsers] = useState<User[]>([]);
   const [activitiesByUser, setActivitiesByUser] = useState<Record<string, Activity[]>>({});
   const [allProfessionals, setAllProfessionals] = useState<Professional[]>([]);
@@ -68,7 +71,77 @@ export default function ProfessionalDashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="bg-card border-b border-border px-4 py-3 flex items-center justify-between">
+      <AppHeader
+        onMenuClick={() => setMenuOpen(true)}
+        rightSlot={
+          <>
+            <HeaderUserAvatar avatar={user.avatar} name={user.name} />
+            <NotificationBellButton count={unreadCount} onClick={() => { setTab('notifications'); setSelectedPatient(null); }} />
+          </>
+        }
+      />
+
+      <AnimatePresence>
+      {menuOpen && (
+        <motion.div
+          className="fixed inset-0 z-50"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.22 }}
+        >
+          <motion.button
+            type="button"
+            aria-label="Cerrar menu"
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setMenuOpen(false)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          />
+          <motion.aside
+            className="relative h-full w-[82vw] max-w-[320px] border-r border-border bg-card p-4 shadow-xl"
+            initial={{ x: -320, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: -320, opacity: 0 }}
+            transition={{ duration: 0.26, ease: 'easeOut' }}
+          >
+            <div className="mb-5 flex items-center justify-between">
+              <img className="h-8 object-contain" src="/tandem-logo.png" alt="Tandem" />
+              <button onClick={() => setMenuOpen(false)} className="rounded-lg p-2 hover:bg-muted" aria-label="Cerrar menu">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="space-y-1">
+              {tabs.map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setTab(item.id);
+                    setSelectedPatient(null);
+                    setMenuOpen(false);
+                  }}
+                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm ${
+                    tab === item.id ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted'
+                  }`}
+                >
+                  <item.icon size={18} />
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <div className="mt-6 border-t border-border pt-4">
+              <button onClick={logout} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm text-destructive hover:bg-destructive/10">
+                <LogOut size={18} />
+                Cerrar sesion
+              </button>
+            </div>
+          </motion.aside>
+        </motion.div>
+      )}
+      </AnimatePresence>
+
+      <header className="hidden">
         <div>
           <h1 className="font-heading font-bold text-gradient text-lg">TÁNDEM</h1>
           <p className="text-xs text-muted-foreground">Panel profesional · {user.name}</p>

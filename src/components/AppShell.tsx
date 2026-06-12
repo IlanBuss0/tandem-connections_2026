@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { Home, Calendar, CheckSquare, MessageCircle, Heart, Trophy, User, Sun, Bell, LogOut, Menu, X, Image, BookOpen, ShoppingBag, Settings } from 'lucide-react';
 import AvatarPreview from '@/components/AvatarPreview';
+import AppHeader from '@/components/AppHeader';
 import CoinBadge from '@/components/CoinBadge';
+import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
 import UserHome from '@/pages/user/UserHome';
 import UserRoutines from '@/pages/user/UserRoutines';
@@ -103,9 +106,20 @@ export default function AppShell() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex overflow-x-hidden">
+    <div className="min-h-screen bg-background overflow-x-hidden">
+      <AppHeader
+        position="fixed"
+        onMenuClick={() => setSidebarOpen(true)}
+        rightSlot={
+          <>
+            <HeaderUserAvatar avatar={user.avatar} name={user.name} />
+            <NotificationBellButton count={unreadNotifs} onClick={() => goToTab('notifications')} className="h-9 w-9 border-0 bg-transparent" />
+          </>
+        }
+      />
+      <div className="flex min-h-screen pt-16">
       {/* Mobile header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border h-14 flex items-center justify-between px-3 sm:px-4 lg:hidden">
+      <header className="hidden">
         <button onClick={() => setSidebarOpen(true)} className="text-foreground p-2 -ml-2" aria-label="Abrir menú">
           <Menu size={22} />
         </button>
@@ -116,14 +130,29 @@ export default function AppShell() {
         </div>
       </header>
 
-      <div className="fixed right-4 top-4 z-50 hidden lg:block">
+      <div className="hidden">
         <NotificationBellButton count={unreadNotifs} onClick={() => goToTab('notifications')} />
       </div>
 
       {/* Sidebar overlay mobile */}
+      <AnimatePresence>
       {sidebarOpen && (
-        <div className="fixed inset-0 z-50 bg-foreground/20 backdrop-blur-sm lg:hidden" onClick={() => setSidebarOpen(false)}>
-          <div className="w-[85%] max-w-xs h-full bg-card border-r border-border p-4 overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <motion.div
+          className="fixed inset-0 z-50 bg-foreground/20 backdrop-blur-sm"
+          onClick={() => setSidebarOpen(false)}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.22 }}
+        >
+          <motion.div
+            className="w-[85%] max-w-xs h-full bg-card border-r border-border p-4 overflow-y-auto shadow-xl"
+            onClick={e => e.stopPropagation()}
+            initial={{ x: -320, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: -320, opacity: 0 }}
+            transition={{ duration: 0.26, ease: 'easeOut' }}
+          >
             <div className="flex items-center justify-between mb-6">
               <h1 className="font-heading font-bold text-gradient text-xl">TÁNDEM</h1>
               <button onClick={() => setSidebarOpen(false)} className="p-1.5" aria-label="Cerrar menú"><X size={20} /></button>
@@ -157,12 +186,13 @@ export default function AppShell() {
                 <LogOut size={18} /> Cerrar sesión
               </button>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex w-64 border-r border-border bg-card flex-col fixed h-full z-40">
+      <aside className="hidden lg:flex w-64 border-r border-border bg-card flex-col fixed top-16 h-[calc(100vh-4rem)] z-40">
         <div className="p-4 border-b border-border">
           <h1 className="font-heading font-bold text-gradient text-xl">TÁNDEM</h1>
           <p className="text-xs text-muted-foreground">Avanzamos juntos</p>
@@ -199,7 +229,7 @@ export default function AppShell() {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 lg:ml-64 pt-14 lg:pt-0 min-w-0">
+      <main className="flex-1 lg:ml-64 min-w-0">
         <div className="max-w-5xl mx-auto p-3 sm:p-4 lg:p-6">
           {renderContent()}
         </div>
@@ -218,6 +248,7 @@ export default function AppShell() {
           </button>
         ))}
       </nav>
+      </div>
     </div>
   );
 }

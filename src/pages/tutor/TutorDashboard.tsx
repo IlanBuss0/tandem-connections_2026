@@ -37,6 +37,8 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import ActivityManager from '@/components/ActivityManager';
 import ChatScreen from '@/components/ChatScreen';
+import AppHeader from '@/components/AppHeader';
+import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
 import UserNotifications from '@/pages/user/UserNotifications';
@@ -235,7 +237,16 @@ export default function TutorDashboard() {
 
   return (
     <div className="min-h-screen bg-background pb-24 md:pb-0">
-      <header className="sticky top-0 z-40 border-b border-border bg-card/95 px-4 py-3 shadow-sm backdrop-blur">
+      <AppHeader
+        onMenuClick={() => setMenuOpen(true)}
+        rightSlot={
+          <>
+            <HeaderUserAvatar avatar={user.avatar} name={user.name} />
+            <NotificationBellButton count={unreadCount} onClick={() => setTab('notifications')} />
+          </>
+        }
+      />
+      <header className="hidden">
         <div className="mx-auto flex max-w-7xl items-center gap-3">
           <button
             onClick={() => setMenuOpen(true)}
@@ -314,7 +325,7 @@ export default function TutorDashboard() {
 
       <AnimatePresence>
         {menuOpen && (
-          <div className="fixed inset-0 z-50 md:hidden">
+          <div className="fixed inset-0 z-50">
             <motion.button
               aria-label="Cerrar menu"
               className="absolute inset-0 bg-black/40"
@@ -352,6 +363,12 @@ export default function TutorDashboard() {
                     {item.label}
                   </button>
                 ))}
+              </div>
+              <div className="mt-6 border-t border-border pt-4">
+                <button onClick={logout} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm text-destructive hover:bg-destructive/10">
+                  <LogOut size={18} />
+                  Cerrar sesion
+                </button>
               </div>
             </motion.aside>
           </div>
