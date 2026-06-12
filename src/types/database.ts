@@ -343,6 +343,11 @@ export interface Avatar {
   avatar_api: string | null;
   avatar_externo_id: string | null;
   avatar_json: string | null;
+  avatar_imagen_url?: string | null;
+  avatar_imagen_path?: string | null;
+  avatar_imagen_content_type?: string | null;
+  avatar_imagen_actualizada_en?: string | null;
+  avatar_imagen_origen_url?: string | null;
 }
 
 export interface ItemAvatar {

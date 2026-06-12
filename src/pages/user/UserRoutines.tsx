@@ -3,12 +3,15 @@ import { motion } from 'framer-motion';
 import { useRoutines, DayKey } from '@/contexts/RoutinesContext';
 import { CheckCircle2, Circle, Clock, Plus, Pencil, Trash2, Copy, X, Save } from 'lucide-react';
 import { RoutineItem } from '@/data/api';
+import PermissionBlocked from '@/components/PermissionBlocked';
+import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 
 const categories = ['mañana', 'escuela', 'mediodía', 'tarde', 'noche'];
 const categoryLabels: Record<string, string> = { mañana: '🌅 Mañana', escuela: '📚 Escuela', mediodía: '☀️ Mediodía', tarde: '🌤️ Tarde', noche: '🌙 Noche' };
 const iconChoices = ['⏰','🛏️','🚿','👕','🥣','🪥','🎒','🚶','📚','🍽️','🎮','✏️','⭐','🥪','🧠','🎧','👔','🍝','💭','🌙','🏃','🎵','📖','🧘','🐶','🛁','💊','🥗','🌳','🎨'];
 
 export default function UserRoutines() {
+  const { context: permissionContext } = usePermissionContext();
   const {
     routines, addRoutine, renameRoutine, deleteRoutine, duplicateRoutine,
     addItem, updateItem, deleteItem, toggleItem, dayNames,
@@ -28,6 +31,21 @@ export default function UserRoutines() {
   const [form, setForm] = useState<{ time: string; title: string; icon: string; category: string }>({
     time: '08:00', title: '', icon: '⭐', category: 'mañana',
   });
+
+  const canUseMiDia = isPermissionEnabled(
+    permissionContext?.perteneciente?.permisos_efectivos,
+    PERTENECIENTE_PERMISSIONS.USAR_MI_DIA,
+    true,
+  );
+
+  if (!canUseMiDia) {
+    return (
+      <PermissionBlocked
+        title="Mi dia deshabilitado"
+        description="Tu tutor deshabilito temporalmente Mi dia. No podes ver, crear ni completar rutinas hasta que lo vuelva a habilitar."
+      />
+    );
+  }
 
   if (!active) {
     return (

@@ -38,6 +38,10 @@ function buildUrl(path: string): string {
   return `${API_BASE_URL.replace(/\/$/, "")}${normalizedPath}`;
 }
 
+function getDefaultAuthToken(): string | null {
+  return sessionStorage.getItem("tandem_auth_token") || localStorage.getItem("tandem_auth_token");
+}
+
 async function parseResponseBody(response: Response): Promise<unknown> {
   const text = await response.text();
   if (!text) return null;
@@ -54,13 +58,14 @@ export async function apiRequest<T>(
   options: ApiRequestOptions = {}
 ): Promise<T> {
   const { body, token, headers, ...init } = options;
+  const authToken = token === undefined ? getDefaultAuthToken() : token;
 
   const response = await fetch(buildUrl(path), {
     ...init,
     headers: {
       Accept: "application/json",
       ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
       ...(headers || {}),
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -72,6 +77,10 @@ export async function apiRequest<T>(
     const message =
       typeof payload === "string"
         ? payload
+        : payload && typeof payload === "object" && "message" in payload && typeof (payload as { message?: unknown }).message === "string"
+          ? (payload as { message: string }).message
+          : payload && typeof payload === "object" && "error" in payload && typeof (payload as { error?: unknown }).error === "string"
+            ? (payload as { error: string }).error
         : `Request failed with status ${response.status}`;
     throw new ApiError(message, response.status, payload);
   }

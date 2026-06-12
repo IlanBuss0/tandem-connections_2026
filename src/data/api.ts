@@ -438,6 +438,18 @@ export async function fetchAssignedActivitiesByPerteneciente(
   );
 }
 
+export async function fetchSafeZonesByPerteneciente(
+  idPerteneciente: number,
+  token = getStoredAuthToken(),
+): Promise<DbZonaSegura[]> {
+  if (!token) return [];
+
+  return apiRequest<DbZonaSegura[]>(
+    `/api/zonas-seguras?id_perteneciente=${encodeURIComponent(String(idPerteneciente))}`,
+    { token },
+  );
+}
+
 function formatChatTime(value?: string | null): string {
   if (!value) return '';
   const date = new Date(value);
@@ -963,7 +975,6 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
     estadosActividades,
     puntosOtorgados,
     notificaciones,
-    zonasSeguras,
   ] = await Promise.all([
     tandemApi.usuarios.getAll(),
     tandemApi.tutores.getAll(),
@@ -978,7 +989,6 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
     tandemApi.estadosActividades.getAll(),
     tandemApi.puntosOtorgados.getAll(),
     tandemApi.notificaciones.getAll(),
-    tandemApi.zonasSeguras.getAll(),
   ]);
 
   const tutor = (tutores as DbTutor[]).find(item => Number(item.id_usuario) === idUsuarioTutor);
@@ -1057,8 +1067,9 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
         } satisfies TutorHomeActivity;
       });
 
-    const safeZones = (zonasSeguras as DbZonaSegura[])
-      .filter(item => Number(item.id_perteneciente) === Number(linked.pertenecienteId) && item.activa)
+    const safeZonesRows = await fetchSafeZonesByPerteneciente(Number(linked.pertenecienteId)).catch(() => []);
+    const safeZones = safeZonesRows
+      .filter(item => item.activa)
       .map(item => ({
         id: `zone-${item.id}`,
         name: item.nombre,

@@ -9,6 +9,7 @@ import { GAME_TEMPLATES, GameTemplate } from '@/data/miniGames';
 import { fetchLinkedPertenecientesForSupportUser, fetchPictograms, ActivityCategory, ActivityType, type Pictogram, type User } from '@/data/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { GameData, GameType } from '@/data/miniGames';
+import { useToast } from '@/components/ui/use-toast';
 
 const CATEGORIES: ActivityCategory[] = ['autonomía personal','higiene','organización','escuela','cocina básica','transporte','compras','manejo del dinero','emociones','comunicación','vida social','seguridad personal','rutinas del hogar','regulación emocional','preparación para salidas','anticipación de cambios'];
 const TYPES: ActivityType[] = ['guiada','juego','regulación','decisión'];
@@ -273,6 +274,7 @@ interface Props {
 export default function ActivityBuilder({ initialId, onClose, assignableUsersOverride }: Props) {
   const { user } = useAuth();
   const { items, createOrUpdate } = useCustomActivities();
+  const { toast } = useToast();
   const editing = initialId ? items.find(a => a.id === initialId) : undefined;
 
   const [step, setStep] = useState(editing ? 1 : 0); // 0 = plantilla
@@ -412,7 +414,7 @@ export default function ActivityBuilder({ initialId, onClose, assignableUsersOve
     setSaving(true);
     const cleanSteps = form.steps.map((s, i) => ({ s, ic: form.stepIcons[i] || '📌' })).filter(x => x.s.trim());
     try {
-      await createOrUpdate({
+      const result = await createOrUpdate({
         id: form.id,
         title: form.title.trim() || 'Actividad sin título',
         category: form.category,
@@ -433,7 +435,31 @@ export default function ActivityBuilder({ initialId, onClose, assignableUsersOve
         gameType: form.gameType,
         gameData: form.gameData,
       } as any);
+      if (publishNow) {
+        const assignment = result?.assignment;
+        const deniedCount = assignment?.denied.length || 0;
+        const errorCount = assignment?.errors.length || 0;
+        if (deniedCount || errorCount) {
+          toast({
+            title: assignment?.assigned ? 'Actividad publicada parcialmente' : 'No se pudo publicar',
+            description: assignment?.assigned
+              ? 'Algunos vinculados no recibieron la actividad porque el tutor no lo permite.'
+              : 'El tutor no permite asignar actividades a los vinculados seleccionados.',
+            variant: assignment?.assigned ? 'default' : 'destructive',
+          });
+        } else {
+          toast({ title: 'Actividad publicada', description: 'La actividad fue asignada correctamente.' });
+        }
+      } else {
+        toast({ title: 'Borrador guardado' });
+      }
       onClose();
+    } catch (error) {
+      toast({
+        title: publishNow ? 'No se pudo publicar' : 'No se pudo guardar',
+        description: error instanceof Error ? error.message : 'Revisa la conexion con el backend.',
+        variant: 'destructive',
+      });
     } finally {
       setSaving(false);
     }

@@ -1,6 +1,6 @@
 import type { AvatarAppearance, AvatarEquipped } from '@/contexts/WalletContext';
 
-const API_BASE = 'https://api.dicebear.com/9.x/avataaars/svg';
+const API_BASE = 'https://api.dicebear.com/9.x/avataaars';
 
 const SKIN_COLOR: Record<AvatarAppearance['colorPiel'], string> = {
   claro: 'ffdbb4',
@@ -79,6 +79,7 @@ export function buildDiceBearAvatarUrl(
   appearance: AvatarAppearance,
   equipped: AvatarEquipped,
   seed = 'tandem-avatar',
+  format: 'svg' | 'png' = 'svg',
 ) {
   const options: Record<string, string> = {
     seed,
@@ -104,5 +105,5 @@ export function buildDiceBearAvatarUrl(
 
   const params = new URLSearchParams(options);
 
-  return `${API_BASE}?${params.toString()}`;
+  return `${API_BASE}/${format}?${params.toString()}`;
 }

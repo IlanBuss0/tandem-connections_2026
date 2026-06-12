@@ -7,6 +7,7 @@ import AvatarPreview from '@/components/AvatarPreview';
 import CoinBadge from '@/components/CoinBadge';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/ui/use-toast';
+import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 
 type ShopTab = 'avatar' | 'tienda' | 'inventario' | 'configuracion';
 
@@ -21,6 +22,7 @@ const CATS: Array<ShopCategory | 'todas'> = ['todas', 'pelo', 'accesorio', 'ropa
 
 export default function UserShop() {
   const { state, loading, error, buy, equip, unequip, hasItem, isEquipped, refresh } = useWallet();
+  const { context: permissionContext } = usePermissionContext();
   const [tab, setTab] = useState<ShopTab>('avatar');
   const [cat, setCat] = useState<ShopCategory | 'todas'>('todas');
   const [pendingItemId, setPendingItemId] = useState<string | null>(null);
@@ -31,8 +33,17 @@ export default function UserShop() {
     if (cat !== 'todas') list = list.filter(item => item.category === cat);
     return list;
   }, [cat, state.inventory, tab]);
+  const canSpendPoints = isPermissionEnabled(
+    permissionContext?.perteneciente?.permisos_efectivos?.permisos,
+    PERTENECIENTE_PERMISSIONS.GASTAR_PUNTOS,
+    false,
+  );
 
   const handleBuy = async (id: string) => {
+    if (!canSpendPoints) {
+      toast({ title: 'Compra deshabilitada', description: 'Tu tutor deshabilito gastar puntos por ahora.', variant: 'destructive' });
+      return;
+    }
     setPendingItemId(id);
     try {
       const result = await buy(id);
@@ -68,6 +79,13 @@ export default function UserShop() {
               Reintentar conexion
             </button>
           </div>
+        </div>
+      )}
+
+      {!canSpendPoints && tab === 'tienda' && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <Lock size={16} className="mt-0.5 shrink-0" />
+          <p>Tu tutor deshabilito gastar puntos. Podes seguir viendo la tienda y tu inventario.</p>
         </div>
       )}
 
@@ -122,7 +140,7 @@ export default function UserShop() {
             {items.map(item => {
               const owned = hasItem(item.id);
               const equipped = isEquipped(item.id);
-              const canAfford = state.balance >= item.price;
+              const canAfford = canSpendPoints && state.balance >= item.price;
               const pending = pendingItemId === item.id;
 
               return (

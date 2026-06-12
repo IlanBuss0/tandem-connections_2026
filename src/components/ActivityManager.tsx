@@ -5,12 +5,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
 import type { User } from '@/data/api';
 import ActivityBuilder from './ActivityBuilder';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function ActivityManager({ assignableUsers }: { assignableUsers?: User[] }) {
   const { user } = useAuth();
   const { byCreator, remove, duplicate, publish, unpublish } = useCustomActivities();
+  const { toast } = useToast();
   const [builderOpen, setBuilderOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
 
   if (!user) return null;
   const list = byCreator(user.id);
@@ -20,6 +23,31 @@ export default function ActivityManager({ assignableUsers }: { assignableUsers?:
 
   const open = (id?: string) => { setEditingId(id); setBuilderOpen(true); };
   const close = () => { setBuilderOpen(false); setEditingId(undefined); };
+  const publishDraft = async (id: string) => {
+    setPublishingId(id);
+    try {
+      const assignment = await publish(id);
+      if (assignment.denied.length || assignment.errors.length) {
+        toast({
+          title: assignment.assigned ? 'Actividad publicada parcialmente' : 'No se pudo publicar',
+          description: assignment.assigned
+            ? 'Algunos vinculados no recibieron la actividad porque el tutor no lo permite.'
+            : 'El tutor no permite asignar esta actividad a los vinculados seleccionados.',
+          variant: assignment.assigned ? 'default' : 'destructive',
+        });
+      } else {
+        toast({ title: 'Actividad publicada', description: 'La actividad fue asignada correctamente.' });
+      }
+    } catch (error) {
+      toast({
+        title: 'No se pudo publicar',
+        description: error instanceof Error ? error.message : 'Revisa la conexion con el backend.',
+        variant: 'destructive',
+      });
+    } finally {
+      setPublishingId(null);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -53,7 +81,7 @@ export default function ActivityManager({ assignableUsers }: { assignableUsers?:
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Borradores ({drafts.length})</p>
           <div className="space-y-2">
-            {drafts.map(a => <Row key={a.id} a={a} userNameById={userNameById} onEdit={() => open(a.id)} onDuplicate={() => duplicate(a.id)} onRemove={() => remove(a.id)} onPublish={() => publish(a.id)} draft />)}
+            {drafts.map(a => <Row key={a.id} a={a} userNameById={userNameById} onEdit={() => open(a.id)} onDuplicate={() => duplicate(a.id)} onRemove={() => remove(a.id)} onPublish={() => publishDraft(a.id)} publishing={publishingId === a.id} draft />)}
           </div>
         </div>
       )}
@@ -63,7 +91,7 @@ export default function ActivityManager({ assignableUsers }: { assignableUsers?:
   );
 }
 
-function Row({ a, draft, userNameById, onEdit, onDuplicate, onRemove, onPublish, onUnpublish }: any) {
+function Row({ a, draft, userNameById, onEdit, onDuplicate, onRemove, onPublish, onUnpublish, publishing }: any) {
   const assignedNames = (a.assignedToIds || []).map((id: string) => a.assignedNames?.[id] || userNameById?.get(id) || `Usuario ${id}`);
   return (
     <div className="bg-card rounded-lg border border-border p-3">
@@ -85,7 +113,7 @@ function Row({ a, draft, userNameById, onEdit, onDuplicate, onRemove, onPublish,
         <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={onEdit}><Edit2 size={12} className="mr-1" />Editar</Button>
         <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={onDuplicate}><Copy size={12} className="mr-1" />Duplicar</Button>
         {draft
-          ? <Button size="sm" className="h-7 px-2 text-xs gradient-primary text-primary-foreground" onClick={onPublish}><Send size={12} className="mr-1" />Publicar</Button>
+          ? <Button size="sm" className="h-7 px-2 text-xs gradient-primary text-primary-foreground" onClick={onPublish} disabled={publishing}><Send size={12} className="mr-1" />{publishing ? 'Publicando...' : 'Publicar'}</Button>
           : <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={onUnpublish}><EyeOff size={12} className="mr-1" />Despublicar</Button>}
         <Button size="sm" variant="outline" className="h-7 px-2 text-xs text-destructive border-destructive/30 hover:bg-destructive/10" onClick={onRemove}><Trash2 size={12} /></Button>
       </div>
