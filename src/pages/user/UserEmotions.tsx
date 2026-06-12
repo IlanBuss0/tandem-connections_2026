@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { AlertCircle, BarChart3, CalendarDays, Loader2, Save, Sparkles, Trash2 } from 'lucide-react';
 import { useEmotions, emotionOptions } from '@/contexts/EmotionsContext';
 import { Button } from '@/components/ui/button';
+import PermissionBlocked from '@/components/PermissionBlocked';
+import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 
 const intensityLabels: Record<number, string> = {
   1: 'Muy leve',
@@ -24,6 +26,7 @@ function formatDate(date: string) {
 }
 
 export default function UserEmotions() {
+  const { context: permissionContext } = usePermissionContext();
   const { records, loading, error, add, remove, reload } = useEmotions();
   const [selectedEmotion, setSelectedEmotion] = useState<string | null>(null);
   const [intensity, setIntensity] = useState(3);
@@ -69,6 +72,20 @@ export default function UserEmotions() {
   }, [records]);
 
   const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+  const canRegisterEmotions = isPermissionEnabled(
+    permissionContext?.perteneciente?.permisos_efectivos,
+    PERTENECIENTE_PERMISSIONS.REGISTRAR_EMOCIONES,
+    true,
+  );
+
+  if (!canRegisterEmotions) {
+    return (
+      <PermissionBlocked
+        title="Emociones deshabilitadas"
+        description="Tu tutor deshabilito temporalmente el registro emocional. Cuando lo habilite, vas a poder registrar y revisar tus emociones."
+      />
+    );
+  }
 
   const submit = async () => {
     if (!selectedEmotion || saving) return;

@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { ContactPerson, useChat } from '@/contexts/ChatContext';
-import { ChatMessage, Conversation, fetchConversationsForUser, fetchMessagesForConversationAsUser, fetchPermissionContext } from '@/data/api';
+import { ChatMessage, Conversation, fetchConversationsForUser, fetchMessagesForConversationAsUser, fetchPermissionContext, type PermissionContext } from '@/data/api';
 import { ArrowLeft, Send, Plus, Search, X, MessageCircle, Pencil, Trash2, Check, Users } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/use-toast';
+import { isPermissionEnabled, PROFESIONAL_PERMISSIONS } from '@/hooks/usePermissions';
 
 const quickReplies = [
   '👍 ¡Dale!', '✅ Llegué bien', '🙋 Necesito ayuda', '⏰ Ya salgo', '😊 Estoy bien', '🔄 Hubo un cambio'
@@ -58,6 +60,7 @@ export default function ChatScreen({
 }) {
   const { user } = useAuth();
   const { conversationsForUser, messagesFor, send, edit, remove, markRead, createDirect, createGroup, updateConversation, hideConversation, allContacts, getPersonById } = useChat();
+  const { toast } = useToast();
   const [activeProfileId, setActiveProfileId] = useState(defaultProfileId || '');
   const [profileConvs, setProfileConvs] = useState<Conversation[]>([]);
   const [profileMessages, setProfileMessages] = useState<ChatMessage[]>([]);
@@ -83,6 +86,7 @@ export default function ChatScreen({
   const [showAddParticipants, setShowAddParticipants] = useState(false);
   const [savingManage, setSavingManage] = useState(false);
   const [canSendMessages, setCanSendMessages] = useState(true);
+  const [permissionContext, setPermissionContext] = useState<PermissionContext | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const resolvedProfileId = activeProfileId || user?.id || '';
@@ -100,7 +104,7 @@ export default function ChatScreen({
   useEffect(() => {
     let mounted = true;
 
-    if (!user || user.role !== 'user') {
+    if (!user) {
       setCanSendMessages(true);
       return;
     }
@@ -108,11 +112,19 @@ export default function ChatScreen({
     fetchPermissionContext()
       .then(context => {
         if (!mounted) return;
-        const allowed = context.perteneciente?.permisos_efectivos?.permisos?.EnviarMensajes?.habilitado;
-        setCanSendMessages(allowed !== false);
+        setPermissionContext(context);
+        if (user.role === 'user') {
+          const allowed = context.perteneciente?.permisos_efectivos?.permisos?.EnviarMensajes?.habilitado;
+          setCanSendMessages(allowed !== false);
+        } else {
+          setCanSendMessages(true);
+        }
       })
       .catch(() => {
-        if (mounted) setCanSendMessages(true);
+        if (mounted) {
+          setPermissionContext(null);
+          setCanSendMessages(true);
+        }
       });
 
     return () => {
@@ -172,6 +184,22 @@ export default function ChatScreen({
     () => selectedConv ? (isOwnView ? messagesFor(selectedConv.id) : profileMessages.filter(message => sameId(message.conversationId, selectedConv.id))) : [],
     [isOwnView, messagesFor, profileMessages, selectedConv]
   );
+  const canSendInSelectedConversation = useMemo(() => {
+    if (!user || !selectedConv) return canSendMessages;
+    if (user.role === 'user') return canSendMessages;
+    if (user.role !== 'professional') return true;
+    if (selectedConv.type === 'grupo' || selectedConv.participants.length > 2) return true;
+
+    const otherParticipantId = selectedConv.participants.find(participant => !sameId(participant, user.id));
+    const link = permissionContext?.vinculos?.find(item => sameId(item.perteneciente.usuario.id, otherParticipantId));
+    if (!link) return true;
+
+    return isPermissionEnabled(
+      link.permisos_efectivos?.permisos,
+      PROFESIONAL_PERMISSIONS.ENVIAR_MENSAJES,
+      true,
+    );
+  }, [canSendMessages, permissionContext?.vinculos, selectedConv, user]);
 
   useEffect(() => {
     if (!selectedConv) return;
@@ -239,11 +267,30 @@ export default function ChatScreen({
     }
   };
 
-  const sendNow = (txt?: string) => {
+  const sendNow = async (txt?: string) => {
     const text = txt ?? draft;
-    if (!text.trim() || !selectedConv || !canSendMessages) return;
-    send(selectedConv.id, text);
-    setDraft('');
+    if (!text.trim() || !selectedConv) return;
+    if (!canSendInSelectedConversation) {
+      toast({
+        title: 'Mensajes deshabilitados',
+        description: user.role === 'professional'
+          ? 'El tutor no permite enviar mensajes a este perteneciente desde este vinculo.'
+          : 'Tu tutor deshabilito temporalmente el envio de mensajes.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      await send(selectedConv.id, text);
+      setDraft('');
+    } catch (error) {
+      toast({
+        title: 'No se pudo enviar',
+        description: error instanceof Error ? error.message : 'El permiso para enviar mensajes esta deshabilitado.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const toggleManageParticipant = (contactId: string) => {
@@ -441,7 +488,7 @@ export default function ChatScreen({
           <div ref={messagesEndRef} />
         </div>
 
-        {canActAsCurrentUser && canSendMessages && (
+        {canActAsCurrentUser && canSendInSelectedConversation && (
         <>
         <div className="flex gap-1.5 overflow-x-auto py-2 -mx-1 px-1">
           {quickReplies.map(qr => (
@@ -455,9 +502,11 @@ export default function ChatScreen({
         </div>
         </>
         )}
-        {canActAsCurrentUser && !canSendMessages && (
+        {canActAsCurrentUser && !canSendInSelectedConversation && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-center text-xs font-medium text-amber-800">
-            Mensajes deshabilitados por tu tutor.
+            {user.role === 'professional'
+              ? 'Mensajes deshabilitados por el tutor para este vinculo.'
+              : 'Mensajes deshabilitados por tu tutor.'}
           </div>
         )}
         {!canActAsCurrentUser && (

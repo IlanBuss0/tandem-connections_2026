@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 import ActivityExecution from './ActivityExecution';
 
 const categoryEmoji: Record<string, string> = {
@@ -177,6 +178,7 @@ function FilterSelect({
 export default function UserActivities() {
   const { user } = useAuth();
   const { forUser, complete: completeCustomActivity } = useCustomActivities();
+  const { context: permissionContext } = usePermissionContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('todas');
   const [selectedType, setSelectedType] = useState<ActivityTypeFilter>('todos');
@@ -189,6 +191,11 @@ export default function UserActivities() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [localActivities, setLocalActivities] = useState<Activity[]>([]);
   const [executingActivity, setExecutingActivity] = useState<Activity | null>(null);
+  const canCompleteActivities = isPermissionEnabled(
+    permissionContext?.perteneciente?.permisos_efectivos?.permisos,
+    PERTENECIENTE_PERMISSIONS.COMPLETAR_ACTIVIDADES,
+    false,
+  );
 
 
   useEffect(() => {
@@ -298,6 +305,7 @@ export default function UserActivities() {
   };
 
   async function completeActivity(id: string) {
+    if (!canCompleteActivities) return;
     const activity = merged.find(item => item.id === id);
     if (!activity || !user) return;
     if ((activity as any).isCustom) {
@@ -324,10 +332,16 @@ export default function UserActivities() {
           <p className="text-xs font-medium opacity-80">🎯 Actividad del día</p>
           <p className="font-heading font-bold mt-1">{dailyActivity.title}</p>
           <p className="text-xs opacity-80 mt-1">{dailyActivity.description.slice(0, 80)}...</p>
-          <Button size="sm" variant="outline" className="mt-3 border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10" onClick={() => setExecutingActivity(dailyActivity)}>
+          <Button size="sm" variant="outline" className="mt-3 border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10" disabled={!canCompleteActivities} onClick={() => setExecutingActivity(dailyActivity)}>
             <Play size={14} className="mr-1" /> Empezar ahora
           </Button>
         </motion.div>
+      )}
+
+      {!canCompleteActivities && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Tu tutor deshabilito completar actividades por ahora.
+        </div>
       )}
 
       <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
@@ -508,7 +522,7 @@ export default function UserActivities() {
                     ))}
                   </ol>
                 </div>
-                {activity.status !== 'completada' && (
+                {activity.status !== 'completada' && canCompleteActivities && (
                   <div className="flex gap-2 mt-4">
                     <Button size="sm" className="flex-1 gradient-primary text-primary-foreground" onClick={() => setExecutingActivity(activity)}>
                       <Play size={14} className="mr-1" /> Empezar actividad

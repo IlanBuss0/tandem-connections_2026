@@ -4,9 +4,12 @@ import { deleteFavoritePictogram, fetchFavoritePictograms, fetchPictogramCategor
 import { Search, Heart, Download, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
+import PermissionBlocked from '@/components/PermissionBlocked';
+import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 
 export default function UserPictograms() {
   const { user } = useAuth();
+  const { context: permissionContext } = usePermissionContext();
   const [search, setSearch] = useState('');
   const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set());
   const [showFavorites, setShowFavorites] = useState(false);
@@ -15,8 +18,17 @@ export default function UserPictograms() {
   const [favoritePictograms, setFavoritePictograms] = useState<Pictogram[]>([]);
   const [selected, setSelected] = useState<Pictogram | null>(null);
   const [pictograms, setPictograms] = useState<Pictogram[]>([]);
+  const canUsePictograms = isPermissionEnabled(
+    permissionContext?.perteneciente?.permisos_efectivos,
+    PERTENECIENTE_PERMISSIONS.USAR_PICTOGRAMAS,
+    true,
+  );
 
   useEffect(() => {
+    if (!canUsePictograms) {
+      setCategories([]);
+      return;
+    }
     let mounted = true;
     fetchPictogramCategories()
       .then(items => {
@@ -26,10 +38,10 @@ export default function UserPictograms() {
         if (mounted) setCategories([]);
       });
     return () => { mounted = false; };
-  }, []);
+  }, [canUsePictograms]);
 
   useEffect(() => {
-    if (!user?.id) {
+    if (!canUsePictograms || !user?.id) {
       setFavorites(new Set());
       setFavoritePictograms([]);
       return;
@@ -49,16 +61,20 @@ export default function UserPictograms() {
       });
 
     return () => { mounted = false; };
-  }, [user?.id]);
+  }, [canUsePictograms, user?.id]);
 
   useEffect(() => {
+    if (!canUsePictograms) {
+      setPictograms([]);
+      return;
+    }
     let mounted = true;
     const category = selectedCats.size > 0 ? Array.from(selectedCats).join(',') : 'todas';
     fetchPictograms({ category, search })
       .then(r => mounted && setPictograms(r))
       .catch(() => mounted && setPictograms([]));
     return () => { mounted = false; };
-  }, [selectedCats, search]);
+  }, [canUsePictograms, selectedCats, search]);
 
   const visiblePictograms = showFavorites
     ? favoritePictograms.filter(pic => !search.trim() || `${pic.name} ${pic.category} ${pic.tags.join(' ')}`.toLowerCase().includes(search.toLowerCase()))
@@ -94,6 +110,15 @@ export default function UserPictograms() {
   const renderPicto = (pic: Pictogram, className: string) => pic.imageUrl
     ? <img src={pic.imageUrl} alt={pic.name} className={`${className} object-contain`} loading="lazy" />
     : <span className={className}>{pic.emoji}</span>;
+
+  if (!canUsePictograms) {
+    return (
+      <PermissionBlocked
+        title="Pictogramas deshabilitados"
+        description="Tu tutor deshabilito temporalmente los pictogramas. No podes buscar, guardar ni descargar apoyos visuales hasta que lo vuelva a habilitar."
+      />
+    );
+  }
 
   return <div className="space-y-4 pb-20 lg:pb-6">
     <div><h2 className="text-2xl font-heading font-bold text-foreground">Pictogramas</h2><p className="text-muted-foreground text-sm">Apoyos visuales para comunicarte</p></div>

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
-import { API_BASE_URL } from '@/services/api/client';
+import { API_BASE_URL, ApiError } from '@/services/api/client';
 import {
   createDirectConversationWith,
   createGroupConversation,
@@ -347,7 +347,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     try {
       sent = await sendMessage(cid, user.id, user.name, messageText);
-    } catch {
+    } catch (error) {
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+        throw error;
+      }
       sent = {
         id: `local-msg-${Date.now()}`,
         conversationId: cid,

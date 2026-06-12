@@ -10,9 +10,14 @@ import ChatScreen from '@/components/ChatScreen';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
 import ProfessionalAgenda from '@/components/ProfessionalAgenda';
 import UserNotifications from '@/pages/user/UserNotifications';
+import { isPermissionEnabled, PROFESIONAL_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
+import PermissionBlocked from '@/components/PermissionBlocked';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function ProfessionalDashboard() {
   const { user, logout } = useAuth();
+  const { context: permissionContext } = usePermissionContext();
+  const { toast } = useToast();
   const [tab, setTab] = useState('patients');
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
   const [patientTab, setPatientTab] = useState<'overview' | 'stats'>('overview');
@@ -54,11 +59,25 @@ export default function ProfessionalDashboard() {
 
   if (!user || user.role !== 'professional') return null;
 
+  const vinculosByUsuarioPerteneciente = new Map(
+    (permissionContext?.vinculos || []).map(item => [String(item.perteneciente.usuario.id), item])
+  );
+  const professionalLinks = permissionContext?.vinculos || [];
+  const hasProfessionalPermission = (permission: string, fallback = false) =>
+    professionalLinks.some(item =>
+      item.permisos_efectivos.vinculo_aprobado
+      && isPermissionEnabled(item.permisos_efectivos.permisos, permission, fallback)
+    );
+  const canAssignActivities = hasProfessionalPermission(PROFESIONAL_PERMISSIONS.ASIGNAR_ACTIVIDADES, true);
+  const canCreateCustomActivities = hasProfessionalPermission(PROFESIONAL_PERMISSIONS.CREAR_ACTIVIDADES_PERSONALIZADAS, true);
+  const canScheduleSessions = hasProfessionalPermission(PROFESIONAL_PERMISSIONS.AGENDAR_SESIONES, true);
+  const canSendMessages = hasProfessionalPermission(PROFESIONAL_PERMISSIONS.ENVIAR_MENSAJES, false);
+
   const tabs = [
     { id: 'patients', label: 'Pacientes', icon: Users },
-    { id: 'agenda', label: 'Agenda', icon: Calendar },
-    { id: 'create', label: 'Crear actividad', icon: Sparkles },
-    { id: 'chat', label: 'Chat', icon: MessageCircle },
+    ...(canScheduleSessions ? [{ id: 'agenda', label: 'Agenda', icon: Calendar }] : []),
+    ...(canAssignActivities || canCreateCustomActivities ? [{ id: 'create', label: 'Crear actividad', icon: Sparkles }] : []),
+    ...(canSendMessages ? [{ id: 'chat', label: 'Chat', icon: MessageCircle }] : []),
     { id: 'notifications', label: 'Notificaciones', icon: Bell },
     { id: 'tools', label: 'Herramientas', icon: ClipboardPlus },
     { id: 'directory', label: 'Directorio', icon: FileText },
@@ -88,7 +107,7 @@ export default function ProfessionalDashboard() {
       </div>
 
       <div className="max-w-4xl mx-auto p-4 space-y-4">
-        {tab === 'chat' && <ChatScreen />}
+        {tab === 'chat' && canSendMessages && <ChatScreen />}
         {tab === 'notifications' && <UserNotifications onUnreadCountChange={setUnreadCount} />}
         {tab === 'patients' && !selectedPatient && (
           <>
@@ -110,6 +129,8 @@ export default function ProfessionalDashboard() {
               const emotions = getEmotionsForUser(u.id);
               const objs = getObjectivesForUser(u.id).filter(o => o.status === 'activo');
               const nextSession = calendarEvents.find(e => e.userId === u.id && e.type === 'terapia' && e.date >= new Date().toISOString().split('T')[0]);
+              const linkPermissions = vinculosByUsuarioPerteneciente.get(String(u.id))?.permisos_efectivos;
+              const canViewPatientHistory = Boolean(permissionContext) && isPermissionEnabled(linkPermissions?.permisos, PROFESIONAL_PERMISSIONS.VER_HISTORIAL, false);
 
               return (
                 <motion.button key={u.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} onClick={() => { setSelectedPatient(u.id); setPatientTab('stats'); }} className="w-full bg-card rounded-xl border border-border overflow-hidden text-left hover:border-primary/30 transition-all">
@@ -120,8 +141,8 @@ export default function ProfessionalDashboard() {
                       <p className="text-xs text-muted-foreground">{u.age ? `${u.age} años · ` : ''}Nivel {u.level} · Racha {u.streak} días</p>
                     </div>
                     <div className="text-right">
-                      <p className={`text-lg font-bold ${adherence >= 70 ? 'text-success' : adherence >= 40 ? 'text-amber-500' : 'text-destructive'}`}>{adherence}%</p>
-                      <p className="text-[10px] text-muted-foreground">adherencia</p>
+                      <p className={`text-lg font-bold ${canViewPatientHistory ? adherence >= 70 ? 'text-success' : adherence >= 40 ? 'text-amber-500' : 'text-destructive' : 'text-muted-foreground'}`}>{canViewPatientHistory ? `${adherence}%` : '-'}</p>
+                      <p className="text-[10px] text-muted-foreground">{canViewPatientHistory ? 'adherencia' : 'sin historial'}</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-4 gap-2 px-4 pb-4">
@@ -146,9 +167,18 @@ export default function ProfessionalDashboard() {
           const emotions = getEmotionsForUser(patientDetail.id);
           const objs = getObjectivesForUser(patientDetail.id).filter(o => o.status === 'activo');
           const recs = getRecommendationsForUser(patientDetail.id);
+          const patientPermissions = vinculosByUsuarioPerteneciente.get(String(patientDetail.id))?.permisos_efectivos?.permisos;
+          const canViewPatientHistory = Boolean(permissionContext) && isPermissionEnabled(patientPermissions, PROFESIONAL_PERMISSIONS.VER_HISTORIAL, false);
+          const canMessagePatient = isPermissionEnabled(patientPermissions, PROFESIONAL_PERMISSIONS.ENVIAR_MENSAJES, false);
+          const canSchedulePatient = isPermissionEnabled(patientPermissions, PROFESIONAL_PERMISSIONS.AGENDAR_SESIONES, true);
           return (
             <div className="space-y-4">
               <button onClick={() => { setSelectedPatient(null); setPatientTab('overview'); }} className="text-sm text-primary font-medium">← Volver a pacientes</button>
+              {!canViewPatientHistory && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  El tutor deshabilito ver historial para este perteneciente.
+                </div>
+              )}
               <div className="flex gap-2 overflow-x-auto">
                 {([
                   { id: 'overview', label: 'Resumen', icon: BarChart3 },
@@ -160,8 +190,8 @@ export default function ProfessionalDashboard() {
                 ))}
               </div>
 
-              {patientTab === 'stats' && <AdvancedStats user={patientDetail} activities={acts} />}
-              {patientTab === 'overview' && (<>
+              {patientTab === 'stats' && canViewPatientHistory && <AdvancedStats user={patientDetail} activities={acts} />}
+              {patientTab === 'overview' && canViewPatientHistory && (<>
               <div className="bg-card rounded-xl p-5 border border-border">
                 <div className="flex items-center gap-4 mb-4">
                   <span className="text-5xl">{patientDetail.avatar}</span>
@@ -212,17 +242,23 @@ export default function ProfessionalDashboard() {
               </div>
 
               <div className="flex gap-2">
-                <Button className="flex-1 gradient-primary text-primary-foreground"><MessageSquare size={14} className="mr-1" /> Enviar mensaje</Button>
-                <Button variant="outline" className="flex-1"><Calendar size={14} className="mr-1" /> Proponer sesión</Button>
+                {canMessagePatient && <Button className="flex-1 gradient-primary text-primary-foreground"><MessageSquare size={14} className="mr-1" /> Enviar mensaje</Button>}
+                {canSchedulePatient && <Button variant="outline" className="flex-1"><Calendar size={14} className="mr-1" /> Proponer sesión</Button>}
               </div>
               </>)}
             </div>
           );
         })()}
 
-        {tab === 'create' && <ActivityManager />}
+        {tab === 'create' && (canAssignActivities || canCreateCustomActivities) && <ActivityManager />}
+        {tab === 'create' && !(canAssignActivities || canCreateCustomActivities) && (
+          <PermissionBlocked
+            title="Creacion de actividades deshabilitada"
+            description="El tutor no habilito la creacion o asignacion de actividades para tus vinculos activos."
+          />
+        )}
 
-        {tab === 'agenda' && <ProfessionalAgenda patients={linkedUsers} />}
+        {tab === 'agenda' && canScheduleSessions && <ProfessionalAgenda patients={linkedUsers} />}
 
         {tab === 'tools' && (
           <div className="space-y-4">
@@ -237,7 +273,23 @@ export default function ProfessionalDashboard() {
             <div className="bg-card rounded-xl p-4 border border-border">
               <h3 className="font-heading font-semibold text-foreground mb-3">🛠️ Acciones rápidas</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <Button variant="outline" className="justify-start" onClick={() => setTab('create')}><ClipboardPlus size={14} className="mr-2" /> Crear actividad personalizada</Button>
+                <Button
+                  variant="outline"
+                  className="justify-start"
+                  onClick={() => {
+                    if (canAssignActivities || canCreateCustomActivities) {
+                      setTab('create');
+                      return;
+                    }
+                    toast({
+                      title: 'Creacion deshabilitada',
+                      description: 'El tutor no habilito la creacion o asignacion de actividades para tus vinculos activos.',
+                      variant: 'destructive',
+                    });
+                  }}
+                >
+                  <ClipboardPlus size={14} className="mr-2" /> Crear actividad personalizada
+                </Button>
                 <Button variant="outline" className="justify-start"><Calendar size={14} className="mr-2" /> Planificación semanal</Button>
                 <Button variant="outline" className="justify-start"><FileText size={14} className="mr-2" /> Notas internas</Button>
                 <Button variant="outline" className="justify-start"><BarChart3 size={14} className="mr-2" /> Registro de intervenciones</Button>

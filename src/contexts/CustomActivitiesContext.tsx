@@ -18,6 +18,18 @@ export interface CustomActivity extends Activity {
   backendId?: number;
 }
 
+export type AssignmentResult = {
+  assigned: number;
+  skipped: number;
+  denied: string[];
+  errors: string[];
+};
+
+export type SaveCustomActivityResult = {
+  activity: CustomActivity;
+  assignment: AssignmentResult;
+};
+
 const KEY = 'tandem:custom-activities:v1';
 
 function load(): CustomActivity[] {
@@ -45,6 +57,14 @@ function pointIdFromPoints(points: number) {
   return 1;
 }
 
+function emptyAssignmentResult(): AssignmentResult {
+  return { assigned: 0, skipped: 0, denied: [], errors: [] };
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'No se pudo asignar la actividad.';
+}
+
 async function resolvePertenecienteIds(userIds: string[]) {
   if (userIds.length === 0) return [];
   const numericUserIds = new Set(userIds.map(Number).filter(Number.isFinite));
@@ -54,9 +74,13 @@ async function resolvePertenecienteIds(userIds: string[]) {
     .map((item) => Number(item.id));
 }
 
-async function assignBackendActivity(backendId: number, assignedToIds: string[], assignerUserId: string) {
+async function assignBackendActivity(backendId: number, assignedToIds: string[], assignerUserId: string): Promise<AssignmentResult> {
+  const result = emptyAssignmentResult();
   const numericAssignerId = Number(assignerUserId);
-  if (!Number.isFinite(numericAssignerId)) return;
+  if (!Number.isFinite(numericAssignerId)) {
+    result.errors.push('No se pudo identificar al usuario asignador.');
+    return result;
+  }
 
   const pertenecienteIds = await resolvePertenecienteIds(assignedToIds);
 
@@ -66,27 +90,43 @@ async function assignBackendActivity(backendId: number, assignedToIds: string[],
       Number(item.id_actividad_personalizada) === Number(backendId) &&
       Number(item.id_perteneciente) === Number(idPerteneciente)
     );
-    if (alreadyAssigned) return null;
-    return tandemApi.actividadesAsignadas.create({
-      id_actividad: null,
-      id_actividad_personalizada: backendId,
-      id_perteneciente: idPerteneciente,
-      id_usuario_asignador: numericAssignerId,
-      id_estado_actividad: 1,
-      fecha_asignacion: new Date().toISOString(),
-      fecha_completada: null,
-    });
+    if (alreadyAssigned) {
+      result.skipped += 1;
+      return;
+    }
+
+    try {
+      await tandemApi.actividadesAsignadas.create({
+        id_actividad: null,
+        id_actividad_personalizada: backendId,
+        id_perteneciente: idPerteneciente,
+        id_usuario_asignador: numericAssignerId,
+        id_estado_actividad: 1,
+        fecha_asignacion: new Date().toISOString(),
+        fecha_completada: null,
+      });
+      result.assigned += 1;
+    } catch (error) {
+      const message = errorMessage(error);
+      if (/permiso|permission|forbidden|403|deshabilitado/i.test(message)) {
+        result.denied.push(`Perteneciente ${idPerteneciente}: ${message}`);
+      } else {
+        result.errors.push(`Perteneciente ${idPerteneciente}: ${message}`);
+      }
+    }
   }));
+
+  return result;
 }
 
 interface Ctx {
   items: CustomActivity[];
   createOrUpdate: (
     data: Omit<CustomActivity, 'id' | 'isCustom' | 'createdBy' | 'createdByName' | 'createdByRole' | 'createdAt' | 'updatedAt' | 'status' | 'progress' | 'recommendedBy'> & { id?: string },
-  ) => Promise<CustomActivity | null>;
+  ) => Promise<SaveCustomActivityResult | null>;
   remove: (id: string) => void;
   duplicate: (id: string) => void;
-  publish: (id: string) => void;
+  publish: (id: string) => Promise<AssignmentResult>;
   unpublish: (id: string) => void;
   complete: (id: string, userId: string) => Promise<void>;
   byCreator: (creatorId: string) => CustomActivity[];
@@ -121,6 +161,7 @@ export function CustomActivitiesProvider({ children }: { children: ReactNode }) 
     };
 
     let backendId = existing?.backendId;
+    let assignment = emptyAssignmentResult();
     if (Number.isFinite(Number(user.id))) {
       if (backendId) {
         await tandemApi.actividadesPersonalizadas.update(backendId, backendPayload);
@@ -129,7 +170,13 @@ export function CustomActivitiesProvider({ children }: { children: ReactNode }) 
         backendId = Number(created.id);
       }
 
-      if (!data.draft && backendId) await assignBackendActivity(backendId, data.assignedToIds || [], user.id);
+      if (!data.draft && backendId) {
+        assignment = await assignBackendActivity(backendId, data.assignedToIds || [], user.id);
+        if ((data.assignedToIds || []).length > 0 && assignment.assigned === 0 && assignment.skipped === 0) {
+          const reason = assignment.denied[0] || assignment.errors[0] || 'El tutor no permite asignar actividades a los vinculados seleccionados.';
+          throw new Error(reason);
+        }
+      }
     }
 
     let saved: CustomActivity | null = null;
@@ -172,7 +219,7 @@ export function CustomActivitiesProvider({ children }: { children: ReactNode }) 
       return [created, ...prev];
     });
 
-    return saved;
+    return saved ? { activity: saved, assignment } : null;
   }, [items, user]);
 
   const remove = useCallback((id: string) => setItems(prev => prev.filter(a => a.id !== id)), []);
@@ -193,12 +240,21 @@ export function CustomActivitiesProvider({ children }: { children: ReactNode }) 
     });
   }, []);
 
-  const publish = useCallback((id: string) => {
+  const publish = useCallback(async (id: string) => {
     const activity = items.find(a => a.id === id);
+    let assignment = emptyAssignmentResult();
+    if (activity && !activity.backendId && (activity.assignedToIds || []).length > 0) {
+      throw new Error('La actividad no esta sincronizada con el backend. Abrila, guardala y volve a publicarla.');
+    }
     if (activity?.backendId && user) {
-      void assignBackendActivity(activity.backendId, activity.assignedToIds || [], user.id);
+      assignment = await assignBackendActivity(activity.backendId, activity.assignedToIds || [], user.id);
+      if ((activity.assignedToIds || []).length > 0 && assignment.assigned === 0 && assignment.skipped === 0) {
+        const reason = assignment.denied[0] || assignment.errors[0] || 'El tutor no permite asignar esta actividad a los vinculados seleccionados.';
+        throw new Error(reason);
+      }
     }
     setItems(prev => prev.map(a => a.id === id ? { ...a, draft: false, updatedAt: Date.now() } : a));
+    return assignment;
   }, [items, user]);
   const unpublish = useCallback((id: string) =>
     setItems(prev => prev.map(a => a.id === id ? { ...a, draft: true, updatedAt: Date.now() } : a)), []);

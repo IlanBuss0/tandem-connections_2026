@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useCalendar, eventTypes, typeEmoji } from '@/contexts/CalendarContext';
 import { CalendarEvent } from '@/data/api';
 import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, X, Clock, Save } from 'lucide-react';
+import PermissionBlocked from '@/components/PermissionBlocked';
+import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const dayNamesShort = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
@@ -19,6 +21,7 @@ const typeBg: Record<CalendarEvent['type'], string> = {
 function fmt(d: Date) { return d.toISOString().split('T')[0]; }
 
 export default function UserCalendar() {
+  const { context: permissionContext } = usePermissionContext();
   const { events, addEvent, updateEvent, deleteEvent, eventsOn } = useCalendar();
   const today = new Date();
   const [cursor, setCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
@@ -46,6 +49,20 @@ export default function UserCalendar() {
   }, [cursor]);
 
   const dayEvents = eventsOn(selectedDate).sort((a, b) => a.time.localeCompare(b.time));
+  const canUseCalendar = isPermissionEnabled(
+    permissionContext?.perteneciente?.permisos_efectivos,
+    PERTENECIENTE_PERMISSIONS.USAR_CALENDARIO,
+    true,
+  );
+
+  if (!canUseCalendar) {
+    return (
+      <PermissionBlocked
+        title="Calendario deshabilitado"
+        description="Tu tutor deshabilito temporalmente el calendario. No podes ver, crear ni editar eventos hasta que lo vuelva a habilitar."
+      />
+    );
+  }
 
   const openCreate = () => {
     setEditing(null);
