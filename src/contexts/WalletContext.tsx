@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useCallback, ReactNode 
 import { useAuth } from './AuthContext';
 import { tandemApi } from '@/services/api';
 import { SHOP_ITEMS, ShopCategory, getItemById } from '@/data/shopItems';
+import { buildDiceBearAvatarUrl } from '@/lib/dicebearAvatar';
 import type { Avatar, InventarioAvatar, ItemAvatar, Perteneciente, SaldoPuntos, TipoItemAvatar } from '@/types/database';
 
 export interface CoinTxn {
@@ -113,8 +114,12 @@ function parseAvatarAppearance(raw?: string | null): AvatarAppearance {
   }
 }
 
-function serializeAvatarJson(appearance: AvatarAppearance) {
-  return JSON.stringify({ appearance });
+function serializeAvatarJson(appearance: AvatarAppearance, equipped: AvatarEquipped = DEFAULT_EQUIPPED) {
+  return JSON.stringify({ appearance, equipped: { ...DEFAULT_EQUIPPED, ...equipped } });
+}
+
+function buildAvatarImageSourceUrl(appearance: AvatarAppearance, equipped: AvatarEquipped) {
+  return buildDiceBearAvatarUrl(appearance, equipped, 'tandem-avatar', 'png');
 }
 
 function categoryOfExternalId(id: string): ShopCategory | undefined {
@@ -206,7 +211,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         experiencia: 0,
         avatar_api: 'tandem',
         avatar_externo_id: null,
-        avatar_json: serializeAvatarJson(DEFAULT_APPEARANCE),
+        avatar_json: serializeAvatarJson(DEFAULT_APPEARANCE, DEFAULT_EQUIPPED),
+        avatar_imagen_origen_url: buildAvatarImageSourceUrl(DEFAULT_APPEARANCE, DEFAULT_EQUIPPED),
       });
       avatar = {
         id: Number(created.id),
@@ -215,7 +221,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         experiencia: 0,
         avatar_api: 'tandem',
         avatar_externo_id: null,
-        avatar_json: serializeAvatarJson(DEFAULT_APPEARANCE),
+        avatar_json: serializeAvatarJson(DEFAULT_APPEARANCE, DEFAULT_EQUIPPED),
       };
     }
 
@@ -391,7 +397,22 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
 
     setState(prev => ({ ...prev, equipped: { ...prev.equipped, [item.category]: itemId } }));
-  }, [snapshot, state.inventory]);
+
+    if (snapshot) {
+      const nextEquipped = { ...state.equipped, [item.category]: itemId };
+      const avatar_json = serializeAvatarJson(state.appearance, nextEquipped);
+      await tandemApi.avatares.update(snapshot.avatar.id, {
+        ...snapshot.avatar,
+        avatar_api: 'tandem',
+        avatar_json,
+        avatar_imagen_origen_url: buildAvatarImageSourceUrl(state.appearance, nextEquipped),
+      });
+      setSnapshot(prev => prev ? {
+        ...prev,
+        avatar: { ...prev.avatar, avatar_api: 'tandem', avatar_json },
+      } : prev);
+    }
+  }, [snapshot, state.appearance, state.equipped, state.inventory]);
 
   const unequip = useCallback(async (category: ShopCategory) => {
     if (snapshot) {
@@ -408,23 +429,39 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
 
     setState(prev => ({ ...prev, equipped: { ...prev.equipped, [category]: undefined } }));
-  }, [snapshot]);
+
+    if (snapshot) {
+      const nextEquipped = { ...state.equipped, [category]: undefined };
+      const avatar_json = serializeAvatarJson(state.appearance, nextEquipped);
+      await tandemApi.avatares.update(snapshot.avatar.id, {
+        ...snapshot.avatar,
+        avatar_api: 'tandem',
+        avatar_json,
+        avatar_imagen_origen_url: buildAvatarImageSourceUrl(state.appearance, nextEquipped),
+      });
+      setSnapshot(prev => prev ? {
+        ...prev,
+        avatar: { ...prev.avatar, avatar_api: 'tandem', avatar_json },
+      } : prev);
+    }
+  }, [snapshot, state.appearance, state.equipped]);
 
   const saveAppearance = useCallback(async (appearance: AvatarAppearance) => {
     if (snapshot) {
       await tandemApi.avatares.update(snapshot.avatar.id, {
         ...snapshot.avatar,
         avatar_api: 'tandem',
-        avatar_json: serializeAvatarJson(appearance),
+        avatar_json: serializeAvatarJson(appearance, state.equipped),
+        avatar_imagen_origen_url: buildAvatarImageSourceUrl(appearance, state.equipped),
       });
       setSnapshot(prev => prev ? {
         ...prev,
-        avatar: { ...prev.avatar, avatar_api: 'tandem', avatar_json: serializeAvatarJson(appearance) },
+        avatar: { ...prev.avatar, avatar_api: 'tandem', avatar_json: serializeAvatarJson(appearance, state.equipped) },
       } : prev);
     }
     setState(prev => ({ ...prev, appearance }));
     return { ok: true };
-  }, [snapshot]);
+  }, [snapshot, state.equipped]);
 
   const hasItem = useCallback((id: string) => state.inventory.includes(id), [state.inventory]);
   const isEquipped = useCallback((id: string) => Object.values(state.equipped).includes(id), [state.equipped]);
