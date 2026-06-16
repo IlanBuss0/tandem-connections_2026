@@ -482,14 +482,24 @@ export async function generateTutorInvite(
   return unwrapApiData(response);
 }
 
+function normalizeInviteCode(codigo: string): string {
+  const compact = String(codigo || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+
+  return compact.length > 4 ? `${compact.slice(0, 4)}-${compact.slice(4, 8)}` : compact;
+}
+
 export async function joinTutorInviteByCode(codigo: string): Promise<TutorInviteJoinResult> {
   const token = getStoredAuthToken();
   if (!token) throw new Error('Token requerido para aceptar invitaciones.');
+  const normalizedCode = normalizeInviteCode(codigo);
 
   const response = await apiRequest<{ ok: true; data: TutorInviteJoinResult }>('/api/vinculos/invite/join', {
     method: 'POST',
     token,
-    body: { codigo },
+    body: { codigo: normalizedCode },
   });
 
   return unwrapApiData(response);
@@ -548,13 +558,14 @@ export async function generateProfessionalInvite(
 export async function joinProfessionalInviteByCode(codigo: string): Promise<ProfessionalInviteJoinResult> {
   const token = getStoredAuthToken();
   if (!token) throw new Error('Token requerido para aceptar invitaciones profesionales.');
+  const normalizedCode = normalizeInviteCode(codigo);
 
   const response = await apiRequest<{ ok: true; data: ProfessionalInviteJoinResult }>(
     '/api/vinculos-profesionales-pertenecientes/invite/join',
     {
       method: 'POST',
       token,
-      body: { codigo },
+      body: { codigo: normalizedCode },
     },
   );
 

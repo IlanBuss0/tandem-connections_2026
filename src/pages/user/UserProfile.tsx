@@ -212,7 +212,7 @@ export default function UserProfile({ onConfigure }: { onConfigure?: () => void 
                 <Input
                   id="invite-code"
                   value={inviteCode}
-                  onChange={event => setInviteCode(event.target.value.toUpperCase())}
+                  onChange={event => setInviteCode(event.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''))}
                   placeholder="ABCD-1234"
                   className="font-mono font-semibold tracking-[0.12em]"
                   maxLength={9}

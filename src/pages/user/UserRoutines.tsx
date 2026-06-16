@@ -70,9 +70,10 @@ export default function UserRoutines() {
     setShowAddItem(true);
   };
   const submitItem = () => {
-    if (!form.title.trim()) return;
-    if (editingItem) updateItem(active.id, editingItem.id, form);
-    else addItem(active.id, form);
+    const payload = { ...form, title: form.title.trim() };
+    if (!payload.title) return;
+    if (editingItem) updateItem(active.id, editingItem.id, payload);
+    else addItem(active.id, payload);
     setShowAddItem(false);
   };
 

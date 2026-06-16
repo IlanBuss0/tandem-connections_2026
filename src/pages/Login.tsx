@@ -64,7 +64,10 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     e.preventDefault();
     setError('');
 
-    if (!(await login(username, password))) {
+    const cleanUsername = username.trim();
+    setUsername(cleanUsername);
+
+    if (!cleanUsername || !(await login(cleanUsername, password))) {
       setError('Usuario o contraseña incorrectos');
     }
   };
@@ -73,7 +76,10 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     e.preventDefault();
     setError('');
 
-    if (!registerName || !registerEmail || !registerPassword || !registerConfirmPassword) {
+    const cleanName = registerName.trim();
+    const cleanEmail = registerEmail.trim();
+
+    if (!cleanName || !cleanEmail || !registerPassword || !registerConfirmPassword) {
       setError('Completá todos los campos para registrarte');
       return;
     }
@@ -83,6 +89,8 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
       return;
     }
 
+    setRegisterName(cleanName);
+    setRegisterEmail(cleanEmail);
     setError('El registro todavía no está conectado al backend');
   };
 

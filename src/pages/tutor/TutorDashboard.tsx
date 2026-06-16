@@ -881,10 +881,10 @@ function TutorCalendar({
   };
 
   const submit = async () => {
-    if (!form.title.trim()) return;
+    const payload = { ...form, title: form.title.trim(), color: typeColorForEvent(form.type) };
+    if (!payload.title) return;
     setSaving(true);
     try {
-      const payload = { ...form, color: typeColorForEvent(form.type) };
       if (editing) await updateCalendarEvent(editing.id, payload);
       else await createCalendarEvent(userId, payload);
       setShowForm(false);

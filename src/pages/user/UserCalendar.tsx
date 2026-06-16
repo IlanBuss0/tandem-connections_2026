@@ -75,9 +75,10 @@ export default function UserCalendar() {
     setShowForm(true);
   };
   const submit = () => {
-    if (!form.title.trim()) return;
-    if (editing) updateEvent(editing.id, form);
-    else addEvent(form);
+    const payload = { ...form, title: form.title.trim() };
+    if (!payload.title) return;
+    if (editing) updateEvent(editing.id, payload);
+    else addEvent(payload);
     setShowForm(false);
     setSelectedDate(form.date);
   };

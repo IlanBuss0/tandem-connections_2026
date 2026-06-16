@@ -402,7 +402,7 @@ export default function ProfessionalDashboard() {
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Input
                   value={professionalInviteCode}
-                  onChange={event => setProfessionalInviteCode(event.target.value.toUpperCase())}
+                  onChange={event => setProfessionalInviteCode(event.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''))}
                   placeholder="ABCD-1234"
                   className="font-mono font-semibold tracking-[0.12em]"
                   maxLength={9}
