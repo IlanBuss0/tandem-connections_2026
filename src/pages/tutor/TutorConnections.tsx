@@ -10,6 +10,7 @@ import {
   QrCode,
   RefreshCcw,
   Shield,
+  Trash2,
   UserRound,
   Users,
 } from 'lucide-react';
@@ -17,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { generateTutorInvite, fetchPermissionContext, setPertenecientePermissionByName, setProfessionalPermissionByName, type EffectivePertenecientePermissions, type EffectiveProfessionalPermissions, type PermissionContext, type TutorInvite, type TutorPermissionContextPerteneciente } from '@/data/api';
+import { deleteProfessionalPertenecienteLink, deleteTutorPertenecienteLink, generateProfessionalInvite, generateTutorInvite, fetchPermissionContext, setPertenecientePermissionByName, setProfessionalPermissionByName, type EffectivePertenecientePermissions, type EffectiveProfessionalPermissions, type PermissionContext, type ProfessionalInvite, type TutorInvite, type TutorPermissionContextPerteneciente } from '@/data/api';
 import { toast } from '@/hooks/ui/use-toast';
 
 const PERTENECIENTE_PERMISSION_LABELS: Record<string, string> = {
@@ -66,6 +67,10 @@ export default function TutorConnections() {
   const [invite, setInvite] = useState<TutorInvite | null>(null);
   const [generatingInvite, setGeneratingInvite] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
+  const [professionalInvite, setProfessionalInvite] = useState<ProfessionalInvite | null>(null);
+  const [generatingProfessionalInvite, setGeneratingProfessionalInvite] = useState(false);
+  const [professionalQrDataUrl, setProfessionalQrDataUrl] = useState('');
+  const [deletingKey, setDeletingKey] = useState<string | null>(null);
 
   const pertenecientes = context?.pertenecientes || [];
   const selected = useMemo<TutorPermissionContextPerteneciente | null>(() => {
@@ -95,6 +100,7 @@ export default function TutorConnections() {
   }, []);
 
   const inviteUrl = invite ? `${window.location.origin}/vincular/${invite.token}` : '';
+  const professionalInviteUrl = professionalInvite ? `${window.location.origin}/vincular-profesional/${professionalInvite.token}` : '';
 
   useEffect(() => {
     let cancelled = false;
@@ -124,6 +130,34 @@ export default function TutorConnections() {
     };
   }, [inviteUrl]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!professionalInviteUrl) {
+      setProfessionalQrDataUrl('');
+      return;
+    }
+
+    QRCode.toDataURL(professionalInviteUrl, {
+      margin: 1,
+      width: 220,
+      color: {
+        dark: '#1f2937',
+        light: '#ffffff',
+      },
+    })
+      .then(dataUrl => {
+        if (!cancelled) setProfessionalQrDataUrl(dataUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setProfessionalQrDataUrl('');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [professionalInviteUrl]);
+
   const createInvite = async () => {
     setGeneratingInvite(true);
     try {
@@ -143,6 +177,21 @@ export default function TutorConnections() {
       toast({ title: `${label} copiado` });
     } catch {
       toast({ title: 'No se pudo copiar', description: 'Selecciona y copia el texto manualmente.', variant: 'destructive' });
+    }
+  };
+
+  const createProfessionalInvite = async () => {
+    if (!selected) return;
+
+    setGeneratingProfessionalInvite(true);
+    try {
+      const nextInvite = await generateProfessionalInvite(selected.id, { horas_validez: 1 });
+      setProfessionalInvite(nextInvite);
+      toast({ title: 'Invitacion profesional creada', description: 'El codigo y el QR ya estan listos para compartir con el profesional.' });
+    } catch (err) {
+      toast({ title: 'No se pudo generar', description: err instanceof Error ? err.message : 'Error desconocido', variant: 'destructive' });
+    } finally {
+      setGeneratingProfessionalInvite(false);
     }
   };
 
@@ -295,6 +344,44 @@ export default function TutorConnections() {
     }
   };
 
+  const deleteTutorLink = async () => {
+    if (!selected) return;
+    const confirmed = window.confirm(`Eliminar el vinculo con ${fullName(selected.usuario)}?`);
+    if (!confirmed) return;
+
+    const key = `tutor:${selected.vinculo.id}`;
+    setDeletingKey(key);
+    try {
+      await deleteTutorPertenecienteLink(selected.vinculo.id);
+      setProfessionalInvite(null);
+      window.dispatchEvent(new CustomEvent('permisos:updated', { detail: { source: 'tutor-link-delete' } }));
+      await load();
+      toast({ title: 'Vinculo eliminado', description: 'El perteneciente ya no queda vinculado a este tutor.' });
+    } catch (err) {
+      toast({ title: 'No se pudo eliminar', description: err instanceof Error ? err.message : 'Error desconocido', variant: 'destructive' });
+    } finally {
+      setDeletingKey(null);
+    }
+  };
+
+  const deleteProfessionalLink = async (idVinculo: number, professionalName: string) => {
+    const confirmed = window.confirm(`Eliminar el vinculo con ${professionalName}?`);
+    if (!confirmed) return;
+
+    const key = `profesional:${idVinculo}`;
+    setDeletingKey(key);
+    try {
+      await deleteProfessionalPertenecienteLink(idVinculo);
+      window.dispatchEvent(new CustomEvent('permisos:updated', { detail: { source: 'professional-link-delete' } }));
+      await load();
+      toast({ title: 'Vinculo profesional eliminado' });
+    } catch (err) {
+      toast({ title: 'No se pudo eliminar', description: err instanceof Error ? err.message : 'Error desconocido', variant: 'destructive' });
+    } finally {
+      setDeletingKey(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-[360px] items-center justify-center rounded-lg border border-border bg-card">
@@ -436,9 +523,21 @@ export default function TutorConnections() {
                     <h3 className="font-heading text-lg font-bold text-foreground">{fullName(selected.usuario)}</h3>
                     <p className="text-sm text-muted-foreground">Estado del vinculo: {selected.vinculo.estado_vinculo}</p>
                   </div>
-                  <Badge variant={selected.vinculo.es_tutor_principal ? 'default' : 'secondary'}>
-                    {selected.vinculo.es_tutor_principal ? 'Tutor principal' : 'Tutor activo'}
-                  </Badge>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={selected.vinculo.es_tutor_principal ? 'default' : 'secondary'}>
+                      {selected.vinculo.es_tutor_principal ? 'Tutor principal' : 'Tutor activo'}
+                    </Badge>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 text-destructive hover:text-destructive"
+                      onClick={deleteTutorLink}
+                      disabled={deletingKey === `tutor:${selected.vinculo.id}`}
+                    >
+                      {deletingKey === `tutor:${selected.vinculo.id}` ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                      Eliminar vinculo
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -468,6 +567,72 @@ export default function TutorConnections() {
                   <h3 className="font-heading text-lg font-bold text-foreground">Profesionales vinculados</h3>
                 </div>
 
+                <div className="mb-4 rounded-lg border border-border bg-background p-3">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <QrCode size={17} className="text-primary" />
+                        <p className="font-semibold text-foreground">Invitar profesional con codigo o QR</p>
+                      </div>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Genera una invitacion para que un profesional se vincule a {fullName(selected.usuario)}.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={createProfessionalInvite}
+                      disabled={generatingProfessionalInvite}
+                      variant="outline"
+                      className="gap-2"
+                    >
+                      {generatingProfessionalInvite ? <Loader2 size={15} className="animate-spin" /> : <QrCode size={15} />}
+                      Generar codigo/QR
+                    </Button>
+                  </div>
+
+                  {professionalInvite && professionalInvite.id_perteneciente === selected.id && (
+                    <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase text-muted-foreground">Codigo profesional</p>
+                          <div className="mt-1 flex flex-col gap-2 sm:flex-row">
+                            <Input readOnly value={professionalInvite.codigo} className="font-mono text-lg font-bold tracking-[0.18em]" />
+                            <Button variant="outline" onClick={() => copyText(professionalInvite.codigo, 'Codigo profesional')} className="gap-2">
+                              <Clipboard size={15} />
+                              Copiar
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-semibold uppercase text-muted-foreground">Link QR profesional</p>
+                          <div className="mt-1 flex flex-col gap-2 sm:flex-row">
+                            <Input readOnly value={professionalInviteUrl} className="font-mono text-xs" />
+                            <Button variant="outline" onClick={() => copyText(professionalInviteUrl, 'Link profesional')} className="gap-2">
+                              <Link size={15} />
+                              Copiar
+                            </Button>
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-muted-foreground">
+                          Expira: {new Date(professionalInvite.fecha_expiracion).toLocaleString('es-AR')}
+                        </p>
+                      </div>
+
+                      <div className="flex min-h-[200px] items-center justify-center rounded-lg border border-border bg-card p-3">
+                        {professionalQrDataUrl ? (
+                          <img src={professionalQrDataUrl} alt="QR de vinculacion profesional" className="h-[180px] w-[180px]" />
+                        ) : (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Loader2 size={16} className="animate-spin" />
+                            Generando QR
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {(selected.profesionales_vinculados || []).length === 0 ? (
                   <div className="rounded-lg border border-dashed border-border p-5 text-sm text-muted-foreground">
                     No hay profesionales vinculados a este perteneciente.
@@ -493,6 +658,16 @@ export default function TutorConnections() {
                                 Aprobado
                               </Badge>
                             )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 gap-1 text-destructive hover:text-destructive"
+                              onClick={() => deleteProfessionalLink(item.id_vinculo, fullName(item.profesional.usuario))}
+                              disabled={deletingKey === `profesional:${item.id_vinculo}`}
+                            >
+                              {deletingKey === `profesional:${item.id_vinculo}` ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                              Eliminar
+                            </Button>
                           </div>
                         </div>
 
@@ -527,7 +702,7 @@ export default function TutorConnections() {
                   <div>
                     <p className="text-sm font-semibold text-foreground">Altas y bajas de vinculos</p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Esta vista ya administra permisos. Las altas y bajas van a ir en esta misma pantalla cuando el backend exponga endpoints protegidos para crear, aprobar y finalizar vinculos.
+                      Las altas se hacen por codigo o QR. Las bajas se gestionan desde los botones de eliminar en el perteneciente o en cada profesional vinculado.
                     </p>
                   </div>
                 </div>

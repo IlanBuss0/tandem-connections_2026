@@ -67,7 +67,7 @@ export function usePermissionContext() {
   const cancelledRef = useRef(false);
 
   const refetch = useCallback(() => {
-    loadContext(setContext, setLoading, setError, cancelledRef);
+    return loadContext(setContext, setLoading, setError, cancelledRef);
   }, []);
 
   useEffect(() => {

@@ -1,6 +1,6 @@
 import * as legacy from './mockData';
 import { tandemApi } from '@/services/api';
-import { API_BASE_URL, apiRequest, unwrapApiData } from '@/services/api/client';
+import { API_BASE_URL, ApiError, apiRequest, unwrapApiData } from '@/services/api/client';
 import type {
   Actividad as DbActividad,
   ActividadAsignada as DbActividadAsignada,
@@ -157,6 +157,26 @@ export type TutorInvite = {
 export type TutorInviteJoinResult = {
   vinculo: DbVinculoTutorPerteneciente;
   es_principal: boolean;
+};
+
+export type TutorProfessionalLinkResult = {
+  vinculo: DbVinculoProfesionalPerteneciente;
+  permisos_efectivos: EffectiveProfessionalPermissions;
+  profesional: DbProfesional;
+  id_usuario_perteneciente: number | null;
+  was_existing: boolean;
+};
+
+export type ProfessionalInvite = {
+  id: number;
+  codigo: string;
+  token: string;
+  id_perteneciente: number;
+  fecha_expiracion: string;
+};
+
+export type ProfessionalInviteJoinResult = TutorProfessionalLinkResult & {
+  id_usuario_tutor: number | null;
 };
 
 export interface AchievementDashboard {
@@ -388,6 +408,15 @@ export function clearStoredAuthToken(): void {
   localStorage.removeItem('tandem_auth_token');
 }
 
+async function fetchPertenecienteByUsuarioId(userId: string | number): Promise<DbPerteneciente | null> {
+  try {
+    return await apiRequest<DbPerteneciente>(`/api/pertenecientes/usuario/${encodeURIComponent(String(userId))}`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
 export async function fetchPermissionContext(): Promise<PermissionContext> {
   const token = getStoredAuthToken();
   if (!token) throw new Error('Token requerido para consultar permisos.');
@@ -475,6 +504,90 @@ export async function joinTutorInviteByToken(inviteToken: string): Promise<Tutor
     token,
     body: { token: inviteToken },
   });
+
+  return unwrapApiData(response);
+}
+
+export async function deleteTutorPertenecienteLink(idVinculo: number): Promise<{ rowsAffected: number }> {
+  const token = getStoredAuthToken();
+  if (!token) throw new Error('Token requerido para eliminar vinculos.');
+
+  const response = await apiRequest<{ ok: true; data: { rowsAffected: number } }>(
+    `/api/vinculos-tutor-pertenecientes/tutor/${encodeURIComponent(String(idVinculo))}`,
+    {
+      method: 'DELETE',
+      token,
+    },
+  );
+
+  return unwrapApiData(response);
+}
+
+export async function generateProfessionalInvite(
+  idPerteneciente: number,
+  payload: { horas_validez?: number } = {},
+): Promise<ProfessionalInvite> {
+  const token = getStoredAuthToken();
+  if (!token) throw new Error('Token requerido para generar invitaciones profesionales.');
+
+  const response = await apiRequest<{ ok: true; data: ProfessionalInvite }>(
+    '/api/vinculos-profesionales-pertenecientes/invite/generate',
+    {
+      method: 'POST',
+      token,
+      body: {
+        id_perteneciente: idPerteneciente,
+        horas_validez: payload.horas_validez ?? 1,
+      },
+    },
+  );
+
+  return unwrapApiData(response);
+}
+
+export async function joinProfessionalInviteByCode(codigo: string): Promise<ProfessionalInviteJoinResult> {
+  const token = getStoredAuthToken();
+  if (!token) throw new Error('Token requerido para aceptar invitaciones profesionales.');
+
+  const response = await apiRequest<{ ok: true; data: ProfessionalInviteJoinResult }>(
+    '/api/vinculos-profesionales-pertenecientes/invite/join',
+    {
+      method: 'POST',
+      token,
+      body: { codigo },
+    },
+  );
+
+  return unwrapApiData(response);
+}
+
+export async function joinProfessionalInviteByToken(inviteToken: string): Promise<ProfessionalInviteJoinResult> {
+  const token = getStoredAuthToken();
+  if (!token) throw new Error('Token requerido para aceptar invitaciones profesionales.');
+
+  const response = await apiRequest<{ ok: true; data: ProfessionalInviteJoinResult }>(
+    '/api/vinculos-profesionales-pertenecientes/invite/join',
+    {
+      method: 'POST',
+      token,
+      body: { token: inviteToken },
+    },
+  );
+
+  return unwrapApiData(response);
+}
+
+export async function deleteProfessionalPertenecienteLink(idVinculo: number): Promise<{ rowsAffected: number }> {
+  const token = getStoredAuthToken();
+  if (!token) throw new Error('Token requerido para eliminar vinculos profesionales.');
+
+  const response = await apiRequest<{ ok: true; data: { rowsAffected: number } }>(
+    `/api/vinculos-profesionales-pertenecientes/tutor/${encodeURIComponent(String(idVinculo))}`,
+    {
+      method: 'DELETE',
+      token,
+    },
+  );
 
   return unwrapApiData(response);
 }
@@ -926,7 +1039,7 @@ export interface TutorHomeData {
 }
 
 export async function fetchPertenecienteHome(userId: string): Promise<PertenecienteHomeData> {
-  const perteneciente = await apiFetchWithFallback<DbPerteneciente | null>([`/api/pertenecientes/usuario/${encodeURIComponent(userId)}`]);
+  const perteneciente = await fetchPertenecienteByUsuarioId(userId);
   if (!perteneciente) {
     return {
       perteneciente: null,
@@ -1387,13 +1500,21 @@ const CALENDAR_CONFIG_KEY = 'calendar.events';
 const CALENDAR_EVENT_KEY_PREFIX = 'calendar.event:';
 
 async function getUserConfig(userId: number, key: string): Promise<ConfiguracionUsuario | undefined> {
-  const rows = await tandemApi.configuracionesUsuarios.getAll();
-  return rows.find(row => row.id_usuario === userId && row.clave === key);
+  try {
+    return await apiRequest<ConfiguracionUsuario>(
+      `/api/configuraciones-usuarios/usuario/${encodeURIComponent(String(userId))}/${encodeURIComponent(key)}`,
+    );
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return undefined;
+    throw error;
+  }
 }
 
 async function getUserCalendarConfigs(userId: number): Promise<ConfiguracionUsuario[]> {
-  const rows = await tandemApi.configuracionesUsuarios.getAll();
-  return rows.filter(row => row.id_usuario === userId && (row.clave === CALENDAR_CONFIG_KEY || row.clave.startsWith(CALENDAR_EVENT_KEY_PREFIX)));
+  const rows = await apiRequest<ConfiguracionUsuario[]>(
+    `/api/configuraciones-usuarios/usuario/${encodeURIComponent(String(userId))}`,
+  );
+  return rows.filter(row => row.clave === CALENDAR_CONFIG_KEY || row.clave.startsWith(CALENDAR_EVENT_KEY_PREFIX));
 }
 
 function normalizeCalendarEventsPayload(payload: unknown, userId: string): CalendarEvent[] {
@@ -1522,12 +1643,11 @@ function normalizeRoutinesPayload(payload: unknown): DayRoutine[] {
 export async function fetchRoutinesForUser(userId: string): Promise<DayRoutine[]> {
   try {
     const numericUserId = Number(userId);
-    const rows = await tandemApi.configuracionesUsuarios.getAll();
-    const config = rows.find(row => row.id_usuario === numericUserId && row.clave === ROUTINES_CONFIG_KEY);
+    const config = await getUserConfig(numericUserId, ROUTINES_CONFIG_KEY);
     if (!config?.valor) return [];
     return normalizeRoutinesPayload(JSON.parse(config.valor));
   } catch {
-    return apiFetchWithFallback<DayRoutine[]>([`/routines?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/routines`]);
+    return [];
   }
 }
 
@@ -1540,13 +1660,12 @@ export async function saveRoutinesForUser(userId: string, routines: DayRoutine[]
       valor: JSON.stringify(routines),
       fecha_modificacion: new Date().toISOString(),
     };
-    const rows = await tandemApi.configuracionesUsuarios.getAll();
-    const config = rows.find(row => row.id_usuario === numericUserId && row.clave === ROUTINES_CONFIG_KEY);
+    const config = await getUserConfig(numericUserId, ROUTINES_CONFIG_KEY);
     if (config?.id) await tandemApi.configuracionesUsuarios.update(config.id, payload);
     else await tandemApi.configuracionesUsuarios.create(payload);
     return routines;
-  } catch {
-    return apiFetchWithFallback<DayRoutine[]>([`/routines/bulk`, `/users/${encodeURIComponent(userId)}/routines`], { method: 'PUT', body: JSON.stringify({ userId, routines }) });
+  } catch (error) {
+    throw error instanceof Error ? error : new Error('No se pudieron guardar las rutinas.');
   }
 }
 
@@ -2091,7 +2210,7 @@ export async function fetchUserProfileSettings(userId: string): Promise<UserProf
     accessibilityConfig,
   ] = await Promise.all([
     tandemApi.usuarios.getById(idUsuario),
-    apiFetchWithFallback<DbPerteneciente | null>([`/api/pertenecientes/usuario/${encodeURIComponent(userId)}`]).catch(() => null),
+    fetchPertenecienteByUsuarioId(userId).catch(() => null),
     tandemApi.nivelesApoyos.getAll(),
     tandemApi.autonomiasOperativas.getAll(),
     getUserConfig(idUsuario, PROFILE_PREFERENCES_KEY),
@@ -2114,7 +2233,7 @@ export async function saveUserProfileSettings(userId: string, payload: UserProfi
   const idUsuario = Number(userId);
   const [currentUsuario, currentPerteneciente] = await Promise.all([
     tandemApi.usuarios.getById(idUsuario),
-    apiFetchWithFallback<DbPerteneciente | null>([`/api/pertenecientes/usuario/${encodeURIComponent(userId)}`]).catch(() => null),
+    fetchPertenecienteByUsuarioId(userId).catch(() => null),
   ]);
 
   await tandemApi.usuarios.update(idUsuario, {

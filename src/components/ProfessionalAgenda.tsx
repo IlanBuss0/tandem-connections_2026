@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CalendarEvent, User } from '@/data/api';
 import { useCalendar } from '@/contexts/CalendarContext';
-import { CalendarDays, ChevronLeft, ChevronRight, Clock, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Clock, Loader2, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 
 interface Props {
   patients: User[];
@@ -45,12 +46,14 @@ function buildDescription(description: string, patientId: string) {
 
 export default function ProfessionalAgenda({ patients }: Props) {
   const { events, addEvent, updateEvent, deleteEvent, eventsOn } = useCalendar();
+  const { toast } = useToast();
   const today = new Date();
   const [cursor, setCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState(fmt(today));
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<CalendarEvent | null>(null);
   const [form, setForm] = useState<TherapyForm>(() => emptyForm(fmt(today)));
+  const [saving, setSaving] = useState(false);
 
   const therapyEvents = useMemo(
     () => events.filter((event) => event.type === 'terapia'),
@@ -94,7 +97,7 @@ export default function ProfessionalAgenda({ patients }: Props) {
     setShowForm(true);
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (!form.title.trim()) return;
 
     const payload = {
@@ -105,11 +108,23 @@ export default function ProfessionalAgenda({ patients }: Props) {
       description: buildDescription(form.description, form.patientId),
     };
 
-    if (editing) updateEvent(editing.id, payload);
-    else addEvent(payload);
+    setSaving(true);
+    try {
+      if (editing) await updateEvent(editing.id, payload);
+      else await addEvent(payload);
 
-    setSelectedDate(form.date);
-    setShowForm(false);
+      setSelectedDate(form.date);
+      setShowForm(false);
+      toast({ title: editing ? 'Evento actualizado' : 'Evento creado' });
+    } catch (error) {
+      toast({
+        title: 'No se pudo guardar',
+        description: error instanceof Error ? error.message : 'Error desconocido.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -198,8 +213,9 @@ export default function ProfessionalAgenda({ patients }: Props) {
               ))}
             </select>
             <textarea value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} placeholder="Notas de la sesion o evento importante" className="w-full p-2 rounded-lg border border-border bg-background text-sm resize-none h-16" />
-            <button onClick={submit} className="w-full py-2 rounded-lg gradient-primary text-primary-foreground text-sm font-semibold inline-flex items-center justify-center gap-1">
-              <Save size={14} /> {editing ? 'Guardar cambios' : 'Crear evento'}
+            <button disabled={saving} onClick={submit} className="w-full py-2 rounded-lg gradient-primary text-primary-foreground text-sm font-semibold inline-flex items-center justify-center gap-1 disabled:opacity-60">
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              {editing ? 'Guardar cambios' : 'Crear evento'}
             </button>
           </motion.div>
         )}
@@ -237,7 +253,25 @@ export default function ProfessionalAgenda({ patients }: Props) {
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => openEdit(event)} className="p-1.5 rounded hover:bg-white/40" title="Editar"><Pencil size={14} /></button>
-                      <button onClick={() => { if (confirm('Eliminar evento?')) deleteEvent(event.id); }} className="p-1.5 rounded hover:bg-white/40" title="Eliminar"><Trash2 size={14} /></button>
+                      <button
+                        onClick={async () => {
+                          if (!confirm('Eliminar evento?')) return;
+                          try {
+                            await deleteEvent(event.id);
+                            toast({ title: 'Evento eliminado' });
+                          } catch (error) {
+                            toast({
+                              title: 'No se pudo eliminar',
+                              description: error instanceof Error ? error.message : 'Error desconocido.',
+                              variant: 'destructive',
+                            });
+                          }
+                        }}
+                        className="p-1.5 rounded hover:bg-white/40"
+                        title="Eliminar"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   </div>
                 </motion.div>

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchActivitiesForUser, fetchAllProfessionals, fetchLinkedPertenecientesForSupportUser, getEmotionsForUser, getObjectivesForUser, calendarEvents, getRecommendationsForUser, type Activity, type Professional, type User } from '@/data/api';
-import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, MessageSquare, Sparkles, MessageCircle, Bell, X } from 'lucide-react';
+import { fetchActivitiesForUser, fetchAllProfessionals, fetchLinkedPertenecientesForSupportUser, getEmotionsForUser, getObjectivesForUser, getRecommendationsForUser, joinProfessionalInviteByCode, type Activity, type CalendarEvent, type Professional, type User } from '@/data/api';
+import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, MessageSquare, Sparkles, MessageCircle, Bell, X, KeyRound, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { AnimatePresence, motion } from 'framer-motion';
 import ActivityManager from '@/components/ActivityManager';
 import AdvancedStats from '@/components/AdvancedStats';
@@ -15,10 +16,27 @@ import UserNotifications from '@/pages/user/UserNotifications';
 import { isPermissionEnabled, PROFESIONAL_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { useToast } from '@/components/ui/use-toast';
+import { useCalendar } from '@/contexts/CalendarContext';
+
+function professionalEventPatientId(description?: string) {
+  return description?.match(/\[paciente:([^\]]+)\]/)?.[1] || '';
+}
+
+function nextTherapySessionForPatient(events: CalendarEvent[], patientId: string) {
+  const now = new Date().toISOString().split('T')[0];
+  return events
+    .filter(event =>
+      event.type === 'terapia'
+      && event.date >= now
+      && professionalEventPatientId(event.description) === patientId,
+    )
+    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))[0];
+}
 
 export default function ProfessionalDashboard() {
   const { user, logout } = useAuth();
-  const { context: permissionContext } = usePermissionContext();
+  const { context: permissionContext, refetch: refetchPermissionContext } = usePermissionContext();
+  const { events: professionalCalendarEvents } = useCalendar();
   const { toast } = useToast();
   const [tab, setTab] = useState('patients');
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
@@ -28,6 +46,8 @@ export default function ProfessionalDashboard() {
   const [activitiesByUser, setActivitiesByUser] = useState<Record<string, Activity[]>>({});
   const [allProfessionals, setAllProfessionals] = useState<Professional[]>([]);
   const [loadingPatients, setLoadingPatients] = useState(true);
+  const [professionalInviteCode, setProfessionalInviteCode] = useState('');
+  const [joiningProfessionalInvite, setJoiningProfessionalInvite] = useState(false);
   const { unreadCount, setUnreadCount } = useUnreadNotifications(
     user && user.role === 'professional' ? { id: String(user.id) } : null
   );
@@ -59,6 +79,44 @@ export default function ProfessionalDashboard() {
     });
     return () => { cancelled = true; };
   }, [user]);
+
+  const reloadPatients = async () => {
+    if (!user || user.role !== 'professional') return;
+    setLoadingPatients(true);
+    try {
+      const patients = await fetchLinkedPertenecientesForSupportUser(user.id, 'professional');
+      setLinkedUsers(patients);
+      const entries = await Promise.all(
+        patients.map(patient =>
+          fetchActivitiesForUser(patient.id)
+            .then(activities => [patient.id, activities] as const)
+            .catch(() => [patient.id, []] as const)
+        )
+      );
+      setActivitiesByUser(Object.fromEntries(entries));
+    } finally {
+      setLoadingPatients(false);
+    }
+  };
+
+  const acceptProfessionalInvite = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const code = professionalInviteCode.trim();
+    if (!code) return;
+
+    setJoiningProfessionalInvite(true);
+    try {
+      await joinProfessionalInviteByCode(code);
+      setProfessionalInviteCode('');
+      await refetchPermissionContext();
+      await reloadPatients();
+      toast({ title: 'Perteneciente vinculado', description: 'El nuevo vinculo ya aparece en tus pacientes.' });
+    } catch (err) {
+      toast({ title: 'No se pudo vincular', description: err instanceof Error ? err.message : 'Codigo invalido o expirado.', variant: 'destructive' });
+    } finally {
+      setJoiningProfessionalInvite(false);
+    }
+  };
 
   if (!user || user.role !== 'professional') return null;
 
@@ -201,7 +259,7 @@ export default function ProfessionalDashboard() {
               const adherence = acts.length > 0 ? Math.round((completed / acts.length) * 100) : 0;
               const emotions = getEmotionsForUser(u.id);
               const objs = getObjectivesForUser(u.id).filter(o => o.status === 'activo');
-              const nextSession = calendarEvents.find(e => e.userId === u.id && e.type === 'terapia' && e.date >= new Date().toISOString().split('T')[0]);
+              const nextSession = nextTherapySessionForPatient(professionalCalendarEvents, u.id);
               const linkPermissions = vinculosByUsuarioPerteneciente.get(String(u.id))?.permisos_efectivos;
               const canViewPatientHistory = Boolean(permissionContext) && isPermissionEnabled(linkPermissions?.permisos, PROFESIONAL_PERMISSIONS.VER_HISTORIAL, false);
 
@@ -336,6 +394,26 @@ export default function ProfessionalDashboard() {
         {tab === 'tools' && (
           <div className="space-y-4">
             <h2 className="font-heading font-bold text-xl text-foreground">Herramientas profesionales</h2>
+            <form onSubmit={acceptProfessionalInvite} className="bg-card rounded-xl p-4 border border-border">
+              <h3 className="font-heading font-semibold text-foreground mb-2 flex items-center gap-2">
+                <KeyRound size={16} className="text-primary" />
+                Vincular perteneciente con codigo
+              </h3>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  value={professionalInviteCode}
+                  onChange={event => setProfessionalInviteCode(event.target.value.toUpperCase())}
+                  placeholder="ABCD-1234"
+                  className="font-mono font-semibold tracking-[0.12em]"
+                  maxLength={9}
+                  autoComplete="one-time-code"
+                />
+                <Button type="submit" disabled={joiningProfessionalInvite || !professionalInviteCode.trim()} className="gap-2">
+                  {joiningProfessionalInvite ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+                  Vincular
+                </Button>
+              </div>
+            </form>
             <div className="bg-card rounded-xl p-4 border border-border">
               <h3 className="font-heading font-semibold text-foreground mb-2">📊 Métricas globales</h3>
               <div className="grid grid-cols-2 gap-3">

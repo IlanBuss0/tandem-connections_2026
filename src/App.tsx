@@ -10,6 +10,7 @@ import AccessibilityWidget from '@/components/AccessibilityWidget';
 import Landing from '@/pages/Landing';
 import Login from '@/pages/Login';
 import InviteLinkHandler from '@/pages/InviteLinkHandler';
+import ProfessionalInviteLinkHandler from '@/pages/ProfessionalInviteLinkHandler';
 import AppShell from '@/components/AppShell';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -31,15 +32,22 @@ function inviteTokenFromPath(pathname: string): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+function professionalInviteTokenFromPath(pathname: string): string | null {
+  const match = pathname.match(/^\/vincular-profesional\/([^/]+)$/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 function AuthGate() {
   const { isAuthenticated, isLoading } = useAuth();
   const [publicView, setPublicView] = useState<PublicView>(() => publicViewFromPath(window.location.pathname));
   const [inviteToken, setInviteToken] = useState<string | null>(() => inviteTokenFromPath(window.location.pathname));
+  const [professionalInviteToken, setProfessionalInviteToken] = useState<string | null>(() => professionalInviteTokenFromPath(window.location.pathname));
 
   useEffect(() => {
     const syncPublicView = () => {
       setPublicView(publicViewFromPath(window.location.pathname));
       setInviteToken(inviteTokenFromPath(window.location.pathname));
+      setProfessionalInviteToken(professionalInviteTokenFromPath(window.location.pathname));
     };
 
     window.addEventListener('popstate', syncPublicView);
@@ -69,7 +77,11 @@ function AuthGate() {
 
   return (
     <>
-      {inviteToken && isAuthenticated ? (
+      {professionalInviteToken && isAuthenticated ? (
+        <ProfessionalInviteLinkHandler token={professionalInviteToken} />
+      ) : professionalInviteToken ? (
+        <Login initialView="login" />
+      ) : inviteToken && isAuthenticated ? (
         <InviteLinkHandler token={inviteToken} />
       ) : inviteToken ? (
         <Login initialView="login" />
