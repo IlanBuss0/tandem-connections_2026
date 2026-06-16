@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
-import { fetchUserProfileDashboard, type ProfileSupportPerson, type UserProfileDashboard } from '@/data/api';
-import { AlertCircle, Check, Crown, Loader2, Mail, Phone, Settings, ShieldCheck, UserRound, Users } from 'lucide-react';
+import { fetchUserProfileDashboard, joinTutorInviteByCode, type ProfileSupportPerson, type UserProfileDashboard } from '@/data/api';
+import { AlertCircle, Check, Crown, KeyRound, Loader2, Mail, Phone, Settings, ShieldCheck, UserRound, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import AvatarPreview from '@/components/AvatarPreview';
 import CoinBadge from '@/components/CoinBadge';
+import { toast } from '@/hooks/ui/use-toast';
 
 function InfoItem({ label, value }: { label: string; value: string | number | boolean }) {
   return (
@@ -57,11 +59,13 @@ function SupportCard({ person }: { person: ProfileSupportPerson }) {
 }
 
 export default function UserProfile({ onConfigure }: { onConfigure?: () => void }) {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { state: wallet } = useWallet();
   const [profile, setProfile] = useState<UserProfileDashboard | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [inviteCode, setInviteCode] = useState('');
+  const [joiningInvite, setJoiningInvite] = useState(false);
 
   const load = async () => {
     if (!user || user.role !== 'user') return;
@@ -81,6 +85,24 @@ export default function UserProfile({ onConfigure }: { onConfigure?: () => void 
   useEffect(() => {
     load();
   }, [user]);
+
+  const acceptInviteByCode = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const code = inviteCode.trim();
+    if (!code) return;
+
+    setJoiningInvite(true);
+    try {
+      await joinTutorInviteByCode(code);
+      setInviteCode('');
+      await Promise.all([load(), refreshUser().catch(() => null)]);
+      toast({ title: 'Tutor vinculado', description: 'Tu red de apoyo se actualizo correctamente.' });
+    } catch (err) {
+      toast({ title: 'No se pudo vincular', description: err instanceof Error ? err.message : 'Codigo invalido o expirado.', variant: 'destructive' });
+    } finally {
+      setJoiningInvite(false);
+    }
+  };
 
   if (!user || user.role !== 'user') return null;
 
@@ -179,6 +201,31 @@ export default function UserProfile({ onConfigure }: { onConfigure?: () => void 
           <Users size={16} className="text-primary" />
           Mi red de apoyo
         </h3>
+        <form onSubmit={acceptInviteByCode} className="mb-3 rounded-lg border border-border bg-card p-4 shadow-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+            <div className="min-w-0 flex-1">
+              <label className="text-xs font-semibold uppercase text-muted-foreground" htmlFor="invite-code">
+                Vincular tutor con codigo
+              </label>
+              <div className="mt-1 flex items-center gap-2">
+                <KeyRound size={18} className="shrink-0 text-primary" />
+                <Input
+                  id="invite-code"
+                  value={inviteCode}
+                  onChange={event => setInviteCode(event.target.value.toUpperCase())}
+                  placeholder="ABCD-1234"
+                  className="font-mono font-semibold tracking-[0.12em]"
+                  maxLength={9}
+                  autoComplete="one-time-code"
+                />
+              </div>
+            </div>
+            <Button type="submit" disabled={joiningInvite || !inviteCode.trim()} className="gap-2">
+              {joiningInvite ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
+              Vincular
+            </Button>
+          </div>
+        </form>
         {allSupport.length ? (
           <div className="grid gap-3 md:grid-cols-2">
             {allSupport.map((person) => (

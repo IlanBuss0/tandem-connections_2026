@@ -9,6 +9,7 @@ import { CalendarProvider } from '@/contexts/CalendarContext';
 import AccessibilityWidget from '@/components/AccessibilityWidget';
 import Landing from '@/pages/Landing';
 import Login from '@/pages/Login';
+import InviteLinkHandler from '@/pages/InviteLinkHandler';
 import AppShell from '@/components/AppShell';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -25,12 +26,21 @@ function publicViewFromPath(pathname: string): PublicView {
   return 'landing';
 }
 
+function inviteTokenFromPath(pathname: string): string | null {
+  const match = pathname.match(/^\/vincular\/([^/]+)$/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 function AuthGate() {
   const { isAuthenticated, isLoading } = useAuth();
   const [publicView, setPublicView] = useState<PublicView>(() => publicViewFromPath(window.location.pathname));
+  const [inviteToken, setInviteToken] = useState<string | null>(() => inviteTokenFromPath(window.location.pathname));
 
   useEffect(() => {
-    const syncPublicView = () => setPublicView(publicViewFromPath(window.location.pathname));
+    const syncPublicView = () => {
+      setPublicView(publicViewFromPath(window.location.pathname));
+      setInviteToken(inviteTokenFromPath(window.location.pathname));
+    };
 
     window.addEventListener('popstate', syncPublicView);
     return () => window.removeEventListener('popstate', syncPublicView);
@@ -59,7 +69,11 @@ function AuthGate() {
 
   return (
     <>
-      {isAuthenticated ? (
+      {inviteToken && isAuthenticated ? (
+        <InviteLinkHandler token={inviteToken} />
+      ) : inviteToken ? (
+        <Login initialView="login" />
+      ) : isAuthenticated ? (
         <AppShell />
       ) : publicView === 'landing' ? (
         <Landing onNavigate={navigatePublic} />

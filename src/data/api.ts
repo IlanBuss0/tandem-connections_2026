@@ -147,6 +147,18 @@ export type PermissionContext = {
 
 export type PermissionPatchResult = EffectivePertenecientePermissions | EffectiveProfessionalPermissions;
 
+export type TutorInvite = {
+  id: number;
+  codigo: string;
+  token: string;
+  fecha_expiracion: string;
+};
+
+export type TutorInviteJoinResult = {
+  vinculo: DbVinculoTutorPerteneciente;
+  es_principal: boolean;
+};
+
 export interface AchievementDashboard {
   achievements: Achievement[];
   stats: {
@@ -422,6 +434,47 @@ export async function setProfessionalPermissionByName(
       body: { permiso, habilitado, motivo },
     },
   );
+
+  return unwrapApiData(response);
+}
+
+export async function generateTutorInvite(
+  payload: { horas_validez?: number } = {},
+): Promise<TutorInvite> {
+  const token = getStoredAuthToken();
+  if (!token) throw new Error('Token requerido para generar invitaciones.');
+
+  const response = await apiRequest<{ ok: true; data: TutorInvite }>('/api/vinculos/invite/generate', {
+    method: 'POST',
+    token,
+    body: { horas_validez: payload.horas_validez ?? 1 },
+  });
+
+  return unwrapApiData(response);
+}
+
+export async function joinTutorInviteByCode(codigo: string): Promise<TutorInviteJoinResult> {
+  const token = getStoredAuthToken();
+  if (!token) throw new Error('Token requerido para aceptar invitaciones.');
+
+  const response = await apiRequest<{ ok: true; data: TutorInviteJoinResult }>('/api/vinculos/invite/join', {
+    method: 'POST',
+    token,
+    body: { codigo },
+  });
+
+  return unwrapApiData(response);
+}
+
+export async function joinTutorInviteByToken(inviteToken: string): Promise<TutorInviteJoinResult> {
+  const token = getStoredAuthToken();
+  if (!token) throw new Error('Token requerido para aceptar invitaciones.');
+
+  const response = await apiRequest<{ ok: true; data: TutorInviteJoinResult }>('/api/vinculos/invite/join', {
+    method: 'POST',
+    token,
+    body: { token: inviteToken },
+  });
 
   return unwrapApiData(response);
 }

@@ -1,17 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
+import QRCode from 'qrcode';
 import {
   BriefcaseMedical,
   CheckCircle2,
+  Clipboard,
+  Link,
   Loader2,
+  Plus,
+  QrCode,
   RefreshCcw,
   Shield,
   UserRound,
   Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { fetchPermissionContext, setPertenecientePermissionByName, setProfessionalPermissionByName, type EffectivePertenecientePermissions, type EffectiveProfessionalPermissions, type PermissionContext, type TutorPermissionContextPerteneciente } from '@/data/api';
+import { generateTutorInvite, fetchPermissionContext, setPertenecientePermissionByName, setProfessionalPermissionByName, type EffectivePertenecientePermissions, type EffectiveProfessionalPermissions, type PermissionContext, type TutorInvite, type TutorPermissionContextPerteneciente } from '@/data/api';
 import { toast } from '@/hooks/ui/use-toast';
 
 const PERTENECIENTE_PERMISSION_LABELS: Record<string, string> = {
@@ -57,6 +63,9 @@ export default function TutorConnections() {
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [invite, setInvite] = useState<TutorInvite | null>(null);
+  const [generatingInvite, setGeneratingInvite] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState('');
 
   const pertenecientes = context?.pertenecientes || [];
   const selected = useMemo<TutorPermissionContextPerteneciente | null>(() => {
@@ -84,6 +93,58 @@ export default function TutorConnections() {
   useEffect(() => {
     load();
   }, []);
+
+  const inviteUrl = invite ? `${window.location.origin}/vincular/${invite.token}` : '';
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!inviteUrl) {
+      setQrDataUrl('');
+      return;
+    }
+
+    QRCode.toDataURL(inviteUrl, {
+      margin: 1,
+      width: 220,
+      color: {
+        dark: '#1f2937',
+        light: '#ffffff',
+      },
+    })
+      .then(dataUrl => {
+        if (!cancelled) setQrDataUrl(dataUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setQrDataUrl('');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteUrl]);
+
+  const createInvite = async () => {
+    setGeneratingInvite(true);
+    try {
+      const nextInvite = await generateTutorInvite({ horas_validez: 1 });
+      setInvite(nextInvite);
+      toast({ title: 'Invitacion creada', description: 'El codigo y el QR ya estan listos para compartir.' });
+    } catch (err) {
+      toast({ title: 'No se pudo generar', description: err instanceof Error ? err.message : 'Error desconocido', variant: 'destructive' });
+    } finally {
+      setGeneratingInvite(false);
+    }
+  };
+
+  const copyText = async (value: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast({ title: `${label} copiado` });
+    } catch {
+      toast({ title: 'No se pudo copiar', description: 'Selecciona y copia el texto manualmente.', variant: 'destructive' });
+    }
+  };
 
   const togglePertenecientePermission = async (permiso: string, habilitado: boolean) => {
     if (!selected) return;
@@ -269,6 +330,67 @@ export default function TutorConnections() {
           Actualizar
         </Button>
       </div>
+
+      <section className="rounded-lg border border-border bg-card p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <QrCode size={18} className="text-primary" />
+              <h3 className="font-heading text-lg font-bold text-foreground">Invitar perteneciente</h3>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Genera un codigo y un QR validos por 1 hora para crear el vinculo tutor-perteneciente.
+            </p>
+          </div>
+          <Button onClick={createInvite} disabled={generatingInvite} className="w-full gap-2 sm:w-fit">
+            {generatingInvite ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+            Generar invitacion
+          </Button>
+        </div>
+
+        {invite && (
+          <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs font-semibold uppercase text-muted-foreground">Codigo</p>
+                <div className="mt-1 flex flex-col gap-2 sm:flex-row">
+                  <Input readOnly value={invite.codigo} className="font-mono text-lg font-bold tracking-[0.18em]" />
+                  <Button variant="outline" onClick={() => copyText(invite.codigo, 'Codigo')} className="gap-2">
+                    <Clipboard size={15} />
+                    Copiar
+                  </Button>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold uppercase text-muted-foreground">Link QR</p>
+                <div className="mt-1 flex flex-col gap-2 sm:flex-row">
+                  <Input readOnly value={inviteUrl} className="font-mono text-xs" />
+                  <Button variant="outline" onClick={() => copyText(inviteUrl, 'Link')} className="gap-2">
+                    <Link size={15} />
+                    Copiar
+                  </Button>
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                Expira: {new Date(invite.fecha_expiracion).toLocaleString('es-AR')}
+              </p>
+            </div>
+
+            <div className="flex min-h-[220px] items-center justify-center rounded-lg border border-border bg-background p-3">
+              {qrDataUrl ? (
+                <img src={qrDataUrl} alt="QR de vinculacion" className="h-[200px] w-[200px]" />
+              ) : (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 size={16} className="animate-spin" />
+                  Generando QR
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
 
       {pertenecientes.length === 0 ? (
         <div className="rounded-lg border border-border bg-card p-5 text-sm text-muted-foreground">
