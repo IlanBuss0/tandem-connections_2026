@@ -195,8 +195,13 @@ async function apiFetchWithFallback<T>(paths: string[], init?: RequestInit): Pro
   let last: unknown = null;
   for (const p of paths) {
     try {
+      const token = getStoredAuthToken();
       const res = await fetch(`${((import.meta as any).env?.VITE_BACKEND_URL || (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/$/, '')}${p}`, {
-        headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(init?.headers || {}),
+        },
         ...init,
       });
       if (!res.ok) {
@@ -395,12 +400,20 @@ function isBackendUserId(userId: string): boolean {
 }
 
 export function getStoredAuthToken(): string | null {
-  return sessionStorage.getItem('tandem_auth_token') || localStorage.getItem('tandem_auth_token');
+  const sessionToken = sessionStorage.getItem('tandem_auth_token');
+  if (sessionToken) return sessionToken;
+
+  const legacyToken = localStorage.getItem('tandem_auth_token');
+  if (!legacyToken) return null;
+
+  sessionStorage.setItem('tandem_auth_token', legacyToken);
+  localStorage.removeItem('tandem_auth_token');
+  return legacyToken;
 }
 
 function storeAuthToken(token: string): void {
   sessionStorage.setItem('tandem_auth_token', token);
-  localStorage.setItem('tandem_auth_token', token);
+  localStorage.removeItem('tandem_auth_token');
 }
 
 export function clearStoredAuthToken(): void {

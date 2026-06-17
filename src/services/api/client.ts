@@ -39,7 +39,15 @@ function buildUrl(path: string): string {
 }
 
 function getDefaultAuthToken(): string | null {
-  return sessionStorage.getItem("tandem_auth_token") || localStorage.getItem("tandem_auth_token");
+  const sessionToken = sessionStorage.getItem("tandem_auth_token");
+  if (sessionToken) return sessionToken;
+
+  const legacyToken = localStorage.getItem("tandem_auth_token");
+  if (!legacyToken) return null;
+
+  sessionStorage.setItem("tandem_auth_token", legacyToken);
+  localStorage.removeItem("tandem_auth_token");
+  return legacyToken;
 }
 
 async function parseResponseBody(response: Response): Promise<unknown> {
