@@ -465,12 +465,12 @@ function FillBlank({ data, onFinish }: { data: GameData; onFinish: (n: number) =
 // ========== Matching pairs ==========
 function MatchingPairs({ data, onFinish }: { data: GameData; onFinish: (n: number) => void }) {
   const m = data.matching;
-  if (!m) return null;
   const [selectedLeft, setSelectedLeft] = useState<number | null>(null);
   const [matches, setMatches] = useState<Record<number, number>>({});
   const [wrong, setWrong] = useState<{ l: number; r: number } | null>(null);
 
   const tryMatch = (rIdx: number) => {
+    if (!m) return;
     if (selectedLeft === null) return;
     if (m.correctMap[selectedLeft] === rIdx) {
       setMatches(prev => ({ ...prev, [selectedLeft]: rIdx }));
@@ -482,10 +482,12 @@ function MatchingPairs({ data, onFinish }: { data: GameData; onFinish: (n: numbe
   };
 
   useEffect(() => {
-    if (Object.keys(matches).length === m.left.length) {
+    if (m && Object.keys(matches).length === m.left.length) {
       setTimeout(() => onFinish(100), 500);
     }
-  }, [matches, m.left.length, onFinish]);
+  }, [matches, m, onFinish]);
+
+  if (!m) return null;
 
   return (
     <div className="space-y-3">
@@ -537,16 +539,16 @@ function MatchingPairs({ data, onFinish }: { data: GameData; onFinish: (n: numbe
 // ========== Category sort ==========
 function CategorySort({ data, onFinish }: { data: GameData; onFinish: (n: number) => void }) {
   const c = data.category;
-  if (!c) return null;
-  const [pending, setPending] = useState(c.items);
+  const [pending, setPending] = useState(() => c?.items || []);
   const [placed, setPlaced] = useState<Record<number, string[]>>({});
   const [selected, setSelected] = useState<number | null>(null);
   const [errors, setErrors] = useState(0);
 
-  const total = c.items.length;
+  const total = c?.items.length || 0;
   const placedCount = Object.values(placed).reduce((a, b) => a + b.length, 0);
 
   const placeIn = (catIdx: number) => {
+    if (!c) return;
     if (selected === null) return;
     const item = pending[selected];
     if (!item) return;
@@ -561,11 +563,13 @@ function CategorySort({ data, onFinish }: { data: GameData; onFinish: (n: number
   };
 
   useEffect(() => {
-    if (placedCount === total) {
+    if (total > 0 && placedCount === total) {
       const score = Math.max(40, Math.round(((total) / (total + errors)) * 100));
       setTimeout(() => onFinish(score), 500);
     }
   }, [placedCount, total, errors, onFinish]);
+
+  if (!c) return null;
 
   return (
     <div className="space-y-3">

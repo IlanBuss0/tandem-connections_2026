@@ -132,9 +132,7 @@ export default function UserHome({ onNavigate }: Props) {
     return () => { mounted = false; };
   }, [user]);
 
-  if (!user || user.role !== 'user') return null;
-
-  const firstName = user.name.split(' ')[0] || user.username;
+  const firstName = user?.name.split(' ')[0] || user?.username || '';
   const today = new Date();
   const todayKey = fmt(today);
 
@@ -182,6 +180,8 @@ export default function UserHome({ onNavigate }: Props) {
     const scrollAmount = dir === 'left' ? -(cardWidth + CARD_GAP) : (cardWidth + CARD_GAP);
     el.scrollBy({ left: scrollAmount, behavior: 'smooth' });
   }, []);
+
+  if (!user || user.role !== 'user') return null;
 
   return (
     <div className="pb-24 lg:pb-6 space-y-14">

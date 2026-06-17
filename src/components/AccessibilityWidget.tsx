@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 
 type Tab = 'profiles' | 'content' | 'color' | 'navigation' | 'orientation';
+type TabConfig = { id: Tab; label: string; icon: React.ComponentType<{ size?: number; className?: string }> };
 
 export default function AccessibilityWidget() {
   const { settings, update, applyProfile, reset, toggle } = useAccessibility();
@@ -35,7 +36,9 @@ export default function AccessibilityWidget() {
         u.rate = 1;
         speechRef.current = u;
         window.speechSynthesis.speak(u);
-      } catch (_) { /* noop */ }
+      } catch {
+        return;
+      }
     };
     let timer: number | null = null;
     const handler = (e: MouseEvent) => {
@@ -49,17 +52,19 @@ export default function AccessibilityWidget() {
     document.addEventListener('mouseover', handler);
     return () => {
       document.removeEventListener('mouseover', handler);
-      try { window.speechSynthesis.cancel(); } catch (_) {}
+      try { window.speechSynthesis.cancel(); } catch {
+        return;
+      }
       if (timer) window.clearTimeout(timer);
     };
   }, [settings.speakOnHover]);
 
   // Mute global audio
   useEffect(() => {
-    document.querySelectorAll('audio,video').forEach((el: any) => { el.muted = settings.muteSounds; });
+    document.querySelectorAll<HTMLMediaElement>('audio,video').forEach(el => { el.muted = settings.muteSounds; });
   }, [settings.muteSounds]);
 
-  const tabs: { id: Tab; label: string; icon: any }[] = [
+  const tabs: TabConfig[] = [
     { id: 'profiles', label: 'Perfiles', icon: Accessibility },
     { id: 'content', label: 'Contenido', icon: Type },
     { id: 'color', label: 'Color', icon: Palette },

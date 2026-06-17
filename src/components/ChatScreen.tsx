@@ -14,6 +14,7 @@ const quickReplies = [
 ];
 
 const MESSAGE_PREVIEW_LIMIT = 220;
+const showLegacyManageContacts = false;
 
 export type ChatViewProfile = {
   id: string;
@@ -587,7 +588,7 @@ export default function ChatScreen({
                     </div>
                   )}
 
-                  {false && contacts.map(c => (
+                  {showLegacyManageContacts && contacts.map(c => (
                     <div key={c.id} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors text-left">
                       <button type="button" onClick={() => toggleManageParticipant(c.id)} className={`w-5 h-5 rounded border flex items-center justify-center text-[10px] ${manageParticipantIds.includes(c.id) ? 'bg-primary text-primary-foreground border-primary' : 'border-border'}`} aria-label="Cambiar participante">
                         {manageParticipantIds.includes(c.id) ? '✓' : ''}
