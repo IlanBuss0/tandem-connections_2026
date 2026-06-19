@@ -222,6 +222,27 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
       formData.append('file', file);
       const data = await apiUploadFile<{ id: number; url: string }>('/api/archivos/upload', formData, setAvatarProgress);
       setAvatarPreview(data.url);
+
+      const pertenecienteId = settings?.perteneciente?.id;
+      if (pertenecienteId) {
+        try {
+          const { tandemApi } = await import('../../services/api');
+          const avatares = await tandemApi.avatares.getAll();
+          const avatar = (avatares as any[]).find(a => Number(a.id_perteneciente) === Number(pertenecienteId));
+          if (avatar?.id) {
+            await tandemApi.avatares.update(avatar.id, {
+              avatar_imagen_url: data.url,
+              avatar_imagen_origen_url: data.url,
+              avatar_imagen_content_type: file.type,
+              avatar_imagen_actualizada_en: new Date().toISOString(),
+            });
+            await refreshUser();
+          }
+        } catch (err) {
+          console.warn('No se pudo persistir el avatar:', err);
+        }
+      }
+
       toast({ title: 'Foto subida', description: 'La foto de perfil se actualizo.' });
     } catch {
       toast({ title: 'Error', description: 'No se pudo subir la foto.', variant: 'destructive' });
@@ -231,7 +252,7 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
       setAvatarProgress(0);
       if (avatarInputRef.current) avatarInputRef.current.value = '';
     }
-  }, [toast]);
+  }, [toast, settings]);
 
   const load = async () => {
     if (!user || user.role !== 'user') return;

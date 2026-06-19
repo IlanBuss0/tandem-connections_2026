@@ -237,7 +237,7 @@ function backendRoleToLegacyRole(idTipoUsuario?: number): UserRole {
   }
 }
 
-function toLegacyUser(user: Partial<Usuario>): User | Tutor | Professional | Admin {
+function toLegacyUser(user: Partial<Usuario>, avatarUrl?: string | null): User | Tutor | Professional | Admin {
   const role = backendRoleToLegacyRole(user.id_tipo_usuario);
   const base = {
     id: String(user.id ?? ''),
@@ -245,7 +245,7 @@ function toLegacyUser(user: Partial<Usuario>): User | Tutor | Professional | Adm
     password: '',
     name: [user.nombre, user.apellido].filter(Boolean).join(' ') || user.nombre_usuario || user.correo || 'Usuario',
     email: user.correo ?? '',
-    avatar: '🙂',
+    avatar: avatarUrl || '🙂',
   };
 
   if (role === 'admin') {
@@ -965,6 +965,21 @@ async function fetchBackendUserProfileDashboard(userId: string): Promise<UserPro
   };
 }
 
+async function fetchUserAvatarUrl(userId: number): Promise<string | null> {
+  try {
+    const [pertenecientes, avatares] = await Promise.all([
+      tandemApi.pertenecientes.getAll(),
+      tandemApi.avatares.getAll(),
+    ]);
+    const pp = (pertenecientes as DbPerteneciente[]).find(p => Number(p.id_usuario) === userId);
+    if (!pp) return null;
+    const avatar = (avatares as DbAvatar[]).find(a => Number(a.id_perteneciente) === Number(pp.id));
+    return avatar?.avatar_imagen_url || avatar?.avatar_imagen_origen_url || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function findUser(username: string, password: string): Promise<User | Tutor | Professional | Admin | null> {
   try {
     const auth = await tandemApi.auth.login({
@@ -974,7 +989,8 @@ export async function findUser(username: string, password: string): Promise<User
     });
 
     storeAuthToken(auth.accessToken || auth.token);
-    return toLegacyUser(auth.user);
+    const avatarUrl = auth.user?.id ? await fetchUserAvatarUrl(auth.user.id) : null;
+    return toLegacyUser(auth.user, avatarUrl);
   } catch {
     return null;
   }
@@ -994,7 +1010,8 @@ export async function fetchStoredAuthUser(): Promise<User | Tutor | Professional
 
   try {
     const user = await tandemApi.auth.me(token);
-    return toLegacyUser(user);
+    const avatarUrl = user?.id ? await fetchUserAvatarUrl(user.id) : null;
+    return toLegacyUser(user, avatarUrl);
   } catch {
     return null;
   }
@@ -1811,9 +1828,6 @@ export async function sendMessage(conversationId: string, senderId: string, send
       body,
     });
     const chatMessage = backendMessageToChatMessage(message);
-    if ((message as any).archivos) {
-      chatMessage.archivos = (message as any).archivos.map((id: number) => ({ id, url: '', nombre_archivo: '' }));
-    }
     return chatMessage;
   }
 
@@ -1946,13 +1960,25 @@ export async function hideConversationForMe(conversationId: string): Promise<voi
 }
 
 export async function fetchChatContacts(): Promise<ChatContact[]> {
-  const usuarios = await tandemApi.usuarios.getAll();
-  return usuarios.map((usuario) => {
+  const [usuarios, pertenecientes, avatares] = await Promise.all([
+    tandemApi.usuarios.getAll(),
+    tandemApi.pertenecientes.getAll(),
+    tandemApi.avatares.getAll(),
+  ]);
+  const avatarByUsuarioId = new Map<number, string>();
+  for (const a of avatares as DbAvatar[]) {
+    const pp = (pertenecientes as DbPerteneciente[]).find(p => Number(p.id) === Number(a.id_perteneciente));
+    if (pp) {
+      const url = a.avatar_imagen_url || a.avatar_imagen_origen_url;
+      if (url) avatarByUsuarioId.set(Number(pp.id_usuario), url);
+    }
+  }
+  return (usuarios as Usuario[]).map((usuario) => {
     const role = backendRoleToLegacyRole(usuario.id_tipo_usuario);
     return {
       id: String(usuario.id),
       name: [usuario.nombre, usuario.apellido].filter(Boolean).join(' ') || usuario.nombre_usuario || usuario.correo || `Usuario #${usuario.id}`,
-      avatar: role === 'professional' ? '👩‍⚕️' : role === 'tutor' ? '👩' : '🙂',
+      avatar: avatarByUsuarioId.get(usuario.id) || (role === 'professional' ? '👩‍⚕️' : role === 'tutor' ? '👩' : '🙂'),
       role: role === 'professional' ? 'profesional' : role === 'tutor' ? 'tutor' : 'user',
       subtitle: `${role === 'professional' ? 'Profesional' : role === 'tutor' ? 'Tutor/a' : 'Usuario'} · @${usuario.nombre_usuario || usuario.correo || usuario.id} · ID ${usuario.id}`,
     };

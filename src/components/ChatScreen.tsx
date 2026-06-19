@@ -3,14 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { ContactPerson, useChat } from '@/contexts/ChatContext';
 import { ChatMessage, Conversation, fetchConversationsForUser, fetchMessagesForConversationAsUser, fetchPermissionContext, type PermissionContext } from '@/data/api';
-<<<<<<< HEAD
 import { ArrowLeft, Send, Plus, Search, X, MessageCircle, Pencil, Trash2, Check, Users, ImageIcon, FileIcon, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-=======
-import { ArrowLeft, Send, Plus, Search, X, MessageCircle, Pencil, Trash2, Check, Users } from 'lucide-react';
->>>>>>> e53fbeb1f500616c2b6bca72ca7f36c41c80a1e3
 import { useToast } from '@/components/ui/use-toast';
+import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import { isPermissionEnabled, PROFESIONAL_PERMISSIONS } from '@/hooks/usePermissions';
 
 const quickReplies = [
@@ -98,6 +95,7 @@ export default function ChatScreen({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadPreview, setUploadPreview] = useState<string | null>(null);
   const [pendingFileId, setPendingFileId] = useState<number | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   const resolvedProfileId = activeProfileId || user?.id || '';
   const activeProfile = useMemo(() => (
@@ -450,7 +448,7 @@ export default function ChatScreen({
       <div className="flex flex-col h-[calc(100vh-9rem)] lg:h-[calc(100vh-3rem)]">
         <div className="flex items-center gap-3 pb-3 border-b border-[#f0e8f8]">
           <button onClick={() => setSelectedId(null)} className="text-[#8b7aa0] hover:text-[#6b4c9a]" aria-label="Volver"><ArrowLeft size={20} /></button>
-          <span className="text-2xl">{isGroup ? 'G' : other?.avatar || selectedConv.avatar}</span>
+          <HeaderUserAvatar avatar={isGroup ? null : (other?.avatar || selectedConv.avatar)} name={chatTitle} />
           <div className="min-w-0 flex-1">
             <p className="font-semibold text-sm text-[#6b4c9a] truncate">{chatTitle}</p>
             <p className="text-[10px] text-[#8b7aa0] truncate">{chatSubtitle}</p>
@@ -483,8 +481,13 @@ export default function ChatScreen({
                 key={msg.id}
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`flex w-full ${isMine ? 'justify-end pl-10' : 'justify-start pr-10'}`}
+                className={`flex w-full ${isMine ? 'justify-end pl-10' : 'justify-start gap-2 pr-4'}`}
               >
+                {!isMine && (
+                  <div className="mt-auto mb-1 shrink-0">
+                    <HeaderUserAvatar avatar={sender?.avatar || other?.avatar} name={sender?.name || other?.name} />
+                  </div>
+                )}
                 <div className={`max-w-[78%] px-4 py-2.5 rounded-2xl text-sm shadow-sm ${msg.type === 'activity' ? 'bg-amber-50 text-amber-800 border border-amber-200 rounded-xl' : isMine ? 'bg-[#6b4c9a] text-white rounded-br-md' : 'bg-[#ede4f8] text-[#6b4c9a] border border-[#f0e8f8] rounded-bl-md'}`}>
                   {!isMine && (
                     <p className="mb-1 text-[10px] font-semibold text-[#8b7aa0]">
@@ -516,16 +519,23 @@ export default function ChatScreen({
                         <div className="space-y-1.5 mb-2">
                           {msg.archivos.map((archivo, idx) => (
                             archivo.url ? (
-                              <a key={idx} href={archivo.url} target="_blank" rel="noopener noreferrer">
-                                {archivo.url.match(/\.(png|jpe?g|gif|webp)(\?|$)/i) ? (
-                                  <img src={archivo.url} alt={archivo.nombre_archivo} className="max-w-full rounded-lg border border-border/50" style={{ maxHeight: 240 }} />
-                                ) : (
+                              archivo.url.match(/\.(png|jpe?g|gif|webp)(\?|$)/i) || archivo.content_type?.startsWith('image/') ? (
+                                <img
+                                  key={idx}
+                                  src={archivo.url}
+                                  alt={archivo.nombre_archivo}
+                                  className="max-w-full rounded-lg border border-border/50 cursor-pointer hover:opacity-90 transition-opacity"
+                                  style={{ maxHeight: 240 }}
+                                  onClick={() => setLightboxUrl(archivo.url)}
+                                />
+                              ) : (
+                                <a key={idx} href={archivo.url} target="_blank" rel="noopener noreferrer">
                                   <div className="flex items-center gap-2 p-2 rounded-lg bg-background/50 border border-border/30 text-xs">
                                     <FileIcon size={14} />
                                     <span className="truncate">{archivo.nombre_archivo}</span>
                                   </div>
-                                )}
-                              </a>
+                                </a>
+                              )
                             ) : null
                           ))}
                         </div>
@@ -570,7 +580,6 @@ export default function ChatScreen({
           ))}
         </div>
 
-<<<<<<< HEAD
         <div className="space-y-2 pt-2 border-t border-border">
           {uploadPreview && (
             <div className="flex items-center gap-2 px-1">
@@ -597,11 +606,6 @@ export default function ChatScreen({
             <Input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendNow(undefined, pendingFileId)} placeholder="Escribí un mensaje..." className="flex-1" />
             <button onClick={() => sendNow(undefined, pendingFileId)} className="w-10 h-10 rounded-full gradient-primary text-primary-foreground flex items-center justify-center shrink-0" aria-label="Enviar"><Send size={16} /></button>
           </div>
-=======
-        <div className="flex gap-2 pt-2 border-t border-[#f0e8f8]">
-          <input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendNow()} placeholder="Escribí un mensaje..." className="flex-1 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-4 py-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]" />
-          <button onClick={() => sendNow()} className="w-10 h-10 rounded-full bg-[#6b4c9a] text-white flex items-center justify-center shrink-0" aria-label="Enviar"><Send size={16} /></button>
->>>>>>> e53fbeb1f500616c2b6bca72ca7f36c41c80a1e3
         </div>
         </>
         )}
@@ -653,7 +657,7 @@ export default function ChatScreen({
                       const label = c?.name || selectedConv.participantNames[selectedConv.participants.indexOf(participantId)] || `Usuario ${participantId}`;
                       return (
                         <div key={participantId} className="w-full flex items-center gap-3 p-3 rounded-lg bg-[#ede4f8]/30 border border-[#f0e8f8] text-left">
-                          <span className="text-2xl">{c?.avatar || selectedConv.avatar}</span>
+                          <HeaderUserAvatar avatar={c?.avatar || selectedConv.avatar} name={label} />
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-sm text-[#6b4c9a] truncate">{label}</p>
                             <p className="text-[11px] text-[#8b7aa0] truncate">ID {participantId}</p>
@@ -676,7 +680,7 @@ export default function ChatScreen({
                       <p className="text-xs font-semibold text-[#6b4c9a]">Agregar participantes</p>
                       {contacts.filter(c => !manageParticipantIds.includes(c.id)).map(c => (
                         <button key={c.id} type="button" onClick={() => toggleManageParticipant(c.id)} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-[#ede4f8]/50 transition-colors text-left">
-                          <span className="text-2xl">{c.avatar}</span>
+                          <HeaderUserAvatar avatar={c.avatar} name={c.name} />
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-sm text-[#6b4c9a] truncate">{c.name}</p>
                             <p className="text-[11px] text-[#8b7aa0] truncate">ID {c.id}{c.subtitle ? ` | ${c.subtitle}` : ''}</p>
@@ -695,7 +699,7 @@ export default function ChatScreen({
                       <button type="button" onClick={() => toggleManageParticipant(c.id)} className={`w-5 h-5 rounded border flex items-center justify-center text-[10px] ${manageParticipantIds.includes(c.id) ? 'bg-[#6b4c9a] text-white border-[#6b4c9a]' : 'border-[#f0e8f8]'}`} aria-label="Cambiar participante">
                         {manageParticipantIds.includes(c.id) ? '✓' : ''}
                       </button>
-                      <span className="text-2xl">{c.avatar}</span>
+                      <HeaderUserAvatar avatar={c.avatar} name={c.name} />
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm text-[#6b4c9a] truncate">{c.name}</p>
                         <p className="text-[11px] text-[#8b7aa0] truncate">ID {c.id}{c.subtitle ? ` | ${c.subtitle}` : ''}</p>
@@ -714,6 +718,32 @@ export default function ChatScreen({
                     {isGroup ? 'Salir del grupo' : 'Eliminar chat para mi'}
                   </button>
                 </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Lightbox para imágenes */}
+        <AnimatePresence>
+          {lightboxUrl && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[70] bg-black/80 flex items-center justify-center p-4"
+              onClick={() => setLightboxUrl('')}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="relative max-w-[90vw] max-h-[90vh]"
+                onClick={e => e.stopPropagation()}
+              >
+                <img src={lightboxUrl} alt="Imagen ampliada" className="max-w-full max-h-[90vh] rounded-lg shadow-2xl" />
+                <button onClick={() => setLightboxUrl('')} className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-white text-black shadow-md flex items-center justify-center hover:bg-gray-100 transition">
+                  <X size={16} />
+                </button>
               </motion.div>
             </motion.div>
           )}
@@ -778,7 +808,7 @@ export default function ChatScreen({
           const title = isGroup ? conv.title || 'Grupo' : other?.name || conv.participantNames.find(n => n !== user.name) || 'Chat';
           return (
             <motion.button key={conv.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} onClick={() => handleSelect(conv)} className="w-full flex items-center gap-3 p-4 rounded-xl bg-white border border-[#f0e8f8] hover:border-[#6b4c9a]/30 transition-all text-left">
-              <span className="text-3xl">{isGroup ? 'G' : other?.avatar || conv.avatar}</span>
+              <HeaderUserAvatar avatar={isGroup ? null : (other?.avatar || conv.avatar)} name={title} />
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-center gap-2">
                   <div className="flex items-center gap-2 min-w-0">
@@ -855,7 +885,7 @@ export default function ChatScreen({
                         {groupParticipantIds.includes(c.id) ? '✓' : ''}
                       </span>
                     )}
-                    <span className="text-2xl">{c.avatar}</span>
+                    <HeaderUserAvatar avatar={c.avatar} name={c.name} />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm text-[#6b4c9a] truncate">{c.name}</p>
                       <p className="text-[11px] text-[#8b7aa0] truncate">ID {c.id}{c.subtitle ? ` | ${c.subtitle}` : ''}</p>
