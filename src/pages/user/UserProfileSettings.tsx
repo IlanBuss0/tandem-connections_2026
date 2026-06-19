@@ -14,7 +14,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/ui/use-toast';
 
 type FormState = UserProfileSettingsPayload & {
@@ -65,12 +64,12 @@ function SectionHeader({ icon: Icon, title, description }: {
 }) {
   return (
     <div className="mb-4 flex items-start gap-3">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f5f0ff] text-[#6b4c9a]">
         <Icon size={20} />
       </div>
       <div>
-        <h3 className="font-heading text-lg font-semibold text-foreground">{title}</h3>
-        <p className="text-sm text-muted-foreground">{description}</p>
+        <h3 className="text-lg font-semibold text-[#6b4c9a]">{title}</h3>
+        <p className="text-sm text-[#8b7aa0]">{description}</p>
       </div>
     </div>
   );
@@ -83,10 +82,10 @@ function ToggleRow({ label, description, checked, onChange }: {
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-background p-3">
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[#f0e8f8] bg-white p-3 shadow-sm">
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-foreground">{label}</p>
-        <p className="text-xs text-muted-foreground">{description}</p>
+        <p className="text-sm font-semibold text-[#4a4a5a]">{label}</p>
+        <p className="text-xs text-[#8b7aa0]">{description}</p>
       </div>
       <Switch checked={checked} onCheckedChange={onChange} />
     </div>
@@ -95,9 +94,9 @@ function ToggleRow({ label, description, checked, onChange }: {
 
 function ReadOnlyInfo({ label, value, className = '' }: { label: string; value: string; className?: string }) {
   return (
-    <div className={`rounded-lg border border-border bg-background p-3 ${className}`}>
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-foreground">{value}</p>
+    <div className={`rounded-2xl border border-[#f0e8f8] bg-white p-3 shadow-sm ${className}`}>
+      <p className="text-xs font-medium text-[#8b7aa0]">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-[#4a4a5a]">{value}</p>
     </div>
   );
 }
@@ -108,31 +107,31 @@ function AccessibilityProfileSummary({ settings }: { settings: AccessibilitySett
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg border border-border bg-background p-3">
-        <p className="text-xs font-medium text-muted-foreground">Perfil por default</p>
+      <div className="rounded-2xl border border-[#f0e8f8] bg-white p-3 shadow-sm">
+        <p className="text-xs font-medium text-[#8b7aa0]">Perfil por default</p>
         <div className="mt-2 flex items-start gap-3">
           <span className="text-2xl">{activeProfile?.icon || 'A'}</span>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-foreground">{activeProfile?.name || 'Sin perfil activo'}</p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm font-semibold text-[#4a4a5a]">{activeProfile?.name || 'Sin perfil activo'}</p>
+            <p className="text-xs text-[#8b7aa0]">
               {activeProfile?.description || 'No hay un preset aplicado. Se usan los ajustes base de la app.'}
             </p>
           </div>
         </div>
       </div>
 
-      <div className="rounded-lg border border-border bg-background p-3">
-        <p className="text-xs font-medium text-muted-foreground">Cambios aplicados</p>
+      <div className="rounded-2xl border border-[#f0e8f8] bg-white p-3 shadow-sm">
+        <p className="text-xs font-medium text-[#8b7aa0]">Cambios aplicados</p>
         {changes.length > 0 ? (
           <div className="mt-2 flex flex-wrap gap-2">
             {changes.map(change => (
-              <span key={change} className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+              <span key={change} className="rounded-full bg-[#f5f0ff] px-2 py-1 text-xs font-medium text-[#6b4c9a]">
                 {change}
               </span>
             ))}
           </div>
         ) : (
-          <p className="mt-1 text-sm text-muted-foreground">Configuracion estandar.</p>
+          <p className="mt-1 text-sm text-[#8b7aa0]">Configuracion estandar.</p>
         )}
       </div>
     </div>
@@ -340,25 +339,25 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
   if (!user || user.role !== 'user') return null;
 
   return (
-    <form className="space-y-5 pb-20 lg:pb-6" onSubmit={handleSubmit}>
+    <form className="pb-24 lg:pb-6 space-y-6" onSubmit={handleSubmit}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-2xl font-heading font-bold text-foreground">{isPersonalMode ? 'Datos personales' : 'Configuracion de perfil'}</h2>
-          <p className="text-sm text-muted-foreground">
+          <h2 className="text-3xl sm:text-4xl font-bold text-[#6b4c9a] leading-tight">{isPersonalMode ? 'Datos personales' : 'Configuracion de perfil'}</h2>
+          <p className="text-sm sm:text-base text-[#8b7aa0] mt-1 font-medium">
             {isPersonalMode ? 'Informacion visible para tu cuenta y tu red de apoyo.' : 'Autonomia, privacidad y accesibilidad.'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {onBack && (
-            <Button type="button" variant="outline" size="sm" onClick={onBack} className="gap-2">
+            <button type="button" onClick={onBack} className="inline-flex items-center gap-2 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-4 py-2.5 text-sm font-semibold text-[#6b4c9a] hover:bg-[#f5f0ff]">
               <ArrowLeft size={15} />
               Perfil
-            </Button>
+            </button>
           )}
-          <Button type="submit" size="sm" disabled={loading || saving || !canSave} className="gap-2">
+          <button type="submit" disabled={loading || saving || !canSave} className="inline-flex items-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 disabled:opacity-60">
             {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
             Guardar
-          </Button>
+          </button>
         </div>
       </div>
 
@@ -369,15 +368,15 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
         </div>
       )}
 
-      {loading && !settings ? (
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
+      {(!settings && !error) || loading ? (
+        <div className="flex items-center gap-2 rounded-2xl border border-[#f0e8f8] bg-white p-4 text-sm text-[#8b7aa0] shadow-lg">
           <Loader2 size={16} className="animate-spin" />
           Cargando configuracion...
         </div>
       ) : (
         <>
           {isPersonalMode && (
-            <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
+            <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 sm:p-5 shadow-lg">
               <SectionHeader
                 icon={UserRound}
                 title="Datos personales"
@@ -414,32 +413,33 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="profile-name">Nombre</Label>
-                  <Input id="profile-name" value={form.usuario.nombre} onChange={e => updateUsuario('nombre', e.target.value)} />
+                  <label htmlFor="profile-name" className="text-sm font-medium text-[#4a4a5a]">Nombre</label>
+                  <input id="profile-name" value={form.usuario.nombre} onChange={e => updateUsuario('nombre', e.target.value)} className="w-full rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-2.5 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="profile-lastname">Apellido</Label>
-                  <Input id="profile-lastname" value={form.usuario.apellido} onChange={e => updateUsuario('apellido', e.target.value)} />
+                  <label htmlFor="profile-lastname" className="text-sm font-medium text-[#4a4a5a]">Apellido</label>
+                  <input id="profile-lastname" value={form.usuario.apellido} onChange={e => updateUsuario('apellido', e.target.value)} className="w-full rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-2.5 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="profile-username">Usuario</Label>
-                  <Input id="profile-username" value={form.usuario.nombre_usuario} onChange={e => updateUsuario('nombre_usuario', e.target.value)} />
+                  <label htmlFor="profile-username" className="text-sm font-medium text-[#4a4a5a]">Usuario</label>
+                  <input id="profile-username" value={form.usuario.nombre_usuario} onChange={e => updateUsuario('nombre_usuario', e.target.value)} className="w-full rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-2.5 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="profile-email">Correo</Label>
-                  <Input id="profile-email" type="email" value={form.usuario.correo} onChange={e => updateUsuario('correo', e.target.value)} />
+                  <label htmlFor="profile-email" className="text-sm font-medium text-[#4a4a5a]">Correo</label>
+                  <input id="profile-email" type="email" value={form.usuario.correo} onChange={e => updateUsuario('correo', e.target.value)} className="w-full rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-2.5 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="profile-phone">Telefono</Label>
-                  <Input id="profile-phone" inputMode="numeric" value={form.telefonoText} onChange={e => handlePhoneChange(e.target.value)} />
+                  <label htmlFor="profile-phone" className="text-sm font-medium text-[#4a4a5a]">Telefono</label>
+                  <input id="profile-phone" inputMode="numeric" value={form.telefonoText} onChange={e => handlePhoneChange(e.target.value)} className="w-full rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-2.5 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="profile-birthdate">Fecha de nacimiento</Label>
-                  <Input
+                  <label htmlFor="profile-birthdate" className="text-sm font-medium text-[#4a4a5a]">Fecha de nacimiento</label>
+                  <input
                     id="profile-birthdate"
                     type="date"
                     value={form.usuario.fecha_nacimiento || ''}
                     onChange={e => updateUsuario('fecha_nacimiento', e.target.value || null)}
+                    className="w-full rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-2.5 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
                   />
                 </div>
               </div>
@@ -447,7 +447,7 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
           )}
 
           {!isPersonalMode && (
-          <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
+          <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 sm:p-5 shadow-lg">
             <SectionHeader
               icon={Shield}
               title="Perfil perteneciente"
@@ -456,11 +456,11 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
             <div className="grid gap-3 md:grid-cols-2">
               <ReadOnlyInfo
                 label="Nivel de apoyo"
-                value={settings?.supportLevels.find(level => level.id === form.perteneciente.id_nivel_apoyo)?.nombre || 'Sin registrar'}
+                value={(settings?.supportLevels ?? []).find(level => level.id === form.perteneciente.id_nivel_apoyo)?.nombre || 'Sin registrar'}
               />
               <ReadOnlyInfo
                 label="Autonomia operativa"
-                value={settings?.autonomies.find(autonomy => autonomy.id === form.perteneciente.id_autonomia_operativa)?.nombre || 'Sin registrar'}
+                value={(settings?.autonomies ?? []).find(autonomy => autonomy.id === form.perteneciente.id_autonomia_operativa)?.nombre || 'Sin registrar'}
               />
               <ReadOnlyInfo
                 label="Autogestion"
@@ -472,14 +472,14 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
                 className="md:col-span-2"
               />
             </div>
-            <p className="mt-3 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
+            <p className="mt-3 rounded-2xl border border-[#6b4c9a]/20 bg-[#f5f0ff] p-3 text-xs text-[#8b7aa0]">
               Estos datos no se editan desde tu cuenta porque requieren criterio de tu red de apoyo.
             </p>
           </section>
           )}
 
           {!isPersonalMode && (
-          <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
+          <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 sm:p-5 shadow-lg">
             <SectionHeader
               icon={Bell}
               title="Preferencias y privacidad"
@@ -497,14 +497,14 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
           )}
 
           {!isPersonalMode && (
-          <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
+          <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 sm:p-5 shadow-lg">
             <SectionHeader
               icon={Eye}
               title="Accesibilidad"
               description="Perfil cargado automaticamente desde la burbuja de accesibilidad."
             />
             <AccessibilityProfileSummary settings={accessibilitySettings} />
-            <div className="mt-3 rounded-lg border border-border bg-background p-3 text-xs text-muted-foreground">
+            <div className="mt-3 rounded-2xl border border-[#f0e8f8] bg-[#faf8ff] p-3 text-xs text-[#8b7aa0]">
               Para cambiar estos ajustes usa la burbuja flotante de accesibilidad. La configuracion se guarda y se carga automaticamente despues del login.
             </div>
           </section>

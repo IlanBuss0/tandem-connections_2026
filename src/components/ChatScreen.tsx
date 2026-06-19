@@ -3,9 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { ContactPerson, useChat } from '@/contexts/ChatContext';
 import { ChatMessage, Conversation, fetchConversationsForUser, fetchMessagesForConversationAsUser, fetchPermissionContext, type PermissionContext } from '@/data/api';
+<<<<<<< HEAD
 import { ArrowLeft, Send, Plus, Search, X, MessageCircle, Pencil, Trash2, Check, Users, ImageIcon, FileIcon, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+=======
+import { ArrowLeft, Send, Plus, Search, X, MessageCircle, Pencil, Trash2, Check, Users } from 'lucide-react';
+>>>>>>> e53fbeb1f500616c2b6bca72ca7f36c41c80a1e3
 import { useToast } from '@/components/ui/use-toast';
 import { isPermissionEnabled, PROFESIONAL_PERMISSIONS } from '@/hooks/usePermissions';
 
@@ -444,20 +448,20 @@ export default function ChatScreen({
 
     return (
       <div className="flex flex-col h-[calc(100vh-9rem)] lg:h-[calc(100vh-3rem)]">
-        <div className="flex items-center gap-3 pb-3 border-b border-border">
-          <button onClick={() => setSelectedId(null)} className="text-muted-foreground hover:text-foreground" aria-label="Volver"><ArrowLeft size={20} /></button>
+        <div className="flex items-center gap-3 pb-3 border-b border-[#f0e8f8]">
+          <button onClick={() => setSelectedId(null)} className="text-[#8b7aa0] hover:text-[#6b4c9a]" aria-label="Volver"><ArrowLeft size={20} /></button>
           <span className="text-2xl">{isGroup ? 'G' : other?.avatar || selectedConv.avatar}</span>
           <div className="min-w-0 flex-1">
-            <p className="font-semibold text-sm text-foreground truncate">{chatTitle}</p>
-            <p className="text-[10px] text-muted-foreground truncate">{chatSubtitle}</p>
+            <p className="font-semibold text-sm text-[#6b4c9a] truncate">{chatTitle}</p>
+            <p className="text-[10px] text-[#8b7aa0] truncate">{chatSubtitle}</p>
           </div>
           {canActAsCurrentUser && isGroup && isCurrentUserAdmin && (
-            <button type="button" onClick={() => setShowManage(true)} className="p-2 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Administrar grupo">
+            <button type="button" onClick={() => setShowManage(true)} className="p-2 rounded-md text-[#8b7aa0] hover:bg-[#ede4f8] hover:text-[#6b4c9a]" aria-label="Administrar grupo">
               <Users size={17} />
             </button>
           )}
           {canActAsCurrentUser && (
-            <button type="button" onClick={hideSelectedConversation} className="p-2 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label={isGroup ? 'Salir del grupo' : 'Eliminar chat para mi'}>
+            <button type="button" onClick={hideSelectedConversation} className="p-2 rounded-md text-[#8b7aa0] hover:bg-red-50 hover:text-red-600" aria-label={isGroup ? 'Salir del grupo' : 'Eliminar chat para mi'}>
               <Trash2 size={17} />
             </button>
           )}
@@ -465,7 +469,7 @@ export default function ChatScreen({
 
         <div className="flex-1 overflow-y-auto py-4 space-y-3">
           {msgs.length === 0 && (
-            <p className="text-center text-xs text-muted-foreground mt-8">Empezá la conversación 👋</p>
+            <p className="text-center text-xs text-[#8b7aa0] mt-8">Empezá la conversación 👋</p>
           )}
           {msgs.map(msg => {
             const sender = getPersonById(msg.senderId);
@@ -481,27 +485,27 @@ export default function ChatScreen({
                 animate={{ opacity: 1, y: 0 }}
                 className={`flex w-full ${isMine ? 'justify-end pl-10' : 'justify-start pr-10'}`}
               >
-                <div className={`max-w-[78%] px-4 py-2.5 rounded-2xl text-sm shadow-sm ${msg.type === 'activity' ? 'bg-amber-50 text-amber-800 border border-amber-200 rounded-xl' : isMine ? 'gradient-primary text-primary-foreground rounded-br-md' : 'bg-muted text-foreground border border-border rounded-bl-md'}`}>
+                <div className={`max-w-[78%] px-4 py-2.5 rounded-2xl text-sm shadow-sm ${msg.type === 'activity' ? 'bg-amber-50 text-amber-800 border border-amber-200 rounded-xl' : isMine ? 'bg-[#6b4c9a] text-white rounded-br-md' : 'bg-[#ede4f8] text-[#6b4c9a] border border-[#f0e8f8] rounded-bl-md'}`}>
                   {!isMine && (
-                    <p className="mb-1 text-[10px] font-semibold text-muted-foreground">
+                    <p className="mb-1 text-[10px] font-semibold text-[#8b7aa0]">
                       {sender?.name || other?.name || msg.senderName || 'Contacto'}
                     </p>
                   )}
                   {isEditing ? (
                     <div className="space-y-2">
-                      <Input
+                      <input
                         value={editingText}
                         onChange={e => setEditingText(e.target.value)}
                         onKeyDown={e => {
                           if (e.key === 'Enter') saveEdit();
                           if (e.key === 'Escape') cancelEdit();
                         }}
-                        className="h-9 bg-background text-foreground"
+                        className="h-9 w-full rounded-lg border border-[#ede4f8] bg-[#faf8ff] px-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]"
                         autoFocus
                       />
                       <div className="flex justify-end gap-1">
-                        <button type="button" onClick={cancelEdit} className="h-7 px-2 rounded-md bg-background/80 text-foreground text-xs">Cancelar</button>
-                        <button type="button" onClick={saveEdit} className="h-7 px-2 rounded-md bg-background text-primary text-xs font-semibold inline-flex items-center gap-1">
+                        <button type="button" onClick={cancelEdit} className="h-7 px-2 rounded-md bg-[#faf8ff]/80 text-[#6b4c9a] text-xs">Cancelar</button>
+                        <button type="button" onClick={saveEdit} className="h-7 px-2 rounded-md bg-[#faf8ff] text-[#6b4c9a] text-xs font-semibold inline-flex items-center gap-1">
                           <Check size={12} /> Guardar
                         </button>
                       </div>
@@ -539,13 +543,13 @@ export default function ChatScreen({
                     </button>
                   )}
                   <div className="mt-1 flex items-center justify-between gap-2">
-                    <p className={`text-[10px] ${isMine ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>{msg.timestamp}</p>
+                    <p className={`text-[10px] ${isMine ? 'text-white/60' : 'text-[#8b7aa0]'}`}>{msg.timestamp}</p>
                     {canActAsCurrentUser && sameId(msg.senderId, user.id) && !isEditing && /^\d+$/.test(msg.id) && (
                       <div className="flex items-center gap-1 opacity-80">
-                        <button type="button" onClick={() => startEdit(msg.id, msg.text)} className="p-1 rounded hover:bg-background/20" aria-label="Editar mensaje">
+                        <button type="button" onClick={() => startEdit(msg.id, msg.text)} className="p-1 rounded hover:bg-[#faf8ff]/20" aria-label="Editar mensaje">
                           <Pencil size={12} />
                         </button>
-                        <button type="button" onClick={() => removeMessage(msg.id)} className="p-1 rounded hover:bg-background/20" aria-label="Eliminar mensaje">
+                        <button type="button" onClick={() => removeMessage(msg.id)} className="p-1 rounded hover:bg-[#faf8ff]/20" aria-label="Eliminar mensaje">
                           <Trash2 size={12} />
                         </button>
                       </div>
@@ -562,10 +566,11 @@ export default function ChatScreen({
         <>
         <div className="flex gap-1.5 overflow-x-auto py-2 -mx-1 px-1">
           {quickReplies.map(qr => (
-            <button key={qr} onClick={() => sendNow(qr)} className="whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] bg-muted text-muted-foreground border border-border hover:border-primary/30">{qr}</button>
+            <button key={qr} onClick={() => sendNow(qr)} className="whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] bg-[#ede4f8] text-[#8b7aa0] border border-[#f0e8f8] hover:border-[#6b4c9a]/30">{qr}</button>
           ))}
         </div>
 
+<<<<<<< HEAD
         <div className="space-y-2 pt-2 border-t border-border">
           {uploadPreview && (
             <div className="flex items-center gap-2 px-1">
@@ -592,6 +597,11 @@ export default function ChatScreen({
             <Input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendNow(undefined, pendingFileId)} placeholder="Escribí un mensaje..." className="flex-1" />
             <button onClick={() => sendNow(undefined, pendingFileId)} className="w-10 h-10 rounded-full gradient-primary text-primary-foreground flex items-center justify-center shrink-0" aria-label="Enviar"><Send size={16} /></button>
           </div>
+=======
+        <div className="flex gap-2 pt-2 border-t border-[#f0e8f8]">
+          <input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendNow()} placeholder="Escribí un mensaje..." className="flex-1 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-4 py-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]" />
+          <button onClick={() => sendNow()} className="w-10 h-10 rounded-full bg-[#6b4c9a] text-white flex items-center justify-center shrink-0" aria-label="Enviar"><Send size={16} /></button>
+>>>>>>> e53fbeb1f500616c2b6bca72ca7f36c41c80a1e3
         </div>
         </>
         )}
@@ -603,7 +613,7 @@ export default function ChatScreen({
           </div>
         )}
         {!canActAsCurrentUser && (
-          <div className="rounded-lg border border-border bg-muted/40 p-3 text-center text-xs text-muted-foreground">
+          <div className="rounded-lg border border-[#f0e8f8] bg-[#ede4f8]/40 p-3 text-center text-xs text-[#8b7aa0]">
             Vista de solo lectura: estas viendo los chats de {activeProfile?.name || 'este perfil'}.
           </div>
         )}
@@ -617,42 +627,42 @@ export default function ChatScreen({
             >
               <motion.div
                 initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }}
-                className="bg-card rounded-t-2xl sm:rounded-none sm:rounded-l-2xl border border-border w-full sm:w-[520px] lg:w-[620px] max-h-[92vh] sm:max-h-none flex flex-col shadow-xl"
+                className="bg-white rounded-t-2xl sm:rounded-none sm:rounded-l-2xl border border-[#f0e8f8] w-full sm:w-[520px] lg:w-[620px] max-h-[92vh] sm:max-h-none flex flex-col shadow-xl"
                 onClick={e => e.stopPropagation()}
               >
-                <div className="flex items-center justify-between p-4 border-b border-border">
-                  <h3 className="font-heading font-bold text-foreground">Administrar chat</h3>
-                  <button onClick={() => setShowManage(false)} className="p-1.5 hover:bg-muted rounded-md" aria-label="Cerrar"><X size={18} /></button>
+                <div className="flex items-center justify-between p-4 border-b border-[#f0e8f8]">
+                  <h3 className="font-heading font-bold text-[#6b4c9a]">Administrar chat</h3>
+                  <button onClick={() => setShowManage(false)} className="p-1.5 hover:bg-[#ede4f8] rounded-md" aria-label="Cerrar"><X size={18} /></button>
                 </div>
-                <div className="p-4 space-y-3 border-b border-border">
-                  <Input value={manageTitle} onChange={e => setManageTitle(e.target.value)} placeholder="Nombre del chat" />
-                  <Input value={manageDescription} onChange={e => setManageDescription(e.target.value)} placeholder="Descripcion" />
-                  <p className="text-[11px] text-muted-foreground">Participantes: {manageParticipantIds.join(', ')}</p>
-                  <p className="text-[11px] text-muted-foreground">Admins: {manageAdminIds.join(', ') || user.id}</p>
+                <div className="p-4 space-y-3 border-b border-[#f0e8f8]">
+                  <input value={manageTitle} onChange={e => setManageTitle(e.target.value)} placeholder="Nombre del chat" className="w-full rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-4 py-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]" />
+                  <input value={manageDescription} onChange={e => setManageDescription(e.target.value)} placeholder="Descripcion" className="w-full rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-4 py-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]" />
+                  <p className="text-[11px] text-[#8b7aa0]">Participantes: {manageParticipantIds.join(', ')}</p>
+                  <p className="text-[11px] text-[#8b7aa0]">Admins: {manageAdminIds.join(', ') || user.id}</p>
                 </div>
                 <div className="overflow-y-auto p-3 space-y-4">
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs font-semibold text-foreground">Personas en el grupo</p>
-                      <Button type="button" size="sm" onClick={() => setShowAddParticipants(prev => !prev)} className="h-8">
-                        <Plus size={13} className="mr-1" /> Agregar participante
-                      </Button>
+                      <p className="text-xs font-semibold text-[#6b4c9a]">Personas en el grupo</p>
+                      <button type="button" onClick={() => setShowAddParticipants(prev => !prev)} className="h-8 inline-flex items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-1.5 text-xs font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 transition">
+                        <Plus size={13} /> Agregar participante
+                      </button>
                     </div>
                     {manageParticipantIds.map(participantId => {
                       const c = getPersonById(participantId);
                       const label = c?.name || selectedConv.participantNames[selectedConv.participants.indexOf(participantId)] || `Usuario ${participantId}`;
                       return (
-                        <div key={participantId} className="w-full flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border text-left">
+                        <div key={participantId} className="w-full flex items-center gap-3 p-3 rounded-lg bg-[#ede4f8]/30 border border-[#f0e8f8] text-left">
                           <span className="text-2xl">{c?.avatar || selectedConv.avatar}</span>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm text-foreground truncate">{label}</p>
-                            <p className="text-[11px] text-muted-foreground truncate">ID {participantId}</p>
+                            <p className="font-medium text-sm text-[#6b4c9a] truncate">{label}</p>
+                            <p className="text-[11px] text-[#8b7aa0] truncate">ID {participantId}</p>
                           </div>
-                          <button type="button" onClick={() => toggleManageAdmin(participantId)} className={`h-7 px-2 rounded-md border text-[10px] font-semibold ${manageAdminIds.includes(participantId) ? 'bg-amber-100 text-amber-800 border-amber-200' : 'text-muted-foreground border-border'}`}>
+                          <button type="button" onClick={() => toggleManageAdmin(participantId)} className={`h-7 px-2 rounded-md border text-[10px] font-semibold ${manageAdminIds.includes(participantId) ? 'bg-amber-100 text-amber-800 border-amber-200' : 'text-[#8b7aa0] border-[#f0e8f8]'}`}>
                             Admin
                           </button>
                           {participantId !== user.id && (
-                            <button type="button" onClick={() => toggleManageParticipant(participantId)} className="p-1.5 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label="Quitar participante">
+                            <button type="button" onClick={() => toggleManageParticipant(participantId)} className="p-1.5 rounded-md text-[#8b7aa0] hover:bg-red-50 hover:text-red-600" aria-label="Quitar participante">
                               <X size={15} />
                             </button>
                           )}
@@ -662,45 +672,45 @@ export default function ChatScreen({
                   </div>
 
                   {showAddParticipants && (
-                    <div className="space-y-2 border-t border-border pt-4">
-                      <p className="text-xs font-semibold text-foreground">Agregar participantes</p>
+                    <div className="space-y-2 border-t border-[#f0e8f8] pt-4">
+                      <p className="text-xs font-semibold text-[#6b4c9a]">Agregar participantes</p>
                       {contacts.filter(c => !manageParticipantIds.includes(c.id)).map(c => (
-                        <button key={c.id} type="button" onClick={() => toggleManageParticipant(c.id)} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors text-left">
+                        <button key={c.id} type="button" onClick={() => toggleManageParticipant(c.id)} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-[#ede4f8]/50 transition-colors text-left">
                           <span className="text-2xl">{c.avatar}</span>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm text-foreground truncate">{c.name}</p>
-                            <p className="text-[11px] text-muted-foreground truncate">ID {c.id}{c.subtitle ? ` | ${c.subtitle}` : ''}</p>
+                            <p className="font-medium text-sm text-[#6b4c9a] truncate">{c.name}</p>
+                            <p className="text-[11px] text-[#8b7aa0] truncate">ID {c.id}{c.subtitle ? ` | ${c.subtitle}` : ''}</p>
                           </div>
-                          <Plus size={16} className="text-muted-foreground" />
+                          <Plus size={16} className="text-[#8b7aa0]" />
                         </button>
                       ))}
                       {contacts.filter(c => !manageParticipantIds.includes(c.id)).length === 0 && (
-                        <p className="text-xs text-muted-foreground py-3 text-center">No hay contactos disponibles para agregar</p>
+                        <p className="text-xs text-[#8b7aa0] py-3 text-center">No hay contactos disponibles para agregar</p>
                       )}
                     </div>
                   )}
 
                   {showLegacyManageContacts && contacts.map(c => (
-                    <div key={c.id} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors text-left">
-                      <button type="button" onClick={() => toggleManageParticipant(c.id)} className={`w-5 h-5 rounded border flex items-center justify-center text-[10px] ${manageParticipantIds.includes(c.id) ? 'bg-primary text-primary-foreground border-primary' : 'border-border'}`} aria-label="Cambiar participante">
+                    <div key={c.id} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-[#ede4f8]/50 transition-colors text-left">
+                      <button type="button" onClick={() => toggleManageParticipant(c.id)} className={`w-5 h-5 rounded border flex items-center justify-center text-[10px] ${manageParticipantIds.includes(c.id) ? 'bg-[#6b4c9a] text-white border-[#6b4c9a]' : 'border-[#f0e8f8]'}`} aria-label="Cambiar participante">
                         {manageParticipantIds.includes(c.id) ? '✓' : ''}
                       </button>
                       <span className="text-2xl">{c.avatar}</span>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm text-foreground truncate">{c.name}</p>
-                        <p className="text-[11px] text-muted-foreground truncate">ID {c.id}{c.subtitle ? ` | ${c.subtitle}` : ''}</p>
+                        <p className="font-medium text-sm text-[#6b4c9a] truncate">{c.name}</p>
+                        <p className="text-[11px] text-[#8b7aa0] truncate">ID {c.id}{c.subtitle ? ` | ${c.subtitle}` : ''}</p>
                       </div>
-                      <button type="button" onClick={() => toggleManageAdmin(c.id)} disabled={!manageParticipantIds.includes(c.id)} className={`h-7 px-2 rounded-md border text-[10px] font-semibold ${manageAdminIds.includes(c.id) ? 'bg-amber-100 text-amber-800 border-amber-200' : 'text-muted-foreground border-border disabled:opacity-40'}`}>
+                      <button type="button" onClick={() => toggleManageAdmin(c.id)} disabled={!manageParticipantIds.includes(c.id)} className={`h-7 px-2 rounded-md border text-[10px] font-semibold ${manageAdminIds.includes(c.id) ? 'bg-amber-100 text-amber-800 border-amber-200' : 'text-[#8b7aa0] border-[#f0e8f8] disabled:opacity-40'}`}>
                         Admin
                       </button>
                     </div>
                   ))}
                 </div>
-                <div className="p-4 border-t border-border space-y-2">
-                  <Button type="button" onClick={saveManage} disabled={savingManage || manageParticipantIds.length < 3} className="w-full gradient-primary text-primary-foreground">
+                <div className="p-4 border-t border-[#f0e8f8] space-y-2">
+                  <button type="button" onClick={saveManage} disabled={savingManage || manageParticipantIds.length < 3} className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-5 py-3 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 transition disabled:opacity-50">
                     Guardar cambios
-                  </Button>
-                  <button type="button" onClick={hideSelectedConversation} className="w-full h-10 rounded-md border border-destructive/30 text-sm font-semibold text-destructive hover:bg-destructive/10">
+                  </button>
+                  <button type="button" onClick={hideSelectedConversation} className="w-full h-10 rounded-md border border-red-300 text-sm font-semibold text-red-600 hover:bg-red-50">
                     {isGroup ? 'Salir del grupo' : 'Eliminar chat para mi'}
                   </button>
                 </div>
@@ -717,17 +727,17 @@ export default function ChatScreen({
     <div className="space-y-4 pb-20 lg:pb-6">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <h2 className="text-2xl font-heading font-bold text-foreground">Chat</h2>
-          <p className="text-muted-foreground text-sm">Tus conversaciones</p>
+          <h2 className="text-2xl font-heading font-bold text-[#6b4c9a]">Chat</h2>
+          <p className="text-[#8b7aa0] text-sm">Tus conversaciones</p>
         </div>
         <div className="flex items-center gap-2">
           {profiles && profiles.length > 0 && (
-            <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-right">
-              <span className="hidden sm:inline text-xs text-muted-foreground">Viendo</span>
+            <div className="flex items-center gap-2 rounded-xl border border-[#f0e8f8] bg-white px-3 py-2 text-right">
+              <span className="hidden sm:inline text-xs text-[#8b7aa0]">Viendo</span>
               <select
                 value={resolvedProfileId}
                 onChange={event => setActiveProfileId(event.target.value)}
-                className="max-w-[190px] bg-transparent text-sm font-semibold text-foreground outline-none"
+                className="max-w-[190px] bg-transparent text-sm font-semibold text-[#6b4c9a] outline-none"
                 aria-label="Perfil de chats"
               >
                 {profiles.map(profile => (
@@ -739,24 +749,24 @@ export default function ChatScreen({
             </div>
           )}
           {isOwnView && (
-            <Button size="sm" onClick={() => setShowNew(true)} className="gradient-primary text-primary-foreground shrink-0">
-              <Plus size={14} className="mr-1" /> Nuevo chat
-            </Button>
+            <button onClick={() => setShowNew(true)} className="shrink-0 inline-flex items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-2 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 transition">
+              <Plus size={14} /> Nuevo chat
+            </button>
           )}
         </div>
       </div>
 
       {loadingProfileChats && (
-        <div className="bg-card border border-border rounded-xl p-4 text-sm text-muted-foreground">
+        <div className="bg-white border border-[#f0e8f8] rounded-xl p-4 text-sm text-[#8b7aa0]">
           Cargando chats de {activeProfile?.name || 'este perfil'}...
         </div>
       )}
 
       {myConvs.length === 0 && (
-        <div className="bg-card border border-border rounded-xl p-6 text-center">
-          <MessageCircle size={32} className="mx-auto text-muted-foreground mb-2" />
-          <p className="text-sm text-foreground font-medium">Todavía no tenés conversaciones</p>
-          <p className="text-xs text-muted-foreground mt-1">Tocá "Nuevo chat" para empezar</p>
+        <div className="bg-white border border-[#f0e8f8] rounded-xl p-6 text-center">
+          <MessageCircle size={32} className="mx-auto text-[#8b7aa0] mb-2" />
+          <p className="text-sm text-[#6b4c9a] font-medium">Todavía no tenés conversaciones</p>
+          <p className="text-xs text-[#8b7aa0] mt-1">Tocá "Nuevo chat" para empezar</p>
         </div>
       )}
 
@@ -767,24 +777,24 @@ export default function ChatScreen({
           const other = getPersonById(otherId);
           const title = isGroup ? conv.title || 'Grupo' : other?.name || conv.participantNames.find(n => n !== user.name) || 'Chat';
           return (
-            <motion.button key={conv.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} onClick={() => handleSelect(conv)} className="w-full flex items-center gap-3 p-4 rounded-xl bg-card border border-border hover:border-primary/30 transition-all text-left">
+            <motion.button key={conv.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} onClick={() => handleSelect(conv)} className="w-full flex items-center gap-3 p-4 rounded-xl bg-white border border-[#f0e8f8] hover:border-[#6b4c9a]/30 transition-all text-left">
               <span className="text-3xl">{isGroup ? 'G' : other?.avatar || conv.avatar}</span>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-center gap-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    <p className="font-semibold text-sm text-foreground truncate">{title}</p>
+                    <p className="font-semibold text-sm text-[#6b4c9a] truncate">{title}</p>
                     <span className={`text-[9px] px-1.5 py-0.5 rounded-full whitespace-nowrap ${isGroup ? 'bg-amber-100 text-amber-700' : other?.role === 'profesional' ? 'bg-purple-100 text-purple-700' : other?.role === 'tutor' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
                       {isGroup ? 'Grupo' : other?.role === 'profesional' ? 'Profesional' : other?.role === 'tutor' ? 'Tutor' : 'Usuario'}
                     </span>
                   </div>
-                  <span className="text-[10px] text-muted-foreground shrink-0">{conv.lastMessageTime}</span>
+                  <span className="text-[10px] text-[#8b7aa0] shrink-0">{conv.lastMessageTime}</span>
                 </div>
-                <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+                <p className="text-[10px] text-[#8b7aa0] truncate mt-0.5">
                   Chat ID {conv.id} | Participantes: {conv.participants.join(', ')}
                 </p>
-                <p className="text-xs text-muted-foreground truncate mt-0.5">{conv.lastMessage}</p>
+                <p className="text-xs text-[#8b7aa0] truncate mt-0.5">{conv.lastMessage}</p>
               </div>
-              {conv.unreadCount > 0 && <span className="w-5 h-5 rounded-full gradient-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">{conv.unreadCount}</span>}
+              {conv.unreadCount > 0 && <span className="w-5 h-5 rounded-full bg-[#6b4c9a] text-white text-[10px] font-bold flex items-center justify-center">{conv.unreadCount}</span>}
             </motion.button>
           );
         })}
@@ -800,35 +810,35 @@ export default function ChatScreen({
           >
             <motion.div
               initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }}
-              className="bg-card rounded-t-2xl sm:rounded-2xl border border-border w-full max-w-md max-h-[85vh] flex flex-col"
+              className="bg-white rounded-t-2xl sm:rounded-2xl border border-[#f0e8f8] w-full max-w-md max-h-[85vh] flex flex-col"
               onClick={e => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between p-4 border-b border-border">
-                <h3 className="font-heading font-bold text-foreground">Nuevo chat</h3>
-                <button onClick={() => setShowNew(false)} className="p-1.5 hover:bg-muted rounded-md" aria-label="Cerrar"><X size={18} /></button>
+              <div className="flex items-center justify-between p-4 border-b border-[#f0e8f8]">
+                <h3 className="font-heading font-bold text-[#6b4c9a]">Nuevo chat</h3>
+                <button onClick={() => setShowNew(false)} className="p-1.5 hover:bg-[#ede4f8] rounded-md" aria-label="Cerrar"><X size={18} /></button>
               </div>
-              <div className="p-4 space-y-3 border-b border-border">
-                <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
-                  <button type="button" onClick={() => setNewMode('direct')} className={`h-9 rounded-md text-xs font-semibold ${newMode === 'direct' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>
+              <div className="p-4 space-y-3 border-b border-[#f0e8f8]">
+                <div className="grid grid-cols-2 gap-1 rounded-lg bg-[#ede4f8] p-1">
+                  <button type="button" onClick={() => setNewMode('direct')} className={`h-9 rounded-md text-xs font-semibold ${newMode === 'direct' ? 'bg-white text-[#6b4c9a] shadow-sm' : 'text-[#8b7aa0]'}`}>
                     Persona
                   </button>
-                  <button type="button" onClick={() => setNewMode('group')} className={`h-9 rounded-md text-xs font-semibold inline-flex items-center justify-center gap-1 ${newMode === 'group' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>
+                  <button type="button" onClick={() => setNewMode('group')} className={`h-9 rounded-md text-xs font-semibold inline-flex items-center justify-center gap-1 ${newMode === 'group' ? 'bg-white text-[#6b4c9a] shadow-sm' : 'text-[#8b7aa0]'}`}>
                     <Users size={13} /> Grupo
                   </button>
                 </div>
                 {newMode === 'group' && (
                   <div className="space-y-2">
-                    <Input value={groupTitle} onChange={e => setGroupTitle(e.target.value)} placeholder="Titulo del grupo" />
-                    <Input value={groupDescription} onChange={e => setGroupDescription(e.target.value)} placeholder="Descripcion opcional" />
+                    <input value={groupTitle} onChange={e => setGroupTitle(e.target.value)} placeholder="Titulo del grupo" className="w-full rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-4 py-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]" />
+                    <input value={groupDescription} onChange={e => setGroupDescription(e.target.value)} placeholder="Descripcion opcional" className="w-full rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-4 py-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]" />
                   </div>
                 )}
                 <div className="relative">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input value={newSearch} onChange={e => setNewSearch(e.target.value)} placeholder="Buscar persona..." className="pl-9" />
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8b7aa0]" />
+                  <input value={newSearch} onChange={e => setNewSearch(e.target.value)} placeholder="Buscar persona..." className="w-full rounded-2xl border border-[#ede4f8] bg-[#faf8ff] pl-9 pr-4 py-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]" />
                 </div>
                 <div className="flex gap-1.5 overflow-x-auto">
                   {(['all','user','tutor','profesional'] as const).map(r => (
-                    <button key={r} onClick={() => setFilterRole(r)} className={`px-3 py-1 rounded-full text-[11px] whitespace-nowrap border transition-colors ${filterRole === r ? 'gradient-primary text-primary-foreground border-transparent' : 'bg-card text-muted-foreground border-border'}`}>
+                    <button key={r} onClick={() => setFilterRole(r)} className={`px-3 py-1 rounded-full text-[11px] whitespace-nowrap border transition-colors ${filterRole === r ? 'bg-[#6b4c9a] text-white border-transparent' : 'bg-white text-[#8b7aa0] border-[#f0e8f8]'}`}>
                       {r === 'all' ? 'Todos' : r === 'user' ? 'Usuarios' : r === 'tutor' ? 'Tutores' : 'Profesionales'}
                     </button>
                   ))}
@@ -836,19 +846,19 @@ export default function ChatScreen({
               </div>
               <div className="overflow-y-auto p-2">
                 {filteredContacts.length === 0 && (
-                  <p className="text-center text-xs text-muted-foreground py-6">Sin resultados</p>
+                  <p className="text-center text-xs text-[#8b7aa0] py-6">Sin resultados</p>
                 )}
                 {filteredContacts.map(c => (
-                  <button key={c.id} onClick={() => newMode === 'group' ? toggleGroupParticipant(c.id) : startWith(c.id)} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors text-left">
+                  <button key={c.id} onClick={() => newMode === 'group' ? toggleGroupParticipant(c.id) : startWith(c.id)} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-[#ede4f8]/50 transition-colors text-left">
                     {newMode === 'group' && (
-                      <span className={`w-5 h-5 rounded border flex items-center justify-center text-[10px] ${groupParticipantIds.includes(c.id) ? 'bg-primary text-primary-foreground border-primary' : 'border-border'}`}>
+                      <span className={`w-5 h-5 rounded border flex items-center justify-center text-[10px] ${groupParticipantIds.includes(c.id) ? 'bg-[#6b4c9a] text-white border-[#6b4c9a]' : 'border-[#f0e8f8]'}`}>
                         {groupParticipantIds.includes(c.id) ? '✓' : ''}
                       </span>
                     )}
                     <span className="text-2xl">{c.avatar}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm text-foreground truncate">{c.name}</p>
-                      <p className="text-[11px] text-muted-foreground truncate">ID {c.id}{c.subtitle ? ` | ${c.subtitle}` : ''}</p>
+                      <p className="font-medium text-sm text-[#6b4c9a] truncate">{c.name}</p>
+                      <p className="text-[11px] text-[#8b7aa0] truncate">ID {c.id}{c.subtitle ? ` | ${c.subtitle}` : ''}</p>
                     </div>
                     <span className={`text-[9px] px-1.5 py-0.5 rounded-full whitespace-nowrap ${c.role === 'profesional' ? 'bg-purple-100 text-purple-700' : c.role === 'tutor' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
                       {c.role === 'profesional' ? 'Profesional' : c.role === 'tutor' ? 'Tutor' : 'Usuario'}
@@ -857,15 +867,15 @@ export default function ChatScreen({
                 ))}
               </div>
               {newMode === 'group' && (
-                <div className="p-4 border-t border-border">
-                  <Button
+                <div className="p-4 border-t border-[#f0e8f8]">
+                  <button
                     type="button"
                     onClick={createGroupNow}
                     disabled={!groupTitle.trim() || groupParticipantIds.length < 2 || creatingGroup}
-                    className="w-full gradient-primary text-primary-foreground"
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-5 py-3 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 transition disabled:opacity-50"
                   >
                     Crear grupo ({groupParticipantIds.length + 1})
-                  </Button>
+                  </button>
                 </div>
               )}
             </motion.div>

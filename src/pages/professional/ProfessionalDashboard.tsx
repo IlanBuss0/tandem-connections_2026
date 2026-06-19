@@ -161,35 +161,28 @@ export default function ProfessionalDashboard() {
       <AnimatePresence>
       {menuOpen && (
         <motion.div
-          className="fixed inset-0 z-50"
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.22 }}
+          onClick={() => setMenuOpen(false)}
         >
-          <motion.button
-            type="button"
-            aria-label="Cerrar menu"
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setMenuOpen(false)}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          />
           <motion.aside
-            className="relative h-full w-[82vw] max-w-[320px] border-r border-border bg-card p-4 shadow-xl"
-            initial={{ x: -320, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: -320, opacity: 0 }}
+            className="relative h-full w-[85%] max-w-sm bg-white rounded-r-3xl shadow-2xl shadow-black/10 p-6 flex flex-col overflow-y-auto"
+            initial={{ x: '-100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '-100%' }}
             transition={{ duration: 0.26, ease: 'easeOut' }}
+            onClick={e => e.stopPropagation()}
           >
-            <div className="mb-5 flex items-center justify-between">
+            <div className="flex items-center justify-between mb-8">
               <img className="h-8 object-contain" src="/tandem-logo.png" alt="Tandem" />
-              <button onClick={() => setMenuOpen(false)} className="rounded-lg p-2 hover:bg-muted" aria-label="Cerrar menu">
-                <X size={18} />
+              <button onClick={() => setMenuOpen(false)} className="p-2 rounded-xl hover:bg-muted transition-colors" aria-label="Cerrar menú">
+                <X size={20} />
               </button>
             </div>
-            <div className="space-y-1">
+            <nav className="flex-1 space-y-1">
               {tabs.map(item => (
                 <button
                   key={item.id}
@@ -198,17 +191,17 @@ export default function ProfessionalDashboard() {
                     setSelectedPatient(null);
                     setMenuOpen(false);
                   }}
-                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm ${
-                    tab === item.id ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted'
-                  }`}
+                  className={`flex w-full items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors text-left ${
+                    tab === item.id ? 'text-[#7C3AED] font-semibold' : 'text-muted-foreground'
+                  } hover:bg-[#C9A7EB]/60 hover:text-[#7C3AED]`}
                 >
-                  <item.icon size={18} />
+                  <item.icon size={18} className="shrink-0" />
                   {item.label}
                 </button>
               ))}
-            </div>
-            <div className="mt-6 border-t border-border pt-4">
-              <button onClick={logout} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm text-destructive hover:bg-destructive/10">
+            </nav>
+            <div className="mt-auto pt-4 border-t border-border">
+              <button onClick={logout} className="flex w-full items-center gap-3 px-4 py-3 rounded-xl text-sm text-[#7C3AED] hover:bg-[#C9A7EB]/40 transition-colors">
                 <LogOut size={18} />
                 Cerrar sesion
               </button>
@@ -218,16 +211,7 @@ export default function ProfessionalDashboard() {
       )}
       </AnimatePresence>
 
-      <header className="hidden">
-        <div>
-          <h1 className="font-heading font-bold text-gradient text-lg">TÁNDEM</h1>
-          <p className="text-xs text-muted-foreground">Panel profesional · {user.name}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <NotificationBellButton count={unreadCount} onClick={() => { setTab('notifications'); setSelectedPatient(null); }} />
-          <Button variant="ghost" size="sm" onClick={logout}><LogOut size={16} /></Button>
-        </div>
-      </header>
+
 
       <div className="flex gap-2 overflow-x-auto p-4 border-b border-border">
         {tabs.map(t => (

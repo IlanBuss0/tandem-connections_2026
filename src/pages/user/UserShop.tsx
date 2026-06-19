@@ -5,7 +5,6 @@ import { AvatarAppearance, AvatarClothing, useWallet } from '@/contexts/WalletCo
 import { CATEGORY_LABELS, RARITY_STYLES, SHOP_ITEMS, ShopCategory } from '@/data/shopItems';
 import AvatarPreview from '@/components/AvatarPreview';
 import CoinBadge from '@/components/CoinBadge';
-import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/ui/use-toast';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 
@@ -60,11 +59,11 @@ export default function UserShop() {
   };
 
   return (
-    <div className="space-y-5 pb-24 lg:pb-6">
+    <div className="pb-24 lg:pb-6 space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3 sm:items-center">
         <div>
-          <h2 className="text-xl font-heading font-bold text-foreground sm:text-2xl">Tienda y avatar</h2>
-          <p className="mt-1 text-xs text-muted-foreground sm:text-sm">Personaliza tu personaje con las monedas que ganas</p>
+          <h2 className="text-3xl sm:text-4xl font-bold text-[#6b4c9a] leading-tight">Tienda y avatar</h2>
+          <p className="text-sm sm:text-base text-[#8b7aa0] mt-1 font-medium">Personaliza tu personaje con las monedas que ganas</p>
         </div>
         <CoinBadge size="md" />
       </div>
@@ -89,13 +88,13 @@ export default function UserShop() {
         </div>
       )}
 
-      <div className="flex gap-1 overflow-x-auto rounded-xl bg-muted/60 p-1">
+      <div className="flex gap-1 overflow-x-auto rounded-2xl bg-[#f5f0ff] p-1">
         {TABS.map(item => (
           <button
             key={item.id}
             onClick={() => setTab(item.id)}
-            className={`flex min-w-[118px] flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors sm:text-sm ${
-              tab === item.id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            className={`flex min-w-[118px] flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium transition-all sm:text-sm ${
+              tab === item.id ? 'bg-white text-[#6b4c9a] shadow-md' : 'text-[#8b7aa0] hover:text-[#6b4c9a]'
             }`}
           >
             <item.icon size={14} />
@@ -105,7 +104,7 @@ export default function UserShop() {
       </div>
 
       {loading && (
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 rounded-2xl border border-[#f0e8f8] bg-white p-3 text-sm text-[#8b7aa0] shadow-lg">
           <Loader2 size={16} className="animate-spin" />
           Cargando tienda...
         </div>
@@ -121,8 +120,8 @@ export default function UserShop() {
               <button
                 key={category}
                 onClick={() => setCat(category)}
-                className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                  cat === category ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
+                  cat === category ? 'bg-[#6b4c9a] text-white shadow-sm' : 'border border-[#ede4f8] text-[#8b7aa0] bg-[#faf8ff] hover:bg-[#f5f0ff] hover:text-[#6b4c9a]'
                 }`}
               >
                 {category === 'todas' ? 'Todas' : CATEGORY_LABELS[category]}
@@ -131,7 +130,7 @@ export default function UserShop() {
           </div>
 
           {items.length === 0 && (
-            <div className="py-10 text-center text-sm text-muted-foreground">
+            <div className="py-10 text-center text-sm text-[#8b7aa0]">
               {tab === 'inventario' ? 'Tu inventario esta vacio. Compra tu primer item en la tienda.' : 'No hay items en esta categoria.'}
             </div>
           )}
@@ -148,40 +147,40 @@ export default function UserShop() {
                   key={item.id}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="flex flex-col rounded-xl border border-border bg-card p-3"
+                  className="flex flex-col rounded-2xl border border-[#f0e8f8] bg-white p-3 shadow-md"
                 >
-                  <div className="relative mb-2 flex aspect-square items-center justify-center rounded-lg bg-muted/50 text-5xl">
+                  <div className="relative mb-2 flex aspect-square items-center justify-center rounded-xl bg-[#faf8ff] text-5xl">
                     <span aria-hidden>{item.emoji}</span>
                     <span className={`absolute right-1 top-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${RARITY_STYLES[item.rarity].class}`}>
                       {RARITY_STYLES[item.rarity].label}
                     </span>
                   </div>
-                  <p className="line-clamp-1 text-sm font-semibold leading-tight text-foreground">{item.name}</p>
-                  <p className="mt-0.5 min-h-[28px] line-clamp-2 text-[11px] text-muted-foreground">{item.description}</p>
+                  <p className="line-clamp-1 text-sm font-semibold leading-tight text-[#4a4a5a]">{item.name}</p>
+                  <p className="mt-0.5 min-h-[28px] line-clamp-2 text-[11px] text-[#8b7aa0]">{item.description}</p>
 
                   <div className="mt-2">
                     {owned ? (
                       equipped ? (
-                        <Button size="sm" variant="outline" className="h-8 w-full text-xs" onClick={() => unequip(item.category)}>
-                          <Check size={12} className="mr-1" />
+                        <button onClick={() => unequip(item.category)} className="inline-flex items-center justify-center gap-1 h-8 w-full rounded-xl border border-[#ede4f8] bg-[#faf8ff] text-xs font-semibold text-[#6b4c9a] hover:bg-[#f5f0ff]">
+                          <Check size={12} />
                           Equipado
-                        </Button>
+                        </button>
                       ) : (
-                        <Button size="sm" className="h-8 w-full text-xs gradient-primary text-primary-foreground" onClick={() => equip(item.id)}>
+                        <button onClick={() => equip(item.id)} className="inline-flex items-center justify-center gap-1 h-8 w-full rounded-2xl bg-[#6b4c9a] text-xs font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95">
                           Equipar
-                        </Button>
+                        </button>
                       )
                     ) : (
-                      <Button
-                        size="sm"
+                      <button
                         disabled={!canAfford || pending}
                         onClick={() => handleBuy(item.id)}
-                        className="h-8 w-full text-xs"
-                        variant={canAfford ? 'default' : 'outline'}
+                        className={`inline-flex items-center justify-center gap-1 h-8 w-full rounded-2xl text-xs font-semibold transition-all ${
+                          canAfford ? 'bg-[#6b4c9a] text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95' : 'border border-[#ede4f8] bg-[#faf8ff] text-[#8b7aa0]'
+                        } disabled:opacity-60`}
                       >
-                        {pending ? <Loader2 size={12} className="mr-1 animate-spin" /> : canAfford ? <Coins size={12} className="mr-1" /> : <Lock size={12} className="mr-1" />}
+                        {pending ? <Loader2 size={12} className="animate-spin" /> : canAfford ? <Coins size={12} /> : <Lock size={12} />}
                         {item.price}
-                      </Button>
+                      </button>
                     )}
                   </div>
                 </motion.div>
@@ -192,13 +191,13 @@ export default function UserShop() {
       )}
 
       {state.history.length > 0 && tab !== 'avatar' && tab !== 'configuracion' && (
-        <div className="mt-4 rounded-xl border border-border bg-card p-4">
-          <h3 className="mb-2 text-sm font-semibold text-foreground font-heading">Movimientos recientes</h3>
+        <div className="mt-4 rounded-2xl border border-[#f0e8f8] bg-white p-4 shadow-lg">
+          <h3 className="mb-2 text-sm font-semibold text-[#6b4c9a]">Movimientos recientes</h3>
           <div className="max-h-48 space-y-1.5 overflow-y-auto">
             {state.history.slice(0, 8).map(tx => (
               <div key={tx.id} className="flex items-center justify-between text-xs">
-                <span className="truncate pr-2 text-muted-foreground">{tx.reason}</span>
-                <span className={`shrink-0 font-semibold tabular-nums ${tx.type === 'ingreso' ? 'text-success' : 'text-destructive'}`}>
+                <span className="truncate pr-2 text-[#8b7aa0]">{tx.reason}</span>
+                <span className={`shrink-0 font-semibold tabular-nums ${tx.type === 'ingreso' ? 'text-green-600' : 'text-red-500'}`}>
                   {tx.type === 'ingreso' ? '+' : '-'}{tx.amount}
                 </span>
               </div>
@@ -216,14 +215,14 @@ function AvatarTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col items-center gap-5 rounded-2xl border border-border bg-card p-5 sm:flex-row sm:p-6">
+      <div className="flex flex-col items-center gap-5 rounded-3xl border border-[#f0e8f8] bg-white p-5 shadow-lg sm:flex-row sm:p-6">
         <AvatarPreview equipped={state.equipped} appearance={state.appearance} size={180} />
         <div className="flex-1 text-center sm:text-left">
-          <h3 className="text-lg font-bold text-foreground font-heading">Tu avatar TANDEM</h3>
-          <p className="mt-1 text-sm text-muted-foreground">Equipa items de tu inventario para personalizarlo. Gana mas monedas completando actividades.</p>
+          <h3 className="text-lg font-bold text-[#6b4c9a]">Tu avatar TANDEM</h3>
+          <p className="mt-1 text-sm text-[#8b7aa0]">Equipa items de tu inventario para personalizarlo. Gana mas monedas completando actividades.</p>
           <div className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start">
             <CoinBadge size="md" />
-            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1.5 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#f5f0ff] px-3 py-1.5 text-xs text-[#8b7aa0]">
               <Backpack size={12} />
               {state.inventory.length} items
             </span>
@@ -237,11 +236,11 @@ function AvatarTab() {
         const equippedId = state.equipped[category];
 
         return (
-          <div key={category} className="rounded-xl border border-border bg-card p-4">
+          <div key={category} className="rounded-2xl border border-[#f0e8f8] bg-white p-4 shadow-md">
             <div className="mb-2 flex items-center justify-between">
-              <h4 className="text-sm font-semibold text-foreground">{CATEGORY_LABELS[category]}</h4>
+              <h4 className="text-sm font-semibold text-[#4a4a5a]">{CATEGORY_LABELS[category]}</h4>
               {equippedId && (
-                <button onClick={() => unequip(category)} className="text-xs text-muted-foreground hover:text-destructive">
+                <button onClick={() => unequip(category)} className="text-xs text-[#8b7aa0] hover:text-[#6b4c9a]">
                   Quitar
                 </button>
               )}
@@ -253,8 +252,8 @@ function AvatarTab() {
                   <button
                     key={item.id}
                     onClick={() => equip(item.id)}
-                    className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border-2 text-3xl transition-all ${
-                      active ? 'border-primary bg-primary/10' : 'border-border bg-muted/40 hover:border-primary/50'
+                    className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border-2 text-3xl transition-all ${
+                      active ? 'border-[#6b4c9a] bg-[#f5f0ff]' : 'border-[#ede4f8] bg-[#faf8ff] hover:border-[#d8c7ef] hover:bg-[#f5f0ff]'
                     }`}
                     aria-label={`Equipar ${item.name}`}
                     aria-pressed={active}
@@ -370,14 +369,14 @@ function AvatarSettingsTab() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-      <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
+      <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 sm:p-5 shadow-lg">
         <div className="mb-4 flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f5f0ff] text-[#6b4c9a]">
             <Settings size={20} />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-foreground font-heading">Configuracion del avatar</h3>
-            <p className="text-sm text-muted-foreground">Los cambios se ven en la vista previa antes de aplicarlos.</p>
+            <h3 className="text-lg font-semibold text-[#6b4c9a]">Configuracion del avatar</h3>
+            <p className="text-sm text-[#8b7aa0]">Los cambios se ven en la vista previa antes de aplicarlos.</p>
           </div>
         </div>
 
@@ -442,22 +441,22 @@ function AvatarSettingsTab() {
         </div>
       </section>
 
-      <aside className="self-start rounded-lg border border-border bg-card p-4 shadow-sm lg:sticky lg:top-4">
+      <aside className="self-start rounded-3xl border border-[#f0e8f8] bg-white p-4 shadow-lg lg:sticky lg:top-4">
         <div className="flex flex-col items-center gap-4 text-center">
           <AvatarPreview equipped={state.equipped} appearance={draft} size={220} />
           <div>
-            <h3 className="font-semibold text-foreground font-heading">Vista previa</h3>
-            <p className="text-xs text-muted-foreground">Aplica los cambios cuando el avatar quede como queres.</p>
+            <h3 className="font-semibold text-[#6b4c9a]">Vista previa</h3>
+            <p className="text-xs text-[#8b7aa0]">Aplica los cambios cuando el avatar quede como queres.</p>
           </div>
           <div className="flex w-full gap-2">
-            <Button type="button" variant="outline" className="flex-1 gap-2" disabled={!changed || saving} onClick={() => setDraft(state.appearance)}>
+            <button type="button" disabled={!changed || saving} onClick={() => setDraft(state.appearance)} className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-4 py-2.5 text-sm font-semibold text-[#6b4c9a] hover:bg-[#f5f0ff] disabled:opacity-60">
               <RotateCcw size={15} />
               Deshacer
-            </Button>
-            <Button type="button" className="flex-1 gap-2" disabled={!changed || saving} onClick={apply}>
+            </button>
+            <button type="button" disabled={!changed || saving} onClick={apply} className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 disabled:opacity-60">
               {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
               Aplicar
-            </Button>
+            </button>
           </div>
         </div>
       </aside>
@@ -468,7 +467,7 @@ function AvatarSettingsTab() {
 function OptionGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="mb-2 text-sm font-semibold text-foreground">{title}</p>
+      <p className="mb-2 text-sm font-semibold text-[#4a4a5a]">{title}</p>
       <div className="flex flex-wrap gap-2">{children}</div>
     </div>
   );
@@ -479,8 +478,8 @@ function OptionButton({ active, onClick, children }: { active: boolean; onClick:
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex min-h-10 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-        active ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background text-foreground hover:border-primary/50'
+      className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-all ${
+        active ? 'border-[#6b4c9a] bg-[#f5f0ff] text-[#6b4c9a] shadow-sm' : 'border-[#ede4f8] bg-[#faf8ff] text-[#4a4a5a] hover:border-[#d8c7ef] hover:bg-[#f5f0ff]'
       }`}
     >
       {children}
