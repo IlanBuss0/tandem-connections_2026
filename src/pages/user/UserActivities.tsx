@@ -4,9 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
 import { completeAssignedActivity, fetchActivitiesForUser, Activity } from '@/data/api';
 import { CheckCircle2, Clock, Award, ChevronDown, ChevronUp, Play, Sparkles, Filter, Search, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 import ActivityExecution from './ActivityExecution';
@@ -320,46 +318,75 @@ export default function UserActivities() {
   const dailyActivity = localActivities.find(a => a.assignedTo === user.id && a.status === 'pendiente' && a.type === 'regulación') || localActivities.find(a => a.assignedTo === user.id && a.status === 'pendiente');
 
   return (
-    <div className="space-y-6 pb-20 lg:pb-6">
-      <div>
-        <h2 className="text-2xl font-heading font-bold text-foreground">Actividades</h2>
-        <p className="text-muted-foreground text-sm">Explora actividades, recomendaciones y novedades desde un solo lugar</p>
-      </div>
+    <div className="pb-24 lg:pb-6 space-y-6">
+      {/* Header — same style as Calendar */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+      >
+        <div>
 
-      {/* Daily challenge */}
+          <h1 className="text-3xl sm:text-4xl font-bold text-[#6b4c9a] leading-tight">Mis Actividades</h1>
+          <p className="text-sm sm:text-base text-[#8b7aa0] mt-1 font-medium">
+            Explorá, completá y seguí tu progreso
+          </p>
+        </div>
+        <span className="text-xs text-[#8b7aa0] font-medium">
+          {filtered.length} de {merged.length} actividades
+        </span>
+      </motion.div>
+
+      {/* Daily challenge — restyled as white card */}
       {dailyActivity && (
-        <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="gradient-primary rounded-xl p-4 text-primary-foreground">
-          <p className="text-xs font-medium opacity-80">🎯 Actividad del día</p>
-          <p className="font-heading font-bold mt-1">{dailyActivity.title}</p>
-          <p className="text-xs opacity-80 mt-1">{dailyActivity.description.slice(0, 80)}...</p>
-          <Button size="sm" variant="outline" className="mt-3 border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10" disabled={!canCompleteActivities} onClick={() => setExecutingActivity(dailyActivity)}>
-            <Play size={14} className="mr-1" /> Empezar ahora
-          </Button>
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full bg-white rounded-3xl shadow-lg border border-[#f0e8f8] p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+        >
+          <div>
+            <p className="text-xs font-semibold text-[#8b7aa0] uppercase tracking-wide flex items-center gap-1">
+              <Sparkles size={12} /> Actividad del día
+            </p>
+            <p className="text-lg font-bold text-[#6b4c9a] mt-1">{dailyActivity.title}</p>
+            <p className="text-sm text-[#8b7aa0] mt-0.5">{dailyActivity.description.slice(0, 100)}...</p>
+          </div>
+          <button
+            onClick={() => setExecutingActivity(dailyActivity)}
+            disabled={!canCompleteActivities}
+            className="shrink-0 inline-flex items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 transition disabled:opacity-50"
+          >
+            <Play size={15} />
+            Empezar ahora
+          </button>
         </motion.div>
       )}
 
+      {/* Warning */}
       {!canCompleteActivities && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-800">
           Tu tutor deshabilito completar actividades por ahora.
         </div>
       )}
 
-      <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
+      {/* Search + filters — white card like Calendar */}
+      <motion.section
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+        className="w-full bg-white rounded-3xl shadow-lg border border-[#f0e8f8] p-3 sm:p-5 space-y-4"
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <Button type="button" className="h-10 shrink-0 gradient-primary text-primary-foreground" onClick={resetFilters}>
-            Todas
-          </Button>
-
-          <div className="relative min-w-0 flex-1 sm:ml-auto sm:max-w-sm">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
+          <div className="relative min-w-0 flex-1">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8b7aa0]" />
+            <input
               value={searchTerm}
               onChange={event => setSearchTerm(event.target.value)}
-              placeholder="Buscar por nombre"
-              className="h-10 pl-9 pr-9"
+              placeholder="Buscar actividad por nombre..."
+              className="w-full rounded-2xl border border-[#ede4f8] bg-[#faf8ff] py-2.5 pl-10 pr-9 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b0a0c0]"
             />
             {searchTerm && (
-              <button type="button" onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" aria-label="Limpiar busqueda">
+              <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8b7aa0] hover:text-[#6b4c9a]" aria-label="Limpiar">
                 <X size={15} />
               </button>
             )}
@@ -367,15 +394,15 @@ export default function UserActivities() {
 
           <Popover>
             <PopoverTrigger asChild>
-              <Button type="button" variant="outline" className="h-10 shrink-0 gap-2">
-                <Filter size={16} />
+              <button className="shrink-0 inline-flex items-center justify-center gap-2 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-4 py-2.5 text-sm font-medium text-[#6b4c9a] hover:bg-[#f5f0ff] transition">
+                <Filter size={15} />
                 Filtros
                 {activeFilterCount > 0 && (
-                  <span className="ml-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                  <span className="ml-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#6b4c9a] px-1.5 text-[10px] font-bold text-white">
                     {activeFilterCount}
                   </span>
                 )}
-              </Button>
+              </button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-[min(92vw,360px)] space-y-4">
               <div className="flex items-start justify-between gap-3">
@@ -383,7 +410,7 @@ export default function UserActivities() {
                   <p className="text-sm font-semibold text-foreground">Filtrar actividades</p>
                   <p className="text-xs text-muted-foreground">{filtered.length} de {merged.length} resultados</p>
                 </div>
-                <button type="button" onClick={resetFilters} className="text-xs font-medium text-primary hover:underline">
+                <button onClick={resetFilters} className="text-xs font-medium text-primary hover:underline">
                   Limpiar
                 </button>
               </div>
@@ -394,7 +421,7 @@ export default function UserActivities() {
               </label>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <FilterSelect label="Fecha de salida" value={dateFilter} onChange={value => setDateFilter(value as ActivityDateFilter)}>
+                <FilterSelect label="Fecha" value={dateFilter} onChange={value => setDateFilter(value as ActivityDateFilter)}>
                   <option value="all">Sin ordenar</option>
                   <option value="newest">Mas nuevas</option>
                   <option value="oldest">Mas antiguas</option>
@@ -441,53 +468,73 @@ export default function UserActivities() {
             </PopoverContent>
           </Popover>
         </div>
-      </div>
 
-      <div className="hidden">
+        {/* Category filter pills */}
+        <div className="flex flex-wrap gap-2">
         {categories.map(cat => (
           <button
             key={cat}
             onClick={() => setSelectedCategory(cat)}
-            className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${selectedCategory === cat ? 'gradient-primary text-primary-foreground border-transparent' : 'bg-card border-border text-muted-foreground hover:border-primary/30'}`}
+            className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-all ${
+              selectedCategory === cat
+                ? 'bg-[#6b4c9a] text-white border-transparent shadow-sm'
+                : 'border-[#ede4f8] text-[#8b7aa0] bg-[#faf8ff] hover:bg-[#f5f0ff] hover:text-[#6b4c9a] hover:border-[#d8c7ef]'
+            }`}
           >
-            {cat === 'todas' ? '📌 Todas' : `${categoryEmoji[cat] || '📌'} ${cat}`}
+            {cat === 'todas' ? 'Todas' : `${categoryEmoji[cat] || '📌'} ${cat}`}
           </button>
         ))}
       </div>
+      </motion.section>
 
-      {/* Activities list */}
-      <div className="space-y-3">
+      {/* Activity cards — same style as Calendar */}
+      <div className="space-y-4">
         {filtered.map((activity, i) => {
           const sourceMeta = getSourceMeta(activity);
 
           return (
           <motion.div
             key={activity.id}
-            initial={{ opacity: 0, y: 5 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.03 }}
-            className={`rounded-xl border shadow-sm overflow-hidden ${activity.status === 'completada' ? 'border-success/30 bg-card' : sourceMeta.cardClass}`}
+            transition={{ delay: i * 0.04 }}
+            className={`w-full bg-white rounded-3xl shadow-lg border ${activity.status === 'completada' ? 'border-[#d0e8d0]' : 'border-[#f0e8f8]'} overflow-hidden`}
           >
             <button
               onClick={() => setExpandedId(expandedId === activity.id ? null : activity.id)}
-              className="w-full p-4 flex items-start gap-3 text-left"
+              className="w-full p-4 sm:p-5 flex items-start gap-4 text-left"
             >
-              <span className="text-2xl shrink-0">{categoryEmoji[activity.category] || '📌'}</span>
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f5f0ff] text-xl">
+                {categoryEmoji[activity.category] || '📌'}
+              </span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className={`font-medium text-sm ${activity.status === 'completada' ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{activity.title}</p>
-                  {(activity as any).isCustom && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary flex items-center gap-0.5"><Sparkles size={9} />Personalizada</span>}
-                  {activity.status === 'completada' && <CheckCircle2 size={14} className="text-success" />}
+                  <p className={`text-sm sm:text-base font-bold ${activity.status === 'completada' ? 'line-through text-[#8b7aa0]' : 'text-[#4a4a5a]'}`}>
+                    {activity.title}
+                  </p>
+                  {(activity as any).isCustom && (
+                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#f5f0ff] text-[#6b4c9a] font-semibold flex items-center gap-0.5">
+                      <Sparkles size={9} /> Personalizada
+                    </span>
+                  )}
+                  {activity.status === 'completada' && <CheckCircle2 size={16} className="text-green-500" />}
                 </div>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${difficultyColors[activity.difficulty]}`}>{activity.difficulty}</span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${typeColors[activity.type]}`}>{activity.type}</span>
-                  <span className="text-[10px] text-muted-foreground flex items-center gap-1"><Clock size={10} /> {activity.duration}</span>
-                  <span className="text-[10px] text-muted-foreground flex items-center gap-1"><Award size={10} /> {activity.points} pts</span>
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${difficultyColors[activity.difficulty]}`}>
+                    {activity.difficulty}
+                  </span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${typeColors[activity.type]}`}>
+                    {activity.type}
+                  </span>
+                  <span className="text-[10px] text-[#8b7aa0] flex items-center gap-1">
+                    <Clock size={10} /> {activity.duration}
+                  </span>
+                  <span className="text-[10px] text-[#8b7aa0] flex items-center gap-1">
+                    <Award size={10} /> {activity.points} pts
+                  </span>
                 </div>
                 {activity.recommendedByName && (
-                  <p className="text-[10px] text-primary mt-1">
-                    {activity.recommendedBy === 'tutor' ? '👩 ' : activity.recommendedBy === 'profesional' ? '👩‍⚕️ ' : '🤖 '}
+                  <p className="text-[10px] text-[#6b4c9a] mt-1.5 font-medium">
                     Recomendada por {activity.recommendedByName}
                   </p>
                 )}
@@ -497,25 +544,31 @@ export default function UserActivities() {
                   </span>
                 )}
                 {activity.progress > 0 && activity.progress < 100 && (
-                  <div className="w-full bg-muted rounded-full h-1.5 mt-2">
-                    <div className="bg-primary h-1.5 rounded-full" style={{ width: `${activity.progress}%` }} />
+                  <div className="w-full bg-[#f0e8f8] rounded-full h-2 mt-2.5">
+                    <div className="bg-[#6b4c9a] h-2 rounded-full" style={{ width: `${activity.progress}%` }} />
                   </div>
                 )}
               </div>
-              {expandedId === activity.id ? <ChevronUp size={16} className="text-muted-foreground shrink-0" /> : <ChevronDown size={16} className="text-muted-foreground shrink-0" />}
+              {expandedId === activity.id
+                ? <ChevronUp size={18} className="text-[#8b7aa0] shrink-0" />
+                : <ChevronDown size={18} className="text-[#8b7aa0] shrink-0" />}
             </button>
 
             {expandedId === activity.id && (
-              <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} className="px-4 pb-4 border-t border-border/50 pt-3">
-                <p className="text-sm text-muted-foreground mb-2">{activity.description}</p>
-                <p className="text-xs font-semibold text-foreground mb-1">🎯 Objetivo: {activity.objective}</p>
-                <div className="mt-3">
-                  <p className="text-xs font-semibold text-foreground mb-2">Pasos:</p>
-                  <ol className="space-y-1.5">
+              <motion.div
+                initial={{ height: 0 }}
+                animate={{ height: 'auto' }}
+                className="px-4 sm:px-5 pb-5 border-t border-[#f0e8f8] pt-4 space-y-3"
+              >
+                <p className="text-sm text-[#8b7aa0] leading-relaxed">{activity.description}</p>
+                <p className="text-xs font-bold text-[#6b4c9a]">🎯 Objetivo: {activity.objective}</p>
+                <div>
+                  <p className="text-xs font-bold text-[#6b4c9a] mb-2">Pasos:</p>
+                  <ol className="space-y-2">
                     {activity.steps.map((step, si) => (
-                      <li key={si} className="flex items-start gap-2 text-xs text-muted-foreground">
-                        <span className="w-9 h-9 rounded-lg bg-primary/10 text-primary text-[10px] flex items-center justify-center shrink-0 font-bold overflow-hidden">
-                          <StepIcon value={activity.stepIcons?.[si]} fallback={si + 1} className="w-8 h-8" />
+                      <li key={si} className="flex items-start gap-3 text-xs text-[#8b7aa0]">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f5f0ff] text-[#6b4c9a] text-[10px] font-bold overflow-hidden">
+                          <StepIcon value={activity.stepIcons?.[si]} fallback={si + 1} className="w-7 h-7" />
                         </span>
                         {step}
                       </li>
@@ -523,13 +576,19 @@ export default function UserActivities() {
                   </ol>
                 </div>
                 {activity.status !== 'completada' && canCompleteActivities && (
-                  <div className="flex gap-2 mt-4">
-                    <Button size="sm" className="flex-1 gradient-primary text-primary-foreground" onClick={() => setExecutingActivity(activity)}>
-                      <Play size={14} className="mr-1" /> Empezar actividad
-                    </Button>
-                    <Button size="sm" variant="outline" className="flex-1" onClick={() => completeActivity(activity.id)}>
-                      <CheckCircle2 size={14} className="mr-1" /> Marcar completada
-                    </Button>
+                  <div className="flex gap-3 pt-1">
+                    <button
+                      onClick={() => setExecutingActivity(activity)}
+                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 transition"
+                    >
+                      <Play size={14} /> Empezar
+                    </button>
+                    <button
+                      onClick={() => completeActivity(activity.id)}
+                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-4 py-2.5 text-sm font-semibold text-[#6b4c9a] hover:bg-[#f5f0ff] transition"
+                    >
+                      <CheckCircle2 size={14} /> Completada
+                    </button>
                   </div>
                 )}
               </motion.div>
@@ -539,10 +598,12 @@ export default function UserActivities() {
         })}
       </div>
 
+      {/* Empty state — same style as Calendar */}
       {filtered.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground">
-          <p className="text-3xl mb-2">📭</p>
-          <p>No hay actividades en esta categoría</p>
+        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-[#e0d8f0] bg-[#faf8ff] px-6 py-14 text-center shadow-sm">
+          <Sparkles size={40} className="text-[#6b4c9a]/60 mb-4" />
+          <p className="text-base font-bold text-[#4a4a5a]">No hay actividades</p>
+          <p className="text-sm text-[#8b7aa0] mt-1">No encontramos actividades en esta categoría</p>
         </div>
       )}
     </div>

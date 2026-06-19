@@ -12,7 +12,6 @@ import {
   Heart,
   Loader2,
   LogOut,
-  Menu,
   MapPin,
   MessageCircle,
   Pencil,
@@ -141,7 +140,6 @@ export default function TutorDashboard() {
   const [tab, setTab] = useState<TabId>('overview');
   const [selectedUser, setSelectedUser] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [desktopMenuOpen, setDesktopMenuOpen] = useState(false);
   const [data, setData] = useState<TutorHomeData | null>(null);
   const [tutorAgendaEvents, setTutorAgendaEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -246,132 +244,54 @@ export default function TutorDashboard() {
           </>
         }
       />
-      <header className="hidden">
-        <div className="mx-auto flex max-w-7xl items-center gap-3">
-          <button
-            onClick={() => setMenuOpen(true)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border text-foreground md:hidden"
-            aria-label="Abrir menu"
-          >
-            <Menu size={20} />
-          </button>
-          <div className="min-w-[150px] flex-1 md:flex-none">
-            <h1 className="font-heading font-bold text-gradient text-lg">TANDEM</h1>
-            <p className="truncate text-xs text-muted-foreground">Panel de tutor - {user.name}</p>
-          </div>
-          <nav className="hidden min-w-0 flex-1 items-center justify-center gap-1 rounded-xl border border-border bg-background/70 p-1 md:flex">
-            {primaryTabs.map(t => (
-              <button
-                key={t.id}
-                onClick={() => {
-                  setTab(t.id);
-                  setDesktopMenuOpen(false);
-                }}
-                className={`flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition lg:px-4 ${
-                  tab === t.id
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:bg-card hover:text-foreground'
-                }`}
-              >
-                <t.icon size={14} />
-                {t.label}
-              </button>
-            ))}
-          </nav>
-          <div className="relative hidden md:block">
-            <button
-              onClick={() => setDesktopMenuOpen(open => !open)}
-              className={`inline-flex h-10 w-10 items-center justify-center rounded-lg border text-foreground transition ${
-                secondaryTabs.some(item => item.id === tab)
-                  ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-border hover:bg-muted'
-              }`}
-              aria-label="Abrir mas secciones"
-              aria-expanded={desktopMenuOpen}
-            >
-              <Menu size={19} />
-            </button>
-            {desktopMenuOpen && (
-              <div className="absolute right-0 top-12 w-56 rounded-xl border border-border bg-card p-2 shadow-xl">
-                <p className="px-2 pb-2 pt-1 text-[11px] font-semibold uppercase text-muted-foreground">Mas secciones</p>
-                <div className="space-y-1">
-                  {secondaryTabs.map(item => (
-                    <button
-                      key={item.id}
-                      onClick={() => {
-                        setTab(item.id);
-                        setDesktopMenuOpen(false);
-                      }}
-                      className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold transition ${
-                        tab === item.id ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted'
-                      }`}
-                    >
-                      <item.icon size={16} />
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-1">
-            <NotificationBellButton count={unreadCount} onClick={() => setTab('notifications')} />
-            <Button variant="ghost" size="sm" onClick={logout} aria-label="Cerrar sesion">
-              <LogOut size={16} />
-            </Button>
-          </div>
-        </div>
-      </header>
+
 
       <AnimatePresence>
         {menuOpen && (
-          <div className="fixed inset-0 z-50">
-            <motion.button
-              aria-label="Cerrar menu"
-              className="absolute inset-0 bg-black/40"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setMenuOpen(false)}
-            />
+          <motion.div
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22 }}
+            onClick={() => setMenuOpen(false)}
+          >
             <motion.aside
-              initial={{ x: -320 }}
+              initial={{ x: '-100%' }}
               animate={{ x: 0 }}
-              exit={{ x: -320 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 260 }}
-              className="relative h-full w-[82vw] max-w-[320px] bg-card border-r border-border p-4 shadow-xl"
+              exit={{ x: '-100%' }}
+              transition={{ duration: 0.26, ease: 'easeOut' }}
+              className="relative h-full w-[85%] max-w-sm bg-white rounded-r-3xl shadow-2xl shadow-black/10 p-6 flex flex-col overflow-y-auto"
+              onClick={e => e.stopPropagation()}
             >
-              <div className="mb-5 flex items-center justify-between">
-                <div>
-                  <p className="font-heading font-bold text-gradient">TANDEM</p>
-                  <p className="text-xs text-muted-foreground">Navegacion del tutor</p>
-                </div>
-                <button onClick={() => setMenuOpen(false)} className="rounded-lg p-2 hover:bg-muted" aria-label="Cerrar menu">
-                  <X size={18} />
+              <div className="flex items-center justify-between mb-8">
+                <p className="font-heading font-bold text-gradient text-xl">TÁNDEM</p>
+                <button onClick={() => setMenuOpen(false)} className="p-2 rounded-xl hover:bg-muted transition-colors" aria-label="Cerrar menú">
+                  <X size={20} />
                 </button>
               </div>
-              <div className="space-y-1">
+              <nav className="flex-1 space-y-1">
                 {tabs.map(item => (
                   <button
                     key={item.id}
                     onClick={() => { setTab(item.id); setMenuOpen(false); }}
-                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm ${
-                      tab === item.id ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted'
-                    }`}
+                    className={`flex w-full items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors text-left ${
+                      tab === item.id ? 'text-[#7C3AED] font-semibold' : 'text-muted-foreground'
+                    } hover:bg-[#C9A7EB]/60 hover:text-[#7C3AED]`}
                   >
-                    <item.icon size={18} />
+                    <item.icon size={18} className="shrink-0" />
                     {item.label}
                   </button>
                 ))}
-              </div>
-              <div className="mt-6 border-t border-border pt-4">
-                <button onClick={logout} className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm text-destructive hover:bg-destructive/10">
+              </nav>
+              <div className="mt-auto pt-4 border-t border-border">
+                <button onClick={logout} className="flex w-full items-center gap-3 px-4 py-3 rounded-xl text-sm text-[#7C3AED] hover:bg-[#C9A7EB]/40 transition-colors">
                   <LogOut size={18} />
                   Cerrar sesion
                 </button>
               </div>
             </motion.aside>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
@@ -862,6 +782,18 @@ function TutorCalendar({
   const dayEvents = eventsOn(selectedDate).sort((a, b) => a.time.localeCompare(b.time));
   const monthLabel = `${monthNames[cursor.getMonth()]} ${cursor.getFullYear()}`;
 
+  const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const next = new Date(cursor.getFullYear(), parseInt(e.target.value), 1);
+    setCursor(next);
+    setSelectedDate(fmt(next));
+  };
+
+  const handleYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const next = new Date(parseInt(e.target.value), cursor.getMonth(), 1);
+    setCursor(next);
+    setSelectedDate(fmt(next));
+  };
+
   const openCreate = () => {
     setEditing(null);
     setForm({ title: '', date: selectedDate, time: '09:00', type: 'personal', description: '' });
@@ -921,15 +853,40 @@ function TutorCalendar({
         </button>
       </div>
 
-      <div className="flex items-center justify-between bg-card rounded-xl border border-border p-2">
-        <button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))} className="p-2 rounded-lg hover:bg-muted text-foreground">
-          <ChevronLeft size={18} />
-        </button>
-        <button onClick={() => { setCursor(new Date(today.getFullYear(), today.getMonth(), 1)); setSelectedDate(fmt(today)); }} className="text-sm font-semibold text-foreground px-3 py-1 rounded-lg hover:bg-muted">
-          {monthLabel}
-        </button>
-        <button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))} className="p-2 rounded-lg hover:bg-muted text-foreground">
-          <ChevronRight size={18} />
+      <div className="flex flex-col items-center gap-1.5">
+        <div className="flex items-center justify-between bg-card rounded-xl border border-border p-2 w-full">
+          <button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))} className="p-2 rounded-lg hover:bg-muted text-foreground">
+            <ChevronLeft size={18} />
+          </button>
+          <div className="flex items-center gap-0">
+            <select
+              value={cursor.getMonth()}
+              onChange={handleMonthChange}
+              className="appearance-none bg-transparent rounded-lg px-2 py-1 text-sm font-semibold text-foreground hover:bg-muted transition cursor-pointer outline-none"
+            >
+              {monthNames.map((name, i) => (
+                <option key={i} value={i}>{name}</option>
+              ))}
+            </select>
+            <select
+              value={cursor.getFullYear()}
+              onChange={handleYearChange}
+              className="appearance-none bg-transparent rounded-lg px-2 py-1 text-sm font-semibold text-foreground hover:bg-muted transition cursor-pointer outline-none"
+            >
+              {Array.from({ length: 21 }, (_, i) => today.getFullYear() - 10 + i).map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+          </div>
+          <button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))} className="p-2 rounded-lg hover:bg-muted text-foreground">
+            <ChevronRight size={18} />
+          </button>
+        </div>
+        <button
+          onClick={() => { setCursor(new Date(today.getFullYear(), today.getMonth(), 1)); setSelectedDate(fmt(today)); }}
+          className="text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted px-3 py-1 rounded-lg transition"
+        >
+          Hoy
         </button>
       </div>
 

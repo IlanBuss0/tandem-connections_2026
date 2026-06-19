@@ -3,17 +3,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { fetchUserProfileDashboard, joinTutorInviteByCode, type ProfileSupportPerson, type UserProfileDashboard } from '@/data/api';
 import { AlertCircle, Check, Crown, KeyRound, Loader2, Mail, Phone, Settings, ShieldCheck, UserRound, Users } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import AvatarPreview from '@/components/AvatarPreview';
 import CoinBadge from '@/components/CoinBadge';
 import { toast } from '@/hooks/ui/use-toast';
 
 function InfoItem({ label, value }: { label: string; value: string | number | boolean }) {
   return (
-    <div className="rounded-lg border border-border bg-background p-3">
-      <p className="text-[11px] font-medium uppercase tracking-normal text-muted-foreground">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-foreground">{String(value)}</p>
+    <div className="rounded-2xl sm:rounded-3xl border border-[#f0e8f8] bg-white p-3 shadow-lg">
+      <p className="text-[11px] font-medium uppercase tracking-normal text-[#8b7aa0]">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-[#4a4a5a]">{String(value)}</p>
     </div>
   );
 }
@@ -22,23 +20,23 @@ function SupportCard({ person }: { person: ProfileSupportPerson }) {
   const isTutor = person.role === 'tutor';
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div className="rounded-2xl border border-[#f0e8f8] bg-white p-4 shadow-lg">
       <div className="flex items-start gap-3">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#f5f0ff] text-[#6b4c9a]">
           {isTutor ? <Users size={22} /> : <ShieldCheck size={22} />}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="font-semibold text-sm text-foreground">{person.name}</p>
+            <p className="font-semibold text-sm text-[#4a4a5a]">{person.name}</p>
             {person.isPrimary && (
               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
                 Principal
               </span>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">{person.detail}</p>
-          <p className="mt-1 text-[11px] font-medium text-primary">{person.status}</p>
-          <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+          <p className="text-xs text-[#8b7aa0]">{person.detail}</p>
+          <p className="mt-1 text-[11px] font-medium text-[#6b4c9a]">{person.status}</p>
+          <div className="mt-3 space-y-1 text-xs text-[#8b7aa0]">
             {person.email && (
               <p className="flex items-center gap-2">
                 <Mail size={13} />
@@ -120,17 +118,17 @@ export default function UserProfile({ onConfigure }: { onConfigure?: () => void 
   const allSupport = [...(profile?.tutors || []), ...(profile?.professionals || [])];
 
   return (
-    <div className="space-y-5 pb-20 lg:pb-6">
+    <div className="pb-24 lg:pb-6 space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-2xl font-heading font-bold text-foreground">Mi perfil</h2>
-          <p className="text-muted-foreground text-sm">Datos personales, apoyo y progreso.</p>
+          <h2 className="text-3xl sm:text-4xl font-bold text-[#6b4c9a] leading-tight">Mi perfil</h2>
+          <p className="text-sm sm:text-base text-[#8b7aa0] mt-1 font-medium">Datos personales, apoyo y progreso.</p>
         </div>
         {onConfigure && (
-          <Button variant="default" size="sm" onClick={onConfigure} className="w-fit gap-2">
+          <button onClick={onConfigure} className="inline-flex items-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95">
             <Settings size={15} />
             Configurar
-          </Button>
+          </button>
         )}
       </div>
 
@@ -142,20 +140,20 @@ export default function UserProfile({ onConfigure }: { onConfigure?: () => void 
       )}
 
       {loading && !profile && (
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 rounded-2xl border border-[#f0e8f8] bg-white p-4 text-sm text-[#8b7aa0] shadow-lg">
           <Loader2 size={16} className="animate-spin" />
           Cargando perfil...
         </div>
       )}
 
-      <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+      <section className="rounded-3xl border border-[#f0e8f8] bg-white p-5 shadow-lg">
         <div className="flex flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
           <AvatarPreview equipped={wallet.equipped} appearance={wallet.appearance} size={136} />
           <div className="min-w-0 flex-1">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h3 className="text-xl font-heading font-bold text-foreground">{fullName}</h3>
-                <p className="text-sm text-muted-foreground">@{username}</p>
+                <h3 className="text-xl font-bold text-[#6b4c9a]">{fullName}</h3>
+                <p className="text-sm text-[#8b7aa0]">@{username}</p>
               </div>
               <div className="flex justify-center sm:justify-end">
                 <CoinBadge size="md" />
@@ -178,9 +176,9 @@ export default function UserProfile({ onConfigure }: { onConfigure?: () => void 
         <InfoItem label="Ingreso" value={joinedAt} />
       </section>
 
-      <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
-        <h3 className="mb-3 flex items-center gap-2 font-heading font-semibold text-foreground">
-          <UserRound size={16} className="text-primary" />
+      <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 sm:p-5 shadow-lg">
+        <h3 className="mb-3 flex items-center gap-2 font-semibold text-[#6b4c9a]">
+          <UserRound size={16} className="text-[#6b4c9a]" />
           Perfil de autonomia
         </h3>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -189,41 +187,41 @@ export default function UserProfile({ onConfigure }: { onConfigure?: () => void 
           <InfoItem label="Autogestion" value={profile?.canSelfManage ? 'Habilitada' : 'Asistida'} />
         </div>
         {profile?.observation && (
-          <div className="mt-3 rounded-lg bg-muted/40 p-3">
-            <p className="text-[11px] font-medium uppercase tracking-normal text-muted-foreground">Observacion</p>
-            <p className="mt-1 text-sm text-foreground">{profile.observation}</p>
+          <div className="mt-3 rounded-2xl bg-[#faf8ff] p-3">
+            <p className="text-[11px] font-medium uppercase tracking-normal text-[#8b7aa0]">Observacion</p>
+            <p className="mt-1 text-sm text-[#4a4a5a]">{profile.observation}</p>
           </div>
         )}
       </section>
 
       <section>
-        <h3 className="mb-3 flex items-center gap-2 font-heading font-semibold text-foreground">
-          <Users size={16} className="text-primary" />
+        <h3 className="mb-3 flex items-center gap-2 font-semibold text-[#6b4c9a]">
+          <Users size={16} className="text-[#6b4c9a]" />
           Mi red de apoyo
         </h3>
-        <form onSubmit={acceptInviteByCode} className="mb-3 rounded-lg border border-border bg-card p-4 shadow-sm">
+        <form onSubmit={acceptInviteByCode} className="mb-3 rounded-2xl border border-[#f0e8f8] bg-white p-4 shadow-lg">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
             <div className="min-w-0 flex-1">
-              <label className="text-xs font-semibold uppercase text-muted-foreground" htmlFor="invite-code">
+              <label className="text-xs font-semibold uppercase text-[#8b7aa0]" htmlFor="invite-code">
                 Vincular tutor con codigo
               </label>
               <div className="mt-1 flex items-center gap-2">
-                <KeyRound size={18} className="shrink-0 text-primary" />
-                <Input
+                <KeyRound size={18} className="shrink-0 text-[#6b4c9a]" />
+                <input
                   id="invite-code"
                   value={inviteCode}
                   onChange={event => setInviteCode(event.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''))}
                   placeholder="ABCD-1234"
-                  className="font-mono font-semibold tracking-[0.12em]"
+                  className="w-full rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-2.5 text-sm font-mono font-semibold tracking-[0.12em] text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]"
                   maxLength={9}
                   autoComplete="one-time-code"
                 />
               </div>
             </div>
-            <Button type="submit" disabled={joiningInvite || !inviteCode.trim()} className="gap-2">
+            <button type="submit" disabled={joiningInvite || !inviteCode.trim()} className="inline-flex items-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 disabled:opacity-60">
               {joiningInvite ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
               Vincular
-            </Button>
+            </button>
           </div>
         </form>
         {allSupport.length ? (
@@ -233,14 +231,14 @@ export default function UserProfile({ onConfigure }: { onConfigure?: () => void 
             ))}
           </div>
         ) : (
-          <div className="rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground">
+          <div className="rounded-3xl border border-dashed border-[#e0d8f0] bg-[#faf8ff] px-6 py-14 text-center text-sm text-[#8b7aa0] shadow-sm">
             No hay vinculos de apoyo registrados.
           </div>
         )}
       </section>
 
       <section>
-        <h3 className="mb-3 flex items-center gap-2 font-heading font-semibold text-foreground">
+        <h3 className="mb-3 flex items-center gap-2 font-semibold text-[#6b4c9a]">
           <Crown size={16} className="text-amber-500" />
           Planes disponibles
         </h3>
@@ -248,28 +246,28 @@ export default function UserProfile({ onConfigure }: { onConfigure?: () => void 
           {(profile?.plans || []).map((plan) => (
             <div
               key={plan.id}
-              className={`rounded-lg border p-5 ${
-                plan.highlighted ? 'border-primary bg-primary/10' : 'border-border bg-card'
+              className={`rounded-2xl border p-5 shadow-lg ${
+                plan.highlighted ? 'border-[#6b4c9a] bg-[#f5f0ff]' : 'border-[#f0e8f8] bg-white'
               }`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h4 className="font-heading text-lg font-bold text-foreground">{plan.name}</h4>
-                  <p className="mt-1 text-2xl font-bold text-foreground">
+                  <h4 className="text-lg font-bold text-[#6b4c9a]">{plan.name}</h4>
+                  <p className="mt-1 text-2xl font-bold text-[#6b4c9a]">
                     {plan.price}
-                    <span className="text-sm font-normal text-muted-foreground"> {plan.period}</span>
+                    <span className="text-sm font-normal text-[#8b7aa0]"> {plan.period}</span>
                   </p>
                 </div>
                 {plan.badge && (
-                  <span className="rounded-full bg-muted px-2 py-1 text-[10px] font-semibold text-muted-foreground">
+                  <span className="rounded-full bg-[#f5f0ff] px-2 py-1 text-[10px] font-semibold text-[#8b7aa0]">
                     {plan.badge}
                   </span>
                 )}
               </div>
               <ul className="mt-4 space-y-2">
                 {plan.features.map((feature) => (
-                  <li key={feature} className="flex items-start gap-2 text-xs text-muted-foreground">
-                    <Check size={14} className="mt-0.5 shrink-0 text-primary" />
+                  <li key={feature} className="flex items-start gap-2 text-xs text-[#8b7aa0]">
+                    <Check size={14} className="mt-0.5 shrink-0 text-[#6b4c9a]" />
                     {feature}
                   </li>
                 ))}
@@ -277,7 +275,7 @@ export default function UserProfile({ onConfigure }: { onConfigure?: () => void 
             </div>
           ))}
           {profile && profile.plans.length === 0 && (
-            <div className="rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground md:col-span-2">
+            <div className="rounded-3xl border border-dashed border-[#e0d8f0] bg-[#faf8ff] px-6 py-14 text-center text-sm text-[#8b7aa0] shadow-sm md:col-span-2">
               No hay planes cargados.
             </div>
           )}

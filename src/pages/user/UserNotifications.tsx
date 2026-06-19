@@ -70,16 +70,16 @@ export default function UserNotifications({ onUnreadCountChange }: UserNotificat
   };
 
   return (
-    <div className="space-y-4 pb-20 lg:pb-6">
+    <div className="pb-24 lg:pb-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-heading font-bold text-foreground flex items-center gap-2">
-            <Bell size={22} className="text-primary" /> Notificaciones
+          <h2 className="text-3xl sm:text-4xl font-bold text-[#6b4c9a] leading-tight flex items-center gap-3">
+            <Bell size={22} className="text-[#6b4c9a]" /> Notificaciones
           </h2>
-          <p className="text-muted-foreground text-sm">{unreadCount} sin leer</p>
+          <p className="text-sm sm:text-base text-[#8b7aa0] mt-1 font-medium">{unreadCount} sin leer</p>
         </div>
         {unreadCount > 0 && (
-          <button onClick={markAllRead} className="text-xs text-primary font-medium flex items-center gap-1">
+          <button onClick={markAllRead} className="text-xs text-[#6b4c9a] font-semibold flex items-center gap-1 hover:text-[#5a3c8a]">
             <Check size={14} /> Marcar todo como leído
           </button>
         )}
@@ -93,19 +93,19 @@ export default function UserNotifications({ onUnreadCountChange }: UserNotificat
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.03 }}
             onClick={() => markRead(n.id)}
-            className={`w-full text-left p-4 rounded-xl border border-l-4 transition-all ${typeColors[n.type] || 'border-l-muted'} ${n.read ? 'bg-card border-border opacity-70' : 'bg-card border-border shadow-sm'}`}
+            className={`w-full text-left p-4 rounded-2xl border border-l-4 transition-all ${typeColors[n.type] || 'border-l-muted'} ${n.read ? 'bg-[#faf8ff] border-[#f0e8f8] opacity-60' : 'bg-white border-[#f0e8f8] shadow-md'}`}
           >
             <div className="flex items-start gap-3">
               <span className="text-xl">{n.icon}</span>
               <div className="flex-1">
-                <p className={`text-sm font-medium ${n.read ? 'text-muted-foreground' : 'text-foreground'}`}>{n.title}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{n.message}</p>
+                <p className={`text-sm font-medium ${n.read ? 'text-[#8b7aa0]' : 'text-[#4a4a5a]'}`}>{n.title}</p>
+                <p className="text-xs text-[#8b7aa0] mt-0.5">{n.message}</p>
                 {n.actionLabel && !n.read && (
-                  <span className="text-xs text-primary font-medium mt-1 inline-block">{n.actionLabel} →</span>
+                  <span className="text-xs text-[#6b4c9a] font-semibold mt-1 inline-block">{n.actionLabel} →</span>
                 )}
               </div>
-              <span className="text-[10px] text-muted-foreground shrink-0">{n.timestamp}</span>
-              {!n.read && <span className="w-2 h-2 rounded-full bg-primary shrink-0 mt-1" />}
+              <span className="text-[10px] text-[#8b7aa0] shrink-0">{n.timestamp}</span>
+              {!n.read && <span className="w-2 h-2 rounded-full bg-[#6b4c9a] shrink-0 mt-1" />}
             </div>
           </motion.button>
         ))}

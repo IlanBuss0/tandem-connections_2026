@@ -79,6 +79,18 @@ export default function ProfessionalAgenda({ patients }: Props) {
   const selectedEvents = eventsForDate(selectedDate).sort((a, b) => a.time.localeCompare(b.time));
   const monthLabel = `${monthNames[cursor.getMonth()]} ${cursor.getFullYear()}`;
 
+  const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const next = new Date(cursor.getFullYear(), parseInt(e.target.value), 1);
+    setCursor(next);
+    setSelectedDate(fmt(next));
+  };
+
+  const handleYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const next = new Date(parseInt(e.target.value), cursor.getMonth(), 1);
+    setCursor(next);
+    setSelectedDate(fmt(next));
+  };
+
   const openCreate = () => {
     setEditing(null);
     setForm(emptyForm(selectedDate));
@@ -139,12 +151,37 @@ export default function ProfessionalAgenda({ patients }: Props) {
         </button>
       </div>
 
-      <div className="flex items-center justify-between bg-card rounded-xl border border-border p-2">
-        <button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))} className="p-2 rounded-lg hover:bg-muted text-foreground"><ChevronLeft size={18} /></button>
-        <button onClick={() => { setCursor(new Date(today.getFullYear(), today.getMonth(), 1)); setSelectedDate(fmt(today)); }} className="text-sm font-semibold text-foreground px-3 py-1 rounded-lg hover:bg-muted">
-          {monthLabel}
+      <div className="flex flex-col items-center gap-1.5">
+        <div className="flex items-center justify-between bg-card rounded-xl border border-border p-2 w-full">
+          <button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))} className="p-2 rounded-lg hover:bg-muted text-foreground"><ChevronLeft size={18} /></button>
+          <div className="flex items-center gap-0">
+            <select
+              value={cursor.getMonth()}
+              onChange={handleMonthChange}
+              className="appearance-none bg-transparent rounded-lg px-2 py-1 text-sm font-semibold text-foreground hover:bg-muted transition cursor-pointer outline-none"
+            >
+              {monthNames.map((name, i) => (
+                <option key={i} value={i}>{name}</option>
+              ))}
+            </select>
+            <select
+              value={cursor.getFullYear()}
+              onChange={handleYearChange}
+              className="appearance-none bg-transparent rounded-lg px-2 py-1 text-sm font-semibold text-foreground hover:bg-muted transition cursor-pointer outline-none"
+            >
+              {Array.from({ length: 21 }, (_, i) => today.getFullYear() - 10 + i).map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+          </div>
+          <button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))} className="p-2 rounded-lg hover:bg-muted text-foreground"><ChevronRight size={18} /></button>
+        </div>
+        <button
+          onClick={() => { setCursor(new Date(today.getFullYear(), today.getMonth(), 1)); setSelectedDate(fmt(today)); }}
+          className="text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted px-3 py-1 rounded-lg transition"
+        >
+          Hoy
         </button>
-        <button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))} className="p-2 rounded-lg hover:bg-muted text-foreground"><ChevronRight size={18} /></button>
       </div>
 
       <div className="bg-card rounded-xl border border-border p-2 sm:p-3">
