@@ -195,6 +195,11 @@ async function apiFetchWithFallback<T>(paths: string[], init?: RequestInit): Pro
   let last: unknown = null;
   for (const p of paths) {
     try {
+      if (p.startsWith('/api') && init?.body === undefined) {
+        const options = { ...(init || {}) };
+        return await apiRequest<T>(p, options);
+      }
+
       const token = getStoredAuthToken();
       const res = await fetch(`${((import.meta as any).env?.VITE_BACKEND_URL || (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/$/, '')}${p}`, {
         credentials: 'include',

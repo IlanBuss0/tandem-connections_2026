@@ -1,5 +1,7 @@
 const DEFAULT_BACKEND_URL = "http://localhost:3000";
 const AUTH_TOKEN_KEY = "tandem_auth_token";
+const AUTH_USER_KEY = "tandem_auth_user";
+export const AUTH_EXPIRED_EVENT = "tandem:auth-expired";
 
 export type ApiEnvelope<T> = {
   ok: boolean;
@@ -61,6 +63,14 @@ export function clearDefaultAuthToken(): void {
   localStorage.removeItem(AUTH_TOKEN_KEY);
 }
 
+function notifyAuthExpired(): void {
+  clearDefaultAuthToken();
+  localStorage.removeItem(AUTH_USER_KEY);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+  }
+}
+
 async function parseResponseBody(response: Response): Promise<unknown> {
   const text = await response.text();
   if (!text) return null;
@@ -91,7 +101,7 @@ async function refreshAccessToken(): Promise<string | null> {
       .then(async (response) => {
         const payload = await parseResponseBody(response);
         if (!response.ok) {
-          clearDefaultAuthToken();
+          notifyAuthExpired();
           return null;
         }
 

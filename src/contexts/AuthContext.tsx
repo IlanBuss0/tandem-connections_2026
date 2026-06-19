@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { clearStoredAuthToken, fetchStoredAuthUser, findUser, logoutStoredAuthSession, User, Tutor, Professional, Admin } from '@/data/api';
+import { AUTH_EXPIRED_EVENT } from '@/services/api/client';
 
 type AuthUser = User | Tutor | Professional | Admin;
 
@@ -63,6 +64,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      clearStoredAuthToken();
+      storeUser(null);
+      setUser(null);
+      setIsLoading(false);
+    };
+
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    return () => {
+      window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
     };
   }, []);
 

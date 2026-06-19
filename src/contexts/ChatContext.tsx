@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
-import { API_BASE_URL, ApiError } from '@/services/api/client';
+import { API_BASE_URL, AUTH_EXPIRED_EVENT, ApiError } from '@/services/api/client';
 import {
   createDirectConversationWith,
   createGroupConversation,
@@ -278,7 +278,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     setSocket(nextSocket);
 
+    const handleAuthExpired = () => {
+      nextSocket.disconnect();
+    };
+
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+
     return () => {
+      window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
       nextSocket.disconnect();
       setSocket(null);
     };
