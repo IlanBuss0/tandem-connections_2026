@@ -33,7 +33,7 @@ interface Ctx {
   loading: boolean;
   conversationsForUser: (uid: string) => Conversation[];
   messagesFor: (cid: string) => ChatMessage[];
-  send: (cid: string, text: string) => Promise<void>;
+  send: (cid: string, text: string, idArchivos?: number[]) => Promise<void>;
   edit: (messageId: string, text: string) => Promise<void>;
   remove: (messageId: string) => Promise<void>;
   markRead: (cid: string, uid: string) => void;
@@ -67,6 +67,10 @@ function logRealtime(message: string, payload?: unknown) {
 
 function socketMessageToChatMessage(message: any): ChatMessage {
   const date = new Date(message.fecha_envio);
+  const fileData = message.archivos;
+  const hasArchivos = Array.isArray(fileData) && fileData.length > 0;
+  const firstUrl = hasArchivos ? (fileData[0]?.url || '') : '';
+  const isImage = /\.(png|jpe?g|gif|webp)(\?|$)/i.test(firstUrl);
   return {
     id: String(message.id),
     conversationId: String(message.id_chat),
@@ -77,7 +81,8 @@ function socketMessageToChatMessage(message: any): ChatMessage {
       ? ''
       : date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
     read: true,
-    type: 'text',
+    type: hasArchivos ? (isImage ? 'image' : 'file') : 'text',
+    archivos: hasArchivos ? fileData.map((a: any) => ({ id: a.id, url: a.url, nombre_archivo: a.nombre_archivo })) : undefined,
   };
 }
 
@@ -353,8 +358,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     [messages],
   );
 
-  const send = useCallback(async (cid: string, text: string) => {
-    if (!user || !text.trim()) return;
+  const send = useCallback(async (cid: string, text: string, idArchivos?: number[]) => {
+    if (!user || (!text.trim() && (!idArchivos || idArchivos.length === 0))) return;
 
     const conversation = conversationsRef.current.find(item => item.id === cid);
     if (conversation && !conversation.participants.includes(user.id)) {
@@ -370,7 +375,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     let sent: ChatMessage;
 
     try {
-      sent = await sendMessage(cid, user.id, user.name, messageText);
+      sent = await sendMessage(cid, user.id, user.name, messageText, idArchivos);
     } catch (error) {
       if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
         throw error;
@@ -383,7 +388,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         text: messageText,
         timestamp: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
         read: true,
-        type: 'text',
+        type: idArchivos && idArchivos.length > 0 ? 'image' : 'text',
+        archivos: idArchivos?.map(id => ({ id, url: '', nombre_archivo: '' })),
       };
     }
 

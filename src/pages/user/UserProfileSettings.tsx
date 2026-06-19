@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, Bell, Eye, Loader2, Save, Shield, UserRound } from 'lucide-react';
 import { ACCESSIBILITY_PROFILES, DEFAULT_SETTINGS, useAccessibility, type AccessibilitySettings } from '@/contexts/AccessibilityContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -196,6 +196,44 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
     );
   }, [form, isPersonalMode]);
 
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarProgress, setAvatarProgress] = useState(0);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+
+  const handleAvatarSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'Archivo demasiado grande', description: 'El maximo es 5MB.', variant: 'destructive' });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (ev) => setAvatarPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+
+    setAvatarUploading(true);
+    setAvatarProgress(0);
+
+    try {
+      const { apiUploadFile } = await import('../../services/api/client');
+      const formData = new FormData();
+      formData.append('file', file);
+      const data = await apiUploadFile<{ id: number; url: string }>('/api/archivos/upload', formData, setAvatarProgress);
+      setAvatarPreview(data.url);
+      toast({ title: 'Foto subida', description: 'La foto de perfil se actualizo.' });
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo subir la foto.', variant: 'destructive' });
+      setAvatarPreview(null);
+    } finally {
+      setAvatarUploading(false);
+      setAvatarProgress(0);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
+  }, [toast]);
+
   const load = async () => {
     if (!user || user.role !== 'user') return;
     setLoading(true);
@@ -345,6 +383,35 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
                 title="Datos personales"
                 description="Informacion visible para tu cuenta y tu red de apoyo."
               />
+              <div className="mb-4 flex items-center gap-4 rounded-lg border border-border bg-background p-3">
+                <div className="relative w-16 h-16 rounded-full overflow-hidden bg-muted flex items-center justify-center text-3xl shrink-0">
+                  {avatarPreview ? (
+                    <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
+                  ) : (
+                    user.avatar || '👤'
+                  )}
+                  {avatarUploading && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <Loader2 size={18} className="animate-spin text-white" />
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-foreground">Foto de perfil</p>
+                  <p className="text-xs text-muted-foreground">PNG o JPG, maximo 5MB</p>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    {avatarUploading && (
+                      <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-primary transition-all" style={{ width: `${avatarProgress}%` }} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <input ref={avatarInputRef} type="file" accept="image/png,image/jpeg" className="hidden" onChange={handleAvatarSelect} />
+                <Button type="button" size="sm" variant="outline" onClick={() => avatarInputRef.current?.click()} disabled={avatarUploading}>
+                  {avatarUploading ? 'Subiendo...' : 'Subir foto'}
+                </Button>
+              </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="profile-name">Nombre</Label>

@@ -1,5 +1,5 @@
 import { CrudApiService } from "./crud";
-import { apiRequest, clearDefaultAuthToken, storeDefaultAuthToken, unwrapApiData, type ApiEnvelope } from "./client";
+import { apiRequest, apiUploadFile, clearDefaultAuthToken, storeDefaultAuthToken, unwrapApiData, type ApiEnvelope } from "./client";
 import type {
   Administrador,
   AlcanceArchivo,
@@ -180,7 +180,20 @@ export const tandemApi = {
   configuracionesAccesibilidad: new CrudApiService<ConfiguracionAccesibilidad>("/api/configuraciones-accesibilidad"),
   reportesUsuarios: new CrudApiService<ReporteUsuario>("/api/reportes-usuarios"),
   alcancesArchivos: new CrudApiService<AlcanceArchivo>("/api/alcances-archivos"),
-  archivos: new CrudApiService<Archivo>("/api/archivos"),
+  archivos: {
+    ...new CrudApiService<Archivo>("/api/archivos"),
+    async upload(file: File, onProgress?: (pct: number) => void, signal?: AbortSignal): Promise<{ id: number; url: string; nombre_archivo: string; content_type: string; peso_bytes: number }> {
+      const formData = new FormData();
+      formData.append("file", file);
+      return apiUploadFile("/api/archivos/upload", formData, onProgress, signal);
+    },
+    async uploadWithType(file: File, idTipoArchivo: number, onProgress?: (pct: number) => void, signal?: AbortSignal): Promise<{ id: number; url: string; nombre_archivo: string; content_type: string; peso_bytes: number }> {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("id_tipo_archivo", String(idTipoArchivo));
+      return apiUploadFile("/api/archivos/upload", formData, onProgress, signal);
+    },
+  },
   auditoriasEventos: new CrudApiService<AuditoriaEvento>("/api/auditorias-eventos"),
   autonomiasOperativas: new CrudApiService<AutonomiaOperativa>("/api/autonomias-operativas"),
   beneficiariosSuscripciones: new CrudApiService<BeneficiarioSuscripcion>("/api/beneficiarios-suscripciones"),

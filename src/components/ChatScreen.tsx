@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { ContactPerson, useChat } from '@/contexts/ChatContext';
 import { ChatMessage, Conversation, fetchConversationsForUser, fetchMessagesForConversationAsUser, fetchPermissionContext, type PermissionContext } from '@/data/api';
-import { ArrowLeft, Send, Plus, Search, X, MessageCircle, Pencil, Trash2, Check, Users } from 'lucide-react';
+import { ArrowLeft, Send, Plus, Search, X, MessageCircle, Pencil, Trash2, Check, Users, ImageIcon, FileIcon, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
@@ -89,6 +89,11 @@ export default function ChatScreen({
   const [canSendMessages, setCanSendMessages] = useState(true);
   const [permissionContext, setPermissionContext] = useState<PermissionContext | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadPreview, setUploadPreview] = useState<string | null>(null);
+  const [pendingFileId, setPendingFileId] = useState<number | null>(null);
 
   const resolvedProfileId = activeProfileId || user?.id || '';
   const activeProfile = useMemo(() => (
@@ -268,9 +273,11 @@ export default function ChatScreen({
     }
   };
 
-  const sendNow = async (txt?: string) => {
+  const sendNow = async (txt?: string, fileId?: number | null) => {
     const text = txt ?? draft;
-    if (!text.trim() || !selectedConv) return;
+    const hasFile = fileId ?? pendingFileId;
+    if (!text.trim() && !hasFile) return;
+    if (!selectedConv) return;
     if (!canSendInSelectedConversation) {
       toast({
         title: 'Mensajes deshabilitados',
@@ -283,8 +290,11 @@ export default function ChatScreen({
     }
 
     try {
-      await send(selectedConv.id, text);
+      const idArchivos = hasFile ? [hasFile] : undefined;
+      await send(selectedConv.id, text, idArchivos);
       setDraft('');
+      setPendingFileId(null);
+      setUploadPreview(null);
     } catch (error) {
       toast({
         title: 'No se pudo enviar',
@@ -293,6 +303,45 @@ export default function ChatScreen({
       });
     }
   };
+
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedConv) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: 'Archivo demasiado grande', description: 'El maximo es 10MB.', variant: 'destructive' });
+      return;
+    }
+
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (ev) => setUploadPreview(ev.target?.result as string);
+      reader.readAsDataURL(file);
+    }
+
+    setUploading(true);
+    setUploadProgress(0);
+
+    try {
+      const { apiUploadFile } = await import('../services/api/client');
+      const formData = new FormData();
+      formData.append('file', file);
+      const data = await apiUploadFile<{ id: number; url: string; nombre_archivo: string; content_type: string; peso_bytes: number }>(
+        '/api/archivos/upload',
+        formData,
+        setUploadProgress,
+      );
+      setPendingFileId(data.id);
+      toast({ title: 'Archivo subido', description: 'Envia el mensaje para compartirlo.' });
+    } catch (error) {
+      toast({ title: 'Error al subir archivo', description: 'Intenta de nuevo.', variant: 'destructive' });
+      setUploadPreview(null);
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }, [selectedConv, toast]);
 
   const toggleManageParticipant = (contactId: string) => {
     if (contactId === user.id) return;
@@ -458,7 +507,27 @@ export default function ChatScreen({
                       </div>
                     </div>
                   ) : (
-                    <p className="whitespace-pre-wrap break-words">{visibleText}</p>
+                    <>
+                      {(msg.type === 'image' || msg.type === 'file') && msg.archivos && msg.archivos.length > 0 && (
+                        <div className="space-y-1.5 mb-2">
+                          {msg.archivos.map((archivo, idx) => (
+                            archivo.url ? (
+                              <a key={idx} href={archivo.url} target="_blank" rel="noopener noreferrer">
+                                {archivo.url.match(/\.(png|jpe?g|gif|webp)(\?|$)/i) ? (
+                                  <img src={archivo.url} alt={archivo.nombre_archivo} className="max-w-full rounded-lg border border-border/50" style={{ maxHeight: 240 }} />
+                                ) : (
+                                  <div className="flex items-center gap-2 p-2 rounded-lg bg-background/50 border border-border/30 text-xs">
+                                    <FileIcon size={14} />
+                                    <span className="truncate">{archivo.nombre_archivo}</span>
+                                  </div>
+                                )}
+                              </a>
+                            ) : null
+                          ))}
+                        </div>
+                      )}
+                      {msg.text && <p className="whitespace-pre-wrap break-words">{visibleText}</p>}
+                    </>
                   )}
                   {!isEditing && isLong && (
                     <button
@@ -497,9 +566,32 @@ export default function ChatScreen({
           ))}
         </div>
 
-        <div className="flex gap-2 pt-2 border-t border-border">
-          <Input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendNow()} placeholder="Escribí un mensaje..." className="flex-1" />
-          <button onClick={() => sendNow()} className="w-10 h-10 rounded-full gradient-primary text-primary-foreground flex items-center justify-center shrink-0" aria-label="Enviar"><Send size={16} /></button>
+        <div className="space-y-2 pt-2 border-t border-border">
+          {uploadPreview && (
+            <div className="flex items-center gap-2 px-1">
+              <div className="relative">
+                <img src={uploadPreview} alt="Preview" className="w-12 h-12 object-cover rounded-lg border border-border" />
+                {uploading && (
+                  <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center">
+                    <Loader2 size={16} className="animate-spin text-white" />
+                  </div>
+                )}
+                <button type="button" onClick={() => { setUploadPreview(null); setPendingFileId(null); }} className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center" aria-label="Quitar"><X size={10} /></button>
+              </div>
+              {uploading && <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden"><div className="h-full bg-primary transition-all" style={{ width: `${uploadProgress}%` }} /></div>}
+              {!uploading && pendingFileId && (
+                <button type="button" onClick={() => sendNow(undefined, pendingFileId)} className="text-xs font-semibold text-primary hover:underline">Enviar con el mensaje</button>
+              )}
+            </div>
+          )}
+          <div className="flex gap-2 items-center">
+            <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp,application/pdf" className="hidden" onChange={handleFileSelect} />
+            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="w-9 h-9 rounded-full hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground shrink-0 transition-colors" aria-label="Adjuntar archivo">
+              {uploading ? <Loader2 size={15} className="animate-spin" /> : <ImageIcon size={15} />}
+            </button>
+            <Input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendNow(undefined, pendingFileId)} placeholder="Escribí un mensaje..." className="flex-1" />
+            <button onClick={() => sendNow(undefined, pendingFileId)} className="w-10 h-10 rounded-full gradient-primary text-primary-foreground flex items-center justify-center shrink-0" aria-label="Enviar"><Send size={16} /></button>
+          </div>
         </div>
         </>
         )}

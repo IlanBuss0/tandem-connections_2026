@@ -312,6 +312,14 @@ export const conversations: Conversation[] = [
   { id: 'conv10', participants: ['u7', 't7'], participantNames: ['Nicolás Fernández', 'Elena Fernández'], lastMessage: 'Te preparé vianda para el taller', lastMessageTime: '06:50', unreadCount: 0, avatar: '👩', type: 'tutor' },
 ];
 
+export interface ArchivoAdjunto {
+  id: number;
+  url: string;
+  nombre_archivo: string;
+  content_type?: string;
+  peso_bytes?: number;
+}
+
 export interface ChatMessage {
   id: string;
   conversationId: string;
@@ -320,7 +328,8 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
   read: boolean;
-  type?: 'text' | 'activity' | 'alert';
+  type?: 'text' | 'image' | 'file' | 'activity' | 'alert';
+  archivos?: ArchivoAdjunto[];
 }
 
 export const chatMessages: ChatMessage[] = [

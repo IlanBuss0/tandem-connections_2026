@@ -195,6 +195,58 @@ async function apiRequestInternal<T>(
   return payload as T;
 }
 
+export async function apiUploadFile<T>(
+  path: string,
+  formData: FormData,
+  onProgress?: (pct: number) => void,
+  signal?: AbortSignal,
+): Promise<T> {
+  const authToken = getDefaultAuthToken();
+
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", buildUrl(path));
+
+    if (authToken) {
+      xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
+    }
+
+    if (signal) {
+      signal.addEventListener("abort", () => xhr.abort());
+    }
+
+    xhr.upload.addEventListener("progress", (e) => {
+      if (onProgress && e.lengthComputable) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    });
+
+    xhr.addEventListener("load", () => {
+      try {
+        const payload = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(payload as T);
+        } else {
+          const message =
+            payload && typeof payload === "string"
+              ? payload
+              : payload && typeof payload === "object" && "message" in payload
+                ? (payload as { message: string }).message
+                : `Upload failed with status ${xhr.status}`;
+          reject(new ApiError(message, xhr.status, payload));
+        }
+      } catch {
+        reject(new ApiError("Upload failed", xhr.status));
+      }
+    });
+
+    xhr.addEventListener("error", () => reject(new ApiError("Network error during upload", 0)));
+    xhr.addEventListener("abort", () => reject(new ApiError("Upload aborted", 0)));
+
+    xhr.send(formData);
+  });
+}
+
 export function unwrapApiData<T>(payload: T | ApiEnvelope<T>): T {
   if (
     payload &&

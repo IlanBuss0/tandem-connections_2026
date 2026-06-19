@@ -1746,7 +1746,11 @@ function backendChatToConversation(chat: BackendChatRow, currentUserId: string):
   };
 }
 
-function backendMessageToChatMessage(message: DbMensaje): ChatMessage {
+function backendMessageToChatMessage(message: DbMensaje & { archivos?: { id: number; url: string; nombre_archivo: string }[] }): ChatMessage {
+  const fileData = (message as any).archivos;
+  const hasArchivos = Array.isArray(fileData) && fileData.length > 0;
+  const firstUrl = hasArchivos ? fileData[0]?.url || '' : '';
+  const isImage = /\.(png|jpe?g|gif|webp)(\?|$)/i.test(firstUrl);
   return {
     id: String(message.id),
     conversationId: String(message.id_chat),
@@ -1755,7 +1759,8 @@ function backendMessageToChatMessage(message: DbMensaje): ChatMessage {
     text: message.contenido || '',
     timestamp: formatChatTime(message.fecha_envio),
     read: true,
-    type: 'text',
+    type: hasArchivos ? (isImage ? 'image' : 'file') : 'text',
+    archivos: hasArchivos ? fileData.map((a: { id: number; url: string; nombre_archivo: string }) => ({ id: a.id, url: a.url, nombre_archivo: a.nombre_archivo })) : undefined,
   };
 }
 
@@ -1789,18 +1794,27 @@ export async function fetchMessagesForConversationAsUser(conversationId: string,
   return fetchMessagesForConversation(conversationId);
 }
 
-export async function sendMessage(conversationId: string, senderId: string, senderName: string, text: string): Promise<ChatMessage> {
+export async function sendMessage(conversationId: string, senderId: string, senderName: string, text: string, idArchivos?: number[]): Promise<ChatMessage> {
   const token = getStoredAuthToken();
   if (token && isBackendUserId(conversationId)) {
+    const idTipoMensaje = idArchivos && idArchivos.length > 0 ? 2 : 1;
+    const body: Record<string, unknown> = {
+      id_tipo_mensaje: idTipoMensaje,
+      contenido: text || '',
+    };
+    if (idArchivos && idArchivos.length > 0) {
+      body.id_archivos = idArchivos;
+    }
     const message = await apiRequest<DbMensaje>(`/api/mensajes/chat/${encodeURIComponent(conversationId)}`, {
       method: 'POST',
       token,
-      body: {
-        id_tipo_mensaje: 1,
-        contenido: text,
-      },
+      body,
     });
-    return backendMessageToChatMessage(message);
+    const chatMessage = backendMessageToChatMessage(message);
+    if ((message as any).archivos) {
+      chatMessage.archivos = (message as any).archivos.map((id: number) => ({ id, url: '', nombre_archivo: '' }));
+    }
+    return chatMessage;
   }
 
   return apiFetchWithFallback<ChatMessage>([`/chat/conversations/${encodeURIComponent(conversationId)}/messages`, `/conversations/${encodeURIComponent(conversationId)}/messages`], {
