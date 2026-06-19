@@ -1,6 +1,6 @@
 import * as legacy from './mockData';
 import { tandemApi } from '@/services/api';
-import { API_BASE_URL, ApiError, apiRequest, unwrapApiData } from '@/services/api/client';
+import { API_BASE_URL, ApiError, apiRequest, clearDefaultAuthToken, getDefaultAuthToken, storeDefaultAuthToken, unwrapApiData } from '@/services/api/client';
 import type {
   Actividad as DbActividad,
   ActividadAsignada as DbActividadAsignada,
@@ -197,6 +197,7 @@ async function apiFetchWithFallback<T>(paths: string[], init?: RequestInit): Pro
     try {
       const token = getStoredAuthToken();
       const res = await fetch(`${((import.meta as any).env?.VITE_BACKEND_URL || (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/$/, '')}${p}`, {
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -400,25 +401,15 @@ function isBackendUserId(userId: string): boolean {
 }
 
 export function getStoredAuthToken(): string | null {
-  const sessionToken = sessionStorage.getItem('tandem_auth_token');
-  if (sessionToken) return sessionToken;
-
-  const legacyToken = localStorage.getItem('tandem_auth_token');
-  if (!legacyToken) return null;
-
-  sessionStorage.setItem('tandem_auth_token', legacyToken);
-  localStorage.removeItem('tandem_auth_token');
-  return legacyToken;
+  return getDefaultAuthToken();
 }
 
 function storeAuthToken(token: string): void {
-  sessionStorage.setItem('tandem_auth_token', token);
-  localStorage.removeItem('tandem_auth_token');
+  storeDefaultAuthToken(token);
 }
 
 export function clearStoredAuthToken(): void {
-  sessionStorage.removeItem('tandem_auth_token');
-  localStorage.removeItem('tandem_auth_token');
+  clearDefaultAuthToken();
 }
 
 async function fetchPertenecienteByUsuarioId(userId: string | number): Promise<DbPerteneciente | null> {
@@ -977,7 +968,7 @@ export async function findUser(username: string, password: string): Promise<User
       contrasena: password,
     });
 
-    storeAuthToken(auth.token);
+    storeAuthToken(auth.accessToken || auth.token);
     return toLegacyUser(auth.user);
   } catch {
     return null;
@@ -985,8 +976,16 @@ export async function findUser(username: string, password: string): Promise<User
 }
 
 export async function fetchStoredAuthUser(): Promise<User | Tutor | Professional | Admin | null> {
-  const token = getStoredAuthToken();
-  if (!token) return null;
+  let token = getStoredAuthToken();
+  if (!token) {
+    try {
+      const auth = await tandemApi.auth.refresh();
+      token = auth.accessToken || auth.token;
+      storeAuthToken(token);
+    } catch {
+      return null;
+    }
+  }
 
   try {
     const user = await tandemApi.auth.me(token);
@@ -994,6 +993,10 @@ export async function fetchStoredAuthUser(): Promise<User | Tutor | Professional
   } catch {
     return null;
   }
+}
+
+export async function logoutStoredAuthSession(): Promise<void> {
+  await tandemApi.auth.logout();
 }
 
 export interface PertenecienteHomeActivity {
@@ -2089,7 +2092,7 @@ export async function fetchPictogramCategories(): Promise<PictogramCategory[]> {
 
 export async function fetchFavoritePictograms(userId: string): Promise<Pictogram[]> {
   const q = new URLSearchParams({ userId }).toString();
-  return apiFetchWithFallback<Pictogram[]>([`/api/pictograms/favorites?${q}`, `/pictograms/favorites?${q}`]);
+  return apiRequest<Pictogram[]>(`/api/pictograms/favorites?${q}`);
 }
 
 export function getPictogramDownloadUrl(id: string): string {
@@ -2097,18 +2100,15 @@ export function getPictogramDownloadUrl(id: string): string {
 }
 
 export async function savePictogram(id: string, userId: string): Promise<void> {
-  await apiFetchWithFallback([
-    `/api/pictograms/${encodeURIComponent(id)}/save`,
-    `/pictograms/${encodeURIComponent(id)}/save`,
-  ], { method: 'POST', body: JSON.stringify({ userId }) });
+  await apiRequest(`/api/pictograms/${encodeURIComponent(id)}/save`, {
+    method: 'POST',
+    body: { userId },
+  });
 }
 
 export async function deleteFavoritePictogram(id: string, userId: string): Promise<void> {
   const q = new URLSearchParams({ userId }).toString();
-  await apiFetchWithFallback([
-    `/api/pictograms/${encodeURIComponent(id)}/save?${q}`,
-    `/pictograms/${encodeURIComponent(id)}/save?${q}`,
-  ], { method: 'DELETE' });
+  await apiRequest(`/api/pictograms/${encodeURIComponent(id)}/save?${q}`, { method: 'DELETE' });
 }
 
 export async function fetchTutorById(id: string): Promise<Tutor | null> {

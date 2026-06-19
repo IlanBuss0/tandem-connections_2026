@@ -1,5 +1,5 @@
 import { CrudApiService } from "./crud";
-import { apiRequest, unwrapApiData, type ApiEnvelope } from "./client";
+import { apiRequest, clearDefaultAuthToken, storeDefaultAuthToken, unwrapApiData, type ApiEnvelope } from "./client";
 import type {
   Administrador,
   AlcanceArchivo,
@@ -82,6 +82,8 @@ import type {
 export type AuthPayload = {
   user: Omit<Usuario, "contrasena_hash">;
   token: string;
+  accessToken?: string;
+  expiresAt?: string;
 };
 
 export type LoginRequest = {
@@ -101,7 +103,9 @@ export const authApi = {
       body: payload,
     });
 
-    return unwrapApiData(response);
+    const data = unwrapApiData(response);
+    storeDefaultAuthToken(data.accessToken || data.token);
+    return data;
   },
 
   async register(payload: RegisterRequest): Promise<AuthPayload> {
@@ -110,7 +114,26 @@ export const authApi = {
       body: payload,
     });
 
-    return unwrapApiData(response);
+    const data = unwrapApiData(response);
+    storeDefaultAuthToken(data.accessToken || data.token);
+    return data;
+  },
+
+  async refresh(): Promise<AuthPayload> {
+    const response = await apiRequest<ApiEnvelope<AuthPayload>>("/api/auth/refresh", {
+      method: "POST",
+    });
+    const data = unwrapApiData(response);
+    storeDefaultAuthToken(data.accessToken || data.token);
+    return data;
+  },
+
+  async logout(): Promise<void> {
+    try {
+      await apiRequest("/api/auth/logout", { method: "POST" });
+    } finally {
+      clearDefaultAuthToken();
+    }
   },
 
   async me(token: string): Promise<Omit<Usuario, "contrasena_hash">> {

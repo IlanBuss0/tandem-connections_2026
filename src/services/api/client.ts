@@ -1,4 +1,5 @@
 const DEFAULT_BACKEND_URL = "http://localhost:3000";
+const AUTH_TOKEN_KEY = "tandem_auth_token";
 
 export type ApiEnvelope<T> = {
   ok: boolean;
@@ -38,16 +39,26 @@ function buildUrl(path: string): string {
   return `${API_BASE_URL.replace(/\/$/, "")}${normalizedPath}`;
 }
 
-function getDefaultAuthToken(): string | null {
-  const sessionToken = sessionStorage.getItem("tandem_auth_token");
+export function getDefaultAuthToken(): string | null {
+  const sessionToken = sessionStorage.getItem(AUTH_TOKEN_KEY);
   if (sessionToken) return sessionToken;
 
-  const legacyToken = localStorage.getItem("tandem_auth_token");
+  const legacyToken = localStorage.getItem(AUTH_TOKEN_KEY);
   if (!legacyToken) return null;
 
-  sessionStorage.setItem("tandem_auth_token", legacyToken);
-  localStorage.removeItem("tandem_auth_token");
+  sessionStorage.setItem(AUTH_TOKEN_KEY, legacyToken);
+  localStorage.removeItem(AUTH_TOKEN_KEY);
   return legacyToken;
+}
+
+export function storeDefaultAuthToken(token: string): void {
+  sessionStorage.setItem(AUTH_TOKEN_KEY, token);
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+}
+
+export function clearDefaultAuthToken(): void {
+  sessionStorage.removeItem(AUTH_TOKEN_KEY);
+  localStorage.removeItem(AUTH_TOKEN_KEY);
 }
 
 async function parseResponseBody(response: Response): Promise<unknown> {
@@ -65,11 +76,52 @@ export async function apiRequest<T>(
   path: string,
   options: ApiRequestOptions = {}
 ): Promise<T> {
+  return apiRequestInternal<T>(path, options, true);
+}
+
+let refreshPromise: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (!refreshPromise) {
+    refreshPromise = fetch(buildUrl("/api/auth/refresh"), {
+      method: "POST",
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    })
+      .then(async (response) => {
+        const payload = await parseResponseBody(response);
+        if (!response.ok) {
+          clearDefaultAuthToken();
+          return null;
+        }
+
+        const data =
+          payload && typeof payload === "object" && "data" in payload
+            ? (payload as { data?: { accessToken?: string; token?: string } }).data
+            : payload as { accessToken?: string; token?: string } | null;
+        const token = data?.accessToken || data?.token || null;
+        if (token) storeDefaultAuthToken(token);
+        return token;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+}
+
+async function apiRequestInternal<T>(
+  path: string,
+  options: ApiRequestOptions,
+  allowRefresh: boolean
+): Promise<T> {
   const { body, token, headers, ...init } = options;
   const authToken = token === undefined ? getDefaultAuthToken() : token;
 
   const response = await fetch(buildUrl(path), {
     ...init,
+    credentials: "include",
     headers: {
       Accept: "application/json",
       ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
@@ -80,6 +132,20 @@ export async function apiRequest<T>(
   });
 
   const payload = await parseResponseBody(response);
+
+  if (
+    response.status === 401 &&
+    allowRefresh &&
+    !path.startsWith("/api/auth/login") &&
+    !path.startsWith("/api/auth/register") &&
+    !path.startsWith("/api/auth/refresh") &&
+    !path.startsWith("/api/auth/logout")
+  ) {
+    const refreshedToken = await refreshAccessToken();
+    if (refreshedToken) {
+      return apiRequestInternal<T>(path, { ...options, token: refreshedToken }, false);
+    }
+  }
 
   if (!response.ok) {
     const message =

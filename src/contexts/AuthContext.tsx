@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { clearStoredAuthToken, fetchStoredAuthUser, findUser, getStoredAuthToken, User, Tutor, Professional, Admin } from '@/data/api';
+import { clearStoredAuthToken, fetchStoredAuthUser, findUser, logoutStoredAuthSession, User, Tutor, Professional, Admin } from '@/data/api';
 
 type AuthUser = User | Tutor | Professional | Admin;
 
@@ -39,17 +39,10 @@ function storeUser(user: AuthUser | null) {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => loadStoredUser());
-  const [isLoading, setIsLoading] = useState(() => Boolean(getStoredAuthToken() && !loadStoredUser()));
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
-    const token = getStoredAuthToken();
-
-    if (!token) {
-      storeUser(null);
-      setIsLoading(false);
-      return;
-    }
 
     setIsLoading(!user);
     fetchStoredAuthUser()
@@ -58,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (currentUser) {
           setUser(currentUser);
           storeUser(currentUser);
-        } else if (!user) {
+        } else {
           clearStoredAuthToken();
           storeUser(null);
           setUser(null);
@@ -99,6 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    void logoutStoredAuthSession();
     clearStoredAuthToken();
     storeUser(null);
     setUser(null);
