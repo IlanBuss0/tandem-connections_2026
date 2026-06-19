@@ -212,6 +212,10 @@ export default function SuperAdminDashboard() {
       <main className="flex-1 ms-lg-64 min-w-0 w-100" style={{ marginLeft: 256 }}>
         <TopBar section={section} onRefresh={() => setTick(t => t + 1)} unreadCount={unreadCount} onNotifications={() => setSection('notifications')} />
         <div className="p-3 p-md-4">
+          <div className="rounded px-3 py-2 mb-3 font-monospace d-flex align-items-center gap-2" style={{ fontSize: 11, background: 'rgba(251,113,133,0.1)', border: '1px solid rgba(251,113,133,0.3)', color: '#fda4af' }}>
+            <AlertTriangle size={14} />
+            <span>Los datos de wallet, shop y feature flags en este panel viven en <strong>localStorage</strong> — no persisten en backend. Usá la API de producción para cambios reales.</span>
+          </div>
           {section === 'overview' && <OverviewSection tick={tick} />}
           {section === 'live' && <LiveFeedSection tick={tick} />}
           {section === 'sql' && <SQLConsoleSection tick={tick} />}

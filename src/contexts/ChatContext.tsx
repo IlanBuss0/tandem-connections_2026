@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
-import { API_BASE_URL, AUTH_EXPIRED_EVENT, ApiError } from '@/services/api/client';
+import { API_BASE_URL, AUTH_EXPIRED_EVENT, TOKEN_REFRESHED_EVENT, ApiError } from '@/services/api/client';
 import {
   createDirectConversationWith,
   createGroupConversation,
@@ -282,10 +282,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       nextSocket.disconnect();
     };
 
+    const handleTokenRefreshed = (e: Event) => {
+      const detail = (e as CustomEvent<{ token: string }>).detail;
+      if (detail?.token) {
+        nextSocket.auth = { token: detail.token };
+        if (nextSocket.connected) {
+          nextSocket.disconnect().connect();
+        }
+      }
+    };
+
     window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    window.addEventListener(TOKEN_REFRESHED_EVENT, handleTokenRefreshed);
 
     return () => {
       window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+      window.removeEventListener(TOKEN_REFRESHED_EVENT, handleTokenRefreshed);
       nextSocket.disconnect();
       setSocket(null);
     };

@@ -15,46 +15,21 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
-const AUTH_USER_KEY = 'tandem_auth_user';
-
-function loadStoredUser(): AuthUser | null {
-  try {
-    const raw = localStorage.getItem(AUTH_USER_KEY);
-    return raw ? JSON.parse(raw) as AuthUser : null;
-  } catch {
-    return null;
-  }
-}
-
-function storeUser(user: AuthUser | null) {
-  try {
-    if (user) {
-      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
-    } else {
-      localStorage.removeItem(AUTH_USER_KEY);
-    }
-  } catch {
-    // Storage can fail in private mode or restricted browsers.
-  }
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => loadStoredUser());
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
 
-    setIsLoading(!user);
     fetchStoredAuthUser()
       .then(currentUser => {
         if (!mounted) return;
         if (currentUser) {
           setUser(currentUser);
-          storeUser(currentUser);
         } else {
           clearStoredAuthToken();
-          storeUser(null);
           setUser(null);
         }
       })
@@ -70,7 +45,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const handleAuthExpired = () => {
       clearStoredAuthToken();
-      storeUser(null);
       setUser(null);
       setIsLoading(false);
     };
@@ -85,7 +59,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const found = await findUser(username, password);
     if (found) {
       setUser(found);
-      storeUser(found);
       return true;
     }
     return false;
@@ -93,14 +66,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginAs = (u: AuthUser) => {
     setUser(u);
-    storeUser(u);
   };
 
   const refreshUser = async (): Promise<AuthUser | null> => {
     const currentUser = await fetchStoredAuthUser();
     if (currentUser) {
       setUser(currentUser);
-      storeUser(currentUser);
       return currentUser;
     }
     return null;
@@ -109,7 +80,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     void logoutStoredAuthSession();
     clearStoredAuthToken();
-    storeUser(null);
     setUser(null);
   };
 

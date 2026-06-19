@@ -1,7 +1,7 @@
 const DEFAULT_BACKEND_URL = "http://localhost:3000";
 const AUTH_TOKEN_KEY = "tandem_auth_token";
-const AUTH_USER_KEY = "tandem_auth_user";
 export const AUTH_EXPIRED_EVENT = "tandem:auth-expired";
+export const TOKEN_REFRESHED_EVENT = "tandem:token-refreshed";
 
 export type ApiEnvelope<T> = {
   ok: boolean;
@@ -63,9 +63,23 @@ export function clearDefaultAuthToken(): void {
   localStorage.removeItem(AUTH_TOKEN_KEY);
 }
 
+function clearTandemStorage(): void {
+  for (let i = sessionStorage.length - 1; i >= 0; i--) {
+    const key = sessionStorage.key(i);
+    if (key && key.startsWith("tandem:")) sessionStorage.removeItem(key);
+  }
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const key = localStorage.key(i);
+    if (key && (key.startsWith("tandem:auth") || key.startsWith("tandem:user"))) {
+      localStorage.removeItem(key);
+    }
+  }
+}
+
 function notifyAuthExpired(): void {
   clearDefaultAuthToken();
-  localStorage.removeItem(AUTH_USER_KEY);
+  clearTandemStorage();
+  fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
   }
@@ -91,31 +105,40 @@ export async function apiRequest<T>(
 
 let refreshPromise: Promise<string | null> | null = null;
 
+async function doRefresh(): Promise<string | null> {
+  const response = await fetch(buildUrl("/api/auth/refresh"), {
+    method: "POST",
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
+  const payload = await parseResponseBody(response);
+  if (!response.ok) {
+    notifyAuthExpired();
+    return null;
+  }
+
+  const data =
+    payload && typeof payload === "object" && "data" in payload
+      ? (payload as { data?: { accessToken?: string; token?: string } }).data
+      : payload as { accessToken?: string; token?: string } | null;
+  const token = data?.accessToken || data?.token || null;
+  if (token) {
+    storeDefaultAuthToken(token);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(TOKEN_REFRESHED_EVENT, { detail: { token } }));
+    }
+  }
+  return token;
+}
+
 async function refreshAccessToken(): Promise<string | null> {
   if (!refreshPromise) {
-    refreshPromise = fetch(buildUrl("/api/auth/refresh"), {
-      method: "POST",
-      credentials: "include",
-      headers: { Accept: "application/json" },
-    })
-      .then(async (response) => {
-        const payload = await parseResponseBody(response);
-        if (!response.ok) {
-          notifyAuthExpired();
-          return null;
-        }
-
-        const data =
-          payload && typeof payload === "object" && "data" in payload
-            ? (payload as { data?: { accessToken?: string; token?: string } }).data
-            : payload as { accessToken?: string; token?: string } | null;
-        const token = data?.accessToken || data?.token || null;
-        if (token) storeDefaultAuthToken(token);
-        return token;
-      })
-      .finally(() => {
-        refreshPromise = null;
-      });
+    refreshPromise = doRefresh().catch(async () => {
+      await new Promise((r) => setTimeout(r, 500));
+      return doRefresh();
+    }).finally(() => {
+      refreshPromise = null;
+    });
   }
 
   return refreshPromise;
