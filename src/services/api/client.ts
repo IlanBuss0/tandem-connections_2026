@@ -239,21 +239,25 @@ export async function apiUploadFile<T>(
     });
 
     xhr.addEventListener("load", () => {
-      try {
-        const payload = xhr.responseText ? JSON.parse(xhr.responseText) : null;
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve(payload as T);
-        } else {
-          const message =
-            payload && typeof payload === "string"
-              ? payload
-              : payload && typeof payload === "object" && "message" in payload
-                ? (payload as { message: string }).message
-                : `Upload failed with status ${xhr.status}`;
-          reject(new ApiError(message, xhr.status, payload));
+      let payload: unknown = null;
+      if (xhr.responseText) {
+        try {
+          payload = JSON.parse(xhr.responseText);
+        } catch {
+          payload = xhr.responseText;
         }
-      } catch {
-        reject(new ApiError("Upload failed", xhr.status));
+      }
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(payload as T);
+      } else {
+        const message =
+          payload && typeof payload === "string"
+            ? payload
+            : payload && typeof payload === "object" && "message" in payload
+              ? (payload as { message: string }).message
+              : `Upload failed with status ${xhr.status}`;
+        reject(new ApiError(message, xhr.status, payload));
       }
     });
 

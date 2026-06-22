@@ -1713,6 +1713,9 @@ export async function saveRoutinesForUser(userId: string, routines: DayRoutine[]
 }
 
 type BackendChatRow = DbChat & {
+  avatar_url?: string | null;
+  avatar_content_type?: string | null;
+  avatar_actualizada_en?: string | null;
   id_otro_usuario?: number | null;
   nombre_otro_usuario?: string | null;
   apellido_otro_usuario?: string | null;
@@ -1752,16 +1755,22 @@ function backendChatToConversation(chat: BackendChatRow, currentUserId: string):
     lastMessage: chat.ultimo_mensaje_contenido || 'Sin mensajes todavia',
     lastMessageTime: formatChatTime(chat.ultimo_mensaje_fecha || chat.fecha_creacion),
     unreadCount: chat.cantidad_no_leidos || 0,
-    avatar: isGroup ? 'G' : '💬',
+    avatar: isGroup ? chat.avatar_url || 'G' : '💬',
     type: isGroup ? 'grupo' : 'tutor',
   };
 }
 
-function backendMessageToChatMessage(message: DbMensaje & { archivos?: { id: number; url: string; nombre_archivo: string }[] }): ChatMessage {
+function isImageAttachment(archivo: { url?: string; content_type?: string | null }) {
+  return Boolean(
+    archivo.content_type?.startsWith('image/') ||
+    archivo.url?.match(/\.(png|jpe?g|gif|webp)(\?|$)/i)
+  );
+}
+
+function backendMessageToChatMessage(message: DbMensaje & { archivos?: { id: number; url: string; nombre_archivo: string; content_type?: string | null; peso_bytes?: number | null }[] }): ChatMessage {
   const fileData = (message as any).archivos;
   const hasArchivos = Array.isArray(fileData) && fileData.length > 0;
-  const firstUrl = hasArchivos ? fileData[0]?.url || '' : '';
-  const isImage = /\.(png|jpe?g|gif|webp)(\?|$)/i.test(firstUrl);
+  const isImage = hasArchivos && fileData.some(isImageAttachment);
   return {
     id: String(message.id),
     conversationId: String(message.id_chat),
@@ -1771,7 +1780,7 @@ function backendMessageToChatMessage(message: DbMensaje & { archivos?: { id: num
     timestamp: formatChatTime(message.fecha_envio),
     read: true,
     type: hasArchivos ? (isImage ? 'image' : 'file') : 'text',
-    archivos: hasArchivos ? fileData.map((a: { id: number; url: string; nombre_archivo: string }) => ({ id: a.id, url: a.url, nombre_archivo: a.nombre_archivo })) : undefined,
+    archivos: hasArchivos ? fileData.map((a: { id: number; url: string; nombre_archivo: string; content_type?: string | null; peso_bytes?: number | null }) => ({ id: a.id, url: a.url, nombre_archivo: a.nombre_archivo, content_type: a.content_type || undefined, peso_bytes: a.peso_bytes || undefined })) : undefined,
   };
 }
 
@@ -1932,6 +1941,33 @@ export async function updateConversationDetails(
       administradores: payload.adminIds?.map(Number).filter(Number.isFinite),
     },
   });
+
+  const participantes = response.participantes?.map((participant) => ({ id_usuario: participant.id_usuario, es_admin: participant.es_admin })) || [];
+  return backendChatToConversation({
+    ...response.chat,
+    participantes,
+    cantidad_participantes: participantes.length,
+  }, '');
+}
+
+export async function uploadChatAvatar(
+  conversationId: string,
+  file: File,
+  onProgress?: (pct: number) => void,
+): Promise<Conversation> {
+  const token = getStoredAuthToken();
+  if (!token || !isBackendUserId(conversationId)) {
+    throw new Error('No hay sesion backend activa para cambiar la foto del chat.');
+  }
+
+  const { apiUploadFile } = await import('@/services/api/client');
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await apiUploadFile<{ chat: BackendChatRow; participantes?: { id_usuario: number; es_admin?: boolean | null }[] }>(
+    `/api/chats/${encodeURIComponent(conversationId)}/avatar`,
+    formData,
+    onProgress,
+  );
 
   const participantes = response.participantes?.map((participant) => ({ id_usuario: participant.id_usuario, es_admin: participant.es_admin })) || [];
   return backendChatToConversation({

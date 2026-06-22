@@ -14,6 +14,7 @@ import {
   sendMessage,
   updateConversationDetails,
   updateMessage,
+  uploadChatAvatar,
   Conversation,
   ChatMessage,
 } from '@/data/api';
@@ -40,6 +41,7 @@ interface Ctx {
   createDirect: (otherId: string) => Promise<Conversation>;
   createGroup: (payload: { nombre: string; descripcion?: string; participantIds: string[] }) => Promise<Conversation>;
   updateConversation: (conversationId: string, payload: { nombre?: string; descripcion?: string; participantIds?: string[]; adminIds?: string[] }) => Promise<Conversation>;
+  uploadConversationAvatar: (conversationId: string, file: File, onProgress?: (pct: number) => void) => Promise<Conversation>;
   hideConversation: (conversationId: string) => Promise<void>;
   allContacts: () => ContactPerson[];
   getPersonById: (id: string) => ContactPerson | undefined;
@@ -69,7 +71,7 @@ function socketMessageToChatMessage(message: any): ChatMessage {
   const fileData = message.archivos;
   const hasArchivos = Array.isArray(fileData) && fileData.length > 0;
   const firstUrl = hasArchivos ? (fileData[0]?.url || '') : '';
-  const isImage = /\.(png|jpe?g|gif|webp)(\?|$)/i.test(firstUrl);
+  const isImage = hasArchivos && fileData.some((a: any) => a?.content_type?.startsWith('image/') || /\.(png|jpe?g|gif|webp)(\?|$)/i.test(a?.url || firstUrl));
   return {
     id: String(message.id),
     conversationId: String(message.id_chat),
@@ -81,7 +83,7 @@ function socketMessageToChatMessage(message: any): ChatMessage {
       : date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
     read: true,
     type: hasArchivos ? (isImage ? 'image' : 'file') : 'text',
-    archivos: hasArchivos ? fileData.map((a: any) => ({ id: a.id, url: a.url, nombre_archivo: a.nombre_archivo })) : undefined,
+    archivos: hasArchivos ? fileData.map((a: any) => ({ id: a.id, url: a.url, nombre_archivo: a.nombre_archivo, content_type: a.content_type, peso_bytes: a.peso_bytes })) : undefined,
   };
 }
 
@@ -256,6 +258,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     nextSocket.on('chat:new', () => {
       logRealtime('chat:new recibido');
+      reloadChats().catch(() => undefined);
+    });
+
+    nextSocket.on('chat:updated', () => {
+      logRealtime('chat:updated recibido');
       reloadChats().catch(() => undefined);
     });
 
@@ -490,6 +497,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return updated;
   }, [reloadChats]);
 
+  const uploadConversationAvatar = useCallback(async (conversationId: string, file: File, onProgress?: (pct: number) => void) => {
+    const updated = await uploadChatAvatar(conversationId, file, onProgress);
+    setConversations(prev => prev.map(item => item.id === conversationId ? updated : item));
+    await reloadChats().catch(() => undefined);
+    return updated;
+  }, [reloadChats]);
+
   const hideConversation = useCallback(async (conversationId: string) => {
     await hideConversationForMe(conversationId);
     setConversations(prev => prev.filter(item => item.id !== conversationId));
@@ -513,6 +527,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     createDirect,
     createGroup,
     updateConversation,
+    uploadConversationAvatar,
     hideConversation,
     allContacts,
     getPersonById,
@@ -530,6 +545,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     createDirect,
     createGroup,
     updateConversation,
+    uploadConversationAvatar,
     hideConversation,
     allContacts,
     getPersonById,

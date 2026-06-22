@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { ContactPerson, useChat } from '@/contexts/ChatContext';
 import { ChatMessage, Conversation, fetchConversationsForUser, fetchMessagesForConversationAsUser, fetchPermissionContext, type PermissionContext } from '@/data/api';
-import { ArrowLeft, Send, Plus, Search, X, MessageCircle, Pencil, Trash2, Check, Users, ImageIcon, FileIcon, Loader2 } from 'lucide-react';
+import { ArrowLeft, Send, Plus, Search, X, MessageCircle, Pencil, Trash2, Check, Users, ImageIcon, FileIcon, Loader2, Camera } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
@@ -53,6 +53,13 @@ function participantsSummary(conversation: Conversation, getPersonById: (id: str
     .join(' | ');
 }
 
+function isImageAttachment(archivo: { url?: string; content_type?: string }) {
+  return Boolean(
+    archivo.content_type?.startsWith('image/') ||
+    archivo.url?.match(/\.(png|jpe?g|gif|webp)(\?|$)/i)
+  );
+}
+
 export default function ChatScreen({
   profiles,
   defaultProfileId,
@@ -61,7 +68,7 @@ export default function ChatScreen({
   defaultProfileId?: string;
 }) {
   const { user } = useAuth();
-  const { conversationsForUser, messagesFor, send, edit, remove, markRead, createDirect, createGroup, updateConversation, hideConversation, allContacts, getPersonById } = useChat();
+  const { conversationsForUser, messagesFor, send, edit, remove, markRead, createDirect, createGroup, updateConversation, uploadConversationAvatar, hideConversation, allContacts, getPersonById } = useChat();
   const { toast } = useToast();
   const [activeProfileId, setActiveProfileId] = useState(defaultProfileId || '');
   const [profileConvs, setProfileConvs] = useState<Conversation[]>([]);
@@ -91,11 +98,14 @@ export default function ChatScreen({
   const [permissionContext, setPermissionContext] = useState<PermissionContext | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadPreview, setUploadPreview] = useState<string | null>(null);
   const [pendingFileId, setPendingFileId] = useState<number | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarUploadProgress, setAvatarUploadProgress] = useState(0);
 
   const resolvedProfileId = activeProfileId || user?.id || '';
   const activeProfile = useMemo(() => (
@@ -366,10 +376,18 @@ export default function ChatScreen({
 
   const saveManage = async () => {
     if (!selectedConv) return;
+    if (manageAdminIds.length < 1) {
+      toast({
+        title: 'El grupo necesita un admin',
+        description: 'Selecciona al menos un administrador antes de guardar.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setSavingManage(true);
     try {
       const participantIds = Array.from(new Set([user.id, ...manageParticipantIds]));
-      const adminIds = Array.from(new Set([user.id, ...manageAdminIds])).filter(id => participantIds.includes(id));
+      const adminIds = Array.from(new Set(manageAdminIds)).filter(id => participantIds.includes(id));
       const updated = await updateConversation(selectedConv.id, {
         nombre: manageTitle.trim(),
         descripcion: manageDescription.trim(),
@@ -378,6 +396,12 @@ export default function ChatScreen({
       });
       setSelectedId(updated.id);
       setShowManage(false);
+    } catch (error) {
+      toast({
+        title: 'No se pudo guardar',
+        description: error instanceof Error ? error.message : 'Revisa que el grupo conserve al menos un administrador.',
+        variant: 'destructive',
+      });
     } finally {
       setSavingManage(false);
     }
@@ -385,9 +409,46 @@ export default function ChatScreen({
 
   const hideSelectedConversation = async () => {
     if (!selectedConv) return;
-    await hideConversation(selectedConv.id);
-    setShowManage(false);
-    setSelectedId(null);
+    const selectedIsGroup = selectedConv.type === 'grupo' || selectedConv.participants.length > 2;
+    try {
+      await hideConversation(selectedConv.id);
+      setShowManage(false);
+      setSelectedId(null);
+    } catch (error) {
+      toast({
+        title: selectedIsGroup ? 'No podes salir del grupo' : 'No se pudo eliminar el chat',
+        description: error instanceof Error ? error.message : 'Intenta de nuevo.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedConv) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Imagen no valida', description: 'La foto del chat debe ser una imagen.', variant: 'destructive' });
+      return;
+    }
+
+    setAvatarUploading(true);
+    setAvatarUploadProgress(0);
+    try {
+      const updated = await uploadConversationAvatar(selectedConv.id, file, setAvatarUploadProgress);
+      setSelectedId(updated.id);
+      toast({ title: 'Foto del chat actualizada' });
+    } catch (error) {
+      toast({
+        title: 'No se pudo cambiar la foto',
+        description: error instanceof Error ? error.message : 'Intenta de nuevo.',
+        variant: 'destructive',
+      });
+    } finally {
+      setAvatarUploading(false);
+      setAvatarUploadProgress(0);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
   };
 
   const startEdit = (messageId: string, text: string) => {
@@ -519,7 +580,7 @@ export default function ChatScreen({
                         <div className="space-y-1.5 mb-2">
                           {msg.archivos.map((archivo, idx) => (
                             archivo.url ? (
-                              archivo.url.match(/\.(png|jpe?g|gif|webp)(\?|$)/i) || archivo.content_type?.startsWith('image/') ? (
+                              isImageAttachment(archivo) ? (
                                 <img
                                   key={idx}
                                   src={archivo.url}
@@ -639,10 +700,29 @@ export default function ChatScreen({
                   <button onClick={() => setShowManage(false)} className="p-1.5 hover:bg-[#ede4f8] rounded-md" aria-label="Cerrar"><X size={18} /></button>
                 </div>
                 <div className="p-4 space-y-3 border-b border-[#f0e8f8]">
+                  <div className="flex items-center gap-3 rounded-xl border border-[#ede4f8] bg-[#faf8ff] p-3">
+                    <HeaderUserAvatar avatar={selectedConv.avatar} name={chatTitle} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-[#6b4c9a] truncate">Foto del chat</p>
+                      {avatarUploading ? (
+                        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white">
+                          <div className="h-full bg-[#6b4c9a] transition-all" style={{ width: `${avatarUploadProgress}%` }} />
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-[#8b7aa0] truncate">Solo admins pueden cambiarla</p>
+                      )}
+                    </div>
+                    <input ref={avatarInputRef} type="file" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp" className="hidden" onChange={handleAvatarSelect} />
+                    <button type="button" onClick={() => avatarInputRef.current?.click()} disabled={avatarUploading} className="h-9 w-9 shrink-0 rounded-full bg-white text-[#6b4c9a] border border-[#ede4f8] inline-flex items-center justify-center hover:bg-[#ede4f8] disabled:opacity-50" aria-label="Cambiar foto del chat">
+                      {avatarUploading ? <Loader2 size={15} className="animate-spin" /> : <Camera size={15} />}
+                    </button>
+                  </div>
                   <input value={manageTitle} onChange={e => setManageTitle(e.target.value)} placeholder="Nombre del chat" className="w-full rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-4 py-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]" />
                   <input value={manageDescription} onChange={e => setManageDescription(e.target.value)} placeholder="Descripcion" className="w-full rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-4 py-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]" />
                   <p className="text-[11px] text-[#8b7aa0]">Participantes: {manageParticipantIds.join(', ')}</p>
-                  <p className="text-[11px] text-[#8b7aa0]">Admins: {manageAdminIds.join(', ') || user.id}</p>
+                  <p className={`text-[11px] ${manageAdminIds.length ? 'text-[#8b7aa0]' : 'text-red-600 font-semibold'}`}>
+                    Admins: {manageAdminIds.join(', ') || 'Selecciona al menos uno'}
+                  </p>
                 </div>
                 <div className="overflow-y-auto p-3 space-y-4">
                   <div className="space-y-2">
@@ -711,7 +791,7 @@ export default function ChatScreen({
                   ))}
                 </div>
                 <div className="p-4 border-t border-[#f0e8f8] space-y-2">
-                  <button type="button" onClick={saveManage} disabled={savingManage || manageParticipantIds.length < 3} className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-5 py-3 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 transition disabled:opacity-50">
+                  <button type="button" onClick={saveManage} disabled={savingManage || manageParticipantIds.length < 3 || manageAdminIds.length < 1} className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-5 py-3 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 transition disabled:opacity-50">
                     Guardar cambios
                   </button>
                   <button type="button" onClick={hideSelectedConversation} className="w-full h-10 rounded-md border border-red-300 text-sm font-semibold text-red-600 hover:bg-red-50">
