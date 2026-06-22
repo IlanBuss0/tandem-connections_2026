@@ -509,7 +509,7 @@ export default function ChatScreen({
       <div className="flex flex-col h-[calc(100vh-9rem)] lg:h-[calc(100vh-3rem)]">
         <div className="flex items-center gap-3 pb-3 border-b border-[#f0e8f8]">
           <button onClick={() => setSelectedId(null)} className="text-[#8b7aa0] hover:text-[#6b4c9a]" aria-label="Volver"><ArrowLeft size={20} /></button>
-          <HeaderUserAvatar avatar={isGroup ? null : (other?.avatar || selectedConv.avatar)} name={chatTitle} />
+          <HeaderUserAvatar avatar={isGroup ? selectedConv.avatar : (other?.avatar || selectedConv.avatar)} name={chatTitle} />
           <div className="min-w-0 flex-1">
             <p className="font-semibold text-sm text-[#6b4c9a] truncate">{chatTitle}</p>
             <p className="text-[10px] text-[#8b7aa0] truncate">{chatSubtitle}</p>
@@ -888,7 +888,7 @@ export default function ChatScreen({
           const title = isGroup ? conv.title || 'Grupo' : other?.name || conv.participantNames.find(n => n !== user.name) || 'Chat';
           return (
             <motion.button key={conv.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} onClick={() => handleSelect(conv)} className="w-full flex items-center gap-3 p-4 rounded-xl bg-white border border-[#f0e8f8] hover:border-[#6b4c9a]/30 transition-all text-left">
-              <HeaderUserAvatar avatar={isGroup ? null : (other?.avatar || conv.avatar)} name={title} />
+              <HeaderUserAvatar avatar={isGroup ? conv.avatar : (other?.avatar || conv.avatar)} name={title} />
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-center gap-2">
                   <div className="flex items-center gap-2 min-w-0">
