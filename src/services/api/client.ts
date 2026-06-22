@@ -1,5 +1,6 @@
 const DEFAULT_BACKEND_URL = "http://localhost:3000";
 const AUTH_TOKEN_KEY = "tandem_auth_token";
+const CSRF_COOKIE_KEY = "tandem_csrf_token";
 export const AUTH_EXPIRED_EVENT = "tandem:auth-expired";
 export const TOKEN_REFRESHED_EVENT = "tandem:token-refreshed";
 
@@ -42,19 +43,13 @@ function buildUrl(path: string): string {
 }
 
 export function getDefaultAuthToken(): string | null {
-  const sessionToken = sessionStorage.getItem(AUTH_TOKEN_KEY);
-  if (sessionToken) return sessionToken;
-
-  const legacyToken = localStorage.getItem(AUTH_TOKEN_KEY);
-  if (!legacyToken) return null;
-
-  sessionStorage.setItem(AUTH_TOKEN_KEY, legacyToken);
+  sessionStorage.removeItem(AUTH_TOKEN_KEY);
   localStorage.removeItem(AUTH_TOKEN_KEY);
-  return legacyToken;
+  return null;
 }
 
-export function storeDefaultAuthToken(token: string): void {
-  sessionStorage.setItem(AUTH_TOKEN_KEY, token);
+export function storeDefaultAuthToken(_token?: string | null): void {
+  sessionStorage.removeItem(AUTH_TOKEN_KEY);
   localStorage.removeItem(AUTH_TOKEN_KEY);
 }
 
@@ -79,10 +74,37 @@ function clearTandemStorage(): void {
 function notifyAuthExpired(): void {
   clearDefaultAuthToken();
   clearTandemStorage();
-  fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
+  fetch(buildUrl("/api/auth/logout"), {
+    method: "POST",
+    credentials: "include",
+    headers: buildCsrfHeaders(),
+  }).catch(() => {});
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
   }
+}
+
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+
+  const prefix = `${name}=`;
+  const raw = document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix));
+
+  return raw ? decodeURIComponent(raw.slice(prefix.length)) : null;
+}
+
+function isMutatingMethod(method?: string): boolean {
+  return !["GET", "HEAD", "OPTIONS"].includes(String(method || "GET").toUpperCase());
+}
+
+function buildCsrfHeaders(method?: string): Record<string, string> {
+  if (!isMutatingMethod(method)) return {};
+
+  const csrfToken = getCookie(CSRF_COOKIE_KEY);
+  return csrfToken ? { "X-CSRF-Token": csrfToken } : {};
 }
 
 async function parseResponseBody(response: Response): Promise<unknown> {
@@ -103,35 +125,27 @@ export async function apiRequest<T>(
   return apiRequestInternal<T>(path, options, true);
 }
 
-let refreshPromise: Promise<string | null> | null = null;
+let refreshPromise: Promise<boolean> | null = null;
 
-async function doRefresh(): Promise<string | null> {
+async function doRefresh(): Promise<boolean> {
   const response = await fetch(buildUrl("/api/auth/refresh"), {
     method: "POST",
     credentials: "include",
     headers: { Accept: "application/json" },
   });
-  const payload = await parseResponseBody(response);
   if (!response.ok) {
     notifyAuthExpired();
-    return null;
+    return false;
   }
 
-  const data =
-    payload && typeof payload === "object" && "data" in payload
-      ? (payload as { data?: { accessToken?: string; token?: string } }).data
-      : payload as { accessToken?: string; token?: string } | null;
-  const token = data?.accessToken || data?.token || null;
-  if (token) {
-    storeDefaultAuthToken(token);
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent(TOKEN_REFRESHED_EVENT, { detail: { token } }));
-    }
+  await parseResponseBody(response);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(TOKEN_REFRESHED_EVENT));
   }
-  return token;
+  return true;
 }
 
-async function refreshAccessToken(): Promise<string | null> {
+async function refreshAccessToken(): Promise<boolean> {
   if (!refreshPromise) {
     refreshPromise = doRefresh().catch(async () => {
       await new Promise((r) => setTimeout(r, 500));
@@ -150,7 +164,10 @@ async function apiRequestInternal<T>(
   allowRefresh: boolean
 ): Promise<T> {
   const { body, token, headers, ...init } = options;
-  const authToken = token === undefined ? getDefaultAuthToken() : token;
+  if (token !== undefined) {
+    storeDefaultAuthToken(token);
+  }
+  const method = init.method;
 
   const response = await fetch(buildUrl(path), {
     ...init,
@@ -158,7 +175,7 @@ async function apiRequestInternal<T>(
     headers: {
       Accept: "application/json",
       ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
-      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      ...buildCsrfHeaders(method),
       ...(headers || {}),
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -174,9 +191,9 @@ async function apiRequestInternal<T>(
     !path.startsWith("/api/auth/refresh") &&
     !path.startsWith("/api/auth/logout")
   ) {
-    const refreshedToken = await refreshAccessToken();
-    if (refreshedToken) {
-      return apiRequestInternal<T>(path, { ...options, token: refreshedToken }, false);
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      return apiRequestInternal<T>(path, options, false);
     }
   }
 
@@ -201,14 +218,14 @@ export async function apiUploadFile<T>(
   onProgress?: (pct: number) => void,
   signal?: AbortSignal,
 ): Promise<T> {
-  const authToken = getDefaultAuthToken();
-
   return new Promise<T>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", buildUrl(path));
+    xhr.withCredentials = true;
 
-    if (authToken) {
-      xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
+    const csrfToken = getCookie(CSRF_COOKIE_KEY);
+    if (csrfToken) {
+      xhr.setRequestHeader("X-CSRF-Token", csrfToken);
     }
 
     if (signal) {

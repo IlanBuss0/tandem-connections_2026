@@ -9,7 +9,6 @@ import {
   fetchChatContacts,
   fetchConversationsForUser,
   fetchMessagesForConversation,
-  getStoredAuthToken,
   hideConversationForMe,
   markConversationRead,
   sendMessage,
@@ -216,11 +215,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [reloadChats, user]);
 
   useEffect(() => {
-    const token = getStoredAuthToken();
-    if (!user || !token) return;
+    if (!user) return;
 
     const nextSocket = io(API_BASE_URL, {
-      auth: { token },
+      withCredentials: true,
       transports: ['websocket', 'polling'],
     });
 
@@ -287,13 +285,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       nextSocket.disconnect();
     };
 
-    const handleTokenRefreshed = (e: Event) => {
-      const detail = (e as CustomEvent<{ token: string }>).detail;
-      if (detail?.token) {
-        nextSocket.auth = { token: detail.token };
-        if (nextSocket.connected) {
-          nextSocket.disconnect().connect();
-        }
+    const handleTokenRefreshed = () => {
+      if (nextSocket.connected) {
+        nextSocket.disconnect().connect();
       }
     };
 

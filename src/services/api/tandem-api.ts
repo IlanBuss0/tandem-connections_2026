@@ -1,5 +1,5 @@
 import { CrudApiService } from "./crud";
-import { apiRequest, apiUploadFile, clearDefaultAuthToken, storeDefaultAuthToken, unwrapApiData, type ApiEnvelope } from "./client";
+import { apiRequest, apiUploadFile, clearDefaultAuthToken, unwrapApiData, type ApiEnvelope } from "./client";
 import type {
   Administrador,
   AlcanceArchivo,
@@ -81,7 +81,7 @@ import type {
 
 export type AuthPayload = {
   user: Omit<Usuario, "contrasena_hash">;
-  token: string;
+  token?: string;
   accessToken?: string;
   expiresAt?: string;
 };
@@ -104,7 +104,6 @@ export const authApi = {
     });
 
     const data = unwrapApiData(response);
-    storeDefaultAuthToken(data.accessToken || data.token);
     return data;
   },
 
@@ -115,7 +114,6 @@ export const authApi = {
     });
 
     const data = unwrapApiData(response);
-    storeDefaultAuthToken(data.accessToken || data.token);
     return data;
   },
 
@@ -124,7 +122,6 @@ export const authApi = {
       method: "POST",
     });
     const data = unwrapApiData(response);
-    storeDefaultAuthToken(data.accessToken || data.token);
     return data;
   },
 
@@ -136,10 +133,10 @@ export const authApi = {
     }
   },
 
-  async me(token: string): Promise<Omit<Usuario, "contrasena_hash">> {
+  async me(token?: string | null): Promise<Omit<Usuario, "contrasena_hash">> {
     const response = await apiRequest<ApiEnvelope<Omit<Usuario, "contrasena_hash">>>(
       "/api/auth/me",
-      { token }
+      token ? { token } : {}
     );
 
     return unwrapApiData(response);

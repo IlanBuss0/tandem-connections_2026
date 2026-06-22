@@ -1,6 +1,6 @@
 import * as legacy from './mockData';
 import { tandemApi } from '@/services/api';
-import { API_BASE_URL, ApiError, apiRequest, clearDefaultAuthToken, getDefaultAuthToken, storeDefaultAuthToken, unwrapApiData } from '@/services/api/client';
+import { API_BASE_URL, ApiError, apiRequest, clearDefaultAuthToken, unwrapApiData } from '@/services/api/client';
 import type {
   Actividad as DbActividad,
   ActividadAsignada as DbActividadAsignada,
@@ -200,12 +200,10 @@ async function apiFetchWithFallback<T>(paths: string[], init?: RequestInit): Pro
         return await apiRequest<T>(p, options);
       }
 
-      const token = getStoredAuthToken();
       const res = await fetch(`${((import.meta as any).env?.VITE_BACKEND_URL || (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/$/, '')}${p}`, {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...(init?.headers || {}),
         },
         ...init,
@@ -406,11 +404,11 @@ function isBackendUserId(userId: string): boolean {
 }
 
 export function getStoredAuthToken(): string | null {
-  return getDefaultAuthToken();
+  return 'cookie-auth';
 }
 
-function storeAuthToken(token: string): void {
-  storeDefaultAuthToken(token);
+function storeAuthToken(_token?: string | null): void {
+  clearDefaultAuthToken();
 }
 
 export function clearStoredAuthToken(): void {
@@ -988,7 +986,7 @@ export async function findUser(username: string, password: string): Promise<User
       contrasena: password,
     });
 
-    storeAuthToken(auth.accessToken || auth.token);
+    storeAuthToken();
     const avatarUrl = auth.user?.id ? await fetchUserAvatarUrl(auth.user.id) : null;
     return toLegacyUser(auth.user, avatarUrl);
   } catch {
@@ -997,23 +995,19 @@ export async function findUser(username: string, password: string): Promise<User
 }
 
 export async function fetchStoredAuthUser(): Promise<User | Tutor | Professional | Admin | null> {
-  let token = getStoredAuthToken();
-  if (!token) {
-    try {
-      const auth = await tandemApi.auth.refresh();
-      token = auth.accessToken || auth.token;
-      storeAuthToken(token);
-    } catch {
-      return null;
-    }
-  }
-
   try {
-    const user = await tandemApi.auth.me(token);
+    const user = await tandemApi.auth.me();
     const avatarUrl = user?.id ? await fetchUserAvatarUrl(user.id) : null;
     return toLegacyUser(user, avatarUrl);
   } catch {
-    return null;
+    try {
+      await tandemApi.auth.refresh();
+      const user = await tandemApi.auth.me();
+      const avatarUrl = user?.id ? await fetchUserAvatarUrl(user.id) : null;
+      return toLegacyUser(user, avatarUrl);
+    } catch {
+      return null;
+    }
   }
 }
 
