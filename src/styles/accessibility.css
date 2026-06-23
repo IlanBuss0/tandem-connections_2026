@@ -1,5 +1,3 @@
-/* ===================== Accessibility (UserWay-style) ===================== */
-
 :root {
   --a11y-font-scale: 1;
   --a11y-line-height: 1.5;
@@ -7,160 +5,262 @@
   --a11y-word-spacing: 0em;
   --a11y-content-spacing: 1;
   --a11y-saturation: 1;
+  --a11y-mouse-y: 50vh;
 }
 
-/* ---------- Texto ---------- */
-body { font-size: calc(1rem * var(--a11y-font-scale)); }
-body p, body li, body span, body label, body a, body button, body input, body textarea, body td, body th, body div {
+body {
+  font-size: calc(1rem * var(--a11y-font-scale));
+}
+
+body :is(p, li, span, label, a, button, input, textarea, select, td, th, div) {
   line-height: var(--a11y-line-height);
   letter-spacing: var(--a11y-letter-spacing);
   word-spacing: var(--a11y-word-spacing);
 }
-body h1, body h2, body h3, body h4, body h5, body h6 {
-  line-height: calc(var(--a11y-line-height) - 0.2);
+
+body :is(h1, h2, h3, h4, h5, h6) {
+  line-height: max(1.1, calc(var(--a11y-line-height) - 0.25));
   letter-spacing: var(--a11y-letter-spacing);
 }
 
-body.a11y-text-left * { text-align: left !important; }
-body.a11y-uppercase * { text-transform: uppercase !important; }
-
-body.a11y-dyslexia, body.a11y-dyslexia * {
-  font-family: 'Atkinson Hyperlegible', 'Comic Sans MS', 'OpenDyslexic', Verdana, sans-serif !important;
+body.a11y-text-left * {
+  text-align: left !important;
 }
 
-body.a11y-spacing-on { letter-spacing: calc(0.02em * var(--a11y-content-spacing)); }
-body.a11y-spacing-on p, body.a11y-spacing-on li {
-  margin-bottom: calc(0.5rem * var(--a11y-content-spacing));
+body.a11y-uppercase * {
+  text-transform: uppercase !important;
 }
 
-/* ---------- Saturación ---------- */
-body.a11y-saturation-on { filter: saturate(var(--a11y-saturation)); }
+body.a11y-dyslexia,
+body.a11y-dyslexia * {
+  font-family: "Atkinson Hyperlegible", "Segoe UI", Verdana, Arial, sans-serif !important;
+}
 
-/* ---------- Filtros de color ---------- */
-body.a11y-filter-desaturate { filter: saturate(0.5) !important; }
-body.a11y-filter-monochrome { filter: grayscale(1) !important; }
-body.a11y-filter-protanopia { filter: url(#a11y-protanopia); }
-body.a11y-filter-deuteranopia { filter: url(#a11y-deuteranopia); }
-body.a11y-filter-tritanopia { filter: url(#a11y-tritanopia); }
+body.a11y-spacing-on :is(main, section, article, form, nav, header, footer) {
+  gap: calc(1rem * var(--a11y-content-spacing));
+}
 
-/* ---------- Contraste ---------- */
+body.a11y-spacing-on :is(p, li) {
+  margin-bottom: calc(0.45rem * var(--a11y-content-spacing));
+}
+
+body.a11y-smart-contrast :is(a, button, input, textarea, select, [role="button"], [tabindex]) {
+  outline-offset: 3px;
+}
+
+body.a11y-smart-contrast :is(a, button, [role="button"]) {
+  box-shadow: inset 0 0 0 1px rgba(35, 87, 255, 0.35);
+}
+
+body.a11y-smart-contrast :is(input, textarea, select) {
+  border-color: #2357ff !important;
+}
+
+body.a11y-saturation-on {
+  filter: saturate(var(--a11y-saturation));
+}
+
+body.a11y-filter-desaturate {
+  filter: saturate(0.55) !important;
+}
+
+body.a11y-filter-monochrome {
+  filter: grayscale(1) !important;
+}
+
+body.a11y-filter-protanopia {
+  filter: url("#a11y-protanopia");
+}
+
+body.a11y-filter-deuteranopia {
+  filter: url("#a11y-deuteranopia");
+}
+
+body.a11y-filter-tritanopia {
+  filter: url("#a11y-tritanopia");
+}
+
 body.a11y-contrast-high {
   --background: 0 0% 100%;
   --foreground: 0 0% 0%;
   --card: 0 0% 100%;
   --card-foreground: 0 0% 0%;
-  --primary: 220 100% 25%;
+  --primary: 229 100% 32%;
   --primary-foreground: 0 0% 100%;
   --border: 0 0% 0%;
-  --muted: 0 0% 95%;
+  --muted: 0 0% 96%;
   --muted-foreground: 0 0% 0%;
+  background: #fff !important;
+  color: #000 !important;
 }
-body.a11y-contrast-high * { border-color: #000 !important; }
-body.a11y-contrast-high a, body.a11y-contrast-high button { text-decoration: underline; }
 
-body.a11y-contrast-inverted { filter: invert(1) hue-rotate(180deg); }
-body.a11y-contrast-inverted img, body.a11y-contrast-inverted video, body.a11y-contrast-inverted [style*="background-image"] {
+body.a11y-contrast-high :is(a, button, input, textarea, select, [role="button"]) {
+  border-color: #000 !important;
+}
+
+body.a11y-contrast-high :is(a, button, [role="button"]) {
+  text-decoration: underline !important;
+}
+
+body.a11y-contrast-inverted {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+body.a11y-contrast-inverted :is(img, video, canvas, [style*="background-image"]) {
   filter: invert(1) hue-rotate(180deg);
 }
 
 body.a11y-contrast-dark {
-  --background: 220 20% 10%;
+  --background: 230 22% 8%;
   --foreground: 0 0% 98%;
-  --card: 220 20% 14%;
+  --card: 230 20% 12%;
   --card-foreground: 0 0% 98%;
-  --muted: 220 20% 18%;
-  --muted-foreground: 0 0% 80%;
-  --border: 220 15% 25%;
-  --primary: 210 80% 65%;
+  --muted: 230 15% 16%;
+  --muted-foreground: 0 0% 84%;
+  --border: 230 12% 28%;
+  --primary: 229 100% 70%;
   --primary-foreground: 0 0% 100%;
-}
-body.a11y-contrast-light {
-  --background: 0 0% 100%;
-  --foreground: 220 20% 15%;
-  --card: 0 0% 100%;
-  --muted: 0 0% 96%;
+  background: #0f1220 !important;
+  color: #f8fafc !important;
 }
 
-/* ---------- Movimiento ---------- */
-body.a11y-reduce-motion *, body.a11y-reduce-motion *::before, body.a11y-reduce-motion *::after {
+body.a11y-contrast-dark :is(input, textarea, select, button, [role="button"], .bg-white) {
+  border-color: rgba(255, 255, 255, 0.35) !important;
+}
+
+body.a11y-contrast-light {
+  --background: 0 0% 100%;
+  --foreground: 230 22% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 230 22% 12%;
+  --muted: 230 20% 96%;
+  --muted-foreground: 230 12% 28%;
+  background: #fff !important;
+  color: #111827 !important;
+}
+
+body.a11y-reduce-motion *,
+body.a11y-reduce-motion *::before,
+body.a11y-reduce-motion *::after {
   animation-duration: 0.001ms !important;
   animation-iteration-count: 1 !important;
-  transition-duration: 0.001ms !important;
   scroll-behavior: auto !important;
+  transition-duration: 0.001ms !important;
 }
-body.a11y-pause-animations *, body.a11y-pause-animations *::before, body.a11y-pause-animations *::after {
+
+body.a11y-pause-animations *,
+body.a11y-pause-animations *::before,
+body.a11y-pause-animations *::after {
   animation-play-state: paused !important;
   transition: none !important;
 }
 
-/* ---------- Enlaces y headings ---------- */
-body.a11y-highlight-links a {
-  outline: 2px solid #ffeb3b !important;
-  outline-offset: 2px;
-  background-color: #fff59d !important;
-  color: #000 !important;
+body.a11y-highlight-links :is(a, button, [role="button"]) {
+  background-color: #fff5a3 !important;
+  color: #0f172a !important;
+  outline: 3px solid #facc15 !important;
+  outline-offset: 3px;
   text-decoration: underline !important;
 }
-body.a11y-highlight-headings :is(h1,h2,h3,h4,h5,h6) {
-  outline: 2px dashed #2196f3;
-  outline-offset: 2px;
-  background-color: rgba(33, 150, 243, 0.1);
-}
-body.a11y-highlight-focus *:focus, body.a11y-highlight-focus *:focus-visible {
-  outline: 4px solid #ff5722 !important;
-  outline-offset: 3px !important;
-  box-shadow: 0 0 0 6px rgba(255, 87, 34, 0.3) !important;
+
+body.a11y-highlight-headings :is(h1, h2, h3, h4, h5, h6) {
+  background: rgba(35, 87, 255, 0.12) !important;
+  border-left: 6px solid #2357ff !important;
+  padding-left: 0.35em !important;
 }
 
-/* ---------- Cursor ---------- */
-body.a11y-big-cursor, body.a11y-big-cursor * {
-  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 24 24'><path fill='black' stroke='white' stroke-width='1' d='M5 3l14 9-6 1 3 7-3 1-3-7-5 4z'/></svg>") 0 0, auto !important;
-}
-body.a11y-big-cursor a, body.a11y-big-cursor button, body.a11y-big-cursor [role='button'] {
-  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 24 24'><circle cx='12' cy='12' r='10' fill='%23ff5722' stroke='white' stroke-width='2'/></svg>") 24 24, pointer !important;
+body.a11y-highlight-focus *:focus,
+body.a11y-highlight-focus *:focus-visible {
+  outline: 4px solid #ff7a00 !important;
+  outline-offset: 4px !important;
+  box-shadow: 0 0 0 7px rgba(255, 122, 0, 0.28) !important;
 }
 
-/* ---------- Reading mask ---------- */
+body.a11y-big-cursor,
+body.a11y-big-cursor * {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 24 24'%3E%3Cpath fill='black' stroke='white' stroke-width='1.5' d='M5 3l14 9-6 1 3 7-3.3 1.3-3-7.2L5 18z'/%3E%3C/svg%3E") 0 0, auto !important;
+}
+
+body.a11y-big-cursor :is(a, button, [role="button"], input, select, textarea) {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='52' height='52' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9' fill='%232357ff' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 24 24, pointer !important;
+}
+
 body.a11y-reading-mask::before {
-  content: '';
-  position: fixed; inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  pointer-events: none;
-  z-index: 999998;
-  mask-image: linear-gradient(transparent calc(var(--a11y-mouse-y, 50%) - 60px), black calc(var(--a11y-mouse-y, 50%) - 60px), black calc(var(--a11y-mouse-y, 50%) + 60px), transparent calc(var(--a11y-mouse-y, 50%) + 60px));
-  -webkit-mask-image: linear-gradient(transparent calc(var(--a11y-mouse-y, 50%) - 60px), black calc(var(--a11y-mouse-y, 50%) - 60px), black calc(var(--a11y-mouse-y, 50%) + 60px), transparent calc(var(--a11y-mouse-y, 50%) + 60px));
-}
-
-/* ---------- Reading guide ---------- */
-body.a11y-reading-guide::after {
-  content: '';
+  content: "";
   position: fixed;
-  left: 0; right: 0;
-  top: var(--a11y-mouse-y, 50%);
-  height: 4px;
-  background: #ff5722;
+  inset: 0;
+  z-index: 9997;
   pointer-events: none;
-  z-index: 999998;
-  box-shadow: 0 0 12px rgba(255, 87, 34, 0.6);
+  background: rgba(0, 0, 0, 0.72);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    black 0,
+    black calc(var(--a11y-mouse-y) - 72px),
+    transparent calc(var(--a11y-mouse-y) - 72px),
+    transparent calc(var(--a11y-mouse-y) + 72px),
+    black calc(var(--a11y-mouse-y) + 72px),
+    black 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    black 0,
+    black calc(var(--a11y-mouse-y) - 72px),
+    transparent calc(var(--a11y-mouse-y) - 72px),
+    transparent calc(var(--a11y-mouse-y) + 72px),
+    black calc(var(--a11y-mouse-y) + 72px),
+    black 100%
+  );
 }
 
-/* ---------- Imágenes ---------- */
-body.a11y-hide-images img,
-body.a11y-hide-images svg:not(.a11y-keep),
-body.a11y-hide-images [style*="background-image"] {
+body.a11y-reading-guide::after {
+  content: "";
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: var(--a11y-mouse-y);
+  z-index: 9997;
+  height: 5px;
+  pointer-events: none;
+  background: #ff7a00;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 0 16px rgba(255, 122, 0, 0.65);
+}
+
+body.a11y-hide-images :is(img, picture, video, canvas, [style*="background-image"]) {
   visibility: hidden !important;
   background-image: none !important;
 }
 
-/* ---------- Widget propio: nunca se ve afectado ---------- */
-.a11y-widget, .a11y-widget * {
-  filter: none !important;
-  animation-play-state: running !important;
-  transition-duration: 0.2s !important;
-  text-transform: none !important;
-  font-family: 'Nunito', sans-serif !important;
-  letter-spacing: normal !important;
-  word-spacing: normal !important;
-  text-align: left !important;
+body.a11y-simplified-navigation :is(a, button, [role="button"], input, select, textarea) {
+  min-height: 44px;
+  min-width: 44px;
 }
-.a11y-widget img { visibility: visible !important; }
+
+body.a11y-simplified-navigation :is(nav, form, [role="navigation"]) {
+  gap: max(0.75rem, calc(0.75rem * var(--a11y-content-spacing)));
+}
+
+.a11y-widget,
+.a11y-widget * {
+  animation-play-state: running !important;
+  filter: none !important;
+  font-family: Inter, "Nunito", "Segoe UI", Arial, sans-serif !important;
+  letter-spacing: 0 !important;
+  line-height: normal !important;
+  text-align: left !important;
+  text-transform: none !important;
+  transition-duration: 0.18s !important;
+  visibility: visible !important;
+  word-spacing: normal !important;
+}
+
+.a11y-widget button {
+  text-decoration: none !important;
+}
+
+body.a11y-highlight-links .a11y-widget :is(a, button, [role="button"]),
+body.a11y-contrast-high .a11y-widget :is(a, button, [role="button"]) {
+  background-color: inherit !important;
+  color: inherit !important;
+  outline: none !important;
+  text-decoration: none !important;
+}

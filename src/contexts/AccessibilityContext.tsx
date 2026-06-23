@@ -1,52 +1,37 @@
-import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { fetchAccessibilitySettings, saveAccessibilitySettings } from '@/data/api';
 
-// =================== Tipos ===================
 export type ContrastMode = 'normal' | 'high' | 'inverted' | 'dark' | 'light';
 export type ColorFilter = 'none' | 'desaturate' | 'monochrome' | 'protanopia' | 'deuteranopia' | 'tritanopia';
 export type CursorMode = 'normal' | 'big' | 'reading-mask' | 'reading-guide';
 
 export interface AccessibilitySettings {
-  // Texto
-  fontScale: number;            // 1.0 base, 0.85..1.6
-  lineHeight: number;           // 1.5 base, 1.2..2.4
-  letterSpacing: number;        // 0 base, 0..0.2 (em)
-  wordSpacing: number;          // 0 base, 0..0.5 (em)
+  fontScale: number;
+  lineHeight: number;
+  letterSpacing: number;
+  wordSpacing: number;
   textAlignLeft: boolean;
   dyslexiaFont: boolean;
   uppercase: boolean;
-
-  // Color y visión
   contrast: ContrastMode;
   colorFilter: ColorFilter;
-  saturation: number;           // 1 base, 0..2
-
-  // Movimiento
+  saturation: number;
+  smartContrast: boolean;
   reduceMotion: boolean;
   pauseAnimations: boolean;
-
-  // Enlaces y foco
   highlightLinks: boolean;
   highlightHeadings: boolean;
   highlightFocus: boolean;
-
-  // Cursor / lectura
   cursor: CursorMode;
   bigCursor: boolean;
-
-  // Imágenes y sonido
   hideImages: boolean;
   muteSounds: boolean;
-
-  // Lectura asistida
-  readingTooltip: boolean;      // tooltip describiendo elementos al hover
-  speakOnHover: boolean;        // text-to-speech al hover
-
-  // Espaciado
-  contentSpacing: number;       // 1 base, 1..2
-
-  // Perfil aplicado
+  readingTooltip: boolean;
+  speakOnHover: boolean;
+  pageReader: boolean;
+  simplifiedNavigation: boolean;
+  contentSpacing: number;
   activeProfile: string | null;
 }
 
@@ -61,6 +46,7 @@ export const DEFAULT_SETTINGS: AccessibilitySettings = {
   contrast: 'normal',
   colorFilter: 'none',
   saturation: 1,
+  smartContrast: false,
   reduceMotion: false,
   pauseAnimations: false,
   highlightLinks: false,
@@ -72,11 +58,12 @@ export const DEFAULT_SETTINGS: AccessibilitySettings = {
   muteSounds: false,
   readingTooltip: false,
   speakOnHover: false,
+  pageReader: false,
+  simplifiedNavigation: false,
   contentSpacing: 1,
   activeProfile: null,
 };
 
-// =================== Perfiles preestablecidos ===================
 export interface AccessibilityProfile {
   id: string;
   name: string;
@@ -88,78 +75,140 @@ export interface AccessibilityProfile {
 export const ACCESSIBILITY_PROFILES: AccessibilityProfile[] = [
   {
     id: 'motor',
-    name: 'Discapacidad motriz',
-    description: 'Cursor más grande, áreas táctiles ampliadas y navegación simplificada.',
-    icon: '🖐️',
-    patch: { bigCursor: true, cursor: 'big', highlightFocus: true, contentSpacing: 1.4, fontScale: 1.1 },
+    name: 'Discapacidad motora',
+    description: 'Cursor grande, foco visible, areas tactiles amplias y navegacion simplificada.',
+    icon: 'hand',
+    patch: {
+      bigCursor: true,
+      cursor: 'big',
+      highlightFocus: true,
+      simplifiedNavigation: true,
+      contentSpacing: 1.35,
+      fontScale: 1.1,
+    },
   },
   {
     id: 'blind',
     name: 'Ceguera',
-    description: 'Optimizado para lectores de pantalla y tooltip de lectura por voz.',
-    icon: '🦮',
-    patch: { speakOnHover: true, readingTooltip: true, highlightFocus: true, fontScale: 1.2 },
+    description: 'Lectura asistida, foco reforzado y mejor soporte para navegacion por teclado.',
+    icon: 'ear',
+    patch: {
+      pageReader: true,
+      speakOnHover: true,
+      readingTooltip: true,
+      highlightFocus: true,
+      simplifiedNavigation: true,
+    },
   },
   {
     id: 'color',
     name: 'Daltonismo',
-    description: 'Filtros de color para deuteranopía, protanopía y tritanopía.',
-    icon: '🎨',
-    patch: { colorFilter: 'deuteranopia', highlightLinks: true },
+    description: 'Filtro de color, enlaces destacados y contraste mas claro.',
+    icon: 'palette',
+    patch: {
+      colorFilter: 'deuteranopia',
+      smartContrast: true,
+      highlightLinks: true,
+    },
   },
   {
     id: 'dyslexia',
     name: 'Dislexia',
-    description: 'Tipografía especial, mayor interlineado y separación entre palabras.',
-    icon: '📖',
-    patch: { dyslexiaFont: true, lineHeight: 2, letterSpacing: 0.05, wordSpacing: 0.2, textAlignLeft: true, fontScale: 1.1 },
+    description: 'Fuente legible, mayor espaciado, interlineado amplio y texto alineado.',
+    icon: 'book',
+    patch: {
+      dyslexiaFont: true,
+      lineHeight: 2,
+      letterSpacing: 0.05,
+      wordSpacing: 0.22,
+      textAlignLeft: true,
+      pauseAnimations: true,
+      contentSpacing: 1.2,
+    },
   },
   {
-    id: 'visual',
-    name: 'Discapacidad visual',
-    description: 'Texto más grande, alto contraste y mayor espaciado.',
-    icon: '👓',
-    patch: { fontScale: 1.4, contrast: 'high', highlightLinks: true, contentSpacing: 1.3, lineHeight: 1.8 },
+    id: 'low-vision',
+    name: 'Vision baja',
+    description: 'Texto grande, alto contraste, cursor grande y enlaces visibles.',
+    icon: 'eye',
+    patch: {
+      fontScale: 1.35,
+      contrast: 'high',
+      cursor: 'big',
+      bigCursor: true,
+      highlightLinks: true,
+      contentSpacing: 1.3,
+      lineHeight: 1.8,
+    },
+  },
+  {
+    id: 'cognitive',
+    name: 'Cognitivo y aprendizaje',
+    description: 'Guia de lectura, foco claro, menos movimiento y texto mas comodo.',
+    icon: 'brain',
+    patch: {
+      cursor: 'reading-guide',
+      reduceMotion: true,
+      highlightFocus: true,
+      smartContrast: true,
+      fontScale: 1.12,
+      contentSpacing: 1.25,
+      lineHeight: 1.8,
+    },
+  },
+  {
+    id: 'epilepsy',
+    name: 'Convulsiones y epilepticos',
+    description: 'Detiene animaciones, reduce movimiento y baja la saturacion.',
+    icon: 'zap',
+    patch: {
+      pauseAnimations: true,
+      reduceMotion: true,
+      colorFilter: 'desaturate',
+      saturation: 0.65,
+    },
   },
   {
     id: 'adhd',
     name: 'TDAH',
-    description: 'Reduce distracciones, máscara de lectura y animaciones detenidas.',
-    icon: '🎯',
-    patch: { cursor: 'reading-mask', pauseAnimations: true, reduceMotion: true, highlightLinks: true },
-  },
-  {
-    id: 'cognitive',
-    name: 'Discapacidad cognitiva',
-    description: 'Texto sencillo, menos animación, foco resaltado y guía de lectura.',
-    icon: '🧠',
-    patch: { reduceMotion: true, cursor: 'reading-guide', highlightFocus: true, fontScale: 1.15, contentSpacing: 1.2 },
-  },
-  {
-    id: 'epilepsy',
-    name: 'Epilepsia (anti-flash)',
-    description: 'Pausa todas las animaciones y reduce la saturación de colores.',
-    icon: '⚡',
-    patch: { pauseAnimations: true, reduceMotion: true, saturation: 0.8 },
+    description: 'Mascara de lectura, menos movimiento y foco para reducir distracciones.',
+    icon: 'target',
+    patch: {
+      cursor: 'reading-mask',
+      pauseAnimations: true,
+      reduceMotion: true,
+      highlightFocus: true,
+      highlightLinks: true,
+      smartContrast: true,
+    },
   },
 ];
 
-// =================== Storage ===================
 const KEY = (uid: string) => `tandem:accessibility:${uid}`;
+
+function normalize(raw: Partial<AccessibilitySettings> | null | undefined): AccessibilitySettings {
+  return { ...DEFAULT_SETTINGS, ...(raw ?? {}) };
+}
 
 function load(uid: string): AccessibilitySettings {
   try {
     const raw = localStorage.getItem(KEY(uid));
-    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
-  } catch (_) { /* noop */ }
+    if (raw) return normalize(JSON.parse(raw) as Partial<AccessibilitySettings>);
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
   return DEFAULT_SETTINGS;
 }
-function save(uid: string, s: AccessibilitySettings) {
-  try { localStorage.setItem(KEY(uid), JSON.stringify(s)); } catch (_) { /* noop */ }
+
+function save(uid: string, settings: AccessibilitySettings) {
+  try {
+    localStorage.setItem(KEY(uid), JSON.stringify(settings));
+  } catch {
+    return;
+  }
 }
 
-// =================== Context ===================
-interface Ctx {
+interface AccessibilityContextValue {
   settings: AccessibilitySettings;
   update: <K extends keyof AccessibilitySettings>(key: K, value: AccessibilitySettings[K]) => void;
   applyProfile: (profileId: string) => void;
@@ -167,7 +216,7 @@ interface Ctx {
   toggle: (key: keyof AccessibilitySettings) => void;
 }
 
-const AccessibilityContext = createContext<Ctx | null>(null);
+const AccessibilityContext = createContext<AccessibilityContextValue | null>(null);
 
 export function AccessibilityProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -175,19 +224,22 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<AccessibilitySettings>(() => load(uid));
   const [loadedUid, setLoadedUid] = useState(uid);
 
-  // Recargar cuando cambia el usuario (login/logout)
   useEffect(() => {
     let cancelled = false;
     const localSettings = load(uid);
     setSettings(localSettings);
     setLoadedUid(user?.id ? '' : uid);
 
-    if (!user?.id) return () => { cancelled = true; };
+    if (!user?.id) {
+      return () => {
+        cancelled = true;
+      };
+    }
 
     fetchAccessibilitySettings(user.id, localSettings)
       .then(remoteSettings => {
         if (!cancelled) {
-          setSettings({ ...DEFAULT_SETTINGS, ...remoteSettings });
+          setSettings(normalize(remoteSettings));
           setLoadedUid(uid);
         }
       })
@@ -195,14 +247,18 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
         if (!cancelled) setLoadedUid(uid);
       });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [uid, user?.id]);
 
-  // Persistir
-  useEffect(() => { save(uid, settings); }, [uid, settings]);
+  useEffect(() => {
+    save(uid, settings);
+  }, [uid, settings]);
 
   useEffect(() => {
     if (!user?.id || loadedUid !== uid) return;
+
     const timer = window.setTimeout(() => {
       saveAccessibilitySettings(user.id, settings).catch(() => undefined);
     }, 500);
@@ -210,25 +266,27 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [settings, user?.id, loadedUid, uid]);
 
-  // Aplicar al <html>
-  useEffect(() => { applyToDom(settings); }, [settings]);
+  useEffect(() => {
+    applyToDom(settings);
+  }, [settings]);
 
-  const update = useCallback(<K extends keyof AccessibilitySettings>(k: K, v: AccessibilitySettings[K]) => {
-    setSettings(prev => ({ ...prev, [k]: v, activeProfile: null }));
+  const update = useCallback(<K extends keyof AccessibilitySettings>(key: K, value: AccessibilitySettings[K]) => {
+    setSettings(prev => ({ ...prev, [key]: value, activeProfile: null }));
   }, []);
 
-  const toggle = useCallback((k: keyof AccessibilitySettings) => {
-    setSettings(prev => ({ ...prev, [k]: !prev[k], activeProfile: null } as AccessibilitySettings));
+  const toggle = useCallback((key: keyof AccessibilitySettings) => {
+    setSettings(prev => ({ ...prev, [key]: !prev[key], activeProfile: null } as AccessibilitySettings));
   }, []);
 
   const applyProfile = useCallback((profileId: string) => {
-    const profile = ACCESSIBILITY_PROFILES.find(p => p.id === profileId);
+    const profile = ACCESSIBILITY_PROFILES.find(item => item.id === profileId);
     if (!profile) return;
+
     setSettings(prev => {
-      // Si está activo, lo desactiva
       if (prev.activeProfile === profileId) {
-        return { ...DEFAULT_SETTINGS, activeProfile: null };
+        return DEFAULT_SETTINGS;
       }
+
       return { ...DEFAULT_SETTINGS, ...profile.patch, activeProfile: profileId };
     });
   }, []);
@@ -243,48 +301,49 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
 }
 
 export function useAccessibility() {
-  const c = useContext(AccessibilityContext);
-  if (!c) throw new Error('useAccessibility must be inside AccessibilityProvider');
-  return c;
+  const context = useContext(AccessibilityContext);
+  if (!context) throw new Error('useAccessibility must be inside AccessibilityProvider');
+  return context;
 }
 
-// =================== Aplicación al DOM ===================
-function applyToDom(s: AccessibilitySettings) {
+function applyToDom(settings: AccessibilitySettings) {
   const html = document.documentElement;
   const body = document.body;
 
-  // CSS variables
-  html.style.setProperty('--a11y-font-scale', String(s.fontScale));
-  html.style.setProperty('--a11y-line-height', String(s.lineHeight));
-  html.style.setProperty('--a11y-letter-spacing', `${s.letterSpacing}em`);
-  html.style.setProperty('--a11y-word-spacing', `${s.wordSpacing}em`);
-  html.style.setProperty('--a11y-content-spacing', String(s.contentSpacing));
-  html.style.setProperty('--a11y-saturation', String(s.saturation));
+  html.style.setProperty('--a11y-font-scale', String(settings.fontScale));
+  html.style.setProperty('--a11y-line-height', String(settings.lineHeight));
+  html.style.setProperty('--a11y-letter-spacing', `${settings.letterSpacing}em`);
+  html.style.setProperty('--a11y-word-spacing', `${settings.wordSpacing}em`);
+  html.style.setProperty('--a11y-content-spacing', String(settings.contentSpacing));
+  html.style.setProperty('--a11y-saturation', String(settings.saturation));
 
   const flags: Record<string, boolean> = {
-    'a11y-contrast-high': s.contrast === 'high',
-    'a11y-contrast-inverted': s.contrast === 'inverted',
-    'a11y-contrast-dark': s.contrast === 'dark',
-    'a11y-contrast-light': s.contrast === 'light',
-    'a11y-filter-desaturate': s.colorFilter === 'desaturate',
-    'a11y-filter-monochrome': s.colorFilter === 'monochrome',
-    'a11y-filter-protanopia': s.colorFilter === 'protanopia',
-    'a11y-filter-deuteranopia': s.colorFilter === 'deuteranopia',
-    'a11y-filter-tritanopia': s.colorFilter === 'tritanopia',
-    'a11y-dyslexia': s.dyslexiaFont,
-    'a11y-uppercase': s.uppercase,
-    'a11y-text-left': s.textAlignLeft,
-    'a11y-reduce-motion': s.reduceMotion,
-    'a11y-pause-animations': s.pauseAnimations,
-    'a11y-highlight-links': s.highlightLinks,
-    'a11y-highlight-headings': s.highlightHeadings,
-    'a11y-highlight-focus': s.highlightFocus,
-    'a11y-big-cursor': s.bigCursor || s.cursor === 'big',
-    'a11y-hide-images': s.hideImages,
-    'a11y-reading-mask': s.cursor === 'reading-mask',
-    'a11y-reading-guide': s.cursor === 'reading-guide',
-    'a11y-saturation-on': s.saturation !== 1,
-    'a11y-spacing-on': s.contentSpacing !== 1,
+    'a11y-smart-contrast': settings.smartContrast,
+    'a11y-contrast-high': settings.contrast === 'high',
+    'a11y-contrast-inverted': settings.contrast === 'inverted',
+    'a11y-contrast-dark': settings.contrast === 'dark',
+    'a11y-contrast-light': settings.contrast === 'light',
+    'a11y-filter-desaturate': settings.colorFilter === 'desaturate',
+    'a11y-filter-monochrome': settings.colorFilter === 'monochrome',
+    'a11y-filter-protanopia': settings.colorFilter === 'protanopia',
+    'a11y-filter-deuteranopia': settings.colorFilter === 'deuteranopia',
+    'a11y-filter-tritanopia': settings.colorFilter === 'tritanopia',
+    'a11y-dyslexia': settings.dyslexiaFont,
+    'a11y-uppercase': settings.uppercase,
+    'a11y-text-left': settings.textAlignLeft,
+    'a11y-reduce-motion': settings.reduceMotion,
+    'a11y-pause-animations': settings.pauseAnimations,
+    'a11y-highlight-links': settings.highlightLinks,
+    'a11y-highlight-headings': settings.highlightHeadings,
+    'a11y-highlight-focus': settings.highlightFocus,
+    'a11y-big-cursor': settings.bigCursor || settings.cursor === 'big',
+    'a11y-hide-images': settings.hideImages,
+    'a11y-reading-mask': settings.cursor === 'reading-mask',
+    'a11y-reading-guide': settings.cursor === 'reading-guide',
+    'a11y-saturation-on': settings.saturation !== 1,
+    'a11y-spacing-on': settings.contentSpacing !== 1,
+    'a11y-simplified-navigation': settings.simplifiedNavigation,
   };
-  Object.entries(flags).forEach(([cls, on]) => body.classList.toggle(cls, on));
+
+  Object.entries(flags).forEach(([className, enabled]) => body.classList.toggle(className, enabled));
 }

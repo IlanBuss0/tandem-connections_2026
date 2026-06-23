@@ -64,40 +64,35 @@ function AuthGate() {
     setPublicView(nextView);
   };
 
-  if (isLoading) {
-    return (
-      <>
-        <div className="min-h-screen bg-background flex items-center justify-center text-sm font-medium text-muted-foreground">
-          Cargando sesion...
-        </div>
-        <AccessibilityWidget />
-      </>
-    );
-  }
+  const content = isLoading ? (
+    <div className="min-h-screen bg-background flex items-center justify-center text-sm font-medium text-muted-foreground">
+      Cargando sesion...
+    </div>
+  ) : professionalInviteToken && isAuthenticated ? (
+    <ProfessionalInviteLinkHandler token={professionalInviteToken} />
+  ) : professionalInviteToken ? (
+    <Login initialView="login" />
+  ) : inviteToken && isAuthenticated ? (
+    <InviteLinkHandler token={inviteToken} />
+  ) : inviteToken ? (
+    <Login initialView="login" />
+  ) : isAuthenticated ? (
+    <AppShell />
+  ) : publicView === 'landing' ? (
+    <Landing onNavigate={navigatePublic} />
+  ) : (
+    <Login
+      initialView={publicView}
+      onBackToLanding={() => navigatePublic('landing')}
+      onViewChange={view => {
+        if (view === 'login' || view === 'register') navigatePublic(view);
+      }}
+    />
+  );
 
   return (
     <>
-      {professionalInviteToken && isAuthenticated ? (
-        <ProfessionalInviteLinkHandler token={professionalInviteToken} />
-      ) : professionalInviteToken ? (
-        <Login initialView="login" />
-      ) : inviteToken && isAuthenticated ? (
-        <InviteLinkHandler token={inviteToken} />
-      ) : inviteToken ? (
-        <Login initialView="login" />
-      ) : isAuthenticated ? (
-        <AppShell />
-      ) : publicView === 'landing' ? (
-        <Landing onNavigate={navigatePublic} />
-      ) : (
-        <Login
-          initialView={publicView}
-          onBackToLanding={() => navigatePublic('landing')}
-          onViewChange={view => {
-            if (view === 'login' || view === 'register') navigatePublic(view);
-          }}
-        />
-      )}
+      {content}
       <AccessibilityWidget />
     </>
   );
