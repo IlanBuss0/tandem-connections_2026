@@ -29,6 +29,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import TutorAdvancedStats from '@/components/TutorAdvancedStats';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -466,7 +467,7 @@ export default function TutorDashboard() {
               />
             )}
             {tab === 'stats' && (
-              <Stats
+              <TutorAdvancedStats
                 activities={activities}
                 emotions={emotions}
                 events={events}
