@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { ContactPerson, useChat } from '@/contexts/ChatContext';
@@ -41,18 +41,6 @@ function dedupeDirectConversations(conversations: Conversation[], viewerId: stri
   });
 }
 
-function participantLabel(conversation: Conversation, participantId: string, getPersonById: (id: string) => ContactPerson | undefined) {
-  const contact = getPersonById(participantId);
-  const fallbackName = conversation.participantNames[conversation.participants.indexOf(participantId)];
-  return `${contact?.name || fallbackName || 'Usuario'} ID ${participantId}`;
-}
-
-function participantsSummary(conversation: Conversation, getPersonById: (id: string) => ContactPerson | undefined) {
-  return conversation.participants
-    .map(participantId => participantLabel(conversation, participantId, getPersonById))
-    .join(' | ');
-}
-
 function isImageAttachment(archivo: { url?: string; content_type?: string }) {
   return Boolean(
     archivo.content_type?.startsWith('image/') ||
@@ -68,7 +56,7 @@ export default function ChatScreen({
   defaultProfileId?: string;
 }) {
   const { user } = useAuth();
-  const { conversationsForUser, messagesFor, send, edit, remove, markRead, createDirect, createGroup, updateConversation, uploadConversationAvatar, hideConversation, allContacts, getPersonById } = useChat();
+  const { conversationsForUser, messagesFor, send, edit, remove, markRead, createDirect, createGroup, updateConversation, uploadConversationAvatar, hideConversation, setActiveConversation, sendTyping, typingUsersFor, allContacts, getPersonById } = useChat();
   const { toast } = useToast();
   const [activeProfileId, setActiveProfileId] = useState(defaultProfileId || '');
   const [profileConvs, setProfileConvs] = useState<Conversation[]>([]);
@@ -103,9 +91,11 @@ export default function ChatScreen({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadPreview, setUploadPreview] = useState<string | null>(null);
   const [pendingFileId, setPendingFileId] = useState<number | null>(null);
+  const [pendingFileName, setPendingFileName] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarUploadProgress, setAvatarUploadProgress] = useState(0);
+  const typingStopTimeoutRef = useRef<number | null>(null);
 
   const resolvedProfileId = activeProfileId || user?.id || '';
   const activeProfile = useMemo(() => (
@@ -218,6 +208,17 @@ export default function ChatScreen({
       true,
     );
   }, [canSendMessages, permissionContext?.vinculos, selectedConv, user]);
+  const canActAsCurrentUser = useMemo(
+    () => Boolean(user && selectedConv?.participants.some(participant => sameId(participant, user.id))),
+    [selectedConv, user],
+  );
+  const selectedConversationId = selectedConv?.id || null;
+  const currentUserId = user?.id || null;
+  const currentUserParticipatesInSelected = useMemo(
+    () => Boolean(currentUserId && selectedConv?.participants.some(participant => sameId(participant, currentUserId))),
+    [currentUserId, selectedConv],
+  );
+  const lastSelectedMessageId = selectedMessages.at(-1)?.id;
 
   useEffect(() => {
     if (!selectedConv) return;
@@ -227,6 +228,16 @@ export default function ChatScreen({
   }, [selectedConv, selectedMessages.length]);
 
   useEffect(() => {
+    setActiveConversation(selectedConv?.id || null);
+    return () => setActiveConversation(null);
+  }, [selectedConv?.id, setActiveConversation]);
+
+  useEffect(() => {
+    if (!selectedConversationId || !currentUserId || !currentUserParticipatesInSelected) return;
+    markRead(selectedConversationId, currentUserId);
+  }, [currentUserId, currentUserParticipatesInSelected, lastSelectedMessageId, markRead, selectedConversationId]);
+
+  useEffect(() => {
     if (!selectedConv || !showManage) return;
     setManageTitle(selectedConv.title || '');
     setManageDescription(selectedConv.description || '');
@@ -234,6 +245,12 @@ export default function ChatScreen({
     setManageAdminIds(selectedConv.adminIds || []);
     setShowAddParticipants(false);
   }, [selectedConv, showManage]);
+
+  useEffect(() => () => {
+    if (typingStopTimeoutRef.current) {
+      window.clearTimeout(typingStopTimeoutRef.current);
+    }
+  }, []);
 
   if (!user) return null;
 
@@ -304,8 +321,10 @@ export default function ChatScreen({
     try {
       const idArchivos = hasFile ? [hasFile] : undefined;
       await send(selectedConv.id, text, idArchivos);
+      sendTyping(selectedConv.id, false);
       setDraft('');
       setPendingFileId(null);
+      setPendingFileName(null);
       setUploadPreview(null);
     } catch (error) {
       toast({
@@ -316,7 +335,7 @@ export default function ChatScreen({
     }
   };
 
-  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedConv) return;
 
@@ -333,6 +352,7 @@ export default function ChatScreen({
 
     setUploading(true);
     setUploadProgress(0);
+    setPendingFileName(file.name);
 
     try {
       const { apiUploadFile } = await import('../services/api/client');
@@ -344,16 +364,19 @@ export default function ChatScreen({
         setUploadProgress,
       );
       setPendingFileId(data.id);
+      setPendingFileName(data.nombre_archivo || file.name);
       toast({ title: 'Archivo subido', description: 'Envia el mensaje para compartirlo.' });
     } catch (error) {
       toast({ title: 'Error al subir archivo', description: 'Intenta de nuevo.', variant: 'destructive' });
       setUploadPreview(null);
+      setPendingFileId(null);
+      setPendingFileName(null);
     } finally {
       setUploading(false);
       setUploadProgress(0);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
-  }, [selectedConv, toast]);
+  };
 
   const toggleManageParticipant = (contactId: string) => {
     if (contactId === user.id) return;
@@ -472,6 +495,20 @@ export default function ChatScreen({
     if (editingMessageId === messageId) cancelEdit();
   };
 
+  const handleDraftChange = (value: string) => {
+    setDraft(value);
+    if (!selectedConv || !canActAsCurrentUser || !canSendInSelectedConversation) return;
+
+    sendTyping(selectedConv.id, value.trim().length > 0);
+    if (typingStopTimeoutRef.current) {
+      window.clearTimeout(typingStopTimeoutRef.current);
+    }
+    typingStopTimeoutRef.current = window.setTimeout(() => {
+      sendTyping(selectedConv.id, false);
+      typingStopTimeoutRef.current = null;
+    }, 1800);
+  };
+
   const toggleMessageExpansion = (messageId: string) => {
     setExpandedMessageIds(prev => {
       const next = new Set(prev);
@@ -496,14 +533,16 @@ export default function ChatScreen({
   if (selectedConv) {
     const isGroup = selectedConv.type === 'grupo' || selectedConv.participants.length > 2;
     const isCurrentUserAdmin = Boolean(selectedConv.adminIds?.includes(user.id));
-    const canActAsCurrentUser = selectedConv.participants.some(participant => sameId(participant, user.id));
     const otherId = selectedConv.participants.find(p => !sameId(p, resolvedProfileId)) || '';
     const other = getPersonById(otherId);
     const chatTitle = isGroup ? selectedConv.title || 'Grupo' : other?.name || 'Contacto';
     const chatSubtitle = isGroup
-      ? `Chat ID ${selectedConv.id} | ${selectedConv.participants.length} participantes | ${participantsSummary(selectedConv, getPersonById)}${selectedConv.description ? ` | ${selectedConv.description}` : ''}`
-      : `Chat ID ${selectedConv.id} | ${other?.role === 'profesional' ? 'Profesional' : other?.role === 'tutor' ? 'Tutor/a' : 'Usuario'} ID ${otherId}${other?.subtitle ? ` | ${other.subtitle}` : ''}`;
+      ? `${selectedConv.participants.length} participantes${selectedConv.description ? ` | ${selectedConv.description}` : ''}`
+      : `${other?.role === 'profesional' ? 'Profesional' : other?.role === 'tutor' ? 'Tutor/a' : 'Usuario'}${other?.subtitle ? ` | ${other.subtitle.replace(/\s*Â·?\s*ID\s+\d+$/i, '')}` : ''}`;
     const msgs = selectedMessages;
+    const typingUsers = typingUsersFor(selectedConv.id)
+      .map(id => getPersonById(id)?.name || selectedConv.participantNames[selectedConv.participants.indexOf(id)] || 'Contacto')
+      .filter(Boolean);
 
     return (
       <div className="flex flex-col h-[calc(100vh-9rem)] lg:h-[calc(100vh-3rem)]">
@@ -630,6 +669,13 @@ export default function ChatScreen({
               </motion.div>
             );
           })}
+          {typingUsers.length > 0 && (
+            <div className="flex justify-start pr-4">
+              <div className="rounded-2xl rounded-bl-md border border-[#f0e8f8] bg-[#ede4f8] px-4 py-2 text-xs font-medium text-[#8b7aa0]">
+                {typingUsers.length === 1 ? `${typingUsers[0]} esta escribiendo...` : 'Estan escribiendo...'}
+              </div>
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
 
@@ -642,18 +688,27 @@ export default function ChatScreen({
         </div>
 
         <div className="space-y-2 pt-2 border-t border-border">
-          {uploadPreview && (
+          {(uploadPreview || pendingFileId || pendingFileName) && (
             <div className="flex items-center gap-2 px-1">
               <div className="relative">
-                <img src={uploadPreview} alt="Preview" className="w-12 h-12 object-cover rounded-lg border border-border" />
+                {uploadPreview ? (
+                  <img src={uploadPreview} alt="Preview" className="w-12 h-12 object-cover rounded-lg border border-border" />
+                ) : (
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground">
+                    <FileIcon size={18} />
+                  </div>
+                )}
                 {uploading && (
                   <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center">
                     <Loader2 size={16} className="animate-spin text-white" />
                   </div>
                 )}
-                <button type="button" onClick={() => { setUploadPreview(null); setPendingFileId(null); }} className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center" aria-label="Quitar"><X size={10} /></button>
+                <button type="button" onClick={() => { setUploadPreview(null); setPendingFileId(null); setPendingFileName(null); }} className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center" aria-label="Quitar"><X size={10} /></button>
               </div>
               {uploading && <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden"><div className="h-full bg-primary transition-all" style={{ width: `${uploadProgress}%` }} /></div>}
+              {!uploading && pendingFileName && (
+                <span className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">{pendingFileName}</span>
+              )}
               {!uploading && pendingFileId && (
                 <button type="button" onClick={() => sendNow(undefined, pendingFileId)} className="text-xs font-semibold text-primary hover:underline">Enviar con el mensaje</button>
               )}
@@ -664,8 +719,8 @@ export default function ChatScreen({
             <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="w-9 h-9 rounded-full hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground shrink-0 transition-colors" aria-label="Adjuntar archivo">
               {uploading ? <Loader2 size={15} className="animate-spin" /> : <ImageIcon size={15} />}
             </button>
-            <Input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendNow(undefined, pendingFileId)} placeholder="Escribí un mensaje..." className="flex-1" />
-            <button onClick={() => sendNow(undefined, pendingFileId)} className="w-10 h-10 rounded-full gradient-primary text-primary-foreground flex items-center justify-center shrink-0" aria-label="Enviar"><Send size={16} /></button>
+            <Input value={draft} onChange={e => handleDraftChange(e.target.value)} onKeyDown={e => e.key === 'Enter' && !uploading && sendNow(undefined, pendingFileId)} placeholder="Escribí un mensaje..." className="flex-1" />
+            <button onClick={() => sendNow(undefined, pendingFileId)} disabled={uploading} className="w-10 h-10 rounded-full gradient-primary text-primary-foreground flex items-center justify-center shrink-0 disabled:opacity-50" aria-label="Enviar"><Send size={16} /></button>
           </div>
         </div>
         </>
@@ -900,7 +955,7 @@ export default function ChatScreen({
                   <span className="text-[10px] text-[#8b7aa0] shrink-0">{conv.lastMessageTime}</span>
                 </div>
                 <p className="text-[10px] text-[#8b7aa0] truncate mt-0.5">
-                  Chat ID {conv.id} | Participantes: {conv.participants.join(', ')}
+                  {isGroup ? `${conv.participants.length} participantes` : other?.subtitle?.replace(/\s*Â·?\s*ID\s+\d+$/i, '') || 'Conversacion directa'}
                 </p>
                 <p className="text-xs text-[#8b7aa0] truncate mt-0.5">{conv.lastMessage}</p>
               </div>

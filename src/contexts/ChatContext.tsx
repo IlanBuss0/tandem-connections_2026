@@ -43,6 +43,9 @@ interface Ctx {
   updateConversation: (conversationId: string, payload: { nombre?: string; descripcion?: string; participantIds?: string[]; adminIds?: string[] }) => Promise<Conversation>;
   uploadConversationAvatar: (conversationId: string, file: File, onProgress?: (pct: number) => void) => Promise<Conversation>;
   hideConversation: (conversationId: string) => Promise<void>;
+  setActiveConversation: (conversationId: string | null) => void;
+  sendTyping: (conversationId: string, isTyping: boolean) => void;
+  typingUsersFor: (conversationId: string) => string[];
   allContacts: () => ContactPerson[];
   getPersonById: (id: string) => ContactPerson | undefined;
 }
@@ -94,20 +97,36 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [contacts, setContacts] = useState<ContactPerson[]>([]);
   const [socket, setSocket] = useState<Socket | null>(null);
+  const [socketConnected, setSocketConnected] = useState(false);
+  const [typingByConversation, setTypingByConversation] = useState<Record<string, string[]>>({});
   const conversationsRef = useRef<Conversation[]>([]);
+  const messagesRef = useRef<ChatMessage[]>([]);
   const joinedChatIdsRef = useRef<Set<string>>(new Set());
   const joiningChatIdsRef = useRef<Set<string>>(new Set());
+  const activeConversationIdRef = useRef<string | null>(null);
+  const readAckRef = useRef<Record<string, string>>({});
+  const readInFlightRef = useRef<Set<string>>(new Set());
+  const typingTimeoutsRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
 
   useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
     joinedChatIdsRef.current.clear();
     joiningChatIdsRef.current.clear();
     conversationsRef.current = [];
+    messagesRef.current = [];
+    activeConversationIdRef.current = null;
+    readAckRef.current = {};
+    readInFlightRef.current.clear();
     setConversations([]);
     setMessages([]);
+    setTypingByConversation({});
   }, [user?.id]);
 
   const reloadChats = useCallback(async () => {
@@ -133,7 +152,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             ...conversation,
             lastMessage: message.text,
             lastMessageTime: message.timestamp,
-            unreadCount: sameId(message.senderId, user?.id) ? conversation.unreadCount : conversation.unreadCount + 1,
+            unreadCount: sameId(message.senderId, user?.id) || activeConversationIdRef.current === message.conversationId
+              ? 0
+              : conversation.unreadCount + 1,
           }
         : conversation
     )));
@@ -205,16 +226,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [reloadChats, user]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || socketConnected) return;
 
     const intervalId = window.setInterval(() => {
       reloadChats().catch(() => undefined);
-    }, 4000);
+    }, 15000);
 
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [reloadChats, user]);
+  }, [reloadChats, socketConnected, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -225,6 +246,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
 
     nextSocket.on('connect', () => {
+      setSocketConnected(true);
       joinedChatIdsRef.current.clear();
       joiningChatIdsRef.current.clear();
       logRealtime('socket conectado', { socketId: nextSocket.id, userId: user.id, apiBaseUrl: API_BASE_URL });
@@ -232,10 +254,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
 
     nextSocket.on('connect_error', (error) => {
+      setSocketConnected(false);
       logRealtime('socket rechazo/fallo conexion', { message: error.message, apiBaseUrl: API_BASE_URL });
     });
 
     nextSocket.on('disconnect', (reason) => {
+      setSocketConnected(false);
       logRealtime('socket desconectado', { reason });
     });
 
@@ -281,6 +305,37 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       removeMessageFromState(deletedId);
     });
 
+    nextSocket.on('message:typing', (payload) => {
+      const conversationId = String(payload?.id_chat ?? '');
+      const typingUserId = String(payload?.id_usuario ?? '');
+      if (!conversationId || !typingUserId || sameId(typingUserId, user.id)) return;
+
+      const timeoutKey = `${conversationId}:${typingUserId}`;
+      const currentTimeout = typingTimeoutsRef.current[timeoutKey];
+      if (currentTimeout) {
+        window.clearTimeout(currentTimeout);
+        delete typingTimeoutsRef.current[timeoutKey];
+      }
+
+      setTypingByConversation(prev => {
+        const current = prev[conversationId] || [];
+        const nextUsers = payload?.escribiendo === false
+          ? current.filter(id => id !== typingUserId)
+          : Array.from(new Set([...current, typingUserId]));
+        return { ...prev, [conversationId]: nextUsers };
+      });
+
+      if (payload?.escribiendo !== false) {
+        typingTimeoutsRef.current[timeoutKey] = window.setTimeout(() => {
+          setTypingByConversation(prev => ({
+            ...prev,
+            [conversationId]: (prev[conversationId] || []).filter(id => id !== typingUserId),
+          }));
+          delete typingTimeoutsRef.current[timeoutKey];
+        }, 3500);
+      }
+    });
+
     nextSocket.on('permisos:updated', (payload) => {
       logRealtime('permisos:updated recibido', payload);
       window.dispatchEvent(new CustomEvent('permisos:updated', { detail: payload }));
@@ -304,7 +359,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return () => {
       window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
       window.removeEventListener(TOKEN_REFRESHED_EVENT, handleTokenRefreshed);
+      Object.values(typingTimeoutsRef.current).forEach(window.clearTimeout);
+      typingTimeoutsRef.current = {};
       nextSocket.disconnect();
+      setSocketConnected(false);
       setSocket(null);
     };
   }, [reloadChats, removeMessageFromState, upsertMessage, user]);
@@ -378,7 +436,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     try {
       sent = await sendMessage(cid, user.id, user.name, messageText, idArchivos);
     } catch (error) {
-      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+      if (isNumericId(cid) || (error instanceof ApiError && (error.status === 401 || error.status === 403))) {
         throw error;
       }
       sent = {
@@ -404,11 +462,46 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [upsertMessage, user]);
 
   const markRead = useCallback((cid: string, _uid: string) => {
-    const lastMessage = messages.filter(m => m.conversationId === cid).at(-1);
-    markConversationRead(cid, lastMessage?.id).catch(() => undefined);
-    setConversations(prev => prev.map(c => c.id === cid ? { ...c, unreadCount: 0 } : c));
-    setMessages(prev => prev.map(m => m.conversationId === cid ? { ...m, read: true } : m));
-  }, [messages]);
+    const lastMessage = messagesRef.current.filter(m => m.conversationId === cid).at(-1);
+    const lastMessageId = lastMessage?.id || '__none__';
+    const requestKey = `${cid}:${lastMessageId}`;
+
+    if (readAckRef.current[cid] !== lastMessageId && !readInFlightRef.current.has(requestKey)) {
+      readInFlightRef.current.add(requestKey);
+      markConversationRead(cid, lastMessage?.id)
+        .then(() => {
+          const currentLastMessage = messagesRef.current.filter(m => m.conversationId === cid).at(-1);
+          const currentLastMessageId = currentLastMessage?.id || '__none__';
+          if (currentLastMessageId === lastMessageId) {
+            readAckRef.current[cid] = lastMessageId;
+          }
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          readInFlightRef.current.delete(requestKey);
+        });
+    }
+
+    setConversations(prev => {
+      let changed = false;
+      const next = prev.map(c => {
+        if (c.id !== cid || c.unreadCount === 0) return c;
+        changed = true;
+        return { ...c, unreadCount: 0 };
+      });
+      return changed ? next : prev;
+    });
+
+    setMessages(prev => {
+      let changed = false;
+      const next = prev.map(m => {
+        if (m.conversationId !== cid || m.read) return m;
+        changed = true;
+        return { ...m, read: true };
+      });
+      return changed ? next : prev;
+    });
+  }, []);
 
   const edit = useCallback(async (messageId: string, text: string) => {
     const messageText = text.trim();
@@ -510,6 +603,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setMessages(prev => prev.filter(item => item.conversationId !== conversationId));
   }, []);
 
+  const setActiveConversation = useCallback((conversationId: string | null) => {
+    activeConversationIdRef.current = conversationId;
+  }, []);
+
+  const sendTyping = useCallback((conversationId: string, isTyping: boolean) => {
+    if (!socket || !socket.connected || !isNumericId(conversationId)) return;
+    socket.emit('message:typing', {
+      id_chat: Number(conversationId),
+      escribiendo: isTyping,
+    });
+  }, [socket]);
+
+  const typingUsersFor = useCallback(
+    (conversationId: string) => typingByConversation[conversationId] || [],
+    [typingByConversation],
+  );
+
   const allContacts = useCallback(() => contacts, [contacts]);
   const getPersonById = useCallback((id: string) => contacts.find(c => c.id === id), [contacts]);
 
@@ -529,6 +639,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     updateConversation,
     uploadConversationAvatar,
     hideConversation,
+    setActiveConversation,
+    sendTyping,
+    typingUsersFor,
     allContacts,
     getPersonById,
   }), [
@@ -547,6 +660,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     updateConversation,
     uploadConversationAvatar,
     hideConversation,
+    setActiveConversation,
+    sendTyping,
+    typingUsersFor,
     allContacts,
     getPersonById,
   ]);
