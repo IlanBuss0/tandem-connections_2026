@@ -990,6 +990,12 @@ export async function findUser(username: string, password: string): Promise<User
     const avatarUrl = auth.user?.id ? await fetchUserAvatarUrl(auth.user.id) : null;
     return toLegacyUser(auth.user, avatarUrl);
   } catch {
+    const localUser = legacy.findUser(username, password);
+    if (localUser) {
+      storeAuthToken();
+      return localUser;
+    }
+
     return null;
   }
 }

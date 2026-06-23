@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
+  Activity,
   AlertTriangle,
+  Award,
   BarChart3,
   Bell,
   Calendar,
@@ -455,17 +457,22 @@ export default function TutorDashboard() {
               />
             )}
             {tab === 'overview' && (
-              <Overview
-                mainUser={mainUser}
+              <Stats
                 activities={activities}
-                completedCount={completedAct.length}
-                todayEmotions={todayEmotions.length}
+                emotions={emotions}
                 events={events}
                 adherence={adherence}
+                mainUser={mainUser}
               />
             )}
             {tab === 'stats' && (
-              <Stats activities={activities} emotions={emotions} events={events} adherence={adherence} />
+              <Stats
+                activities={activities}
+                emotions={emotions}
+                events={events}
+                adherence={adherence}
+                mainUser={mainUser}
+              />
             )}
             {tab === 'agenda' && <TutorCalendar userId={user.id} events={tutorAgendaEvents} onChanged={loadTutorAgenda} compact />}
             {tab === 'insights' && <Insights insights={insights} pending={pendingAct.length} />}
@@ -499,124 +506,239 @@ export default function TutorDashboard() {
   );
 }
 
-function Overview({
-  mainUser,
-  activities,
-  completedCount,
-  todayEmotions,
-  events,
-  adherence,
-}: {
-  mainUser: TutorHomeLinkedUser;
-  activities: TutorHomeData['byUserId'][string]['activities'];
-  completedCount: number;
-  todayEmotions: number;
-  events: TutorHomeData['byUserId'][string]['events'];
-  adherence: number;
-}) {
-  const activeObjectives = activities.filter(a => !a.completed).slice(0, 5);
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Kpi icon={CheckCircle2} label="Completadas" value={`${completedCount}/${activities.length}`} />
-        <Kpi icon={TrendingUp} label="Adherencia" value={`${adherence}%`} />
-        <Kpi icon={Heart} label="Emociones hoy" value={String(todayEmotions)} />
-        <Kpi icon={Calendar} label="Eventos" value={String(events.length)} />
-      </div>
-
-      <div className="bg-card rounded-xl p-4 border border-border">
-        <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
-          <TrendingUp size={16} className="text-primary" /> Actividades asignadas
-        </h3>
-        <div className="space-y-3">
-          {activities.slice(0, 6).map(activity => (
-            <div key={activity.id}>
-              <div className="flex justify-between gap-3 text-sm">
-                <span className="text-foreground truncate">{activity.title}</span>
-                <span className={activity.completed ? 'text-success' : 'text-muted-foreground'}>
-                  {activity.status}
-                </span>
-              </div>
-              <div className="w-full bg-muted rounded-full h-2 mt-1">
-                <div className="bg-primary h-2 rounded-full" style={{ width: activity.completed ? '100%' : '35%' }} />
-              </div>
-            </div>
-          ))}
-          {activities.length === 0 && <EmptyText text="No hay actividades asignadas desde la base." />}
-        </div>
-      </div>
-
-      <div className="bg-card rounded-xl p-4 border border-border">
-        <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
-          <Target size={16} className="text-primary" /> Seguimiento de {shortName(mainUser)}
-        </h3>
-        <div className="space-y-2">
-          <InfoLine label="Autonomia" value={mainUser.autonomy} />
-          <InfoLine label="Nivel de apoyo" value={mainUser.supportLevel} />
-          <InfoLine label="Autogestion" value={mainUser.canSelfManage ? 'Habilitada' : 'Asistida'} />
-          {mainUser.observation && <InfoLine label="Observacion" value={mainUser.observation} />}
-        </div>
-        {activeObjectives.length > 0 && (
-          <p className="text-xs text-muted-foreground mt-3">
-            Pendientes recientes: {activeObjectives.map(a => a.title).join(', ')}
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function Stats({
   activities,
   emotions,
   events,
   adherence,
+  mainUser,
 }: {
   activities: TutorHomeData['byUserId'][string]['activities'];
   emotions: TutorHomeData['byUserId'][string]['emotions'];
   events: TutorHomeData['byUserId'][string]['events'];
   adherence: number;
+  mainUser: TutorHomeLinkedUser;
 }) {
   const completed = activities.filter(a => a.completed);
+  const pending = activities.filter(a => !a.completed);
+  const inProgress = activities.filter(a => a.status === 'en progreso');
   const emotionAvg = emotions.length
     ? (emotions.reduce((sum, e) => sum + e.intensity, 0) / emotions.length).toFixed(1)
     : '0';
-  const byStatus = activities.reduce<Record<string, number>>((acc, activity) => {
-    acc[activity.status] = (acc[activity.status] || 0) + 1;
+
+  const byStatus = activities.reduce<Record<string, number>>((acc, a) => {
+    acc[a.status] = (acc[a.status] || 0) + 1;
     return acc;
   }, {});
-  const bars = Object.entries(byStatus);
+
+  const byCategory = activities.reduce<Record<string, { total: number; done: number }>>((acc, a) => {
+    if (!acc[a.category]) acc[a.category] = { total: 0, done: 0 };
+    acc[a.category].total++;
+    if (a.completed) acc[a.category].done++;
+    return acc;
+  }, {});
+
+  const byDifficulty = activities.reduce<Record<string, { total: number; done: number }>>((acc, a) => {
+    const d = a.difficulty || 'Media';
+    if (!acc[d]) acc[d] = { total: 0, done: 0 };
+    acc[d].total++;
+    if (a.completed) acc[d].done++;
+    return acc;
+  }, {});
+
+  const topEmotions = useMemo(() => {
+    const map: Record<string, number> = {};
+    emotions.forEach(e => { map[e.emotion] = (map[e.emotion] || 0) + 1; });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  }, [emotions]);
+
+  const today = new Date();
+  const weekAgo = new Date(today); weekAgo.setDate(weekAgo.getDate() - 6);
+  const weeklyActivities = activities.filter(a => {
+    const d = new Date(a.assignedAt);
+    return d >= weekAgo && d <= today;
+  });
+  const weeklyCompleted = weeklyActivities.filter(a => a.completed);
+  const weeklyAdherence = weeklyActivities.length
+    ? clampPct((weeklyCompleted.length / weeklyActivities.length) * 100)
+    : 0;
+
+  const upcomingEvents = events
+    .filter(e => new Date(e.date) >= today)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
+    .slice(0, 5);
+
+  const totalPoints = activities.reduce((sum, a) => sum + (a.completed ? a.points : 0), 0);
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Kpi icon={CheckCircle2} label="Adherencia" value={`${adherence}%`} />
-        <Kpi icon={Clock} label="Tiempo activo" value={`${completed.length * 10} min`} />
-        <Kpi icon={Heart} label="Intensidad prom." value={`${emotionAvg}/5`} />
-        <Kpi icon={Calendar} label="Agenda" value={String(events.length)} />
+        <Kpi icon={Award} label="Completadas" value={`${completed.length}/${activities.length}`} />
+        <Kpi icon={TrendingUp} label="Racha" value={`${mainUser.streak} días`} />
+        <Kpi icon={Target} label="Puntos ganados" value={`${totalPoints} pts`} />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-card rounded-xl p-4 border border-border">
+          <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
+            <BarChart3 size={16} className="text-primary" /> Estado de actividades
+          </h3>
+          <div className="space-y-3">
+            {Object.entries(byStatus).map(([status, count]) => {
+              const pct = activities.length ? clampPct((count / activities.length) * 100) : 0;
+              return (
+                <div key={status}>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-foreground">{status}</span>
+                    <span className="text-muted-foreground">{count} - {pct}%</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2 mt-1">
+                    <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} className="h-2 rounded-full gradient-primary" />
+                  </div>
+                </div>
+              );
+            })}
+            {Object.keys(byStatus).length === 0 && <EmptyText text="Todavia no hay actividades para medir." />}
+          </div>
+        </div>
+
+        <div className="bg-card rounded-xl p-4 border border-border">
+          <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
+            <Activity size={16} className="text-primary" /> Por categoría
+          </h3>
+          <div className="space-y-2">
+            {Object.entries(byCategory).map(([cat, v]) => {
+              const pct = v.total ? clampPct((v.done / v.total) * 100) : 0;
+              return (
+                <div key={cat}>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-foreground capitalize">{cat}</span>
+                    <span className="text-muted-foreground">{v.done}/{v.total} &middot; {pct}%</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-1.5 mt-1">
+                    <div className="bg-primary h-1.5 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+            {Object.keys(byCategory).length === 0 && <EmptyText text="Sin actividades por categoría." />}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-card rounded-xl p-4 border border-border">
+          <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
+            <Award size={16} className="text-primary" /> Por dificultad
+          </h3>
+          <div className="space-y-3">
+            {Object.entries(byDifficulty).map(([dif, v]) => {
+              const maxVal = Math.max(...Object.values(byDifficulty).map(x => x.done), 1);
+              const barPct = clampPct((v.done / maxVal) * 100);
+              const color = dif === 'Fácil' || dif === 'facil' ? 'bg-green-500' : dif === 'medio' || dif === 'Media' ? 'bg-amber-500' : 'bg-red-500';
+              return (
+                <div key={dif} className="flex items-center gap-2">
+                  <span className="text-xs capitalize w-20 text-foreground">{dif}</span>
+                  <div className="flex-1 bg-muted rounded-full h-2">
+                    <div className={`h-2 rounded-full ${color}`} style={{ width: `${barPct}%` }} />
+                  </div>
+                  <span className="text-xs font-bold w-8 text-right text-foreground">{v.done}/{v.total}</span>
+                </div>
+              );
+            })}
+            {Object.keys(byDifficulty).length === 0 && <EmptyText text="Sin datos de dificultad." />}
+          </div>
+        </div>
+
+        <div className="bg-card rounded-xl p-4 border border-border">
+          <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
+            <Heart size={16} className="text-primary" /> Emociones más frecuentes
+          </h3>
+          <p className="text-xs text-muted-foreground mb-2">
+            Intensidad promedio: <strong className="text-foreground">{emotionAvg}/5</strong>
+          </p>
+          <div className="space-y-1.5">
+            {topEmotions.map(([emo, count]) => {
+              const maxCount = topEmotions[0]?.[1] || 1;
+              return (
+                <div key={emo} className="flex items-center gap-2">
+                  <span className="text-xs w-24 text-foreground truncate">{emo}</span>
+                  <div className="flex-1 bg-muted rounded-full h-2">
+                    <div className="h-2 rounded-full gradient-primary" style={{ width: `${(count / maxCount) * 100}%` }} />
+                  </div>
+                  <span className="text-xs font-bold w-6 text-right text-muted-foreground">{count}</span>
+                </div>
+              );
+            })}
+            {topEmotions.length === 0 && <EmptyText text="Sin registros emocionales." />}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-card rounded-xl p-4 border border-border">
+          <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
+            <TrendingUp size={16} className="text-primary" /> Adherencia semanal
+          </h3>
+          <div className="flex items-end gap-2 h-24">
+            {Array.from({ length: 7 }).map((_, i) => {
+              const d = new Date(today);
+              d.setDate(d.getDate() - (6 - i));
+              const dayLabel = d.toLocaleDateString('es', { weekday: 'short' }).slice(0, 3);
+              const dayStr = d.toISOString().split('T')[0];
+              const dayActivities = activities.filter(a => a.assignedAt?.startsWith(dayStr));
+              const dayDone = dayActivities.filter(a => a.completed).length;
+              const dayPct = dayActivities.length ? clampPct((dayDone / dayActivities.length) * 100) : 0;
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center gap-1 justify-end">
+                  <motion.div
+                    initial={{ height: 0 }}
+                    animate={{ height: `${dayPct}%` }}
+                    transition={{ delay: i * 0.05 }}
+                    className="w-full rounded-t-md gradient-primary"
+                    style={{ height: `${dayPct}%`, minHeight: dayPct > 0 ? 4 : 0 }}
+                  />
+                  <span className="text-[9px] text-muted-foreground">{dayLabel}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex justify-between mt-2 text-xs text-muted-foreground">
+            <span>Semanal: <strong className="text-foreground">{weeklyAdherence}%</strong></span>
+            <span>General: <strong className="text-foreground">{adherence}%</strong></span>
+          </div>
+        </div>
+
+        <div className="bg-card rounded-xl p-4 border border-border">
+          <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
+            <Calendar size={16} className="text-primary" /> Próximos eventos ({upcomingEvents.length})
+          </h3>
+          <div className="space-y-2">
+            {upcomingEvents.map(e => (
+              <div key={e.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/30">
+                <div className="w-2 h-10 rounded-full" style={{ background: e.color || 'var(--primary)' }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{e.title}</p>
+                  <p className="text-xs text-muted-foreground">{e.date} &middot; {e.time}</p>
+                </div>
+                <Clock size={14} className="text-muted-foreground shrink-0" />
+              </div>
+            ))}
+            {upcomingEvents.length === 0 && <EmptyText text="No hay eventos próximos." />}
+          </div>
+        </div>
       </div>
 
       <div className="bg-card rounded-xl p-4 border border-border">
         <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
-          <BarChart3 size={16} className="text-primary" /> Estado de actividades
+          <Shield size={16} className="text-primary" /> Perfil de apoyo
         </h3>
-        <div className="space-y-3">
-          {bars.map(([status, count]) => {
-            const pct = activities.length ? clampPct((count / activities.length) * 100) : 0;
-            return (
-              <div key={status}>
-                <div className="flex justify-between text-xs">
-                  <span className="text-foreground">{status}</span>
-                  <span className="text-muted-foreground">{count} - {pct}%</span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2 mt-1">
-                  <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} className="h-2 rounded-full gradient-primary" />
-                </div>
-              </div>
-            );
-          })}
-          {bars.length === 0 && <EmptyText text="Todavia no hay actividades para medir." />}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <InfoItem label="Nivel" value={mainUser.level} />
+          <InfoItem label="Puntos" value={mainUser.points} />
+          <InfoItem label="Nivel de apoyo" value={mainUser.supportLevel} />
+          <InfoItem label="Autonomía" value={mainUser.autonomy} />
         </div>
       </div>
     </div>
