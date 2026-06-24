@@ -1750,6 +1750,8 @@ function backendChatToConversation(chat: BackendChatRow, currentUserId: string):
     .filter((participant) => participant.es_admin)
     .map((participant) => String(participant.id_usuario));
   const isGroup = (chat.cantidad_participantes || participantIds.length) > 2;
+  const otherParticipant = participants.find((participant) => String(participant.id_usuario) !== String(currentUserId));
+  const directType: Conversation['type'] = otherParticipant?.id_tipo_usuario === 3 ? 'profesional' : 'tutor';
 
   return {
     id: String(chat.id),
@@ -1758,11 +1760,11 @@ function backendChatToConversation(chat: BackendChatRow, currentUserId: string):
     participants: participantIds,
     participantNames,
     adminIds,
-    lastMessage: chat.ultimo_mensaje_contenido || 'Sin mensajes todavia',
+    lastMessage: chat.ultimo_mensaje_contenido || 'Sin mensajes todavía',
     lastMessageTime: formatChatTime(chat.ultimo_mensaje_fecha || chat.fecha_creacion),
     unreadCount: chat.cantidad_no_leidos || 0,
     avatar: isGroup ? chat.avatar_url || 'G' : '💬',
-    type: isGroup ? 'grupo' : 'tutor',
+    type: isGroup ? 'grupo' : directType,
   };
 }
 

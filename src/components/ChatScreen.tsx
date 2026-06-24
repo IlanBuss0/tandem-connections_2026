@@ -538,7 +538,7 @@ export default function ChatScreen({
     const chatTitle = isGroup ? selectedConv.title || 'Grupo' : other?.name || 'Contacto';
     const chatSubtitle = isGroup
       ? `${selectedConv.participants.length} participantes${selectedConv.description ? ` | ${selectedConv.description}` : ''}`
-      : `${other?.role === 'profesional' ? 'Profesional' : other?.role === 'tutor' ? 'Tutor/a' : 'Usuario'}${other?.subtitle ? ` | ${other.subtitle.replace(/\s*Â·?\s*ID\s+\d+$/i, '')}` : ''}`;
+      : `${other?.role === 'profesional' ? 'Profesional' : other?.role === 'tutor' ? 'Tutor/a' : 'Usuario'}${other?.subtitle ? ` | ${other.subtitle.replace(/\s*·?\s*ID\s+\d+$/i, '')}` : ''}`;
     const msgs = selectedMessages;
     const typingUsers = typingUsersFor(selectedConv.id)
       .map(id => getPersonById(id)?.name || selectedConv.participantNames[selectedConv.participants.indexOf(id)] || 'Contacto')
@@ -672,7 +672,7 @@ export default function ChatScreen({
           {typingUsers.length > 0 && (
             <div className="flex justify-start pr-4">
               <div className="rounded-2xl rounded-bl-md border border-[#f0e8f8] bg-[#ede4f8] px-4 py-2 text-xs font-medium text-[#8b7aa0]">
-                {typingUsers.length === 1 ? `${typingUsers[0]} esta escribiendo...` : 'Estan escribiendo...'}
+                {typingUsers.length === 1 ? `${typingUsers[0]} está escribiendo...` : 'Están escribiendo...'}
               </div>
             </div>
           )}
@@ -955,7 +955,7 @@ export default function ChatScreen({
                   <span className="text-[10px] text-[#8b7aa0] shrink-0">{conv.lastMessageTime}</span>
                 </div>
                 <p className="text-[10px] text-[#8b7aa0] truncate mt-0.5">
-                  {isGroup ? `${conv.participants.length} participantes` : other?.subtitle?.replace(/\s*Â·?\s*ID\s+\d+$/i, '') || 'Conversacion directa'}
+                  {isGroup ? `${conv.participants.length} participantes` : other?.subtitle?.replace(/\s*·?\s*ID\s+\d+$/i, '') || 'Conversación directa'}
                 </p>
                 <p className="text-xs text-[#8b7aa0] truncate mt-0.5">{conv.lastMessage}</p>
               </div>

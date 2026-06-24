@@ -103,6 +103,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const messagesRef = useRef<ChatMessage[]>([]);
   const joinedChatIdsRef = useRef<Set<string>>(new Set());
   const joiningChatIdsRef = useRef<Set<string>>(new Set());
+  const loadedMessageConversationIdsRef = useRef<Set<string>>(new Set());
   const activeConversationIdRef = useRef<string | null>(null);
   const readAckRef = useRef<Record<string, string>>({});
   const readInFlightRef = useRef<Set<string>>(new Set());
@@ -119,6 +120,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     joinedChatIdsRef.current.clear();
     joiningChatIdsRef.current.clear();
+    loadedMessageConversationIdsRef.current.clear();
     conversationsRef.current = [];
     messagesRef.current = [];
     activeConversationIdRef.current = null;
@@ -134,11 +136,33 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     const convs = await fetchConversationsForUser(user.id);
     setConversations(convs);
-    const byConv = await Promise.all(convs.map(async conversation => (
-      fetchMessagesForConversation(conversation.id).catch(() => [])
-    )));
-    setMessages(byConv.flat());
   }, [user]);
+
+  const loadMessagesForConversation = useCallback(async (conversationId: string) => {
+    if (!conversationId || loadedMessageConversationIdsRef.current.has(conversationId)) return;
+
+    const loadedMessages = await fetchMessagesForConversation(conversationId);
+    loadedMessageConversationIdsRef.current.add(conversationId);
+
+    setMessages(prev => {
+      const existingForConversation = prev.filter(message => message.conversationId === conversationId);
+      const loadedIds = new Set(loadedMessages.map(message => message.id));
+      const merged = [
+        ...loadedMessages,
+        ...existingForConversation.filter(message => !loadedIds.has(message.id)),
+      ].sort((a, b) => {
+        const left = Number(a.id);
+        const right = Number(b.id);
+        if (Number.isFinite(left) && Number.isFinite(right)) return left - right;
+        return 0;
+      });
+
+      return [
+        ...prev.filter(message => message.conversationId !== conversationId),
+        ...merged,
+      ];
+    });
+  }, []);
 
   const upsertMessage = useCallback((message: ChatMessage) => {
     setMessages(prev => {
@@ -171,7 +195,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           conversation.id === removed.conversationId
             ? {
                 ...conversation,
-                lastMessage: lastForConversation?.text || 'Sin mensajes todavia',
+                lastMessage: lastForConversation?.text || 'Sin mensajes todavía',
                 lastMessageTime: lastForConversation?.timestamp || '',
               }
             : conversation
@@ -275,9 +299,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           id_chat: chatMessage.conversationId,
           userId: user.id,
         });
+        reloadChats().catch(() => undefined);
       }
-
-      reloadChats().catch(() => undefined);
     });
 
     nextSocket.on('chat:new', () => {
@@ -531,7 +554,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       id: `local-${Date.now()}`,
       participants: [selfId, otherId],
       participantNames: ['Yo', other?.name || 'Contacto'],
-      lastMessage: 'Conversacion iniciada',
+      lastMessage: 'Conversación iniciada',
       lastMessageTime: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
       unreadCount: 0,
       avatar: other?.avatar || '💬',
@@ -605,7 +628,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const setActiveConversation = useCallback((conversationId: string | null) => {
     activeConversationIdRef.current = conversationId;
-  }, []);
+    if (conversationId && isNumericId(conversationId)) {
+      loadMessagesForConversation(conversationId).catch(() => undefined);
+    }
+  }, [loadMessagesForConversation]);
 
   const sendTyping = useCallback((conversationId: string, isTyping: boolean) => {
     if (!socket || !socket.connected || !isNumericId(conversationId)) return;
