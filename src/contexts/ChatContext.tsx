@@ -216,6 +216,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const readAckRef = useRef<Record<string, string>>({});
   const readInFlightRef = useRef<Set<string>>(new Set());
   const typingTimeoutsRef = useRef<Record<string, number>>({});
+  const cacheWriteTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     conversationsRef.current = conversations;
@@ -246,7 +247,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user?.id) return;
-    writeChatCache(user.id, conversations, messages, lastChatSyncAtRef.current);
+    if (cacheWriteTimerRef.current) clearTimeout(cacheWriteTimerRef.current);
+    cacheWriteTimerRef.current = window.setTimeout(() => {
+      writeChatCache(user.id, conversations, messages, lastChatSyncAtRef.current);
+      cacheWriteTimerRef.current = null;
+    }, 2000);
+    return () => {
+      if (cacheWriteTimerRef.current) clearTimeout(cacheWriteTimerRef.current);
+    };
   }, [conversations, messages, user?.id]);
 
   const loadMessagesForConversation = useCallback(async (conversationId: string, options: LoadMessagesOptions = {}) => {
@@ -262,7 +270,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const loadedMessages = canLoadAfterId
       ? await fetchMessagesAfterConversation(conversationId, lastNumericMessage.id)
       : await fetchMessagesForConversation(conversationId);
-    loadedMessageConversationIdsRef.current.add(conversationId);
+    if (!canLoadAfterId || loadedMessages.length > 0) {
+      loadedMessageConversationIdsRef.current.add(conversationId);
+    }
 
     setMessages(prev => {
       const existingForConversation = prev.filter(message => message.conversationId === conversationId);
@@ -450,7 +460,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     const intervalId = window.setInterval(() => {
       syncConversations({ reason: 'poll' }).catch(() => undefined);
-    }, 5000);
+    }, 8000);
 
     return () => {
       window.clearInterval(intervalId);
