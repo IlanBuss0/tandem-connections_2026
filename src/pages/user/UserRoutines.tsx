@@ -1,20 +1,30 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useRoutines, DayKey } from '@/contexts/RoutinesContext';
-import { CheckCircle2, Circle, Clock, Plus, Pencil, Trash2, Copy, X, Save } from 'lucide-react';
-import { RoutineItem } from '@/data/api';
+import { CheckCircle2, Circle, Clock, Plus, Pencil, Trash2, Copy, X, Save, ChevronDown } from 'lucide-react';
+import { RoutineItem, CustomCategory } from '@/data/api';
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 
-const categories = ['mañana', 'escuela', 'mediodía', 'tarde', 'noche'];
-const categoryLabels: Record<string, string> = { mañana: '🌅 Mañana', escuela: '📚 Escuela', mediodía: '☀️ Mediodía', tarde: '🌤️ Tarde', noche: '🌙 Noche' };
+const predefinedCategories = ['mañana', 'escuela', 'mediodía', 'tarde', 'noche'];
+const predefinedLabels: Record<string, string> = { mañana: '🌅 Mañana', escuela: '📚 Escuela', mediodía: '☀️ Mediodía', tarde: '🌤️ Tarde', noche: '🌙 Noche' };
 const iconChoices = ['⏰','🛏️','🚿','👕','🥣','🪥','🎒','🚶','📚','🍽️','🎮','✏️','⭐','🥪','🧠','🎧','👔','🍝','💭','🌙','🏃','🎵','📖','🧘','🐶','🛁','💊','🥗','🌳','🎨'];
+
+function autoPictogramLabel(title: string): string {
+  const words = title.trim().split(/\s+/);
+  if (words.length <= 1) return title;
+  const skip = ['la','el','los','las','mi','tu','su','un','una','de','del','en','y','a','con','por','para'];
+  const meaningful = words.filter(w => !skip.includes(w.toLowerCase()));
+  return meaningful.length > 0 ? meaningful[meaningful.length - 1] : words[words.length - 1];
+}
 
 export default function UserRoutines() {
   const { context: permissionContext } = usePermissionContext();
   const {
     routines, addRoutine, renameRoutine, deleteRoutine, duplicateRoutine,
     addItem, updateItem, deleteItem, toggleItem, dayNames,
+    customCategories, addCustomCategory, updateCustomCategory, deleteCustomCategory,
+    hiddenPredefined, toggleHiddenPredefined,
   } = useRoutines();
 
   const todayDow = new Date().getDay() as DayKey;
@@ -25,12 +35,47 @@ export default function UserRoutines() {
   const [editingDay, setEditingDay] = useState(false);
   const [dayName, setDayName] = useState('');
   const [dayDow, setDayDow] = useState<string>('null');
+  const [dayDate, setDayDate] = useState('');
 
   const [showAddItem, setShowAddItem] = useState(false);
   const [editingItem, setEditingItem] = useState<RoutineItem | null>(null);
-  const [form, setForm] = useState<{ time: string; title: string; icon: string; category: string }>({
-    time: '08:00', title: '', icon: '⭐', category: 'mañana',
+  const [form, setForm] = useState<{ time: string; title: string; icon: string; category: string; pictogramLabel: string }>({
+    time: '08:00', title: '', icon: '⭐', category: 'mañana', pictogramLabel: '',
   });
+
+  const [pictogramView, setPictogramView] = useState(false);
+
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showCategoryDropdown) return;
+    const handler = (e: MouseEvent) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(e.target as Node)) {
+        setShowCategoryDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showCategoryDropdown]);
+
+  const [showNewCategory, setShowNewCategory] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatIcon, setNewCatIcon] = useState('📋');
+  const [editingCat, setEditingCat] = useState<CustomCategory | null>(null);
+  const [editCatName, setEditCatName] = useState('');
+  const [editCatIcon, setEditCatIcon] = useState('');
+
+  const allCategories = useMemo(() => {
+    const visiblePredefined = predefinedCategories.filter(c => !hiddenPredefined.includes(c));
+    return [...visiblePredefined, ...customCategories.map(c => c.id)];
+  }, [customCategories, hiddenPredefined]);
+
+  const allLabels = useMemo(() => {
+    const labels = { ...predefinedLabels };
+    customCategories.forEach(c => { labels[c.id] = `${c.icon} ${c.name}`; });
+    return labels;
+  }, [customCategories]);
 
   const canUseMiDia = isPermissionEnabled(
     permissionContext?.perteneciente?.permisos_efectivos?.permisos,
@@ -61,29 +106,55 @@ export default function UserRoutines() {
 
   const openCreate = () => {
     setEditingItem(null);
-    setForm({ time: '08:00', title: '', icon: '⭐', category: 'mañana' });
+    setForm({ time: '08:00', title: '', icon: '⭐', category: 'mañana', pictogramLabel: '' });
     setShowAddItem(true);
   };
   const openEdit = (it: RoutineItem) => {
     setEditingItem(it);
-    setForm({ time: it.time, title: it.title, icon: it.icon, category: it.category });
+    setForm({ time: it.time, title: it.title, icon: it.icon, category: it.category, pictogramLabel: it.pictogramLabel || '' });
     setShowAddItem(true);
   };
   const submitItem = () => {
-    const payload = { ...form, title: form.title.trim() };
-    if (!payload.title) return;
+    const title = form.title.trim();
+    if (!title) return;
+    const pictogramLabel = form.pictogramLabel.trim() || autoPictogramLabel(title);
+    const payload = { ...form, title, pictogramLabel };
     if (editingItem) updateItem(active.id, editingItem.id, payload);
     else addItem(active.id, payload);
     setShowAddItem(false);
   };
 
+  const submitNewCategory = () => {
+    const name = newCatName.trim();
+    if (!name) return;
+    addCustomCategory(name, newCatIcon);
+    setShowNewCategory(false);
+    setNewCatName('');
+    setNewCatIcon('📋');
+  };
+
+  const startEditCategory = (cat: CustomCategory) => {
+    setEditingCat(cat);
+    setEditCatName(cat.name);
+    setEditCatIcon(cat.icon);
+  };
+
+  const submitEditCategory = () => {
+    if (!editingCat) return;
+    const name = editCatName.trim();
+    if (!name) return;
+    updateCustomCategory(editingCat.id, name, editCatIcon);
+    setEditingCat(null);
+  };
+
   const startDayEdit = () => {
     setDayName(active.name);
     setDayDow(active.dayOfWeek === null ? 'null' : String(active.dayOfWeek));
+    setDayDate(active.date || '');
     setEditingDay(true);
   };
   const saveDayEdit = () => {
-    renameRoutine(active.id, dayName.trim() || 'Mi día', dayDow === 'null' ? null : Number(dayDow) as DayKey);
+    renameRoutine(active.id, dayName.trim() || 'Mi día', dayDow === 'null' ? null : Number(dayDow) as DayKey, dayDate || undefined);
     setEditingDay(false);
   };
 
@@ -114,7 +185,7 @@ export default function UserRoutines() {
                 {r.dayOfWeek !== null ? dayNames[r.dayOfWeek] : 'Sin día'}{isToday ? ' · Hoy' : ''}
               </span>
               <span className="text-sm font-bold truncate w-full">{r.name}</span>
-              <span className="text-[10px] opacity-70">{r.items.length} pasos</span>
+              <span className="text-[10px] opacity-70">{r.items.length} pasos · {r.date || '—'}</span>
             </button>
           );
         })}
@@ -127,7 +198,7 @@ export default function UserRoutines() {
             <div>
               <h3 className="font-semibold text-[#6b4c9a]">{active.name}</h3>
               <p className="text-xs text-[#8b7aa0]">
-                {active.dayOfWeek !== null ? `Vinculado a: ${dayNames[active.dayOfWeek]}` : 'Sin día asignado'}
+                {active.dayOfWeek !== null ? `Vinculado a: ${dayNames[active.dayOfWeek]}` : 'Sin día asignado'}{active.date ? ` · ${active.date}` : ''}
               </p>
             </div>
             <div className="flex gap-1">
@@ -146,6 +217,7 @@ export default function UserRoutines() {
               <option value="null">Sin día asignado</option>
               {dayNames.map((n, i) => <option key={i} value={i}>{n}</option>)}
             </select>
+            <input value={dayDate} onChange={e => setDayDate(e.target.value)} placeholder="Fecha DD/MM/AAAA" className="w-full p-2.5 rounded-xl border border-[#ede4f8] bg-[#faf8ff] text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20" />
             <div className="flex gap-2">
               <button onClick={saveDayEdit} className="flex-1 py-2.5 rounded-2xl bg-[#6b4c9a] text-white text-sm font-semibold shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 inline-flex items-center justify-center gap-1"><Save size={14} /> Guardar</button>
               <button onClick={() => setEditingDay(false)} className="px-3 py-2.5 rounded-2xl border border-[#ede4f8] text-sm text-[#6b4c9a] font-semibold bg-[#faf8ff] hover:bg-[#f5f0ff]">Cancelar</button>
@@ -172,11 +244,59 @@ export default function UserRoutines() {
           </div>
           <div className="grid grid-cols-2 gap-2">
             <input type="time" value={form.time} onChange={e => setForm(f => ({ ...f, time: e.target.value }))} className="p-2.5 rounded-xl border border-[#ede4f8] bg-[#faf8ff] text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20" />
-            <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} className="p-2.5 rounded-xl border border-[#ede4f8] bg-[#faf8ff] text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20">
-              {categories.map(c => <option key={c} value={c}>{categoryLabels[c]}</option>)}
-            </select>
+            <div className="relative" ref={categoryDropdownRef}>
+              <button type="button" onClick={() => setShowCategoryDropdown(v => !v)} className="w-full flex items-center justify-between p-2.5 rounded-xl border border-[#ede4f8] bg-[#faf8ff] text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20">
+                <span className="truncate">{allLabels[form.category] || form.category}</span>
+                <ChevronDown size={14} className="shrink-0 ml-2 text-[#8b7aa0]" />
+              </button>
+              {showCategoryDropdown && (
+                <div className="absolute z-20 mt-1 w-full bg-white rounded-xl border border-[#ede4f8] shadow-lg overflow-hidden">
+                  {allCategories.map(cat => {
+                    const obj = customCategories.find(c => c.id === cat);
+                    const isPre = predefinedCategories.includes(cat);
+                    return (
+                      <div key={cat} className="flex items-center gap-1 px-2.5 py-2 hover:bg-[#f5f0ff] cursor-pointer text-sm text-[#4a4a5a] border-b border-[#f0e8f8] last:border-b-0">
+                        <div className="flex-1 min-w-0" onClick={() => { setForm(f => ({ ...f, category: cat })); setShowCategoryDropdown(false); }}>
+                          <span className="truncate">{allLabels[cat] || cat}</span>
+                        </div>
+                        {obj && (
+                          <button type="button" onClick={(e) => { e.stopPropagation(); startEditCategory(obj); setShowCategoryDropdown(false); }} className="p-1 rounded-lg hover:bg-white text-[#8b7aa0] shrink-0" title="Editar sección">
+                            <Pencil size={12} />
+                          </button>
+                        )}
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setShowCategoryDropdown(false); if (obj && confirm('¿Eliminar sección "' + obj.name + '"? Los pasos que la usan no se eliminarán.')) { deleteCustomCategory(obj!.id); } else if (isPre && confirm('¿Ocultar sección "' + (allLabels[cat] || cat) + '"?')) { toggleHiddenPredefined(cat); } }} className="p-1 rounded-lg hover:bg-red-50 text-red-400 shrink-0" title={obj ? 'Eliminar sección' : 'Ocultar sección'}>
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  <div className="flex items-center gap-1 px-2.5 py-2 hover:bg-[#f5f0ff] cursor-pointer text-sm text-[#6b4c9a] font-medium border-t border-[#f0e8f8]" onClick={() => { setShowCategoryDropdown(false); setShowNewCategory(true); setNewCatName(''); setNewCatIcon('📋'); }}>
+                    <Plus size={14} />
+                    <span>Nueva sección</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
+          {showNewCategory && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="bg-[#faf8ff] rounded-xl border border-[#ede4f8] p-3 space-y-2">
+              <input value={newCatName} onChange={e => setNewCatName(e.target.value)} placeholder="Nombre de la sección" className="w-full p-2 rounded-xl border border-[#ede4f8] bg-white text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20" />
+              <div>
+                <p className="text-xs text-[#8b7aa0] mb-1">Icono</p>
+                <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
+                  {iconChoices.map(ic => (
+                    <button key={ic} type="button" onClick={() => setNewCatIcon(ic)} className={`text-lg p-1 rounded-lg border ${newCatIcon === ic ? 'border-[#6b4c9a] bg-[#f5f0ff]' : 'border-[#ede4f8] bg-white'}`}>{ic}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={submitNewCategory} className="flex-1 py-1.5 rounded-xl bg-[#6b4c9a] text-white text-xs font-semibold hover:bg-[#5a3c8a]">Guardar</button>
+                <button onClick={() => setShowNewCategory(false)} className="px-3 py-1.5 rounded-xl border border-[#ede4f8] text-xs text-[#6b4c9a] font-semibold bg-white hover:bg-[#f5f0ff]">Cancelar</button>
+              </div>
+            </motion.div>
+          )}
           <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="¿Qué tenés que hacer?" className="w-full p-2.5 rounded-xl border border-[#ede4f8] bg-[#faf8ff] text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20" />
+          <input value={form.pictogramLabel} onChange={e => setForm(f => ({ ...f, pictogramLabel: e.target.value }))} placeholder="Etiqueta para pictograma (opcional)" className="w-full p-2.5 rounded-xl border border-[#ede4f8] bg-[#faf8ff] text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20" />
           <div>
             <p className="text-xs text-[#8b7aa0] mb-1">Icono</p>
             <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
@@ -197,42 +317,108 @@ export default function UserRoutines() {
         </button>
       )}
 
-      {/* Routine items by category */}
-      {categories.map(cat => {
-        const items = active.items.filter(r => r.category === cat);
-        if (items.length === 0) return null;
-        return (
-          <div key={cat}>
-            <h3 className="font-semibold text-[#6b4c9a] mb-2">{categoryLabels[cat] || cat}</h3>
-            <div className="space-y-2">
-              {items.map((item, i) => (
-                <motion.div
-                  key={item.id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.04 }}
-                  className={`group flex items-center gap-3 p-3 rounded-2xl border transition-all ${item.completed ? 'bg-green-50 border-green-200' : 'bg-white border-[#f0e8f8] hover:border-[#d8c7ef] hover:shadow-md'}`}
-                >
-                  <button onClick={() => toggleItem(active.id, item.id)} className="shrink-0">
-                    {item.completed ? <CheckCircle2 size={20} className="text-green-500" /> : <Circle size={20} className="text-[#8b7aa0]" />}
-                  </button>
-                  <span className="text-xl shrink-0">{item.icon}</span>
-                  <div className="flex-1 text-left min-w-0">
-                    <p className={`text-sm font-medium truncate ${item.completed ? 'line-through text-[#8b7aa0]' : 'text-[#4a4a5a]'}`}>{item.title}</p>
-                  </div>
-                  <span className="text-xs text-[#8b7aa0] flex items-center gap-1">
-                    <Clock size={12} /> {item.time}
-                  </span>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => openEdit(item)} className="p-1.5 rounded-lg hover:bg-[#f5f0ff] text-[#8b7aa0]"><Pencil size={12} /></button>
-                    <button onClick={() => deleteItem(active.id, item.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-400"><Trash2 size={12} /></button>
-                  </div>
-                </motion.div>
-              ))}
+      {/* Edit category modal */}
+      {editingCat && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20" onClick={() => setEditingCat(null)}>
+          <div className="bg-white rounded-2xl p-5 border border-[#f0e8f8] shadow-xl max-w-sm w-full mx-4 space-y-3" onClick={e => e.stopPropagation()}>
+            <h4 className="font-semibold text-sm text-[#4a4a5a]">Editar sección</h4>
+            <input value={editCatName} onChange={e => setEditCatName(e.target.value)} placeholder="Nombre" className="w-full p-2.5 rounded-xl border border-[#ede4f8] bg-[#faf8ff] text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20" />
+            <div>
+              <p className="text-xs text-[#8b7aa0] mb-1">Icono</p>
+              <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                {iconChoices.map(ic => (
+                  <button key={ic} type="button" onClick={() => setEditCatIcon(ic)} className={`text-xl p-1.5 rounded-xl border ${editCatIcon === ic ? 'border-[#6b4c9a] bg-[#f5f0ff]' : 'border-[#ede4f8]'}`}>{ic}</button>
+                ))}
+              </div>
             </div>
+            <div className="flex gap-2">
+              <button onClick={submitEditCategory} className="flex-1 py-2.5 rounded-2xl bg-[#6b4c9a] text-white text-sm font-semibold shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95">Guardar</button>
+              <button onClick={() => setEditingCat(null)} className="px-4 py-2.5 rounded-2xl border border-[#ede4f8] text-sm text-[#6b4c9a] font-semibold bg-[#faf8ff] hover:bg-[#f5f0ff]">Cancelar</button>
+            </div>
+            <button onClick={() => { if (confirm('¿Eliminar esta sección? Los pasos que la usan no se eliminarán.')) { deleteCustomCategory(editingCat.id); setEditingCat(null); } }} className="w-full py-2 rounded-xl text-xs text-red-500 hover:bg-red-50 font-medium">
+              Eliminar sección
+            </button>
           </div>
-        );
-      })}
+        </div>
+      )}
+
+      {active.items.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-end">
+            <button
+              onClick={() => setPictogramView(v => !v)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border text-sm font-semibold transition-all bg-[#6b4c9a] text-white border-transparent shadow-sm hover:bg-[#5a3c8a] active:scale-95"
+            >
+              {pictogramView ? '📝 Texto' : '🖼️ Pictograma'}
+            </button>
+          </div>
+          {allCategories.map(cat => {
+            const catItems = active.items.filter(it => it.category === cat);
+            if (catItems.length === 0) return null;
+            return (
+              <div key={cat} className="space-y-2">
+                <h4 className="text-sm font-bold text-[#6b4c9a]">{allLabels[cat] || cat}</h4>
+                {!pictogramView ? (
+                  <div className="space-y-2">
+                    {catItems.map((item, i) => (
+                      <motion.div
+                        key={item.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.04 }}
+                        className={`group flex items-center gap-3 p-3 rounded-2xl border transition-all ${item.completed ? 'bg-green-50 border-green-200' : 'bg-white border-[#f0e8f8] hover:border-[#d8c7ef] hover:shadow-md'}`}
+                      >
+                        <button onClick={() => toggleItem(active.id, item.id)} className="shrink-0">
+                          {item.completed ? <CheckCircle2 size={20} className="text-green-500" /> : <Circle size={20} className="text-[#8b7aa0]" />}
+                        </button>
+                        <span className="text-xl shrink-0">{item.icon}</span>
+                        <div className="flex-1 text-left min-w-0">
+                          <p className={`text-sm font-medium truncate ${item.completed ? 'line-through text-[#8b7aa0]' : 'text-[#4a4a5a]'}`}>{item.title}</p>
+                        </div>
+                        <span className="text-xs text-[#8b7aa0] flex items-center gap-1">
+                          <Clock size={12} /> {item.time}
+                        </span>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => openEdit(item)} className="p-1.5 rounded-lg hover:bg-[#f5f0ff] text-[#8b7aa0]"><Pencil size={12} /></button>
+                          <button onClick={() => deleteItem(active.id, item.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-400"><Trash2 size={12} /></button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {catItems.map((item, i) => (
+                      <motion.div
+                        key={item.id}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: i * 0.04 }}
+                        className={`group relative flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all cursor-pointer ${item.completed ? 'bg-green-50 border-green-300' : 'bg-white border-[#d8c7ef] hover:border-[#6b4c9a] hover:shadow-lg'}`}
+                        onClick={() => toggleItem(active.id, item.id)}
+                      >
+                        <span className="text-4xl">{item.icon}</span>
+                        <span className="text-sm font-semibold text-[#4a4a5a] text-center leading-tight">
+                          {item.pictogramLabel || item.title}
+                        </span>
+                        <span className="text-xs text-[#8b7aa0] flex items-center gap-1">
+                          <Clock size={11} /> {item.time}
+                        </span>
+                        <div className="absolute top-2 right-2">
+                          {item.completed ? <CheckCircle2 size={18} className="text-green-500" /> : <Circle size={18} className="text-[#8b7aa0]" />}
+                        </div>
+                        <div className="absolute top-2 left-2 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={(e) => { e.stopPropagation(); openEdit(item); }} className="p-1 rounded-lg hover:bg-[#f5f0ff] text-[#8b7aa0]"><Pencil size={10} /></button>
+                          <button onClick={(e) => { e.stopPropagation(); deleteItem(active.id, item.id); }} className="p-1 rounded-lg hover:bg-red-50 text-red-400"><Trash2 size={10} /></button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

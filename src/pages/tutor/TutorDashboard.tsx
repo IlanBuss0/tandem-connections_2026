@@ -62,6 +62,7 @@ import {
   type TutorHomeLinkedUser,
 } from '@/data/api';
 import { eventTypes, typeEmoji } from '@/contexts/CalendarContext';
+import { useSyncMobileMenuOpen } from '@/contexts/MobileMenuState';
 import { toast } from '@/hooks/ui/use-toast';
 
 type TabId =
@@ -143,6 +144,7 @@ export default function TutorDashboard() {
   const [tab, setTab] = useState<TabId>('overview');
   const [selectedUser, setSelectedUser] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  useSyncMobileMenuOpen(menuOpen);
   const [data, setData] = useState<TutorHomeData | null>(null);
   const [tutorAgendaEvents, setTutorAgendaEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);

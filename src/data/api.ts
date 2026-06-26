@@ -37,6 +37,12 @@ export type Activity = legacy.Activity;
 export type ActivityCategory = legacy.ActivityCategory;
 export type ActivityType = legacy.ActivityType;
 export type RoutineItem = legacy.RoutineItem;
+
+export interface CustomCategory {
+  id: string;
+  name: string;
+  icon: string;
+}
 export type CalendarEvent = legacy.CalendarEvent;
 export type Conversation = legacy.Conversation;
 export type ChatMessage = legacy.ChatMessage;
@@ -1141,6 +1147,7 @@ export async function fetchPertenecienteHome(userId: string): Promise<Pertenecie
     experience: avatar?.experiencia ?? 0,
     activities: (asignadas as DbActividadAsignada[])
       .filter(a => Number(a.id_perteneciente) === Number(perteneciente.id))
+      .filter(a => Boolean(a.id_actividad && activitiesById.has(Number(a.id_actividad))))
       .map(a => {
         const base = a.id_actividad ? activitiesById.get(Number(a.id_actividad)) : undefined;
         const custom = a.id_actividad_personalizada ? customById.get(Number(a.id_actividad_personalizada)) : undefined;
@@ -1661,7 +1668,7 @@ async function saveCalendarEventForUser(userId: string, event: CalendarEvent, ex
   await tandemApi.configuracionesUsuarios.create(payload);
 }
 
-export interface DayRoutine { id: string; name: string; dayOfWeek: number | null; items: RoutineItem[] }
+export interface DayRoutine { id: string; name: string; dayOfWeek: number | null; items: RoutineItem[]; date?: string }
 const ROUTINES_CONFIG_KEY = 'routines.mi-dia';
 
 function normalizeRoutinesPayload(payload: unknown): DayRoutine[] {
@@ -1672,6 +1679,7 @@ function normalizeRoutinesPayload(payload: unknown): DayRoutine[] {
       id: String(r.id || `dr-${Date.now()}-${index}`),
       name: String(r.name || 'Mi dÃ­a'),
       dayOfWeek: typeof r.dayOfWeek === 'number' ? r.dayOfWeek : null,
+      date: typeof r.date === 'string' ? r.date : undefined,
       items: Array.isArray(r.items)
         ? r.items.map((item, itemIndex) => {
             const it = item as Partial<RoutineItem>;
@@ -1715,6 +1723,66 @@ export async function saveRoutinesForUser(userId: string, routines: DayRoutine[]
     return routines;
   } catch (error) {
     throw error instanceof Error ? error : new Error('No se pudieron guardar las rutinas.');
+  }
+}
+
+const CATEGORIES_CONFIG_KEY = 'routines.mi-dia.categories';
+
+export async function fetchCustomCategoriesForUser(userId: string): Promise<{ customCategories: CustomCategory[]; hiddenPredefined: string[] }> {
+  try {
+    const numericUserId = Number(userId);
+    const config = await getUserConfig(numericUserId, CATEGORIES_CONFIG_KEY);
+    if (!config?.valor) return { customCategories: [], hiddenPredefined: [] };
+    const parsed = JSON.parse(config.valor);
+    // legacy: plain array of categories
+    if (Array.isArray(parsed)) {
+      return {
+        customCategories: parsed.map((c: Partial<CustomCategory>) => ({
+          id: String(c.id || `cc-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`),
+          name: String(c.name || 'Nueva sección'),
+          icon: String(c.icon || '📋'),
+        })),
+        hiddenPredefined: [],
+      };
+    }
+    // new: wrapped object
+    if (typeof parsed === 'object' && parsed !== null) {
+      const cats = Array.isArray(parsed.customCategories) ? parsed.customCategories : [];
+      const hidden = Array.isArray(parsed.hiddenPredefined) ? parsed.hiddenPredefined : [];
+      return {
+        customCategories: cats.map((c: Partial<CustomCategory>) => ({
+          id: String(c.id || `cc-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`),
+          name: String(c.name || 'Nueva sección'),
+          icon: String(c.icon || '📋'),
+        })),
+        hiddenPredefined: hidden,
+      };
+    }
+    return { customCategories: [], hiddenPredefined: [] };
+  } catch {
+    return { customCategories: [], hiddenPredefined: [] };
+  }
+}
+
+export async function saveCustomCategoriesForUser(
+  userId: string,
+  customCategories: CustomCategory[],
+  hiddenPredefined: string[],
+): Promise<void> {
+  try {
+    const numericUserId = Number(userId);
+    const value = JSON.stringify({ customCategories, hiddenPredefined });
+    const payload = {
+      id_usuario: numericUserId,
+      clave: CATEGORIES_CONFIG_KEY,
+      valor: value,
+      fecha_modificacion: new Date().toISOString(),
+    };
+    const config = await getUserConfig(numericUserId, CATEGORIES_CONFIG_KEY);
+    if (config?.id) await tandemApi.configuracionesUsuarios.update(config.id, payload);
+    else await tandemApi.configuracionesUsuarios.create(payload);
+  } catch {
+    // silent
   }
 }
 

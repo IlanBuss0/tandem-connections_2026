@@ -20,15 +20,7 @@ interface Props {
   onNavigate?: (tab: string) => void;
 }
 
-const MOCK_ACTIVITIES: PertenecienteHomeActivity[] = [
-  { id: 'm1', title: 'Preparar la mochila', description: 'Revisar el horario del día siguiente y preparar todos los materiales necesarios.', status: 'Pendiente', completed: false, assignedAt: 'Hoy' },
-  { id: 'm2', title: 'Ordenar el escritorio', description: 'Limpiar y organizar tu espacio de estudio para mantener el orden.', status: 'En progreso', completed: false, assignedAt: 'Ayer' },
-  { id: 'm3', title: 'Preparar una merienda', description: 'Preparar una merienda saludable de forma independiente paso a paso.', status: 'Pendiente', completed: false, assignedAt: 'Mañana' },
-  { id: 'm4', title: 'Armar la ropa del día', description: 'Elegir y dejar lista la ropa que vas a usar mañana según el clima.', status: 'Pendiente', completed: false, assignedAt: 'Hoy' },
-  { id: 'm5', title: 'Practicar respiración', description: 'Técnica de respiración guiada para momentos de ansiedad o agitación.', status: 'Pendiente', completed: false, assignedAt: 'Hoy' },
-  { id: 'm6', title: 'Lavarse los dientes', description: 'Seguir los pasos para un cepillado completo después de cada comida.', status: 'Pendiente', completed: false, assignedAt: 'Hoy' },
-  { id: 'm7', title: 'Hacer la cama', description: 'Tender la cama cada mañana como parte de la rutina diaria.', status: 'Pendiente', completed: false, assignedAt: 'Ayer' },
-];
+
 
 const emptyHome: PertenecienteHomeData = {
   perteneciente: null,
@@ -136,9 +128,20 @@ export default function UserHome({ onNavigate }: Props) {
   const today = new Date();
   const todayKey = fmt(today);
 
-  const realPending = home.activities.filter(a => !a.completed);
-  const showMock = !loading && realPending.length === 0;
-  const pendingActivities = showMock ? MOCK_ACTIVITIES.filter(a => !a.completed) : realPending;
+  const pendingActivities = useMemo(() => {
+    const real = home.activities.filter(a => !a.completed);
+    if (real.length > 0 || loading) return real;
+    const demoCompleted = localStorage.getItem('tandem:demo-completed') === 'true';
+    if (demoCompleted) return [];
+    return [{
+      id: `demo-pictogramas-${user?.id || 'anon'}`,
+      title: 'Preparar una merienda con pictogramas',
+      description: 'Usar apoyos visuales para seguir una rutina simple',
+      status: 'Pendiente',
+      completed: false,
+      assignedAt: 'Hoy',
+    }] as PertenecienteHomeActivity[];
+  }, [home.activities, loading, user]);
 
   const weekDays = useMemo(() =>
     Array.from({ length: 7 }, (_, i) => {
@@ -394,9 +397,13 @@ export default function UserHome({ onNavigate }: Props) {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.04 }}
-                    className="snap-start shrink-0 w-[80%] sm:w-[48%] lg:w-[31%]"
+                    className="snap-start shrink-0 w-[80%] sm:w-[48%] lg:w-[31%] cursor-pointer"
+                    onClick={() => {
+                      localStorage.setItem('tandem:execute-activity-id', activity.id);
+                      onNavigate?.('activities');
+                    }}
                   >
-                    <div className="rounded-2xl bg-[#faf8ff] border border-[#ede4f8] p-3 h-full flex flex-col shadow-sm hover:shadow-md transition-shadow">
+                    <div className="rounded-2xl bg-[#f0eaff] border border-[#e0d8f0] p-3 h-full flex flex-col shadow-sm hover:shadow-md transition-shadow">
                       <div className="bg-white rounded-xl p-4 flex-1 flex flex-col">
                         <div className="flex items-start gap-3">
                           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#f5f0ff] text-xl">

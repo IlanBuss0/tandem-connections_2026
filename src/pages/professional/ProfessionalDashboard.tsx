@@ -17,6 +17,7 @@ import { isPermissionEnabled, PROFESIONAL_PERMISSIONS, usePermissionContext } fr
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { useToast } from '@/components/ui/use-toast';
 import { useCalendar } from '@/contexts/CalendarContext';
+import { useSyncMobileMenuOpen } from '@/contexts/MobileMenuState';
 
 function professionalEventPatientId(description?: string) {
   return description?.match(/\[paciente:([^\]]+)\]/)?.[1] || '';
@@ -42,6 +43,7 @@ export default function ProfessionalDashboard() {
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
   const [patientTab, setPatientTab] = useState<'overview' | 'stats'>('overview');
   const [menuOpen, setMenuOpen] = useState(false);
+  useSyncMobileMenuOpen(menuOpen);
   const [linkedUsers, setLinkedUsers] = useState<User[]>([]);
   const [activitiesByUser, setActivitiesByUser] = useState<Record<string, Activity[]>>({});
   const [allProfessionals, setAllProfessionals] = useState<Professional[]>([]);

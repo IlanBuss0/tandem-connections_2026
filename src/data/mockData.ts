@@ -218,6 +218,7 @@ export interface RoutineItem {
   icon: string;
   completed: boolean;
   category: string;
+  pictogramLabel?: string;
 }
 
 export const juanDailyRoutine: RoutineItem[] = [

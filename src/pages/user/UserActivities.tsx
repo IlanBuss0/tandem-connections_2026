@@ -215,9 +215,18 @@ export default function UserActivities() {
       const backendCustomId = (activity as any).backendCustomActivityId;
       return !backendCustomId || !customBackendIds.has(Number(backendCustomId));
     });
-    const demoActivity = user ? buildPictogramDemoActivity(user.id) : null;
+    const demoCompleted = localStorage.getItem('tandem:demo-completed') === 'true';
+    const demoActivity = user && !demoCompleted ? buildPictogramDemoActivity(user.id) : null;
     return [demoActivity, ...customForUser, ...localWithoutDuplicatedCustom].filter(Boolean) as Activity[];
   }, [customForUser, localActivities, user]);
+
+  useEffect(() => {
+    const storedId = localStorage.getItem('tandem:execute-activity-id');
+    if (!storedId) return;
+    localStorage.removeItem('tandem:execute-activity-id');
+    const activity = merged.find(a => a.id === storedId);
+    if (activity) setExecutingActivity(activity);
+  }, [merged]);
 
   if (!user) return null;
 
@@ -304,6 +313,10 @@ export default function UserActivities() {
 
   async function completeActivity(id: string) {
     if (!canCompleteActivities) return;
+    if (id.includes('demo-pictogramas')) {
+      localStorage.setItem('tandem:demo-completed', 'true');
+      return;
+    }
     const activity = merged.find(item => item.id === id);
     if (!activity || !user) return;
     if ((activity as any).isCustom) {

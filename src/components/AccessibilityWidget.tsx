@@ -38,6 +38,7 @@ import {
   type ColorFilter,
   useAccessibility,
 } from '@/contexts/AccessibilityContext';
+import { useMobileMenu } from '@/contexts/MobileMenuState';
 
 type IconComponent = ComponentType<{ size?: number; className?: string }>;
 
@@ -64,6 +65,7 @@ const PROFILE_ICONS: Record<string, IconComponent> = {
 
 export default function AccessibilityWidget() {
   const { settings, update, applyProfile, reset, toggle } = useAccessibility();
+  const { isMobileMenuOpen } = useMobileMenu();
   const [open, setOpen] = useState(false);
   const [resetNotice, setResetNotice] = useState(false);
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
@@ -432,19 +434,21 @@ export default function AccessibilityWidget() {
         </defs>
       </svg>
 
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Abrir menu de accesibilidad"
-        className="a11y-widget fixed bottom-5 left-5 z-[9998] flex h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-[#2357ff] text-white shadow-2xl shadow-blue-900/25 transition hover:-translate-y-0.5 hover:bg-[#5b35d5] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#b9a7ff] sm:bottom-6 sm:left-6"
-      >
-        <Accessibility size={28} />
-        {activeCount > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full border-2 border-white bg-[#7b2ff2] px-1 text-xs font-bold text-white">
-            {activeCount}
-          </span>
-        )}
-      </button>
+      {!isMobileMenuOpen && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label="Abrir menu de accesibilidad"
+          className="a11y-widget fixed bottom-5 left-5 z-[9998] flex h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-[#2357ff] text-white shadow-2xl shadow-blue-900/25 transition hover:-translate-y-0.5 hover:bg-[#5b35d5] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#b9a7ff] sm:bottom-6 sm:left-6"
+        >
+          <Accessibility size={28} />
+          {activeCount > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full border-2 border-white bg-[#7b2ff2] px-1 text-xs font-bold text-white">
+              {activeCount}
+            </span>
+          )}
+        </button>
+      )}
 
       {open && (
         <div className="a11y-widget fixed inset-0 z-[9999]" role="dialog" aria-modal="true" aria-label="Menu de Accesibilidad">

@@ -24,6 +24,7 @@ import UserShop from '@/pages/user/UserShop';
 import TutorDashboard from '@/pages/tutor/TutorDashboard';
 import ProfessionalDashboard from '@/pages/professional/ProfessionalDashboard';
 import SuperAdminDashboard from '@/pages/admin/SuperAdminDashboard';
+import { useSyncMobileMenuOpen } from '@/contexts/MobileMenuState';
 
 const userNav = [
   { id: 'home', label: 'Inicio', icon: Home },
@@ -70,6 +71,8 @@ export default function AppShell() {
       // Ignore storage failures; navigation still works in memory.
     }
   }, [activeTab]);
+
+  useSyncMobileMenuOpen(sidebarOpen);
 
   if (!user) return null;
 

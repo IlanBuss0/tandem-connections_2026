@@ -6,6 +6,7 @@ import { AccessibilityProvider } from '@/contexts/AccessibilityContext';
 import { EmotionsProvider } from '@/contexts/EmotionsContext';
 import { RoutinesProvider } from '@/contexts/RoutinesContext';
 import { CalendarProvider } from '@/contexts/CalendarContext';
+import MobileMenuProvider from '@/contexts/MobileMenuProvider';
 import AccessibilityWidget from '@/components/AccessibilityWidget';
 import Landing from '@/pages/Landing';
 import Login from '@/pages/Login';
@@ -110,7 +111,9 @@ const App = () => (
                 <EmotionsProvider>
                   <RoutinesProvider>
                     <CalendarProvider>
-                      <AuthGate />
+                      <MobileMenuProvider>
+                        <AuthGate />
+                      </MobileMenuProvider>
                     </CalendarProvider>
                   </RoutinesProvider>
                 </EmotionsProvider>
