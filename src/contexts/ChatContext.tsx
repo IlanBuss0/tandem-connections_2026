@@ -7,7 +7,7 @@ import {
   createGroupConversation,
   deleteMessage,
   fetchChatContacts,
-  fetchConversationsForUser,
+  fetchMyConversationsForUser,
   fetchMessagesForConversation,
   hideConversationForMe,
   markConversationRead,
@@ -18,6 +18,12 @@ import {
   Conversation,
   ChatMessage,
 } from '@/data/api';
+
+type LoadMessagesOptions = {
+  force?: boolean;
+};
+
+type SyncReason = 'poll' | 'socket' | 'connect' | 'manual';
 
 export interface ContactPerson {
   id: string;
@@ -69,6 +75,42 @@ function logRealtime(message: string, payload?: unknown) {
   console.info(`[chat realtime] ${message}`, payload);
 }
 
+function conversationHasRelevantChanges(current: Conversation | undefined, next: Conversation) {
+  if (!current) return true;
+
+  return (
+    current.lastMessage !== next.lastMessage ||
+    current.lastMessageTime !== next.lastMessageTime ||
+    current.unreadCount !== next.unreadCount ||
+    current.participants.length !== next.participants.length ||
+    current.participants.some((participant, index) => participant !== next.participants[index]) ||
+    current.participantNames.length !== next.participantNames.length ||
+    current.participantNames.some((name, index) => name !== next.participantNames[index]) ||
+    current.title !== next.title ||
+    current.description !== next.description ||
+    current.avatar !== next.avatar ||
+    current.type !== next.type
+  );
+}
+
+function mergeConversationLists(current: Conversation[], next: Conversation[]) {
+  const currentById = new Map(current.map(conversation => [conversation.id, conversation]));
+  let changed = current.length !== next.length;
+  const changedConversationIds = new Set<string>();
+
+  const merged = next.map(nextConversation => {
+    const currentConversation = currentById.get(nextConversation.id);
+    if (conversationHasRelevantChanges(currentConversation, nextConversation)) {
+      changed = true;
+      changedConversationIds.add(nextConversation.id);
+      return nextConversation;
+    }
+    return currentConversation || nextConversation;
+  });
+
+  return { changed, changedConversationIds, conversations: changed ? merged : current };
+}
+
 function socketMessageToChatMessage(message: any): ChatMessage {
   const date = new Date(message.fecha_envio);
   const fileData = message.archivos;
@@ -97,7 +139,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [contacts, setContacts] = useState<ContactPerson[]>([]);
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [socketConnected, setSocketConnected] = useState(false);
   const [typingByConversation, setTypingByConversation] = useState<Record<string, string[]>>({});
   const conversationsRef = useRef<Conversation[]>([]);
   const messagesRef = useRef<ChatMessage[]>([]);
@@ -131,15 +172,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setTypingByConversation({});
   }, [user?.id]);
 
-  const reloadChats = useCallback(async () => {
-    if (!user) return;
-
-    const convs = await fetchConversationsForUser(user.id);
-    setConversations(convs);
-  }, [user]);
-
-  const loadMessagesForConversation = useCallback(async (conversationId: string) => {
-    if (!conversationId || loadedMessageConversationIdsRef.current.has(conversationId)) return;
+  const loadMessagesForConversation = useCallback(async (conversationId: string, options: LoadMessagesOptions = {}) => {
+    if (!conversationId) return;
+    if (!options.force && loadedMessageConversationIdsRef.current.has(conversationId)) return;
 
     const loadedMessages = await fetchMessagesForConversation(conversationId);
     loadedMessageConversationIdsRef.current.add(conversationId);
@@ -162,9 +197,56 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         ...merged,
       ];
     });
+
+    return loadedMessages;
   }, []);
 
+  const syncConversations = useCallback(async ({ reason }: { reason: SyncReason }) => {
+    if (!user) return;
+
+    const nextConversations = await fetchMyConversationsForUser(user.id);
+    const activeConversationId = activeConversationIdRef.current;
+    const currentConversations = conversationsRef.current;
+    const currentMerge = mergeConversationLists(currentConversations, nextConversations);
+    const activeConversationWithChanges = activeConversationId && currentMerge.changedConversationIds.has(activeConversationId)
+      ? activeConversationId
+      : null;
+
+    setConversations(prev => {
+      const { changed, conversations: merged } = prev === currentConversations
+        ? currentMerge
+        : mergeConversationLists(prev, nextConversations);
+      return changed ? merged : prev;
+    });
+
+    if (activeConversationWithChanges) {
+      logRealtime('sincronizacion detecto novedades en chat activo', {
+        reason,
+        id_chat: activeConversationWithChanges,
+      });
+      const loadedMessages = await loadMessagesForConversation(activeConversationWithChanges, { force: true });
+      const lastMessageId = loadedMessages?.at(-1)?.id;
+
+      setConversations(prev => {
+        let changed = false;
+        const next = prev.map(conversation => {
+          if (conversation.id !== activeConversationWithChanges || conversation.unreadCount === 0) return conversation;
+          changed = true;
+          return { ...conversation, unreadCount: 0 };
+        });
+        return changed ? next : prev;
+      });
+
+      if (isNumericId(activeConversationWithChanges)) {
+        markConversationRead(activeConversationWithChanges, lastMessageId).catch(() => undefined);
+      }
+    }
+  }, [loadMessagesForConversation, user]);
+
   const upsertMessage = useCallback((message: ChatMessage) => {
+    const messageAlreadyExists = messagesRef.current.some(existing => existing.id === message.id);
+    if (messageAlreadyExists) return;
+
     setMessages(prev => {
       if (prev.some(existing => existing.id === message.id)) return prev;
       return [...prev, message];
@@ -231,14 +313,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (!user) return;
 
     setLoading(true);
-    reloadChats()
+    syncConversations({ reason: 'manual' })
       .then(() => {
         if (!mounted) return;
       })
       .catch(() => {
-        if (!mounted) return;
-        setConversations([]);
-        setMessages([]);
+        if (mounted) logRealtime('sincronizacion inicial fallida; se conserva estado local');
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -247,19 +327,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return () => {
       mounted = false;
     };
-  }, [reloadChats, user]);
+  }, [syncConversations, user]);
 
   useEffect(() => {
-    if (!user || socketConnected) return;
+    if (!user) return;
 
     const intervalId = window.setInterval(() => {
-      reloadChats().catch(() => undefined);
-    }, 15000);
+      syncConversations({ reason: 'poll' }).catch(() => undefined);
+    }, 5000);
 
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [reloadChats, socketConnected, user]);
+  }, [syncConversations, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -270,20 +350,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
 
     nextSocket.on('connect', () => {
-      setSocketConnected(true);
       joinedChatIdsRef.current.clear();
       joiningChatIdsRef.current.clear();
       logRealtime('socket conectado', { socketId: nextSocket.id, userId: user.id, apiBaseUrl: API_BASE_URL });
-      reloadChats().catch(() => undefined);
+      syncConversations({ reason: 'connect' }).catch(() => undefined);
     });
 
     nextSocket.on('connect_error', (error) => {
-      setSocketConnected(false);
       logRealtime('socket rechazo/fallo conexion', { message: error.message, apiBaseUrl: API_BASE_URL });
     });
 
     nextSocket.on('disconnect', (reason) => {
-      setSocketConnected(false);
       logRealtime('socket desconectado', { reason });
     });
 
@@ -299,18 +376,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           id_chat: chatMessage.conversationId,
           userId: user.id,
         });
-        reloadChats().catch(() => undefined);
+        syncConversations({ reason: 'socket' }).catch(() => undefined);
       }
     });
 
     nextSocket.on('chat:new', () => {
       logRealtime('chat:new recibido');
-      reloadChats().catch(() => undefined);
+      syncConversations({ reason: 'socket' }).catch(() => undefined);
     });
 
     nextSocket.on('chat:updated', () => {
       logRealtime('chat:updated recibido');
-      reloadChats().catch(() => undefined);
+      syncConversations({ reason: 'socket' }).catch(() => undefined);
     });
 
     nextSocket.on('message:updated', (message) => {
@@ -364,6 +441,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       window.dispatchEvent(new CustomEvent('permisos:updated', { detail: payload }));
     });
 
+    nextSocket.onAny((eventName) => {
+      if (
+        eventName.startsWith('chat:') &&
+        !['chat:new', 'chat:updated', 'chat:join'].includes(eventName)
+      ) {
+        logRealtime('evento chat no reconocido; sincronizando conversaciones', { eventName });
+        syncConversations({ reason: 'socket' }).catch(() => undefined);
+      }
+    });
+
     setSocket(nextSocket);
 
     const handleAuthExpired = () => {
@@ -385,10 +472,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       Object.values(typingTimeoutsRef.current).forEach(window.clearTimeout);
       typingTimeoutsRef.current = {};
       nextSocket.disconnect();
-      setSocketConnected(false);
       setSocket(null);
     };
-  }, [reloadChats, removeMessageFromState, upsertMessage, user]);
+  }, [removeMessageFromState, syncConversations, upsertMessage, user]);
 
   useEffect(() => {
     if (!socket) return;
@@ -609,16 +695,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const updateConversation = useCallback(async (conversationId: string, payload: { nombre?: string; descripcion?: string; participantIds?: string[]; adminIds?: string[] }) => {
     const updated = await updateConversationDetails(conversationId, payload);
     setConversations(prev => prev.map(item => item.id === conversationId ? updated : item));
-    await reloadChats().catch(() => undefined);
+    await syncConversations({ reason: 'manual' }).catch(() => undefined);
     return updated;
-  }, [reloadChats]);
+  }, [syncConversations]);
 
   const uploadConversationAvatar = useCallback(async (conversationId: string, file: File, onProgress?: (pct: number) => void) => {
     const updated = await uploadChatAvatar(conversationId, file, onProgress);
     setConversations(prev => prev.map(item => item.id === conversationId ? updated : item));
-    await reloadChats().catch(() => undefined);
+    await syncConversations({ reason: 'manual' }).catch(() => undefined);
     return updated;
-  }, [reloadChats]);
+  }, [syncConversations]);
 
   const hideConversation = useCallback(async (conversationId: string) => {
     await hideConversationForMe(conversationId);

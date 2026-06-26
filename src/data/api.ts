@@ -1802,6 +1802,18 @@ export async function fetchConversationsForUser(userId: string): Promise<Convers
   return apiFetchWithFallback<Conversation[]>([`/chat/conversations?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/conversations`]);
 }
 
+export async function fetchMyConversationsForUser(userId: string): Promise<Conversation[]> {
+  const token = getStoredAuthToken();
+  if (token && isBackendUserId(userId)) {
+    const chats = await apiRequest<BackendChatRow[]>('/api/chats/me', { token }).catch(() => (
+      apiRequest<BackendChatRow[]>(`/api/chats/usuario/${encodeURIComponent(userId)}`, { token })
+    ));
+    return chats.map((chat) => backendChatToConversation(chat, userId));
+  }
+
+  return fetchConversationsForUser(userId);
+}
+
 export async function fetchMessagesForConversation(conversationId: string): Promise<ChatMessage[]> {
   const token = getStoredAuthToken();
   if (token && isBackendUserId(conversationId)) {
