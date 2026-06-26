@@ -80,8 +80,8 @@ type TabId =
   | 'settings';
 
 const tabs: { id: TabId; label: string; icon: typeof BarChart3 }[] = [
-  { id: 'overview', label: 'Resumen', icon: BarChart3 },
-  { id: 'connections', label: 'Vinculos', icon: Users },
+  { id: 'overview', label: 'Inicio', icon: BarChart3 },
+  { id: 'connections', label: 'Permisos', icon: Users },
   { id: 'stats', label: 'Estadisticas', icon: TrendingUp },
   { id: 'agenda', label: 'Agenda', icon: Clock },
   { id: 'activities', label: 'Actividades', icon: Sparkles },
@@ -94,6 +94,9 @@ const tabs: { id: TabId; label: string; icon: typeof BarChart3 }[] = [
   { id: 'profile', label: 'Perfil', icon: UserRound },
   { id: 'settings', label: 'Config', icon: Settings },
 ];
+
+const tutorTabs = tabs.filter(item => ['agenda', 'chat', 'notifications'].includes(item.id));
+const belongingTabs = tabs.filter(item => ['overview', 'stats', 'activities', 'location', 'emotions', 'calendar', 'insights', 'profile', 'settings', 'connections'].includes(item.id));
 
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const dayNamesShort = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
@@ -138,11 +141,19 @@ function clampPct(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
-export default function TutorDashboard() {
+type TutorDashboardProps = {
+  initialUserId?: number;
+  initialTab?: string;
+  onBack?: () => void;
+};
+
+export default function TutorDashboard({ initialUserId, initialTab, onBack }: TutorDashboardProps) {
   const { user, logout } = useAuth();
-  const [tab, setTab] = useState<TabId>('overview');
+  const [tab, setTab] = useState<TabId>((initialTab as TabId) || 'overview');
   const [selectedUser, setSelectedUser] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPanel, setMenuPanel] = useState<'main' | 'pertenecientes'>('main');
+  const [yoOpen, setYoOpen] = useState(true);
   const [data, setData] = useState<TutorHomeData | null>(null);
   const [tutorAgendaEvents, setTutorAgendaEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -180,7 +191,8 @@ export default function TutorDashboard() {
   };
 
   useEffect(() => {
-    load();
+    const preferredUserId = initialUserId ? String(initialUserId) : undefined;
+    load(preferredUserId);
   }, [user?.id]);
 
   const linkedUsers = data?.linkedUsers || [];
@@ -195,6 +207,15 @@ export default function TutorDashboard() {
   const pendingAct = activities.filter(a => !a.completed);
   const adherence = activities.length > 0 ? clampPct((completedAct.length / activities.length) * 100) : 0;
   const todayEmotions = emotions.filter(e => e.date === todayKey());
+  const currentWeekStart = new Date();
+  currentWeekStart.setDate(currentWeekStart.getDate() - 6);
+  const weeklyActivitiesForHeader = activities.filter(a => {
+    const d = new Date(a.assignedAt);
+    return d >= currentWeekStart && d <= new Date();
+  });
+  const weeklyAdherence = weeklyActivitiesForHeader.length
+    ? clampPct((weeklyActivitiesForHeader.filter(a => a.completed).length / weeklyActivitiesForHeader.length) * 100)
+    : 0;
 
   const insights = useMemo(() => {
     if (!mainUser) return [];
@@ -235,11 +256,13 @@ export default function TutorDashboard() {
       label: 'Perteneciente',
     })),
   ];
+  const isBelongingTab = belongingTabs.some(item => item.id === tab);
 
   return (
     <div className="min-h-screen bg-background pb-24 md:pb-0">
       <AppHeader
-        onMenuClick={() => setMenuOpen(true)}
+        onMenuClick={() => { setMenuPanel('main'); setMenuOpen(true); }}
+        onBack={onBack}
         rightSlot={
           <>
             <HeaderUserAvatar avatar={user.avatar} name={user.name} />
@@ -273,20 +296,47 @@ export default function TutorDashboard() {
                   <X size={20} />
                 </button>
               </div>
-              <nav className="flex-1 space-y-1">
-                {tabs.map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => { setTab(item.id); setMenuOpen(false); }}
-                    className={`flex w-full items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors text-left ${
-                      tab === item.id ? 'text-[#7C3AED] font-semibold' : 'text-muted-foreground'
-                    } hover:bg-[#C9A7EB]/60 hover:text-[#7C3AED]`}
-                  >
-                    <item.icon size={18} className="shrink-0" />
-                    {item.label}
+              {menuPanel === 'main' ? (
+                <nav className="flex-1 space-y-4">
+                  <div className="rounded-2xl border border-border bg-background/70 p-2">
+                    <button type="button" onClick={() => setYoOpen(prev => !prev)} className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-semibold text-foreground hover:bg-[#C9A7EB]/35">
+                      <span className="flex items-center gap-3"><UserRound size={18} className="text-primary" />Yo</span>
+                      <ChevronRight size={17} className={`transition-transform ${yoOpen ? 'rotate-90' : ''}`} />
+                    </button>
+                    {yoOpen && (
+                      <div className="mt-1 space-y-1">
+                        {tutorTabs.map(item => (
+                          <button key={item.id} onClick={() => { setTab(item.id); setMenuOpen(false); setMenuPanel('main'); }} className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm transition-colors ${tab === item.id ? 'bg-[#C9A7EB]/40 text-[#7C3AED] font-semibold' : 'text-muted-foreground'} hover:bg-[#C9A7EB]/50 hover:text-[#7C3AED]`}>
+                            <item.icon size={18} className="shrink-0" />{item.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <button type="button" onClick={() => setMenuPanel('pertenecientes')} className="flex w-full items-center justify-between rounded-2xl border border-border bg-background/70 px-5 py-4 text-left transition-colors hover:border-primary/50 hover:bg-primary/5">
+                    <span><span className="flex items-center gap-3 text-sm font-semibold text-foreground"><Users size={18} className="text-primary" />Pertenecientes</span><span className="mt-1 block text-xs text-muted-foreground">Elegir perfil o vincular nuevo usuario</span></span>
+                    <ChevronRight size={18} className="text-muted-foreground" />
                   </button>
-                ))}
-              </nav>
+                </nav>
+              ) : (
+                <nav className="flex-1 space-y-4">
+                  <button type="button" onClick={() => setMenuPanel('main')} className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"><ChevronLeft size={17} />Volver</button>
+                  <div className="grid grid-cols-2 gap-3">
+                    {linkedUsers.map((linked, index) => (
+                      <button key={linked.id} type="button" onClick={() => { setSelectedUser(index); setTab('overview'); setMenuOpen(false); setMenuPanel('main'); }} className={`group min-h-[150px] rounded-2xl border p-3 text-center transition ${selectedUser === index ? 'border-primary bg-primary/10 ring-2 ring-primary/20' : 'border-border bg-background hover:border-primary/50 hover:bg-primary/5'}`}>
+                        <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-card text-4xl shadow-sm transition group-hover:scale-105">{linked.avatar}</span>
+                        <span className="mt-3 block truncate text-sm font-semibold text-foreground">{linked.name}</span>
+                        <span className="mt-1 block truncate text-[11px] text-muted-foreground">{linked.supportLevel}</span>
+                      </button>
+                    ))}
+                    <button type="button" onClick={() => { setTab('connections'); setMenuOpen(false); setMenuPanel('main'); }} className="min-h-[150px] rounded-2xl border border-dashed border-primary/45 bg-primary/5 p-3 text-center text-primary transition hover:bg-primary/10">
+                      <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-primary shadow-sm"><Plus size={28} /></span>
+                      <span className="mt-3 block text-sm font-semibold">Vincular nuevo usuario</span>
+                    </button>
+                  </div>
+                  {linkedUsers.length === 0 && <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">No hay pertenecientes vinculados.</p>}
+                </nav>
+              )}
               <div className="mt-auto pt-4 border-t border-border">
                 <button onClick={logout} className="flex w-full items-center gap-3 px-4 py-3 rounded-xl text-sm text-[#7C3AED] hover:bg-[#C9A7EB]/40 transition-colors">
                   <LogOut size={18} />
@@ -299,7 +349,7 @@ export default function TutorDashboard() {
       </AnimatePresence>
 
       {linkedUsers.length > 0 && (
-        <section className="border-b border-border bg-background px-4 py-4 lg:hidden">
+        <section className="hidden">
           <div className="mx-auto max-w-4xl space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -340,9 +390,9 @@ export default function TutorDashboard() {
         </section>
       )}
 
-      <div className="mx-auto grid max-w-7xl gap-5 px-4 py-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+      <div className="mx-auto max-w-7xl px-4 py-4">
         {linkedUsers.length > 0 && (
-          <aside className="hidden lg:block">
+          <aside className="hidden">
             <div className="sticky top-[86px] space-y-3 rounded-xl border border-border bg-card p-3 shadow-sm">
               <div className="flex items-center justify-between gap-3 px-1">
                 <div className="min-w-0">
@@ -392,6 +442,44 @@ export default function TutorDashboard() {
         )}
 
         <main className="min-w-0 space-y-4">
+        {!loading && !error && mainUser && isBelongingTab && (
+          <section className="sticky top-[72px] z-30 -mx-4 border-b border-border bg-background/95 px-4 py-3 backdrop-blur">
+            <div className="mx-auto max-w-7xl space-y-3">
+              <div className="flex items-center gap-3">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-card text-3xl shadow-sm">
+                  {mainUser.avatar}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-heading text-base font-bold text-foreground">{mainUser.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    Nivel {mainUser.level} - {mainUser.points} pts - {mainUser.supportLevel} - {mainUser.linkStatus}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-lg font-bold text-success">{weeklyAdherence}%</p>
+                  <p className="text-[10px] text-muted-foreground">adherencia semanal</p>
+                </div>
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {belongingTabs.map(item => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setTab(item.id)}
+                    className={`flex h-10 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-medium transition-colors ${
+                      tab === item.id
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-card text-muted-foreground hover:bg-primary/10 hover:text-primary'
+                    }`}
+                  >
+                    <item.icon size={16} />
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
         {loading && (
           <div className="bg-card rounded-xl border border-border p-8 text-center">
             <Loader2 size={28} className="mx-auto animate-spin text-primary mb-3" />
@@ -412,7 +500,7 @@ export default function TutorDashboard() {
           </div>
         )}
 
-        {!loading && !error && !mainUser && tab !== 'notifications' && tab !== 'connections' && (
+        {!loading && !error && !mainUser && tab !== 'notifications' && tab !== 'connections' && tab !== 'chat' && tab !== 'agenda' && (
           <div className="bg-card rounded-xl border border-border p-8 text-center">
             <Shield size={30} className="mx-auto text-muted-foreground mb-3" />
             <p className="font-semibold text-foreground">No hay pertenecientes vinculados</p>
@@ -430,13 +518,17 @@ export default function TutorDashboard() {
           <ChatScreen profiles={chatProfiles} defaultProfileId={String(user.id)} />
         )}
 
-        {!loading && !error && tab === 'connections' && (
-          <TutorConnections />
+        {!loading && !error && tab === 'agenda' && (
+          <TutorCalendar userId={user.id} events={tutorAgendaEvents} onChanged={loadTutorAgenda} compact />
         )}
 
-        {!loading && !error && mainUser && tab !== 'notifications' && tab !== 'chat' && tab !== 'connections' && (
+        {!loading && !error && tab === 'connections' && (
+          <TutorConnections initialPertenecienteId={mainUser?.pertenecienteId} />
+        )}
+
+        {!loading && !error && mainUser && tab !== 'notifications' && tab !== 'chat' && tab !== 'agenda' && tab !== 'connections' && (
           <>
-            <div className="bg-card rounded-xl p-4 border border-border flex items-center gap-4">
+            <div className="hidden">
               <span className="text-4xl">{mainUser.avatar}</span>
               <div className="flex-1 min-w-0">
                 <p className="font-heading font-bold text-foreground truncate">{mainUser.name}</p>
@@ -464,6 +556,7 @@ export default function TutorDashboard() {
                 events={events}
                 adherence={adherence}
                 mainUser={mainUser}
+                onNavigate={setTab}
               />
             )}
             {tab === 'stats' && (
@@ -475,7 +568,6 @@ export default function TutorDashboard() {
                 mainUser={mainUser}
               />
             )}
-            {tab === 'agenda' && <TutorCalendar userId={user.id} events={tutorAgendaEvents} onChanged={loadTutorAgenda} compact />}
             {tab === 'insights' && <Insights insights={insights} pending={pendingAct.length} />}
             {tab === 'location' && <Locations locations={locations} />}
             {tab === 'emotions' && <Emotions emotions={emotions} />}
@@ -487,7 +579,7 @@ export default function TutorDashboard() {
         </main>
       </div>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur md:hidden">
+      <nav className="hidden">
         <div className="mx-auto grid max-w-lg grid-cols-6 gap-1">
           {primaryTabs.map(item => (
             <button
@@ -513,48 +605,26 @@ function Stats({
   events,
   adherence,
   mainUser,
+  onNavigate,
 }: {
   activities: TutorHomeData['byUserId'][string]['activities'];
   emotions: TutorHomeData['byUserId'][string]['emotions'];
   events: TutorHomeData['byUserId'][string]['events'];
   adherence: number;
   mainUser: TutorHomeLinkedUser;
+  onNavigate?: (tab: TabId) => void;
 }) {
   const completed = activities.filter(a => a.completed);
-  const pending = activities.filter(a => !a.completed);
-  const inProgress = activities.filter(a => a.status === 'en progreso');
-  const emotionAvg = emotions.length
-    ? (emotions.reduce((sum, e) => sum + e.intensity, 0) / emotions.length).toFixed(1)
-    : '0';
 
   const byStatus = activities.reduce<Record<string, number>>((acc, a) => {
     acc[a.status] = (acc[a.status] || 0) + 1;
     return acc;
   }, {});
 
-  const byCategory = activities.reduce<Record<string, { total: number; done: number }>>((acc, a) => {
-    if (!acc[a.category]) acc[a.category] = { total: 0, done: 0 };
-    acc[a.category].total++;
-    if (a.completed) acc[a.category].done++;
-    return acc;
-  }, {});
-
-  const byDifficulty = activities.reduce<Record<string, { total: number; done: number }>>((acc, a) => {
-    const d = a.difficulty || 'Media';
-    if (!acc[d]) acc[d] = { total: 0, done: 0 };
-    acc[d].total++;
-    if (a.completed) acc[d].done++;
-    return acc;
-  }, {});
-
-  const topEmotions = useMemo(() => {
-    const map: Record<string, number> = {};
-    emotions.forEach(e => { map[e.emotion] = (map[e.emotion] || 0) + 1; });
-    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  }, [emotions]);
-
   const today = new Date();
-  const weekAgo = new Date(today); weekAgo.setDate(weekAgo.getDate() - 6);
+  const weekAgo = new Date(today);
+  weekAgo.setDate(weekAgo.getDate() - 6);
+
   const weeklyActivities = activities.filter(a => {
     const d = new Date(a.assignedAt);
     return d >= weekAgo && d <= today;
@@ -564,21 +634,53 @@ function Stats({
     ? clampPct((weeklyCompleted.length / weeklyActivities.length) * 100)
     : 0;
 
+  const lastWeekEmotions = emotions
+    .filter(e => {
+      const d = new Date(e.date);
+      return d >= weekAgo && d <= today;
+    })
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 5);
+
   const upcomingEvents = events
     .filter(e => new Date(e.date) >= today)
     .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
     .slice(0, 5);
 
-  const totalPoints = activities.reduce((sum, a) => sum + (a.completed ? a.points : 0), 0);
-
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Kpi icon={CheckCircle2} label="Adherencia" value={`${adherence}%`} />
+        <Kpi icon={CheckCircle2} label="Adherencia semanal" value={`${weeklyAdherence}%`} />
         <Kpi icon={Award} label="Completadas" value={`${completed.length}/${activities.length}`} />
-        <Kpi icon={TrendingUp} label="Racha" value={`${mainUser.streak} días`} />
-        <Kpi icon={Target} label="Puntos ganados" value={`${totalPoints} pts`} />
+        <Kpi icon={TrendingUp} label="Racha" value={`${mainUser.streak} dias`} />
+        <Kpi icon={Target} label="Puntos" value={`${mainUser.points} pts`} />
       </div>
+
+      {onNavigate && (
+        <div className="bg-card rounded-xl p-4 border border-border">
+          <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
+            <Sparkles size={16} className="text-primary" /> Acceso rapido
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <button onClick={() => onNavigate('activities')} className="flex flex-col items-center gap-1.5 rounded-lg border border-border bg-background p-3 hover:border-primary hover:bg-primary/5 transition-colors">
+              <Plus size={20} className="text-primary" />
+              <span className="text-xs font-medium text-foreground">Nueva Actividad</span>
+            </button>
+            <button onClick={() => onNavigate('calendar')} className="flex flex-col items-center gap-1.5 rounded-lg border border-border bg-background p-3 hover:border-primary hover:bg-primary/5 transition-colors">
+              <Calendar size={20} className="text-primary" />
+              <span className="text-xs font-medium text-foreground">Ver Calendario</span>
+            </button>
+            <button onClick={() => onNavigate('chat')} className="flex flex-col items-center gap-1.5 rounded-lg border border-border bg-background p-3 hover:border-primary hover:bg-primary/5 transition-colors">
+              <MessageCircle size={20} className="text-primary" />
+              <span className="text-xs font-medium text-foreground">Enviar Mensaje</span>
+            </button>
+            <button onClick={() => onNavigate('connections')} className="flex flex-col items-center gap-1.5 rounded-lg border border-border bg-background p-3 hover:border-primary hover:bg-primary/5 transition-colors">
+              <Users size={20} className="text-primary" />
+              <span className="text-xs font-medium text-foreground">Vincular Usuario</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-card rounded-xl p-4 border border-border">
@@ -606,73 +708,20 @@ function Stats({
 
         <div className="bg-card rounded-xl p-4 border border-border">
           <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
-            <Activity size={16} className="text-primary" /> Por categoría
+            <Heart size={16} className="text-primary" /> Ultimas emociones
           </h3>
-          <div className="space-y-2">
-            {Object.entries(byCategory).map(([cat, v]) => {
-              const pct = v.total ? clampPct((v.done / v.total) * 100) : 0;
-              return (
-                <div key={cat}>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-foreground capitalize">{cat}</span>
-                    <span className="text-muted-foreground">{v.done}/{v.total} &middot; {pct}%</span>
-                  </div>
-                  <div className="w-full bg-muted rounded-full h-1.5 mt-1">
-                    <div className="bg-primary h-1.5 rounded-full" style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-            {Object.keys(byCategory).length === 0 && <EmptyText text="Sin actividades por categoría." />}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-card rounded-xl p-4 border border-border">
-          <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
-            <Award size={16} className="text-primary" /> Por dificultad
-          </h3>
-          <div className="space-y-3">
-            {Object.entries(byDifficulty).map(([dif, v]) => {
-              const maxVal = Math.max(...Object.values(byDifficulty).map(x => x.done), 1);
-              const barPct = clampPct((v.done / maxVal) * 100);
-              const color = dif === 'Fácil' || dif === 'facil' ? 'bg-green-500' : dif === 'medio' || dif === 'Media' ? 'bg-amber-500' : 'bg-red-500';
-              return (
-                <div key={dif} className="flex items-center gap-2">
-                  <span className="text-xs capitalize w-20 text-foreground">{dif}</span>
-                  <div className="flex-1 bg-muted rounded-full h-2">
-                    <div className={`h-2 rounded-full ${color}`} style={{ width: `${barPct}%` }} />
-                  </div>
-                  <span className="text-xs font-bold w-8 text-right text-foreground">{v.done}/{v.total}</span>
-                </div>
-              );
-            })}
-            {Object.keys(byDifficulty).length === 0 && <EmptyText text="Sin datos de dificultad." />}
-          </div>
-        </div>
-
-        <div className="bg-card rounded-xl p-4 border border-border">
-          <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
-            <Heart size={16} className="text-primary" /> Emociones más frecuentes
-          </h3>
-          <p className="text-xs text-muted-foreground mb-2">
-            Intensidad promedio: <strong className="text-foreground">{emotionAvg}/5</strong>
-          </p>
+          <p className="text-xs text-muted-foreground mb-2">Registros de los ultimos 7 dias</p>
           <div className="space-y-1.5">
-            {topEmotions.map(([emo, count]) => {
-              const maxCount = topEmotions[0]?.[1] || 1;
-              return (
-                <div key={emo} className="flex items-center gap-2">
-                  <span className="text-xs w-24 text-foreground truncate">{emo}</span>
-                  <div className="flex-1 bg-muted rounded-full h-2">
-                    <div className="h-2 rounded-full gradient-primary" style={{ width: `${(count / maxCount) * 100}%` }} />
-                  </div>
-                  <span className="text-xs font-bold w-6 text-right text-muted-foreground">{count}</span>
+            {lastWeekEmotions.map((emotion, index) => (
+              <div key={`${emotion.date}-${emotion.emotion}-${index}`} className="flex items-center gap-2">
+                <span className="text-xs w-24 text-foreground truncate">{emotion.emotion}</span>
+                <div className="flex-1 bg-muted rounded-full h-2">
+                  <div className="h-2 rounded-full gradient-primary" style={{ width: `${clampPct((emotion.intensity / 5) * 100)}%` }} />
                 </div>
-              );
-            })}
-            {topEmotions.length === 0 && <EmptyText text="Sin registros emocionales." />}
+                <span className="text-xs font-bold w-12 text-right text-muted-foreground">{emotion.intensity}/5</span>
+              </div>
+            ))}
+            {lastWeekEmotions.length === 0 && <EmptyText text="Sin registros emocionales recientes." />}
           </div>
         </div>
       </div>
@@ -680,40 +729,7 @@ function Stats({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-card rounded-xl p-4 border border-border">
           <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
-            <TrendingUp size={16} className="text-primary" /> Adherencia semanal
-          </h3>
-          <div className="flex items-end gap-2 h-24">
-            {Array.from({ length: 7 }).map((_, i) => {
-              const d = new Date(today);
-              d.setDate(d.getDate() - (6 - i));
-              const dayLabel = d.toLocaleDateString('es', { weekday: 'short' }).slice(0, 3);
-              const dayStr = d.toISOString().split('T')[0];
-              const dayActivities = activities.filter(a => a.assignedAt?.startsWith(dayStr));
-              const dayDone = dayActivities.filter(a => a.completed).length;
-              const dayPct = dayActivities.length ? clampPct((dayDone / dayActivities.length) * 100) : 0;
-              return (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1 justify-end">
-                  <motion.div
-                    initial={{ height: 0 }}
-                    animate={{ height: `${dayPct}%` }}
-                    transition={{ delay: i * 0.05 }}
-                    className="w-full rounded-t-md gradient-primary"
-                    style={{ height: `${dayPct}%`, minHeight: dayPct > 0 ? 4 : 0 }}
-                  />
-                  <span className="text-[9px] text-muted-foreground">{dayLabel}</span>
-                </div>
-              );
-            })}
-          </div>
-          <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-            <span>Semanal: <strong className="text-foreground">{weeklyAdherence}%</strong></span>
-            <span>General: <strong className="text-foreground">{adherence}%</strong></span>
-          </div>
-        </div>
-
-        <div className="bg-card rounded-xl p-4 border border-border">
-          <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
-            <Calendar size={16} className="text-primary" /> Próximos eventos ({upcomingEvents.length})
+            <Calendar size={16} className="text-primary" /> Proximos eventos ({upcomingEvents.length})
           </h3>
           <div className="space-y-2">
             {upcomingEvents.map(e => (
@@ -726,26 +742,25 @@ function Stats({
                 <Clock size={14} className="text-muted-foreground shrink-0" />
               </div>
             ))}
-            {upcomingEvents.length === 0 && <EmptyText text="No hay eventos próximos." />}
+            {upcomingEvents.length === 0 && <EmptyText text="No hay eventos proximos." />}
           </div>
         </div>
-      </div>
 
-      <div className="bg-card rounded-xl p-4 border border-border">
-        <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
-          <Shield size={16} className="text-primary" /> Perfil de apoyo
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <InfoItem label="Nivel" value={mainUser.level} />
-          <InfoItem label="Puntos" value={mainUser.points} />
-          <InfoItem label="Nivel de apoyo" value={mainUser.supportLevel} />
-          <InfoItem label="Autonomía" value={mainUser.autonomy} />
+        <div className="bg-card rounded-xl p-4 border border-border">
+          <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
+            <Shield size={16} className="text-primary" /> Perfil de apoyo
+          </h3>
+          <div className="grid grid-cols-2 gap-3">
+            <InfoItem label="Nivel" value={mainUser.level} />
+            <InfoItem label="Puntos" value={mainUser.points} />
+            <InfoItem label="Nivel de apoyo" value={mainUser.supportLevel} />
+            <InfoItem label="Autonomia" value={mainUser.autonomy} />
+          </div>
         </div>
       </div>
     </div>
   );
 }
-
 function TutorActivitiesPanel({
   mainUser,
   linkedUsers,
@@ -1730,3 +1745,5 @@ function EmptyCard({ text }: { text: string }) {
 function EmptyText({ text }: { text: string }) {
   return <p className="text-sm text-muted-foreground">{text}</p>;
 }
+
+
