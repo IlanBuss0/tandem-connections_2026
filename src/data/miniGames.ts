@@ -17,7 +17,7 @@ export type GameType =
 
 // Una "ronda" o ítem dentro del juego
 export interface MCItem { prompt: string; image: string; options: string[]; correct: number; }
-export interface DragWordItem { image: string; words: string[]; correct: string; }
+export interface DragWordItem { image: string; correct: string; letters: string[]; }
 export interface WheelItem { words: string[]; }
 export interface MemoryItem { pairs: { a: string; b: string }[]; }
 export interface SequenceItem { prompt: string; steps: string[]; }
@@ -108,27 +108,27 @@ export const GAME_TEMPLATES: GameTemplate[] = [
   },
   {
     id: 'gtpl-drag-fruits',
-    name: 'Arrastrá la palabra: frutas',
+    name: 'Armá la palabra: frutas',
     emoji: '🍎',
     category: 'comunicación',
     type: 'juego',
     difficulty: 'fácil',
     duration: '5 min',
-    objective: 'Asociar palabra con imagen',
-    description: 'Arrastrá la palabra correcta sobre la imagen.',
-    steps: ['Arrastrar la palabra correcta'],
+    objective: 'Construir la palabra arrastrando letras',
+    description: 'Mirá el pictograma y armá la palabra arrastrando cada letra a su lugar.',
+    steps: ['Arrastrar letras para formar la palabra'],
     stepIcons: ['👆'],
     points: 55,
-    completionMessage: '¡Excelente! Conectaste palabras con imágenes.',
+    completionMessage: '¡Excelente! Construiste palabras como un campeón.',
     tags: ['drag','frutas'],
     gameType: 'drag-word',
     gameData: {
       dragRounds: [
-        { image: '🍎', words: ['Banana','Manzana','Pera','Uva'], correct: 'Manzana' },
-        { image: '🍌', words: ['Naranja','Manzana','Banana','Sandía'], correct: 'Banana' },
-        { image: '🍇', words: ['Uva','Frutilla','Limón','Pera'], correct: 'Uva' },
-        { image: '🍊', words: ['Pera','Naranja','Mandarina','Limón'], correct: 'Naranja' },
-        { image: '🍉', words: ['Sandía','Melón','Pomelo','Banana'], correct: 'Sandía' },
+        { image: '🍎', correct: 'manzana', letters: [] },
+        { image: '🍌', correct: 'banana', letters: [] },
+        { image: '🍇', correct: 'uva', letters: [] },
+        { image: '🍊', correct: 'naranja', letters: [] },
+        { image: '🍉', correct: 'sandia', letters: [] },
       ],
     },
   },

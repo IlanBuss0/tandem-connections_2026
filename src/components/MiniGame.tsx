@@ -98,53 +98,130 @@ function MultipleChoice({ data, onFinish }: { data: GameData; onFinish: (n: numb
   );
 }
 
-// ========== Drag word ==========
+// ========== Drag word (armá la palabra con letras) ==========
+function shuffleArray<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function autoLetters(word: string): string[] {
+  return word.toLowerCase().replace(/[^a-záéíóúñü]/g, '').split('');
+}
+
 function DragWord({ data, onFinish }: { data: GameData; onFinish: (n: number) => void }) {
   const rounds = data.dragRounds || [];
   const [i, setI] = useState(0);
   const [score, setScore] = useState(0);
-  const [feedback, setFeedback] = useState<boolean | null>(null);
+  const [placed, setPlaced] = useState(0);
+  const [letters, setLetters] = useState<string[]>(() => {
+    const r = (data.dragRounds || [])[0];
+    if (!r) return [];
+    const src = r.letters.length ? r.letters : autoLetters(r.correct);
+    return shuffleArray(src);
+  });
+  const [usedIndices, setUsedIndices] = useState<Set<number>>(new Set());
+  const [flash, setFlash] = useState<'correct' | 'incorrect' | null>(null);
+
   const r = rounds[i];
   if (!r) return null;
 
-  const tryWord = (word: string) => {
-    if (feedback !== null) return;
-    const ok = word === r.correct;
-    setFeedback(ok);
-    if (ok) setScore(s => s + 1);
-    setTimeout(() => {
-      if (i + 1 >= rounds.length) onFinish(Math.round(((ok ? score + 1 : score) / rounds.length) * 100));
-      else { setI(i + 1); setFeedback(null); }
-    }, 900);
+  const correctLetters = autoLetters(r.correct);
+
+  const tryLetter = (letterIdx: number) => {
+    if (flash !== null) return;
+    if (usedIndices.has(letterIdx)) return;
+    const letter = letters[letterIdx];
+    if (letter === correctLetters[placed]) {
+      setUsedIndices(prev => new Set(prev).add(letterIdx));
+      const nextPlaced = placed + 1;
+      setPlaced(nextPlaced);
+      setFlash('correct');
+      setTimeout(() => {
+        setFlash(null);
+        if (nextPlaced >= correctLetters.length) {
+          setScore(s => s + 1);
+          if (i + 1 >= rounds.length) {
+            onFinish(Math.round(((score + 1) / rounds.length) * 100));
+          } else {
+            setI(i + 1);
+            setPlaced(0);
+            setUsedIndices(new Set());
+            const next = rounds[i + 1];
+            const src = next.letters.length ? next.letters : autoLetters(next.correct);
+            setLetters(shuffleArray(src));
+          }
+        }
+      }, 300);
+    } else {
+      setFlash('incorrect');
+      setTimeout(() => setFlash(null), 400);
+    }
   };
 
   return (
     <div className="space-y-4">
-      <ProgressBar value={(i / rounds.length) * 100} />
-      <p className="text-xs text-muted-foreground text-center">Imagen {i + 1} de {rounds.length}</p>
-      <div
-        className={`bg-card border-2 rounded-2xl p-6 text-center transition-colors ${feedback === true ? 'border-green-500 bg-green-50' : feedback === false ? 'border-red-500 bg-red-50' : 'border-dashed border-primary/50'}`}
-        onDragOver={e => e.preventDefault()}
-        onDrop={e => { e.preventDefault(); const w = e.dataTransfer.getData('text/plain'); if (w) tryWord(w); }}
-      >
-        <div className="my-4 flex min-h-32 items-center justify-center text-8xl">
+      <ProgressBar
+        value={((i + (placed > 0 || flash !== null ? 1 : 0)) / rounds.length) * 100}
+      />
+      <p className="text-center text-xs text-muted-foreground">
+        Palabra {Math.min(i + 1, rounds.length)} de {rounds.length}
+      </p>
+
+      {/* Pictograma */}
+      <div className="flex justify-center">
+        <div className="flex min-h-32 items-center justify-center text-8xl">
           <VisualValue value={r.image} className="h-32 w-32" />
         </div>
-        <p className="text-xs text-muted-foreground">Arrastrá o tocá la palabra correcta</p>
       </div>
-      <FeedbackBanner ok={feedback} />
-      <div className="grid grid-cols-2 gap-2">
-        {r.words.map(w => (
-          <button
-            key={w}
-            draggable
-            onDragStart={e => e.dataTransfer.setData('text/plain', w)}
-            onClick={() => tryWord(w)}
-            className="p-3 rounded-xl bg-card border border-border hover:border-primary text-foreground font-medium cursor-grab active:cursor-grabbing"
-          >
-            {w}
-          </button>
-        ))}
+
+      {/* Slots de letras */}
+      <div className="flex flex-wrap justify-center gap-2">
+        {correctLetters.map((ch, idx) => {
+          const isFilled = idx < placed;
+          const isActive = idx === placed;
+          return (
+            <div
+              key={idx}
+              className={`flex h-14 w-14 items-center justify-center rounded-xl border-2 text-xl font-bold transition-all ${
+                isFilled
+                  ? 'border-green-500 bg-green-50 text-green-700'
+                  : isActive
+                    ? flash === 'incorrect'
+                      ? 'border-red-500 bg-red-50'
+                      : 'border-primary bg-primary/10 text-muted-foreground ring-2 ring-primary/30'
+                    : 'border-dashed border-muted-foreground/40 bg-muted/30 text-muted-foreground/50'
+              }`}
+            >
+              {isFilled ? ch : isActive ? '_' : idx + 1}
+            </div>
+          );
+        })}
+      </div>
+
+      {flash === 'correct' && <p className="text-center text-xs font-semibold text-green-600">¡Bien!</p>}
+      {flash === 'incorrect' && <p className="text-center text-xs font-semibold text-red-600">Esa letra no va ahí</p>}
+      {placed >= correctLetters.length && flash === null && (
+        <p className="text-center text-xs font-semibold text-green-600">¡Palabra completa!</p>
+      )}
+
+      {/* Fichas de letras disponibles */}
+      <div className="flex flex-wrap justify-center gap-2">
+        {letters.map((letter, idx) => {
+          if (usedIndices.has(idx)) return null;
+          return (
+            <button
+              key={idx}
+              onClick={() => tryLetter(idx)}
+              className="flex h-14 w-14 cursor-pointer items-center justify-center rounded-xl border-2 border-primary/40 bg-primary/5 text-xl font-bold text-foreground shadow-sm transition-all hover:border-primary hover:shadow-md active:scale-95"
+            >
+              {letter}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -696,7 +773,7 @@ function TapCorrect({ data, onFinish }: { data: GameData; onFinish: (n: number) 
 export default function MiniGame({ gameType, gameData, onFinish }: Props) {
   switch (gameType) {
     case 'multiple-choice': return <MultipleChoice data={gameData} onFinish={onFinish} />;
-    case 'drag-word': return <DragWord data={gameData} onFinish={onFinish} />;
+    case 'drag-word': return <DragWord key={'dw-' + (gameData.dragRounds || []).map(r => r.correct).join(',')} data={gameData} onFinish={onFinish} />;
     case 'wheel': return <Wheel data={gameData} onFinish={onFinish} />;
     case 'memory': return <Memory data={gameData} onFinish={onFinish} />;
     case 'sequence-order': return <SequenceOrder data={gameData} onFinish={onFinish} />;

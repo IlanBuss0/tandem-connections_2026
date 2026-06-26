@@ -19,7 +19,7 @@ const DURATIONS = ['3 min','5 min','10 min','15 min','20 min','30 min','45 min']
 function serializeGameContent(gameType?: GameType, gameData?: GameData) {
   if (!gameType || !gameData) return '';
   if (gameType === 'wheel') return gameData.wheel?.words?.join('\n') || '';
-  if (gameType === 'drag-word') return (gameData.dragRounds || []).map(item => `${item.image}|${item.words.join(',')}|${item.correct}`).join('\n');
+  if (gameType === 'drag-word') return (gameData.dragRounds || []).map(item => `${item.image}|${item.correct}|${item.letters.join(',')}`).join('\n');
   if (gameType === 'fill-blank') return (gameData.fill || []).map(item => `${item.sentence}|${item.options.join(',')}|${item.correct}`).join('\n');
   if (gameType === 'multiple-choice') return (gameData.rounds || []).map(item => `${item.image}|${item.prompt}|${item.options.join(',')}|${item.correct}`).join('\n');
   if (gameType === 'true-false') return (gameData.tf || []).map(item => `${item.statement}|${item.answer ? 'true' : 'false'}`).join('\n');
@@ -36,7 +36,7 @@ function serializeGameContent(gameType?: GameType, gameData?: GameData) {
 function parseGameContent(gameType: GameType, text: string, previous?: GameData): GameData {
   const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
   if (gameType === 'wheel') return { wheel: { words: lines } };
-  if (gameType === 'drag-word') return { dragRounds: lines.map(line => { const [image = '', words = '', correct = ''] = line.split('|'); return { image, words: words.split(',').map(item => item.trim()).filter(Boolean), correct: correct.trim() }; }) };
+  if (gameType === 'drag-word') return { dragRounds: lines.map(line => { const [image = '', correct = '', letters = ''] = line.split('|'); return { image, correct: correct.trim(), letters: letters.split(',').map(l => l.trim()).filter(Boolean) }; }) };
   if (gameType === 'fill-blank') return { fill: lines.map(line => { const [sentence = '', options = '', correct = '0'] = line.split('|'); return { sentence, options: options.split(',').map(item => item.trim()).filter(Boolean), correct: Number(correct) || 0 }; }) };
   if (gameType === 'multiple-choice') return { rounds: lines.map(line => { const [image = '', prompt = '', options = '', correct = '0'] = line.split('|'); return { image, prompt, options: options.split(',').map(item => item.trim()).filter(Boolean), correct: Number(correct) || 0 }; }) };
   if (gameType === 'true-false') return { tf: lines.map(line => { const [statement = '', answer = 'false'] = line.split('|'); return { statement, answer: answer.trim().toLowerCase() === 'true' }; }) };
@@ -52,7 +52,7 @@ function parseGameContent(gameType: GameType, text: string, previous?: GameData)
 
 function contentHelp(gameType?: GameType) {
   if (gameType === 'wheel') return 'Una palabra/frase por linea.';
-  if (gameType === 'drag-word') return 'Formato: emoji|opcion1,opcion2,opcion3|respuesta correcta';
+  if (gameType === 'drag-word') return 'Usá el editor visual de abajo. Formato: emoji|palabra_correcta|letra1,letra2,letra3,...';
   if (gameType === 'fill-blank') return 'Formato: frase con ___|opcion1,opcion2,opcion3|indice correcto empezando en 0';
   if (gameType === 'multiple-choice') return 'Formato: emoji|pregunta|opcion1,opcion2,opcion3,opcion4|indice correcto empezando en 0';
   if (gameType === 'true-false') return 'Formato: afirmacion|true o false';
@@ -244,6 +244,244 @@ function MultipleChoiceSandbox({
             <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar pictograma..." className="pl-8" />
           </div>
           <div className="grid max-h-[420px] grid-cols-3 gap-2 overflow-y-auto rounded-lg border border-border bg-card p-2">
+            {pictograms.map((picto) => (
+              <button
+                key={picto.id}
+                draggable
+                onDragStart={e => e.dataTransfer.setData('application/json', JSON.stringify(picto))}
+                onClick={() => setPictogram(picto)}
+                className="rounded-lg border border-border p-2 text-center hover:border-primary hover:bg-primary/5"
+                title={picto.name}
+              >
+                {picto.imageUrl ? <img src={picto.imageUrl} alt={picto.name} className="mx-auto h-12 w-12 object-contain" loading="lazy" /> : <span className="text-2xl">{picto.emoji}</span>}
+                <span className="mt-1 block truncate text-[10px] text-muted-foreground">{picto.name}</span>
+              </button>
+            ))}
+            {pictograms.length === 0 && <p className="col-span-3 py-6 text-center text-xs text-muted-foreground">Sin resultados</p>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function shuffleArray<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function DragWordSandbox({
+  value,
+  onChange,
+}: {
+  value?: GameData;
+  onChange: (next: GameData) => void;
+}) {
+  const rounds = value?.dragRounds?.length ? value.dragRounds : [{ image: '', correct: '', letters: [] }];
+  const [roundIndex, setRoundIndex] = useState(0);
+  const [search, setSearch] = useState('comer');
+  const [pictograms, setPictograms] = useState<Pictogram[]>([]);
+
+  const current = rounds[Math.min(roundIndex, rounds.length - 1)];
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      fetchPictograms({ search })
+        .then((items) => {
+          if (!cancelled) setPictograms(items.slice(0, 24));
+        })
+        .catch(() => {
+          if (!cancelled) setPictograms([]);
+        });
+    }, 250);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [search]);
+
+  const updateRounds = (nextRounds: typeof rounds) => {
+    onChange({ ...value, dragRounds: nextRounds });
+  };
+
+  const updateRound = (patch: Partial<(typeof rounds)[number]>) => {
+    updateRounds(rounds.map((r, idx) => idx === roundIndex ? { ...r, ...patch } : r));
+  };
+
+  const setPictogram = (picto: Pictogram) => {
+    updateRound({ image: picto.imageUrl || picto.emoji, correct: picto.name.toLowerCase(), letters: [] });
+  };
+
+  const addRound = () => {
+    const next = [...rounds, { image: '', correct: '', letters: [] }];
+    updateRounds(next);
+    setRoundIndex(rounds.length);
+  };
+
+  const removeRound = () => {
+    if (rounds.length === 1) return;
+    const next = rounds.filter((_, idx) => idx !== roundIndex);
+    updateRounds(next);
+    setRoundIndex(Math.max(0, roundIndex - 1));
+  };
+
+  const previewLetters = useMemo(() => {
+    const chars = (current.correct || '').split('');
+    return shuffleArray(chars);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current.correct]);
+
+  return (
+    <div className="space-y-4 rounded-lg border border-primary/20 bg-primary/5 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-foreground">Constructor de "Armá la palabra"</p>
+          <p className="text-xs text-muted-foreground">Arrastrá un pictograma, escribí la palabra y editá las fichas de letras.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={removeRound} disabled={rounds.length === 1}><Trash2 size={14} /></Button>
+          <Button size="sm" variant="outline" onClick={addRound}><Plus size={14} className="mr-1" />Ronda</Button>
+        </div>
+      </div>
+
+      <div className="flex gap-1 overflow-x-auto pb-1">
+        {rounds.map((_, idx) => (
+          <button
+            key={idx}
+            onClick={() => setRoundIndex(idx)}
+            className={`h-8 min-w-8 rounded-md border text-xs font-semibold ${roundIndex === idx ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-muted-foreground'}`}
+          >
+            {idx + 1}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_240px]">
+        <div className="space-y-4">
+          {/* Pictograma */}
+          <div
+            className="flex min-h-36 flex-col items-center justify-center rounded-xl border-2 border-dashed border-primary/40 bg-card p-4 text-center"
+            onDragOver={e => e.preventDefault()}
+            onDrop={e => {
+              e.preventDefault();
+              const raw = e.dataTransfer.getData('application/json');
+              if (!raw) return;
+              try { setPictogram(JSON.parse(raw)); } catch { /* noop */ }
+            }}
+          >
+            <VisualValue value={current.image} className={isImageValue(current.image) ? 'h-28 w-28' : 'text-sm text-muted-foreground'} />
+            <p className="mt-2 text-xs text-muted-foreground">Slot del pictograma</p>
+          </div>
+
+          {/* Palabra correcta */}
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground">Palabra correcta</label>
+            <Input
+              value={current.correct}
+              onChange={e => {
+                const next = e.target.value.toLowerCase().replace(/[^a-záéíóúñü]/g, '');
+                updateRound({ correct: next, letters: [] });
+              }}
+              placeholder="ej: manzana"
+            />
+            <p className="mt-1 text-[10px] text-muted-foreground">Las fichas se auto-generan de esta palabra. Editalas abajo si querés agregar distractores.</p>
+          </div>
+
+          {/* Editor de fichas (cada ficha es una letra de la palabra) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-muted-foreground">Fichas de letras</p>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => updateRound({ correct: current.correct + 'a', letters: [] })}
+                className="h-6 gap-1 text-xs"
+                disabled={!current.correct.trim()}
+              >
+                <Plus size={12} />Agregar
+              </Button>
+            </div>
+            {current.correct.trim() ? (
+              <div className="flex flex-wrap gap-2">
+                {current.correct.split('').map((ch, idx) => (
+                  <div key={idx} className="flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1">
+                    <Input
+                      value={ch}
+                      onChange={e => {
+                        const next = current.correct.split('');
+                        next[idx] = e.target.value.toLowerCase().replace(/[^a-záéíóúñü]/g, '') || 'a';
+                        updateRound({ correct: next.join(''), letters: [] });
+                      }}
+                      className="h-7 w-10 min-w-0 px-1 text-center text-sm font-bold"
+                      maxLength={1}
+                    />
+                    <button
+                      onClick={() => {
+                        if (current.correct.length <= 1) return;
+                        const next = current.correct.split('');
+                        next.splice(idx, 1);
+                        updateRound({ correct: next.join(''), letters: [] });
+                      }}
+                      className="text-destructive hover:bg-destructive/10 rounded p-0.5"
+                      disabled={current.correct.length <= 1}
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => updateRound({ correct: current.correct + 'a', letters: [] })}
+                  className="h-8 w-8 p-0 text-muted-foreground"
+                >
+                  <Plus size={14} />
+                </Button>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Primero escribí la palabra correcta.</p>
+            )}
+            <div className="text-[10px] text-muted-foreground">
+              {current.correct.trim() && (
+                <span>{current.correct.length} letra{current.correct.length !== 1 ? 's' : ''} — los slots se sincronizan automáticamente</span>
+              )}
+            </div>
+          </div>
+
+          {/* Vista previa */}
+          <div className="rounded-lg border border-border bg-card p-3">
+            <p className="mb-2 text-xs font-semibold text-muted-foreground">Vista previa</p>
+            <div className="rounded-xl border border-border p-4 text-center">
+              <div className="my-3 flex min-h-20 items-center justify-center text-6xl">
+                <VisualValue value={current.image} className={isImageValue(current.image) ? 'h-20 w-20' : ''} />
+              </div>
+              <div className="mb-3 flex flex-wrap justify-center gap-1">
+                {(current.correct || '?????').split('').map((_, idx) => (
+                  <div key={idx} className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/40 bg-muted/30 text-xs text-muted-foreground">
+                    {idx + 1}
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-wrap justify-center gap-1.5">
+                {(previewLetters.length ? previewLetters : ['?','?','?']).map((letter, idx) => (
+                  <div key={idx} className="flex h-10 w-10 cursor-grab items-center justify-center rounded-lg border-2 border-primary/40 bg-primary/5 text-sm font-bold text-foreground shadow-sm">
+                    {letter}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Buscador de pictogramas */}
+        <div className="space-y-2">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar pictograma..." className="pl-8" />
+          </div>
+          <div className="grid max-h-[500px] grid-cols-3 gap-2 overflow-y-auto rounded-lg border border-border bg-card p-2">
             {pictograms.map((picto) => (
               <button
                 key={picto.id}
@@ -647,6 +885,15 @@ export default function ActivityBuilder({ initialId, onClose, assignableUsersOve
                   <h3 className="font-heading font-semibold text-foreground">{form.gameType ? 'Contenido y pasos' : 'Pasos secuenciales'}</h3>
                   <Button size="sm" variant="outline" onClick={addStep}><Plus size={14} className="mr-1" />Agregar</Button>
                 </div>
+                {form.gameType === 'drag-word' && (
+                  <DragWordSandbox
+                    value={form.gameData}
+                    onChange={(nextGameData) => {
+                      setForm(prev => ({ ...prev, gameData: nextGameData }));
+                      setGameContentText(serializeGameContent('drag-word', nextGameData));
+                    }}
+                  />
+                )}
                 {form.gameType === 'multiple-choice' && (
                   <MultipleChoiceSandbox
                     value={form.gameData}
@@ -656,7 +903,7 @@ export default function ActivityBuilder({ initialId, onClose, assignableUsersOve
                     }}
                   />
                 )}
-                {form.gameType && form.gameType !== 'multiple-choice' && (
+                {form.gameType && form.gameType !== 'multiple-choice' && form.gameType !== 'drag-word' && (
                   <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
                     <div className="mb-2 flex items-center justify-between gap-3">
                       <div>
