@@ -288,29 +288,29 @@ export default function UserHome({ onNavigate }: Props) {
               <button
                 key={i}
                 onClick={() => setSelectedDay(key)}
-                className={`flex flex-1 flex-col items-center rounded-2xl px-1 py-2.5 transition-all duration-200 ${
-                  isSelected
-                    ? 'bg-[#6b4c9a] text-white shadow-md shadow-purple-200'
+                className={`flex flex-1 flex-col items-center rounded-2xl border px-1 py-2.5 transition-all duration-200 ${
+                  isToday
+                    ? 'border-[#6b4c9a] bg-[#6b4c9a] text-white shadow-md shadow-purple-200'
+                    : isSelected
+                      ? 'border-[#d8c7ef] bg-[#f5f0ff] text-[#6b4c9a]'
                     : hasEvents
-                      ? 'bg-[#EFE3FF] text-[#6b4c9a]'
-                      : isToday
-                        ? 'bg-[#f5f0ff] text-[#6b4c9a] font-semibold'
-                        : 'text-[#6b4c9a] hover:bg-[#f5f0ff]'
+                      ? 'border-transparent bg-[#EFE3FF] text-[#6b4c9a]'
+                        : 'border-transparent text-[#6b4c9a] hover:bg-[#f5f0ff]'
                 }`}
               >
-                <span className={`text-[11px] sm:text-xs font-semibold ${isSelected ? 'text-white/80' : 'text-[#8b7aa0]'}`}>
+                <span className={`text-[11px] sm:text-xs font-semibold ${isToday ? 'text-white/80' : 'text-[#8b7aa0]'}`}>
                   {DAYS_SHORT[i]}
                 </span>
-                <span className={`text-xl sm:text-2xl font-extrabold mt-1 leading-none ${isSelected ? '' : 'text-[#4a3a6a]'}`}>
+                <span className={`text-xl sm:text-2xl font-extrabold mt-1 leading-none ${isToday ? '' : 'text-[#4a3a6a]'}`}>
                   {d.getDate()}
                 </span>
                 {hasEvents && (
-                  <div className={`mt-1.5 flex gap-1 ${isSelected ? 'text-white/80' : ''}`}>
+                  <div className={`mt-1.5 flex gap-1 ${isToday ? 'text-white/80' : ''}`}>
                     {dayEvs.slice(0, 3).map(e => (
                       <span
                         key={e.id}
                         className="h-1.5 w-1.5 rounded-full"
-                        style={{ backgroundColor: isSelected ? 'currentColor' : '#6b4c9a' }}
+                        style={{ backgroundColor: isToday ? 'currentColor' : '#6b4c9a' }}
                       />
                     ))}
                   </div>

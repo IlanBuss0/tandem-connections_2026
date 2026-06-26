@@ -252,25 +252,25 @@ export default function UserCalendar() {
                 onClick={() => setSelectedDate(key)}
                 onDoubleClick={() => openCreate(key)}
                 className={`relative flex min-h-[54px] sm:min-h-[86px] flex-col rounded-2xl border p-1.5 sm:p-2 text-left transition-all duration-200 ${
-                  isPastEventDay && isSelected
+                  isToday
+                    ? 'border-[#6b4c9a] bg-[#6b4c9a] text-white shadow-md shadow-purple-200'
+                    : isPastEventDay && isSelected
                     ? 'border-[#6b4c9a] bg-[#faf8ff] text-[#6b4c9a] shadow-md shadow-purple-100'
                     : isPastEventDay
                       ? 'border-transparent bg-[#faf8ff] text-[#4a3a6a] hover:bg-[#f5f0ff]'
                       : isSelected
-                    ? 'border-[#6b4c9a] bg-[#6b4c9a] text-white shadow-md shadow-purple-200'
+                    ? 'border-[#d8c7ef] bg-[#f5f0ff] text-[#6b4c9a] shadow-sm'
                     : hasEvents
                       ? 'border-[#eadcff] bg-[#EFE3FF] text-[#6b4c9a] hover:border-[#6b4c9a]/30'
-                      : isToday
-                        ? 'border-[#cbb7ec] bg-[#f5f0ff] text-[#6b4c9a]'
                         : 'border-transparent bg-[#faf8ff] text-[#4a3a6a] hover:bg-[#f5f0ff]'
                 }`}
               >
                 <span
                   className={`flex h-7 w-7 items-center justify-center rounded-full text-sm sm:text-base font-extrabold leading-none ${
-                    isPastEventDay
+                    isToday
+                      ? 'bg-white/20 text-white'
+                      : isPastEventDay
                       ? 'bg-[#EFE3FF] text-[#6b4c9a]'
-                      : isToday && !isSelected
-                        ? 'bg-white text-[#6b4c9a] shadow-sm'
                         : ''
                   }`}
                 >
@@ -284,7 +284,7 @@ export default function UserCalendar() {
                         <span
                           key={event.id}
                           className={`truncate rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                            isSelected ? 'bg-white/20 text-white' : 'bg-white text-[#6b4c9a]'
+                            isToday ? 'bg-white/20 text-white' : 'bg-white text-[#6b4c9a]'
                           }`}
                         >
                           {typeEmoji[event.type]} {event.title}

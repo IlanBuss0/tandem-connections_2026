@@ -1031,13 +1031,13 @@ function TutorCalendar({
                 key={i}
                 onClick={() => setSelectedDate(ds)}
                 className={`relative aspect-square sm:aspect-auto sm:min-h-[72px] p-1 sm:p-1.5 rounded-lg border text-left transition-all flex flex-col ${
-                  isSelected ? 'border-primary ring-2 ring-primary/30 bg-primary/5' :
-                  isToday ? 'border-primary/40 bg-primary/5' :
+                  isToday ? 'border-primary bg-primary text-primary-foreground shadow-md shadow-purple-200' :
+                  isSelected ? 'border-primary/40 ring-2 ring-primary/20 bg-primary/5' :
                   isCurrentMonth ? 'border-border bg-background hover:border-primary/30' :
                   'border-transparent bg-muted/30 text-muted-foreground'
                 }`}
               >
-                <span className={`text-xs sm:text-sm font-semibold ${isToday ? 'text-primary' : ''}`}>{day.getDate()}</span>
+                <span className={`text-xs sm:text-sm font-semibold ${isToday ? 'text-primary-foreground' : ''}`}>{day.getDate()}</span>
                 <div className="flex flex-col gap-0.5 mt-0.5 overflow-hidden">
                   {dayEventsForCell.slice(0, 2).map(event => (
                     <span key={event.id} className="hidden sm:block text-[9px] truncate px-1 rounded" style={{ backgroundColor: event.color, color: 'white' }}>
