@@ -153,12 +153,9 @@ export default function TutorDashboard({ initialUserId, initialTab, onBack }: Tu
   const [tab, setTab] = useState<TabId>((initialTab as TabId) || 'overview');
   const [selectedUser, setSelectedUser] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
-<<<<<<< HEAD
   useSyncMobileMenuOpen(menuOpen);
-=======
   const [menuPanel, setMenuPanel] = useState<'main' | 'pertenecientes'>('main');
   const [yoOpen, setYoOpen] = useState(true);
->>>>>>> c2d5c5f4c5a81c74373db09f8dc3489b99edee5a
   const [data, setData] = useState<TutorHomeData | null>(null);
   const [tutorAgendaEvents, setTutorAgendaEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
