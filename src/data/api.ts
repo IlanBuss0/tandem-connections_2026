@@ -45,7 +45,10 @@ export interface CustomCategory {
 }
 export type CalendarEvent = legacy.CalendarEvent;
 export type Conversation = legacy.Conversation;
-export type ChatMessage = legacy.ChatMessage;
+export type ChatMessage = legacy.ChatMessage & {
+  editedAt?: string;
+  deletedAt?: string;
+};
 export type Notification = legacy.Notification;
 export type EmotionalRecord = legacy.EmotionalRecord;
 export type Achievement = legacy.Achievement;
@@ -1857,6 +1860,8 @@ function backendMessageToChatMessage(message: DbMensaje & { archivos?: { id: num
     read: true,
     type: hasArchivos ? (isImage ? 'image' : 'file') : 'text',
     archivos: hasArchivos ? fileData.map((a: { id: number; url: string; nombre_archivo: string; content_type?: string | null; peso_bytes?: number | null }) => ({ id: a.id, url: a.url, nombre_archivo: a.nombre_archivo, content_type: a.content_type || undefined, peso_bytes: a.peso_bytes || undefined })) : undefined,
+    editedAt: (message as any).fecha_edicion || undefined,
+    deletedAt: (message as any).fecha_eliminacion || undefined,
   };
 }
 
@@ -1882,6 +1887,34 @@ export async function fetchMyConversationsForUser(userId: string): Promise<Conve
   return fetchConversationsForUser(userId);
 }
 
+export async function syncMyConversationsForUser(userId: string, since?: string | null): Promise<{ serverTime: string; conversations: Conversation[]; fullSync: boolean }> {
+  const token = getStoredAuthToken();
+  if (token && isBackendUserId(userId)) {
+    const query = since ? `?since=${encodeURIComponent(since)}` : '';
+    let fullSync = !since;
+    const response = await apiRequest<{ serverTime: string; chats: BackendChatRow[] }>(`/api/chats/sync${query}`, { token }).catch(async () => {
+      fullSync = true;
+      return {
+        serverTime: new Date().toISOString(),
+        chats: await apiRequest<BackendChatRow[]>('/api/chats/me', { token }).catch(() => (
+        apiRequest<BackendChatRow[]>(`/api/chats/usuario/${encodeURIComponent(userId)}`, { token })
+        )),
+      };
+    });
+    return {
+      serverTime: response.serverTime,
+      conversations: response.chats.map((chat) => backendChatToConversation(chat, userId)),
+      fullSync,
+    };
+  }
+
+  return {
+    serverTime: new Date().toISOString(),
+    conversations: await fetchConversationsForUser(userId),
+    fullSync: true,
+  };
+}
+
 export async function fetchMessagesForConversation(conversationId: string): Promise<ChatMessage[]> {
   const token = getStoredAuthToken();
   if (token && isBackendUserId(conversationId)) {
@@ -1890,6 +1923,16 @@ export async function fetchMessagesForConversation(conversationId: string): Prom
   }
 
   return apiFetchWithFallback<ChatMessage[]>([`/chat/conversations/${encodeURIComponent(conversationId)}/messages`, `/conversations/${encodeURIComponent(conversationId)}/messages`]);
+}
+
+export async function fetchMessagesAfterConversation(conversationId: string, afterId: string, limit = 100): Promise<ChatMessage[]> {
+  const token = getStoredAuthToken();
+  if (token && isBackendUserId(conversationId) && isBackendUserId(afterId)) {
+    const messages = await apiRequest<DbMensaje[]>(`/api/mensajes/chat/${encodeURIComponent(conversationId)}?afterId=${encodeURIComponent(afterId)}&limit=${encodeURIComponent(String(limit))}`, { token });
+    return messages.map(backendMessageToChatMessage);
+  }
+
+  return [];
 }
 
 export async function fetchMessagesForConversationAsUser(conversationId: string, userId: string): Promise<ChatMessage[]> {

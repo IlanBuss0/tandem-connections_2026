@@ -21,6 +21,7 @@ import UserPictograms from '@/pages/user/UserPictograms';
 import UserNotifications from '@/pages/user/UserNotifications';
 import UserResources from '@/pages/user/UserResources';
 import UserShop from '@/pages/user/UserShop';
+import TutorLanding from '@/pages/tutor/TutorLanding';
 import TutorDashboard from '@/pages/tutor/TutorDashboard';
 import ProfessionalDashboard from '@/pages/professional/ProfessionalDashboard';
 import SuperAdminDashboard from '@/pages/admin/SuperAdminDashboard';
@@ -54,6 +55,10 @@ function loadActiveTab() {
   }
 }
 
+type TutorView =
+  | { view: 'landing' }
+  | { view: 'dashboard'; selectedUserId?: number; initialTab?: string };
+
 export default function AppShell() {
   const { user, logout } = useAuth();
   const { state: wallet } = useWallet();
@@ -63,6 +68,7 @@ export default function AppShell() {
   const { unreadCount: unreadNotifs, setUnreadCount: setUnreadNotifs } = useUnreadNotifications(
     user && user.role === 'user' ? { id: String(user.id) } : null
   );
+  const [tutorView, setTutorView] = useState<TutorView>({ view: 'landing' });
 
   useEffect(() => {
     try {
@@ -77,7 +83,23 @@ export default function AppShell() {
   if (!user) return null;
 
   if (user.role === 'admin') return <SuperAdminDashboard />;
-  if (user.role === 'tutor') return <TutorDashboard />;
+  if (user.role === 'tutor') {
+    if (tutorView.view === 'landing') {
+      return (
+        <TutorLanding
+          onSelectPerteneciente={(userId) => setTutorView({ view: 'dashboard', selectedUserId: userId, initialTab: 'overview' })}
+          onNavigateTo={(tab) => setTutorView({ view: 'dashboard', initialTab: tab })}
+        />
+      );
+    }
+    return (
+      <TutorDashboard
+        initialUserId={tutorView.selectedUserId}
+        initialTab={tutorView.initialTab}
+        onBack={() => setTutorView({ view: 'landing' })}
+      />
+    );
+  }
   if (user.role === 'professional') return <ProfessionalDashboard />;
 
   const goToTab = (tab: string) => {

@@ -56,7 +56,7 @@ export default function ChatScreen({
   defaultProfileId?: string;
 }) {
   const { user } = useAuth();
-  const { conversationsForUser, messagesFor, send, edit, remove, markRead, createDirect, createGroup, updateConversation, uploadConversationAvatar, hideConversation, setActiveConversation, sendTyping, typingUsersFor, allContacts, getPersonById } = useChat();
+  const { conversationsForUser, messagesFor, send, edit, remove, markRead, createDirect, createGroup, updateConversation, uploadConversationAvatar, hideConversation, setActiveConversation, sendTyping, typingUsersFor, allContacts, getPersonById, connectionStatus } = useChat();
   const { toast } = useToast();
   const [activeProfileId, setActiveProfileId] = useState(defaultProfileId || '');
   const [profileConvs, setProfileConvs] = useState<Conversation[]>([]);
@@ -553,6 +553,9 @@ export default function ChatScreen({
             <p className="font-semibold text-sm text-[#6b4c9a] truncate">{chatTitle}</p>
             <p className="text-[10px] text-[#8b7aa0] truncate">{chatSubtitle}</p>
           </div>
+          <span className="hidden sm:inline-flex h-7 items-center rounded-md border border-[#ede4f8] px-2 text-[10px] font-semibold text-[#8b7aa0]">
+            {connectionStatus === 'connected' ? 'conectado' : connectionStatus === 'syncing' ? 'sincronizando' : connectionStatus === 'reconnecting' ? 'reconectando' : 'sin conexion'}
+          </span>
           {canActAsCurrentUser && isGroup && isCurrentUserAdmin && (
             <button type="button" onClick={() => setShowManage(true)} className="p-2 rounded-md text-[#8b7aa0] hover:bg-[#ede4f8] hover:text-[#6b4c9a]" aria-label="Administrar grupo">
               <Users size={17} />
@@ -653,7 +656,9 @@ export default function ChatScreen({
                     </button>
                   )}
                   <div className="mt-1 flex items-center justify-between gap-2">
-                    <p className={`text-[10px] ${isMine ? 'text-white/60' : 'text-[#8b7aa0]'}`}>{msg.timestamp}</p>
+                    <p className={`text-[10px] ${isMine ? 'text-white/60' : 'text-[#8b7aa0]'}`}>
+                      {msg.timestamp}{msg.editedAt ? ' · editado' : ''}
+                    </p>
                     {canActAsCurrentUser && sameId(msg.senderId, user.id) && !isEditing && /^\d+$/.test(msg.id) && (
                       <div className="flex items-center gap-1 opacity-80">
                         <button type="button" onClick={() => startEdit(msg.id, msg.text)} className="p-1 rounded hover:bg-[#faf8ff]/20" aria-label="Editar mensaje">
@@ -896,6 +901,9 @@ export default function ChatScreen({
           <p className="text-[#8b7aa0] text-sm">Tus conversaciones</p>
         </div>
         <div className="flex items-center gap-2">
+          <span className="hidden sm:inline-flex h-9 items-center rounded-xl border border-[#f0e8f8] bg-white px-3 text-[10px] font-semibold text-[#8b7aa0]">
+            {connectionStatus === 'connected' ? 'conectado' : connectionStatus === 'syncing' ? 'sincronizando' : connectionStatus === 'reconnecting' ? 'reconectando' : 'sin conexion'}
+          </span>
           {profiles && profiles.length > 0 && (
             <div className="flex items-center gap-2 rounded-xl border border-[#f0e8f8] bg-white px-3 py-2 text-right">
               <span className="hidden sm:inline text-xs text-[#8b7aa0]">Viendo</span>

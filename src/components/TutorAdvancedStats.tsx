@@ -1,22 +1,19 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  BarChart, Bar, ComposedChart, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import {
-  Activity, Award, BarChart3, Calendar, CheckCircle2, Clock,
-  Flame, Heart, Shield, Sparkles, Target, TrendingUp, Zap,
+  Activity, Award, Calendar, CheckCircle2, Clock,
+  Flame, Heart, Shield, Sparkles, TrendingUp, Zap,
 } from 'lucide-react';
 import type { TutorHomeLinkedUser, TutorHomeData } from '@/data/api';
 
 const STATUS_COLORS: Record<string, string> = {
-  completada: '#22c55e',
-  'en progreso': '#f59e0b',
-  pendiente: '#6b7280',
-  Completada: '#22c55e',
+  Completadas: '#22c55e',
   'En progreso': '#f59e0b',
-  Pendiente: '#6b7280',
+  Pendientes: '#6b7280',
 };
 
 const EMOJI_COLORS = ['#7C3AED', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#8B5CF6'];
@@ -38,56 +35,57 @@ function fmtDate(d: Date) {
   return d.toISOString().split('T')[0];
 }
 
+function isInProgress(status?: string) {
+  return String(status || '').toLowerCase() === 'en progreso';
+}
+
 export default function TutorAdvancedStats({ activities, emotions, events, adherence, mainUser }: Props) {
   const completed = activities.filter(a => a.completed);
-  const pending = activities.filter(a => !a.completed);
-  const inProgress = activities.filter(a => a.status === 'en progreso');
-  const totalPoints = activities.reduce((sum, a) => sum + (a.completed ? a.points : 0), 0);
-
+  const inProgress = activities.filter(a => !a.completed && isInProgress(a.status));
+  const pending = activities.filter(a => !a.completed && !isInProgress(a.status));
   const today = new Date();
 
-  // 14-day adherence data
-  const dailyData = useMemo(() => {
+  const dailyActivityData = useMemo(() => {
     return Array.from({ length: 14 }).map((_, i) => {
       const d = new Date(today);
       d.setDate(d.getDate() - (13 - i));
       const dayStr = fmtDate(d);
       const dayActs = activities.filter(a => a.assignedAt?.startsWith(dayStr));
       const done = dayActs.filter(a => a.completed).length;
-      const pct = dayActs.length ? Math.round((done / dayActs.length) * 100) : 0;
+      const progress = dayActs.filter(a => !a.completed && isInProgress(a.status)).length;
+      const wait = dayActs.filter(a => !a.completed && !isInProgress(a.status)).length;
+      const total = dayActs.length;
+
       return {
         day: d.toLocaleDateString('es', { weekday: 'short' }).slice(0, 3).toUpperCase(),
         fullDate: dayStr,
-        pct,
-        completed: done,
-        total: dayActs.length,
+        Completadas: done,
+        'En progreso': progress,
+        Pendientes: wait,
+        pct: total ? Math.round((done / total) * 100) : 0,
+        total,
       };
     });
   }, [activities]);
 
-  // Activity status distribution for pie
-  const statusData = useMemo(() => {
-    const map: Record<string, number> = {};
-    activities.forEach(a => {
-      const key = a.status.charAt(0).toUpperCase() + a.status.slice(1);
-      map[key] = (map[key] || 0) + 1;
-    });
-    return Object.entries(map).map(([name, value]) => ({ name, value }));
-  }, [activities]);
-
-  // Emotion distribution
   const emotionData = useMemo(() => {
-    const map: Record<string, number> = {};
+    const map: Record<string, { count: number; totalIntensity: number }> = {};
     emotions.forEach(e => {
-      map[e.emotion] = (map[e.emotion] || 0) + 1;
+      if (!map[e.emotion]) map[e.emotion] = { count: 0, totalIntensity: 0 };
+      map[e.emotion].count++;
+      map[e.emotion].totalIntensity += e.intensity;
     });
+
     return Object.entries(map)
-      .sort((a, b) => b[1] - a[1])
+      .sort((a, b) => b[1].count - a[1].count)
       .slice(0, 6)
-      .map(([name, value]) => ({ name, value }));
+      .map(([name, data]) => ({
+        name,
+        value: data.count,
+        avgIntensity: (data.totalIntensity / Math.max(data.count, 1)).toFixed(1),
+      }));
   }, [emotions]);
 
-  // Emotion intensity trend (last 10)
   const emotionTrend = useMemo(() => {
     return emotions
       .slice(-10)
@@ -95,10 +93,10 @@ export default function TutorAdvancedStats({ activities, emotions, events, adher
         date: e.date?.slice(5) || '',
         intensity: e.intensity,
         emoji: e.emoji || '',
+        emotion: e.emotion,
       }));
   }, [emotions]);
 
-  // Category performance
   const categoryData = useMemo(() => {
     const map: Record<string, { total: number; done: number }> = {};
     activities.forEach(a => {
@@ -117,7 +115,22 @@ export default function TutorAdvancedStats({ activities, emotions, events, adher
       .sort((a, b) => b.tasa - a.tasa);
   }, [activities]);
 
-  // Weekly comparison
+  const difficultyData = useMemo(() => {
+    const map: Record<string, { total: number; done: number }> = {};
+    activities.forEach(a => {
+      const difficulty = a.difficulty || 'Media';
+      if (!map[difficulty]) map[difficulty] = { total: 0, done: 0 };
+      map[difficulty].total++;
+      if (a.completed) map[difficulty].done++;
+    });
+    return Object.entries(map).map(([name, data]) => ({
+      name,
+      done: data.done,
+      total: data.total,
+      pct: data.total ? clampPct((data.done / data.total) * 100) : 0,
+    }));
+  }, [activities]);
+
   const weekData = useMemo(() => {
     const thisWeek = Array.from({ length: 7 }).map((_, i) => {
       const d = new Date(today);
@@ -142,7 +155,6 @@ export default function TutorAdvancedStats({ activities, emotions, events, adher
     };
   }, [activities]);
 
-  // Activity efficiency (time to complete)
   const efficiency = useMemo(() => {
     const withTime = activities.filter(a => a.completed && a.assignedAt && a.completedAt);
     if (!withTime.length) return null;
@@ -154,145 +166,136 @@ export default function TutorAdvancedStats({ activities, emotions, events, adher
     return Math.round(totalHours / withTime.length);
   }, [activities]);
 
-  // Best day info
-  const bestDay = useMemo(() => {
-    const best = dailyData.reduce((max, d) => d.pct > max.pct ? d : max, dailyData[0] || { pct: 0, day: '' });
-    return best;
-  }, [dailyData]);
+  const average14d = clampPct(
+    dailyActivityData.reduce((sum, d) => sum + d.pct, 0) / Math.max(dailyActivityData.length, 1)
+  );
 
-  const COLORS = ['#7C3AED', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899'];
+  const bestDay = useMemo(() => {
+    return dailyActivityData.reduce(
+      (max, d) => d.pct > max.pct ? d : max,
+      dailyActivityData[0] || { pct: 0, day: '', total: 0 }
+    );
+  }, [dailyActivityData]);
 
   return (
     <div className="space-y-4">
-      {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard icon={<TrendingUp size={20} />} label="Adherencia" value={`${adherence}%`} sub={`${completed.length}/${activities.length} actividades`} />
-        <KpiCard icon={<Flame size={20} />} label="Racha actual" value={`${mainUser.streak} días`} sub={weekData.thisWeek >= weekData.lastWeek ? 'Subiendo' : 'Bajando'} />
-        <KpiCard icon={<Zap size={20} />} label="Puntos totales" value={`${totalPoints}`} sub={`Nivel ${mainUser.level}`} />
+        <KpiCard icon={<Flame size={20} />} label="Racha actual" value={`${mainUser.streak} dias`} sub={weekData.thisWeek >= weekData.lastWeek ? 'Subiendo' : 'Bajando'} />
+        <KpiCard icon={<Zap size={20} />} label="Puntos totales" value={`${mainUser.points}`} sub={`Nivel ${mainUser.level}`} />
         <KpiCard icon={<Heart size={20} />} label="Intensidad emocional" value={emotions.length ? `${(emotions.reduce((s, e) => s + e.intensity, 0) / emotions.length).toFixed(1)}` : '-'} sub="/5 promedio" />
       </div>
 
-      {/* Weekly Comparison Bar */}
       <div className="bg-card rounded-xl p-4 border border-border">
         <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
-          <TrendingUp size={16} className="text-primary" /> Comparativa semanal
+          <Activity size={16} className="text-primary" /> Actividades y Adherencia
         </h3>
-        <div className="flex items-end gap-4">
-          <div className="flex-1 text-center">
-            <p className="text-xs text-muted-foreground">Semana pasada</p>
-            <p className="text-3xl font-bold text-muted-foreground">{weekData.lastWeek}%</p>
-          </div>
-          <div className="flex items-center text-2xl text-muted-foreground">
-            {weekData.thisWeek > weekData.lastWeek ? '↑' : weekData.thisWeek < weekData.lastWeek ? '↓' : '→'}
-          </div>
-          <div className="flex-1 text-center">
-            <p className="text-xs text-muted-foreground">Esta semana</p>
-            <p className="text-3xl font-bold text-foreground">{weekData.thisWeek}%</p>
-          </div>
-        </div>
-        <div className="mt-2 flex items-center gap-2">
-          <div className="flex-1 bg-muted rounded-full h-2">
-            <motion.div initial={{ width: 0 }} animate={{ width: `${weekData.lastWeek}%` }} className="h-2 rounded-full bg-muted-foreground/50" />
-          </div>
-          <div className="flex-1 bg-muted rounded-full h-2">
-            <motion.div initial={{ width: 0 }} animate={{ width: `${weekData.thisWeek}%` }} className="h-2 rounded-full gradient-primary" />
-          </div>
-        </div>
-      </div>
 
-      {/* 14-day Adherence Chart */}
-      <div className="bg-card rounded-xl p-4 border border-border">
-        <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
-          <BarChart3 size={16} className="text-primary" /> Adherencia últimos 14 días
-        </h3>
-        <ResponsiveContainer width="100%" height={180}>
-          <BarChart data={dailyData} margin={{ top: 5, right: 5, bottom: 5, left: -15 }}>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+          <MiniKpi label="Completadas" value={completed.length} className="text-green-600 bg-green-50 border-green-100" />
+          <MiniKpi label="En progreso" value={inProgress.length} className="text-amber-600 bg-amber-50 border-amber-100" />
+          <MiniKpi label="Pendientes" value={pending.length} className="text-gray-600 bg-gray-50 border-gray-100" />
+          <MiniKpi label="Adherencia" value={`${adherence}%`} className="text-primary bg-primary/5 border-primary/15" />
+        </div>
+
+        <ResponsiveContainer width="100%" height={260}>
+          <ComposedChart data={dailyActivityData} margin={{ top: 5, right: 5, bottom: 5, left: -15 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="day" tick={{ fontSize: 10 }} />
-            <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
+            <YAxis yAxisId="left" tick={{ fontSize: 10 }} allowDecimals={false} />
+            <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tick={{ fontSize: 10 }} />
             <Tooltip
               contentStyle={{ borderRadius: 8, fontSize: 12, border: '1px solid #e5e7eb' }}
-              formatter={(value: number, name: string) => [`${value}%`, name === 'pct' ? 'Adherencia' : name]}
-              labelFormatter={(label: string) => `Día: ${label}`}
+              formatter={(value: number, name: string) => [
+                name === 'pct' ? `${value}%` : value,
+                name === 'pct' ? 'Adherencia' : name,
+              ]}
+              labelFormatter={(label: string) => `Dia: ${label}`}
             />
-            <Bar dataKey="pct" fill="#7C3AED" radius={[4, 4, 0, 0]} name="pct" />
-          </BarChart>
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Bar yAxisId="left" dataKey="Completadas" stackId="actividades" fill={STATUS_COLORS.Completadas} radius={[3, 3, 0, 0]} />
+            <Bar yAxisId="left" dataKey="En progreso" stackId="actividades" fill={STATUS_COLORS['En progreso']} radius={[3, 3, 0, 0]} />
+            <Bar yAxisId="left" dataKey="Pendientes" stackId="actividades" fill={STATUS_COLORS.Pendientes} radius={[3, 3, 0, 0]} />
+            <Line yAxisId="right" type="monotone" dataKey="pct" stroke="#7C3AED" strokeWidth={2} dot={{ r: 3 }} name="Adherencia" />
+          </ComposedChart>
         </ResponsiveContainer>
-        <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-          <span>Promedio 14d: <strong className="text-foreground">{Math.round(dailyData.reduce((s, d) => s + d.pct, 0) / Math.max(dailyData.length, 1))}%</strong></span>
-          <span>Mejor día: <strong className="text-foreground">{bestDay.day} ({bestDay.pct}%)</strong></span>
+
+        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground md:grid-cols-4">
+          <InfoPill label="Semana pasada" value={`${weekData.lastWeek}%`} />
+          <InfoPill label="Esta semana" value={`${weekData.thisWeek}%`} />
+          <InfoPill label="Promedio 14d" value={`${average14d}%`} />
+          <InfoPill label="Mejor dia" value={`${bestDay.day || '-'} (${bestDay.pct || 0}%)`} />
         </div>
+
+        {difficultyData.length > 0 && (
+          <div className="mt-4 rounded-lg border border-border bg-background p-3">
+            <p className="mb-3 text-sm font-semibold text-foreground">Por dificultad</p>
+            <div className="space-y-3">
+              {difficultyData.map(item => (
+                <div key={item.name} className="flex items-center gap-2">
+                  <span className="w-24 truncate text-xs capitalize text-foreground">{item.name}</span>
+                  <div className="flex-1 bg-muted rounded-full h-2">
+                    <div className="h-2 rounded-full bg-primary" style={{ width: `${item.pct}%` }} />
+                  </div>
+                  <span className="w-12 text-right text-xs font-bold text-foreground">{item.done}/{item.total}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Two-column charts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Activity Status Pie */}
+      {emotions.length > 0 && (
         <div className="bg-card rounded-xl p-4 border border-border">
           <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
-            <Activity size={16} className="text-primary" /> Estado de actividades
+            <Heart size={16} className="text-primary" /> Evolucion emocional
           </h3>
-          {statusData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={statusData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={80}
-                  paddingAngle={3}
-                  dataKey="value"
-                >
-                  {statusData.map((entry, idx) => (
-                    <Cell key={entry.name} fill={STATUS_COLORS[entry.name] || COLORS[idx % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-8">Sin actividades</p>
-          )}
-        </div>
 
-        {/* Emotion Distribution Pie */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="mb-2 text-sm font-semibold text-foreground">Tendencia de intensidad</p>
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={emotionTrend} margin={{ top: 5, right: 5, bottom: 5, left: -15 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                  <YAxis domain={[0, 5]} tick={{ fontSize: 10 }} />
+                  <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12 }} />
+                  <Line type="monotone" dataKey="intensity" stroke="#7C3AED" strokeWidth={2} dot={{ r: 3 }} name="Intensidad" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div>
+              <p className="mb-2 text-sm font-semibold text-foreground">Distribucion de emociones</p>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie
+                    data={emotionData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={3}
+                    dataKey="value"
+                  >
+                    {emotionData.map((entry, idx) => (
+                      <Cell key={entry.name} fill={EMOJI_COLORS[idx % EMOJI_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<EmotionTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {categoryData.length > 0 && (
         <div className="bg-card rounded-xl p-4 border border-border">
           <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
-            <Heart size={16} className="text-primary" /> Distribución emocional
+            <Award size={16} className="text-primary" /> Rendimiento por categoria
           </h3>
-          {emotionData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={emotionData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={80}
-                  paddingAngle={3}
-                  dataKey="value"
-                >
-                  {emotionData.map((_, idx) => (
-                    <Cell key={idx} fill={EMOJI_COLORS[idx % EMOJI_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-8">Sin registros emocionales</p>
-          )}
-        </div>
-      </div>
-
-      {/* Category Performance */}
-      <div className="bg-card rounded-xl p-4 border border-border">
-        <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
-          <Award size={16} className="text-primary" /> Rendimiento por categoría
-        </h3>
-        {categoryData.length > 0 ? (
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={categoryData} margin={{ top: 5, right: 5, bottom: 5, left: -15 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -304,30 +307,9 @@ export default function TutorAdvancedStats({ activities, emotions, events, adher
               <Bar dataKey="Pendientes" fill="#6b7280" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
-        ) : (
-          <p className="text-sm text-muted-foreground text-center py-8">Sin datos de categorías</p>
-        )}
-      </div>
-
-      {/* Emotion Intensity Trend */}
-      {emotionTrend.length > 1 && (
-        <div className="bg-card rounded-xl p-4 border border-border">
-          <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
-            <TrendingUp size={16} className="text-primary" /> Tendencia de intensidad emocional
-          </h3>
-          <ResponsiveContainer width="100%" height={160}>
-            <LineChart data={emotionTrend} margin={{ top: 5, right: 5, bottom: 5, left: -15 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-              <YAxis domain={[0, 5]} tick={{ fontSize: 10 }} />
-              <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-              <Line type="monotone" dataKey="intensity" stroke="#7C3AED" strokeWidth={2} dot={{ r: 3 }} name="Intensidad" />
-            </LineChart>
-          </ResponsiveContainer>
         </div>
       )}
 
-      {/* Activity efficiency + next level */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-card rounded-xl p-4 border border-border">
           <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
@@ -363,16 +345,15 @@ export default function TutorAdvancedStats({ activities, emotions, events, adher
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Award size={12} className="text-primary" />
-            <span>Experiencia: <strong className="text-foreground">{mainUser.streak} días de racha</strong></span>
+            <span>Experiencia: <strong className="text-foreground">{mainUser.streak} dias de racha</strong></span>
           </div>
           <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
             <Calendar size={12} className="text-primary" />
-            <span>Eventos próximos: <strong className="text-foreground">{events.filter(e => new Date(e.date) >= today).length}</strong></span>
+            <span>Eventos proximos: <strong className="text-foreground">{events.filter(e => new Date(e.date) >= today).length}</strong></span>
           </div>
         </div>
       </div>
 
-      {/* Support profile summary */}
       <div className="bg-card rounded-xl p-4 border border-border">
         <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
           <Shield size={16} className="text-primary" /> Perfil del perteneciente
@@ -383,15 +364,15 @@ export default function TutorAdvancedStats({ activities, emotions, events, adher
             <p className="font-bold text-foreground">{mainUser.supportLevel}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Autonomía</p>
+            <p className="text-xs text-muted-foreground">Autonomia</p>
             <p className="font-bold text-foreground">{mainUser.autonomy}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Autogestión</p>
+            <p className="text-xs text-muted-foreground">Autogestion</p>
             <p className="font-bold text-foreground">{mainUser.canSelfManage ? 'Habilitada' : 'Asistida'}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Estado del vínculo</p>
+            <p className="text-xs text-muted-foreground">Estado del vinculo</p>
             <p className="font-bold text-foreground">{mainUser.linkStatus}</p>
           </div>
         </div>
@@ -400,7 +381,19 @@ export default function TutorAdvancedStats({ activities, emotions, events, adher
   );
 }
 
-function KpiCard({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub: string }) {
+function EmotionTooltip({ active, payload }: { active?: boolean; payload?: { payload: { name: string; value: number; avgIntensity: string } }[] }) {
+  if (!active || !payload || !payload.length) return null;
+  const data = payload[0].payload;
+  return (
+    <div className="bg-white rounded-lg border border-border shadow-md p-3 text-xs space-y-1">
+      <p className="font-semibold text-foreground">{data.name}</p>
+      <p className="text-muted-foreground">Cantidad: <strong>{data.value}</strong></p>
+      <p className="text-muted-foreground">Intensidad promedio: <strong>{data.avgIntensity}/5</strong></p>
+    </div>
+  );
+}
+
+function KpiCard({ icon, label, value, sub }: { icon: ReactNode; label: string; value: string; sub: string }) {
   return (
     <div className="bg-gradient-to-br from-card to-card/50 rounded-xl p-3 border border-border shadow-sm">
       <div className="flex items-center justify-between mb-1">
@@ -409,6 +402,24 @@ function KpiCard({ icon, label, value, sub }: { icon: React.ReactNode; label: st
       <p className="text-xl font-bold text-foreground">{value}</p>
       <p className="text-xs font-medium text-foreground">{label}</p>
       <p className="text-[10px] text-muted-foreground">{sub}</p>
+    </div>
+  );
+}
+
+function MiniKpi({ label, value, className }: { label: string; value: string | number; className: string }) {
+  return (
+    <div className={`rounded-lg border p-3 text-center ${className}`}>
+      <p className="text-xl font-bold">{value}</p>
+      <p className="text-[10px] font-medium">{label}</p>
+    </div>
+  );
+}
+
+function InfoPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-muted/50 p-2 text-center">
+      <p>{label}</p>
+      <p className="font-semibold text-foreground">{value}</p>
     </div>
   );
 }

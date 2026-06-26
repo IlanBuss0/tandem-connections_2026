@@ -7,8 +7,9 @@ import {
   createGroupConversation,
   deleteMessage,
   fetchChatContacts,
-  fetchMyConversationsForUser,
+  fetchMessagesAfterConversation,
   fetchMessagesForConversation,
+  syncMyConversationsForUser,
   hideConversationForMe,
   markConversationRead,
   sendMessage,
@@ -21,9 +22,11 @@ import {
 
 type LoadMessagesOptions = {
   force?: boolean;
+  mode?: 'full' | 'afterId';
 };
 
 type SyncReason = 'poll' | 'socket' | 'connect' | 'manual';
+type ChatConnectionStatus = 'connected' | 'reconnecting' | 'syncing' | 'offline';
 
 export interface ContactPerson {
   id: string;
@@ -37,6 +40,7 @@ interface Ctx {
   conversations: Conversation[];
   messages: ChatMessage[];
   loading: boolean;
+  connectionStatus: ChatConnectionStatus;
   conversationsForUser: (uid: string) => Conversation[];
   messagesFor: (cid: string) => ChatMessage[];
   send: (cid: string, text: string, idArchivos?: number[]) => Promise<void>;
@@ -93,22 +97,38 @@ function conversationHasRelevantChanges(current: Conversation | undefined, next:
   );
 }
 
-function mergeConversationLists(current: Conversation[], next: Conversation[]) {
+function conversationNeedsFullMessageRefresh(current: Conversation | undefined, next: Conversation) {
+  if (!current) return false;
+  return current.lastMessage !== next.lastMessage && current.lastMessageTime === next.lastMessageTime;
+}
+
+function mergeConversationLists(current: Conversation[], next: Conversation[], options: { partial?: boolean } = {}) {
   const currentById = new Map(current.map(conversation => [conversation.id, conversation]));
-  let changed = current.length !== next.length;
+  let changed = options.partial ? false : current.length !== next.length;
   const changedConversationIds = new Set<string>();
+  const fullRefreshConversationIds = new Set<string>();
 
   const merged = next.map(nextConversation => {
     const currentConversation = currentById.get(nextConversation.id);
     if (conversationHasRelevantChanges(currentConversation, nextConversation)) {
       changed = true;
       changedConversationIds.add(nextConversation.id);
+      if (conversationNeedsFullMessageRefresh(currentConversation, nextConversation)) {
+        fullRefreshConversationIds.add(nextConversation.id);
+      }
       return nextConversation;
     }
     return currentConversation || nextConversation;
   });
 
-  return { changed, changedConversationIds, conversations: changed ? merged : current };
+  const conversations = options.partial
+    ? [
+        ...merged,
+        ...current.filter(conversation => !next.some(nextConversation => nextConversation.id === conversation.id)),
+      ]
+    : merged;
+
+  return { changed, changedConversationIds, fullRefreshConversationIds, conversations: changed ? conversations : current };
 }
 
 function socketMessageToChatMessage(message: any): ChatMessage {
@@ -129,7 +149,52 @@ function socketMessageToChatMessage(message: any): ChatMessage {
     read: true,
     type: hasArchivos ? (isImage ? 'image' : 'file') : 'text',
     archivos: hasArchivos ? fileData.map((a: any) => ({ id: a.id, url: a.url, nombre_archivo: a.nombre_archivo, content_type: a.content_type, peso_bytes: a.peso_bytes })) : undefined,
+    editedAt: message.fecha_edicion || undefined,
+    deletedAt: message.fecha_eliminacion || undefined,
   };
+}
+
+const CHAT_CACHE_TTL_MS = 5 * 60 * 1000;
+
+function chatCacheKey(userId: string) {
+  return `tandem:chat-cache:${userId}`;
+}
+
+function readChatCache(userId: string): { conversations: Conversation[]; messages: ChatMessage[]; lastChatSyncAt: string | null } | null {
+  if (typeof sessionStorage === 'undefined') return null;
+
+  try {
+    const raw = sessionStorage.getItem(chatCacheKey(userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.savedAt || Date.now() - Number(parsed.savedAt) > CHAT_CACHE_TTL_MS) {
+      sessionStorage.removeItem(chatCacheKey(userId));
+      return null;
+    }
+    return {
+      conversations: Array.isArray(parsed.conversations) ? parsed.conversations : [],
+      messages: Array.isArray(parsed.messages) ? parsed.messages : [],
+      lastChatSyncAt: typeof parsed.lastChatSyncAt === 'string' ? parsed.lastChatSyncAt : null,
+    };
+  } catch {
+    sessionStorage.removeItem(chatCacheKey(userId));
+    return null;
+  }
+}
+
+function writeChatCache(userId: string, conversations: Conversation[], messages: ChatMessage[], lastChatSyncAt: string | null) {
+  if (typeof sessionStorage === 'undefined') return;
+
+  try {
+    sessionStorage.setItem(chatCacheKey(userId), JSON.stringify({
+      savedAt: Date.now(),
+      conversations,
+      messages,
+      lastChatSyncAt,
+    }));
+  } catch {
+    // Cache is best effort only.
+  }
 }
 
 export function ChatProvider({ children }: { children: ReactNode }) {
@@ -137,6 +202,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ChatConnectionStatus>('offline');
   const [contacts, setContacts] = useState<ContactPerson[]>([]);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [typingByConversation, setTypingByConversation] = useState<Record<string, string[]>>({});
@@ -146,9 +212,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const joiningChatIdsRef = useRef<Set<string>>(new Set());
   const loadedMessageConversationIdsRef = useRef<Set<string>>(new Set());
   const activeConversationIdRef = useRef<string | null>(null);
+  const lastChatSyncAtRef = useRef<string | null>(null);
   const readAckRef = useRef<Record<string, string>>({});
   const readInFlightRef = useRef<Set<string>>(new Set());
   const typingTimeoutsRef = useRef<Record<string, number>>({});
+  const cacheWriteTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     conversationsRef.current = conversations;
@@ -165,19 +233,46 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     conversationsRef.current = [];
     messagesRef.current = [];
     activeConversationIdRef.current = null;
+    lastChatSyncAtRef.current = null;
     readAckRef.current = {};
     readInFlightRef.current.clear();
-    setConversations([]);
-    setMessages([]);
+    const cache = user?.id ? readChatCache(user.id) : null;
+    conversationsRef.current = cache?.conversations || [];
+    messagesRef.current = cache?.messages || [];
+    lastChatSyncAtRef.current = cache?.lastChatSyncAt || null;
+    setConversations(cache?.conversations || []);
+    setMessages(cache?.messages || []);
     setTypingByConversation({});
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    if (cacheWriteTimerRef.current) clearTimeout(cacheWriteTimerRef.current);
+    cacheWriteTimerRef.current = window.setTimeout(() => {
+      writeChatCache(user.id, conversations, messages, lastChatSyncAtRef.current);
+      cacheWriteTimerRef.current = null;
+    }, 2000);
+    return () => {
+      if (cacheWriteTimerRef.current) clearTimeout(cacheWriteTimerRef.current);
+    };
+  }, [conversations, messages, user?.id]);
 
   const loadMessagesForConversation = useCallback(async (conversationId: string, options: LoadMessagesOptions = {}) => {
     if (!conversationId) return;
     if (!options.force && loadedMessageConversationIdsRef.current.has(conversationId)) return;
 
-    const loadedMessages = await fetchMessagesForConversation(conversationId);
-    loadedMessageConversationIdsRef.current.add(conversationId);
+    const existingForConversation = messagesRef.current.filter(message => message.conversationId === conversationId);
+    const lastNumericMessage = existingForConversation
+      .filter(message => isNumericId(message.id))
+      .sort((a, b) => Number(a.id) - Number(b.id))
+      .at(-1);
+    const canLoadAfterId = options.force && options.mode === 'afterId' && lastNumericMessage;
+    const loadedMessages = canLoadAfterId
+      ? await fetchMessagesAfterConversation(conversationId, lastNumericMessage.id)
+      : await fetchMessagesForConversation(conversationId);
+    if (!canLoadAfterId || loadedMessages.length > 0) {
+      loadedMessageConversationIdsRef.current.add(conversationId);
+    }
 
     setMessages(prev => {
       const existingForConversation = prev.filter(message => message.conversationId === conversationId);
@@ -204,42 +299,73 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const syncConversations = useCallback(async ({ reason }: { reason: SyncReason }) => {
     if (!user) return;
 
-    const nextConversations = await fetchMyConversationsForUser(user.id);
-    const activeConversationId = activeConversationIdRef.current;
-    const currentConversations = conversationsRef.current;
-    const currentMerge = mergeConversationLists(currentConversations, nextConversations);
-    const activeConversationWithChanges = activeConversationId && currentMerge.changedConversationIds.has(activeConversationId)
-      ? activeConversationId
-      : null;
-
-    setConversations(prev => {
-      const { changed, conversations: merged } = prev === currentConversations
-        ? currentMerge
-        : mergeConversationLists(prev, nextConversations);
-      return changed ? merged : prev;
-    });
-
-    if (activeConversationWithChanges) {
-      logRealtime('sincronizacion detecto novedades en chat activo', {
-        reason,
-        id_chat: activeConversationWithChanges,
-      });
-      const loadedMessages = await loadMessagesForConversation(activeConversationWithChanges, { force: true });
-      const lastMessageId = loadedMessages?.at(-1)?.id;
+    try {
+      setConnectionStatus(prev => prev === 'offline' ? 'reconnecting' : 'syncing');
+      const requestedSince = lastChatSyncAtRef.current;
+      const response = await syncMyConversationsForUser(user.id, requestedSince);
+      const nextConversations = response.conversations;
+      lastChatSyncAtRef.current = response.serverTime;
+      const isPartialSync = Boolean(requestedSince) && !response.fullSync;
+      const activeConversationId = activeConversationIdRef.current;
+      const currentConversations = conversationsRef.current;
+      const currentMerge = mergeConversationLists(currentConversations, nextConversations, { partial: isPartialSync });
+      const activeConversationWithChanges = activeConversationId && currentMerge.changedConversationIds.has(activeConversationId)
+        ? activeConversationId
+        : null;
+      const activeCurrentConversation = activeConversationWithChanges
+        ? currentConversations.find(conversation => conversation.id === activeConversationWithChanges)
+        : undefined;
+      const activeNextConversation = activeConversationWithChanges
+        ? nextConversations.find(conversation => conversation.id === activeConversationWithChanges)
+        : undefined;
+      const activeNeedsFullRefresh = activeConversationWithChanges
+        ? currentMerge.fullRefreshConversationIds.has(activeConversationWithChanges)
+        : false;
 
       setConversations(prev => {
-        let changed = false;
-        const next = prev.map(conversation => {
-          if (conversation.id !== activeConversationWithChanges || conversation.unreadCount === 0) return conversation;
-          changed = true;
-          return { ...conversation, unreadCount: 0 };
-        });
-        return changed ? next : prev;
+        const { changed, conversations: merged } = prev === currentConversations
+          ? currentMerge
+          : mergeConversationLists(prev, nextConversations, { partial: isPartialSync });
+        return changed ? merged : prev;
       });
 
-      if (isNumericId(activeConversationWithChanges)) {
-        markConversationRead(activeConversationWithChanges, lastMessageId).catch(() => undefined);
+      if (activeConversationWithChanges) {
+        logRealtime('sincronizacion detecto novedades en chat activo', {
+          reason,
+          id_chat: activeConversationWithChanges,
+        });
+        const loadedMessages = await loadMessagesForConversation(activeConversationWithChanges, {
+          force: true,
+          mode: activeNeedsFullRefresh ? 'full' : 'afterId',
+        });
+        const activeLastMessageChanged = activeCurrentConversation?.lastMessage !== activeNextConversation?.lastMessage;
+        const shouldFallbackToFullMessages = !activeNeedsFullRefresh && activeLastMessageChanged && loadedMessages?.length === 0;
+        const finalLoadedMessages = shouldFallbackToFullMessages
+          ? await loadMessagesForConversation(activeConversationWithChanges, { force: true, mode: 'full' })
+          : loadedMessages;
+        const lastLocalMessage = messagesRef.current
+          .filter(message => message.conversationId === activeConversationWithChanges)
+          .at(-1);
+        const lastMessageId = finalLoadedMessages?.at(-1)?.id || lastLocalMessage?.id;
+
+        setConversations(prev => {
+          let changed = false;
+          const next = prev.map(conversation => {
+            if (conversation.id !== activeConversationWithChanges || conversation.unreadCount === 0) return conversation;
+            changed = true;
+            return { ...conversation, unreadCount: 0 };
+          });
+          return changed ? next : prev;
+        });
+
+        if (isNumericId(activeConversationWithChanges)) {
+          markConversationRead(activeConversationWithChanges, lastMessageId).catch(() => undefined);
+        }
       }
+      setConnectionStatus('connected');
+    } catch (error) {
+      logRealtime('sincronizacion fallida; se conserva estado local', error);
+      setConnectionStatus('reconnecting');
     }
   }, [loadMessagesForConversation, user]);
 
@@ -334,7 +460,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     const intervalId = window.setInterval(() => {
       syncConversations({ reason: 'poll' }).catch(() => undefined);
-    }, 5000);
+    }, 8000);
 
     return () => {
       window.clearInterval(intervalId);
@@ -350,6 +476,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
 
     nextSocket.on('connect', () => {
+      setConnectionStatus('connected');
       joinedChatIdsRef.current.clear();
       joiningChatIdsRef.current.clear();
       logRealtime('socket conectado', { socketId: nextSocket.id, userId: user.id, apiBaseUrl: API_BASE_URL });
@@ -357,10 +484,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
 
     nextSocket.on('connect_error', (error) => {
+      setConnectionStatus('reconnecting');
       logRealtime('socket rechazo/fallo conexion', { message: error.message, apiBaseUrl: API_BASE_URL });
     });
 
     nextSocket.on('disconnect', (reason) => {
+      setConnectionStatus(reason === 'io client disconnect' ? 'offline' : 'reconnecting');
       logRealtime('socket desconectado', { reason });
     });
 
@@ -403,6 +532,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     nextSocket.on('message:deleted', (payload) => {
       const deletedId = String(payload?.id ?? '');
       removeMessageFromState(deletedId);
+    });
+
+    nextSocket.on('chat:read', (payload) => {
+      const conversationId = String(payload?.id_chat ?? '');
+      const readerId = String(payload?.id_usuario ?? '');
+      if (!conversationId || !readerId) return;
+      logRealtime('chat:read recibido', payload);
+      if (sameId(readerId, user.id)) {
+        setConversations(prev => prev.map(conversation => (
+          conversation.id === conversationId ? { ...conversation, unreadCount: 0 } : conversation
+        )));
+      }
     });
 
     nextSocket.on('message:typing', (payload) => {
@@ -472,6 +613,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       Object.values(typingTimeoutsRef.current).forEach(window.clearTimeout);
       typingTimeoutsRef.current = {};
       nextSocket.disconnect();
+      setConnectionStatus('offline');
       setSocket(null);
     };
   }, [removeMessageFromState, syncConversations, upsertMessage, user]);
@@ -739,6 +881,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     conversations,
     messages,
     loading,
+    connectionStatus,
     conversationsForUser,
     messagesFor,
     send,
@@ -760,6 +903,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     conversations,
     messages,
     loading,
+    connectionStatus,
     conversationsForUser,
     messagesFor,
     send,

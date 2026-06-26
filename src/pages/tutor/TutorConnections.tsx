@@ -11,8 +11,7 @@ import {
   RefreshCcw,
   Shield,
   Trash2,
-  UserRound,
-  Users,
+
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -58,9 +57,8 @@ function sourceLabel(source: string) {
   return source === 'otorgado' ? 'Definido' : 'Default';
 }
 
-export default function TutorConnections() {
+export default function TutorConnections({ initialPertenecienteId }: { initialPertenecienteId?: number }) {
   const [context, setContext] = useState<PermissionContext | null>(null);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +71,7 @@ export default function TutorConnections() {
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
 
   const pertenecientes = context?.pertenecientes || [];
+  const selectedId = initialPertenecienteId ?? pertenecientes[0]?.id ?? null;
   const selected = useMemo<TutorPermissionContextPerteneciente | null>(() => {
     if (!pertenecientes.length) return null;
     return pertenecientes.find(item => item.id === selectedId) || pertenecientes[0];
@@ -84,10 +83,6 @@ export default function TutorConnections() {
     try {
       const next = await fetchPermissionContext();
       setContext(next);
-      setSelectedId(current => {
-        if (current && next.pertenecientes?.some(item => item.id === current)) return current;
-        return next.pertenecientes?.[0]?.id ?? null;
-      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar la gestion de vinculos.');
     } finally {
@@ -484,38 +479,7 @@ export default function TutorConnections() {
           No hay pertenecientes activos vinculados.
         </div>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <section className="rounded-lg border border-border bg-card p-3">
-            <div className="mb-3 flex items-center gap-2 px-1 text-sm font-semibold text-foreground">
-              <Users size={16} />
-              Pertenecientes
-            </div>
-            <div className="space-y-2">
-              {pertenecientes.map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => setSelectedId(item.id)}
-                  className={`w-full rounded-lg border p-3 text-left transition ${
-                    selected?.id === item.id
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border bg-background hover:border-primary/40'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
-                      <UserRound size={17} />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-foreground">{fullName(item.usuario)}</p>
-                      <p className="text-xs text-muted-foreground">{item.perteneciente.puede_autogestionarse ? 'Autogestionado' : 'Tutelado'}</p>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          {selected && (
+          selected && (
             <div className="space-y-4">
               <section className="rounded-lg border border-border bg-card p-4">
                 <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -708,8 +672,7 @@ export default function TutorConnections() {
                 </div>
               </section>
             </div>
-          )}
-        </div>
+          )
       )}
     </div>
   );
