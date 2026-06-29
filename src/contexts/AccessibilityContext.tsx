@@ -20,6 +20,8 @@ export interface AccessibilitySettings {
   smartContrast: boolean;
   reduceMotion: boolean;
   pauseAnimations: boolean;
+  information: boolean;
+  largeClickArea: boolean;
   highlightLinks: boolean;
   highlightHeadings: boolean;
   highlightFocus: boolean;
@@ -49,6 +51,8 @@ export const DEFAULT_SETTINGS: AccessibilitySettings = {
   smartContrast: false,
   reduceMotion: false,
   pauseAnimations: false,
+  information: false,
+  largeClickArea: false,
   highlightLinks: false,
   highlightHeadings: false,
   highlightFocus: false,
@@ -76,15 +80,14 @@ export const ACCESSIBILITY_PROFILES: AccessibilityProfile[] = [
   {
     id: 'motor',
     name: 'Discapacidad motora',
-    description: 'Cursor grande, foco visible, areas tactiles amplias y navegacion simplificada.',
+    description: 'Detiene animaciones, muestra informacion, amplia areas clickeables y agranda el cursor.',
     icon: 'hand',
     patch: {
       bigCursor: true,
       cursor: 'big',
-      highlightFocus: true,
-      simplifiedNavigation: true,
-      contentSpacing: 1.35,
-      fontScale: 1.1,
+      pauseAnimations: true,
+      information: true,
+      largeClickArea: true,
     },
   },
   {
@@ -333,10 +336,14 @@ function applyToDom(settings: AccessibilitySettings) {
     'a11y-text-left': settings.textAlignLeft,
     'a11y-reduce-motion': settings.reduceMotion,
     'a11y-pause-animations': settings.pauseAnimations,
+    'accessibility-stop-animations': settings.pauseAnimations,
+    'accessibility-information': settings.information,
+    'accessibility-large-click-area': settings.largeClickArea,
     'a11y-highlight-links': settings.highlightLinks,
     'a11y-highlight-headings': settings.highlightHeadings,
     'a11y-highlight-focus': settings.highlightFocus,
     'a11y-big-cursor': settings.bigCursor || settings.cursor === 'big',
+    'accessibility-large-cursor': settings.bigCursor || settings.cursor === 'big',
     'a11y-hide-images': settings.hideImages,
     'a11y-reading-mask': settings.cursor === 'reading-mask',
     'a11y-reading-guide': settings.cursor === 'reading-guide',

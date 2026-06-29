@@ -52,6 +52,13 @@ type ToolAction = {
   value?: string;
 };
 
+type InformationTooltip = { text: string; x: number; y: number };
+
+const INFORMATION_TARGET_SELECTOR = [
+  'button', 'a[href]', 'input', 'select', 'textarea', 'img', 'summary', '[role="button"]',
+  '[aria-label]', '[title]', '[alt]', '[tabindex]:not([tabindex="-1"])', '[data-clickable="true"]', '.cursor-pointer',
+].join(',');
+
 const PROFILE_ICONS: Record<string, IconComponent> = {
   hand: Hand,
   ear: Ear,
@@ -68,6 +75,7 @@ export default function AccessibilityWidget() {
   const { isMobileMenuOpen } = useMobileMenu();
   const [open, setOpen] = useState(false);
   const [resetNotice, setResetNotice] = useState(false);
+  const [informationTooltip, setInformationTooltip] = useState<InformationTooltip | null>(null);
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
   const activeCount = countActive(settings);
 
@@ -99,6 +107,36 @@ export default function AccessibilityWidget() {
       element.muted = settings.muteSounds;
     });
   }, [settings.muteSounds]);
+
+  useEffect(() => {
+    if (!settings.information) {
+      setInformationTooltip(null);
+      return;
+    }
+
+    const show = (event: MouseEvent) => {
+      const target = findInformationTarget(event.target);
+      const text = target ? getInformationText(target) : '';
+      setInformationTooltip(text ? { text, ...getTooltipPosition(event) } : null);
+    };
+    const move = (event: MouseEvent) => {
+      setInformationTooltip(current => current ? { ...current, ...getTooltipPosition(event) } : null);
+    };
+    const hide = (event: MouseEvent) => {
+      if (findInformationTarget(event.target) !== findInformationTarget(event.relatedTarget)) {
+        setInformationTooltip(null);
+      }
+    };
+
+    document.addEventListener('mouseover', show);
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseout', hide);
+    return () => {
+      document.removeEventListener('mouseover', show);
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseout', hide);
+    };
+  }, [settings.information]);
 
   useEffect(() => {
     if (!settings.speakOnHover) {
@@ -370,6 +408,22 @@ export default function AccessibilityWidget() {
       ],
       navigation: [
         {
+          id: 'information',
+          label: 'Informacion',
+          description: 'Muestra una etiqueta al pasar el mouse por elementos importantes.',
+          icon: Focus,
+          active: settings.information,
+          onClick: () => toggle('information'),
+        },
+        {
+          id: 'large-click-area',
+          label: 'Agrandar areas clickeables',
+          description: 'Amplia el area de botones, enlaces y otros controles.',
+          icon: Hand,
+          active: settings.largeClickArea,
+          onClick: () => toggle('largeClickArea'),
+        },
+        {
           id: 'big-cursor',
           label: 'Cursor grande',
           description: 'Aumenta el cursor y el puntero sobre controles.',
@@ -433,6 +487,15 @@ export default function AccessibilityWidget() {
           </filter>
         </defs>
       </svg>
+      {informationTooltip && (
+        <div
+          className="accessibility-info-tooltip"
+          role="tooltip"
+          style={{ left: informationTooltip.x, top: informationTooltip.y }}
+        >
+          {informationTooltip.text}
+        </div>
+      )}
 
       {!isMobileMenuOpen && (
         <button
@@ -630,6 +693,38 @@ function speak(text: string, ref: MutableRefObject<SpeechSynthesisUtterance | nu
   } catch {
     return;
   }
+}
+
+function findInformationTarget(target: EventTarget | null): HTMLElement | null {
+  return target instanceof Element ? target.closest<HTMLElement>(INFORMATION_TARGET_SELECTOR) : null;
+}
+
+function getTooltipPosition(event: MouseEvent) {
+  return {
+    x: Math.max(0, Math.min(event.clientX, window.innerWidth - 306)),
+    y: Math.max(0, Math.min(event.clientY, window.innerHeight - 82)),
+  };
+}
+
+function getInformationText(element: HTMLElement): string {
+  const labelledBy = element.getAttribute('aria-labelledby');
+  const accessibleName = labelledBy
+    ?.split(/\s+/)
+    .map(id => document.getElementById(id)?.textContent?.trim())
+    .filter(Boolean)
+    .join(' ');
+  const visibleText = element instanceof HTMLInputElement && element.type !== 'button' && element.type !== 'submit'
+    ? element.placeholder
+    : element.textContent;
+
+  return (
+    element.getAttribute('aria-label') ||
+    element.getAttribute('title') ||
+    element.getAttribute('alt') ||
+    visibleText ||
+    accessibleName ||
+    ''
+  ).replace(/\s+/g, ' ').trim().slice(0, 220);
 }
 
 function getReadablePageText() {

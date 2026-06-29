@@ -155,6 +155,14 @@ body.a11y-pause-animations *::after {
   transition: none !important;
 }
 
+body.accessibility-stop-animations *:not([role="progressbar"]):not(.animate-spin):not([data-a11y-essential-animation]),
+body.accessibility-stop-animations *:not([role="progressbar"]):not(.animate-spin):not([data-a11y-essential-animation])::before,
+body.accessibility-stop-animations *:not([role="progressbar"]):not(.animate-spin):not([data-a11y-essential-animation])::after {
+  animation: none !important;
+  transition-duration: 0s !important;
+  scroll-behavior: auto !important;
+}
+
 body.a11y-highlight-links :is(a, button, [role="button"]) {
   background-color: #fff5a3 !important;
   color: #0f172a !important;
@@ -237,6 +245,25 @@ body.a11y-simplified-navigation :is(a, button, [role="button"], input, select, t
 
 body.a11y-simplified-navigation :is(nav, form, [role="navigation"]) {
   gap: max(0.75rem, calc(0.75rem * var(--a11y-content-spacing)));
+}
+
+body.accessibility-large-click-area :is(button, a, input, select, textarea, summary, [role="button"], [tabindex]:not([tabindex="-1"]), [data-clickable="true"], .cursor-pointer) {
+  min-height: 48px;
+  min-width: 48px;
+}
+
+.accessibility-info-tooltip {
+  position: fixed;
+  z-index: 999999;
+  max-width: min(280px, calc(100vw - 24px));
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #2f2440;
+  color: #ffffff;
+  font: 700 14px/1.35 Inter, "Nunito", "Segoe UI", Arial, sans-serif;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+  transform: translate(14px, 14px);
 }
 
 .a11y-widget,
