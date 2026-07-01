@@ -2,7 +2,26 @@ import type { LegacyWheelItem, WheelItem, WheelRound } from './miniGames';
 
 export const DEFAULT_WHEEL_SETTINGS = { segments: 6, initialSpeed: 3, speedIncrease: true } as const;
 
+const WHEEL_DEGREES_PER_SECOND = [18, 42, 84, 150, 240] as const;
+const WHEEL_ACCELERATION_MS = [1400, 1200, 950, 750, 600] as const;
+const WHEEL_DECELERATION_MS = [900, 1050, 1250, 1500, 1800] as const;
+
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+function speedLevelIndex(level: number): number {
+  return clamp(Math.round(Number(level) || DEFAULT_WHEEL_SETTINGS.initialSpeed), 1, 5) - 1;
+}
+
+export function wheelMotion(level: number, roundIndex = 0, speedIncrease = false) {
+  const index = speedLevelIndex(level);
+  const safeRound = Math.max(0, Math.floor(roundIndex));
+  const roundMultiplier = speedIncrease ? 1 + safeRound * 0.12 : 1;
+  return {
+    targetSpeed: WHEEL_DEGREES_PER_SECOND[index] * roundMultiplier / 1000,
+    accelerationMs: WHEEL_ACCELERATION_MS[index] / roundMultiplier,
+    decelerationMs: WHEEL_DECELERATION_MS[index] * roundMultiplier,
+  };
+}
 
 export function isLegacyWheel(wheel: WheelItem | LegacyWheelItem | undefined): wheel is LegacyWheelItem {
   return Boolean(wheel && 'words' in wheel);

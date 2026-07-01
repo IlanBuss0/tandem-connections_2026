@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeRound, normalizeWheel, parseWheel, selectedWheelSegment, serializeWheel, wheelScore, wheelSegmentAngles, wheelValidationError } from './wheelPrecision';
+import { normalizeRound, normalizeWheel, parseWheel, selectedWheelSegment, serializeWheel, wheelMotion, wheelScore, wheelSegmentAngles, wheelValidationError } from './wheelPrecision';
 
 describe('wheel precision data', () => {
   it('round-trips settings and rounds', () => {
@@ -27,6 +27,21 @@ describe('wheel precision data', () => {
 });
 
 describe('wheel precision mechanics', () => {
+  it('uses a slow perceptual speed scale for levels 1 through 5', () => {
+    const speeds = [1, 2, 3, 4, 5].map(level => wheelMotion(level).targetSpeed * 1000);
+    expect(speeds).toEqual([18, 42, 84, 150, 240]);
+    expect(speeds.every((speed, index) => index === 0 || speed > speeds[index - 1])).toBe(true);
+  });
+
+  it('applies round increases consistently to speed, acceleration and deceleration', () => {
+    const base = wheelMotion(2, 0, true);
+    const later = wheelMotion(2, 2, true);
+    expect(later.targetSpeed).toBeCloseTo(base.targetSpeed * 1.24);
+    expect(later.accelerationMs).toBeCloseTo(base.accelerationMs / 1.24);
+    expect(later.decelerationMs).toBeCloseTo(base.decelerationMs * 1.24);
+    expect(wheelMotion(2, 3, false)).toEqual(base);
+  });
+
   it('selects the segment centered under the top indicator', () => {
     for (const segments of [4, 6, 8]) {
       for (let index = 0; index < segments; index += 1) {

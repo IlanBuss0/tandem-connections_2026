@@ -5,7 +5,7 @@ import MiniGame from './MiniGame';
 describe('WheelPrecision interaction', () => {
   afterEach(() => vi.restoreAllMocks());
 
-  const setup = () => {
+  const setup = (correct = 0, segments = 4, useImages = false) => {
     let id = 0;
     const frames = new Map<number, FrameRequestCallback>();
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
@@ -14,12 +14,13 @@ describe('WheelPrecision interaction', () => {
       return id;
     });
     vi.stubGlobal('cancelAnimationFrame', (frameId: number) => frames.delete(frameId));
-    render(<MiniGame gameType="wheel" gameData={{ wheel: { settings: { segments: 4, initialSpeed: 3, speedIncrease: false }, rounds: [{ targetWord: 'PERA', image: 'pera', options: ['pera', 'uva', 'limón', 'manzana'], correct: 0 }] } }} onFinish={vi.fn()} />);
-    return frames;
+    const options = Array.from({ length: segments }, (_, index) => useImages ? `https://example.com/${index}.png` : `opción ${index + 1}`);
+    const view = render(<MiniGame gameType="wheel" gameData={{ wheel: { settings: { segments, initialSpeed: 3, speedIncrease: false }, rounds: [{ targetWord: 'PERA', image: options[correct], options, correct }] } }} onFinish={vi.fn()} />);
+    return { frames, ...view };
   };
 
   it('accepts only one stop command and exposes the stopping state immediately', () => {
-    const frames = setup();
+    const { frames } = setup();
 
     fireEvent.click(screen.getByRole('button', { name: /girar/i }));
     const stop = screen.getByRole('button', { name: /parar/i });
@@ -36,7 +37,7 @@ describe('WheelPrecision interaction', () => {
   });
 
   it('uses one stable button and ignores the synthetic click after pointerdown', () => {
-    const frames = setup();
+    const { frames } = setup();
     const button = screen.getByRole('button', { name: /girar/i });
 
     fireEvent.pointerDown(button);
@@ -58,5 +59,39 @@ describe('WheelPrecision interaction', () => {
     const button = screen.getByRole('button', { name: /girar/i });
     fireEvent.click(button, { detail: 0 });
     expect(button).toHaveAccessibleName(/parar/i);
+  });
+
+  it('keeps spinning after the first touch following an error until a second gesture', () => {
+    const { frames } = setup(1);
+    const button = screen.getByRole('button', { name: /girar/i });
+
+    fireEvent.click(button, { detail: 0 });
+    fireEvent.pointerDown(button);
+    const stoppingFrame = [...frames.values()][0];
+    act(() => stoppingFrame(performance.now() + 2500));
+    expect(screen.getByText(/no era ese/i)).toBeInTheDocument();
+
+    fireEvent.pointerDown(button);
+    fireEvent.click(button, { detail: 0 });
+    expect(button).toHaveAccessibleName(/parar/i);
+
+    fireEvent.pointerDown(button);
+    expect(button).toHaveAccessibleName(/frenando/i);
+  });
+
+  it.each([4, 6, 8])('keeps all pictograms inside the wheel for %i segments', (segments) => {
+    const { unmount } = setup(0, segments, true);
+    const images = screen.getByLabelText(new RegExp(`ruleta de ${segments}`, 'i')).querySelectorAll('image');
+    expect(images).toHaveLength(segments);
+    images.forEach(image => {
+      const x = Number(image.getAttribute('x'));
+      const y = Number(image.getAttribute('y'));
+      expect(Math.hypot(x + 24 - 130, y + 24 - 130)).toBeCloseTo(78);
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(y).toBeGreaterThanOrEqual(0);
+      expect(x + 48).toBeLessThanOrEqual(260);
+      expect(y + 48).toBeLessThanOrEqual(260);
+    });
+    unmount();
   });
 });

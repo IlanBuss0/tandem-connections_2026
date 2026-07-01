@@ -3,7 +3,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Check, X, RotateCcw, Trophy } from 'lucide-react';
 import type { GameType, GameData } from '@/data/miniGames';
-import { normalizeWheel, selectedWheelSegment, wheelScore, wheelSegmentAngles } from '@/data/wheelPrecision';
+import { normalizeWheel, selectedWheelSegment, wheelMotion, wheelScore, wheelSegmentAngles } from '@/data/wheelPrecision';
 
 interface Props {
   gameType: GameType;
@@ -247,6 +247,7 @@ function Wheel({ data, onFinish }: { data: GameData; onFinish: (n: number) => vo
   const phaseRef = useRef<typeof phase>('ready');
   const animationSessionRef = useRef(0);
   const correctResultRef = useRef(false);
+  const lastPointerActionRef = useRef(Number.NEGATIVE_INFINITY);
   const round = wheel.rounds[roundIndex];
 
   const cancelAnimation = () => {
@@ -265,7 +266,8 @@ function Wheel({ data, onFinish }: { data: GameData; onFinish: (n: number) => vo
 
   if (!round) return <p className="text-center text-sm text-muted-foreground">Esta ruleta no tiene rondas configuradas.</p>;
 
-  const targetSpeed = (360 * wheel.settings.initialSpeed / 3000) * (wheel.settings.speedIncrease ? 1.15 ** roundIndex : 1);
+  const motion = wheelMotion(wheel.settings.initialSpeed, roundIndex, wheel.settings.speedIncrease);
+  const targetSpeed = motion.targetSpeed;
   const renderFrame = (nextAngle: number) => {
     angleRef.current = nextAngle;
     if (wheelRef.current) wheelRef.current.style.transform = `rotate(${nextAngle}deg)`;
@@ -285,7 +287,7 @@ function Wheel({ data, onFinish }: { data: GameData; onFinish: (n: number) => vo
       if (session !== animationSessionRef.current || phaseRef.current !== 'spinning') return;
       const delta = Math.min(32, now - lastTimeRef.current);
       lastTimeRef.current = now;
-      speedRef.current += (targetSpeed - speedRef.current) * Math.min(1, delta / 650);
+      speedRef.current += (targetSpeed - speedRef.current) * Math.min(1, delta / motion.accelerationMs);
       renderFrame(angleRef.current + speedRef.current * delta);
       frameRef.current = requestAnimationFrame(tick);
     };
@@ -297,7 +299,7 @@ function Wheel({ data, onFinish }: { data: GameData; onFinish: (n: number) => vo
     const session = animationSessionRef.current;
     changePhase('stopping');
     const started = performance.now();
-    const duration = reduceMotion ? 120 : 1000 + Math.random() * 1000;
+    const duration = reduceMotion ? 120 : motion.decelerationMs;
     const initialSpeed = Math.max(speedRef.current, targetSpeed * 0.7);
     lastTimeRef.current = started;
     const tick = (now: number) => {
@@ -339,8 +341,9 @@ function Wheel({ data, onFinish }: { data: GameData; onFinish: (n: number) => vo
     else if (phaseRef.current === 'ready' || (phaseRef.current === 'result' && !correctResultRef.current)) start();
   };
 
-  const radius = 116;
-  const point = (degrees: number) => {
+  const segmentRadius = 116;
+  const contentRadius = 78;
+  const point = (degrees: number, radius: number) => {
     const radians = (degrees - 90) * Math.PI / 180;
     return [130 + radius * Math.cos(radians), 130 + radius * Math.sin(radians)];
   };
@@ -353,11 +356,11 @@ function Wheel({ data, onFinish }: { data: GameData; onFinish: (n: number) => vo
         <svg ref={wheelRef} viewBox="0 0 260 260" className="h-full w-full drop-shadow will-change-transform" aria-label={`Ruleta de ${wheel.settings.segments} pictogramas`}>
           {round.options.map((option, index) => {
             const { start: startAngle, center, end: endAngle } = wheelSegmentAngles(index, wheel.settings.segments);
-            const [x1, y1] = point(startAngle);
-            const [x2, y2] = point(endAngle);
-            const [ix, iy] = point(center);
+            const [x1, y1] = point(startAngle, segmentRadius);
+            const [x2, y2] = point(endAngle, segmentRadius);
+            const [ix, iy] = point(center, contentRadius);
             const fill = selectedSegment === index && phase === 'result' ? (feedback ? 'hsl(142 70% 75%)' : 'hsl(0 80% 82%)') : index % 2 ? 'hsl(var(--accent))' : 'hsl(var(--primary) / .2)';
-            return <g key={index}><path d={`M 130 130 L ${x1} ${y1} A ${radius} ${radius} 0 0 1 ${x2} ${y2} Z`} fill={fill} stroke="hsl(var(--border))" strokeWidth={selectedSegment === index && phase === 'result' ? 3 : 1} />{option.startsWith('http') ? <image href={option} x={ix - 24} y={iy - 24} width="48" height="48" preserveAspectRatio="xMidYMid meet" /> : <text x={ix} y={iy} textAnchor="middle" dominantBaseline="middle" fontSize="11">{option}</text>}</g>;
+            return <g key={index}><path d={`M 130 130 L ${x1} ${y1} A ${segmentRadius} ${segmentRadius} 0 0 1 ${x2} ${y2} Z`} fill={fill} stroke="hsl(var(--border))" strokeWidth={selectedSegment === index && phase === 'result' ? 3 : 1} />{option.startsWith('http') ? <image href={option} x={ix - 24} y={iy - 24} width="48" height="48" preserveAspectRatio="xMidYMid meet" /> : <text x={ix} y={iy} textAnchor="middle" dominantBaseline="middle" fontSize="11">{option}</text>}</g>;
           })}
           <circle cx="130" cy="130" r="19" fill="hsl(var(--card))" stroke="hsl(var(--primary))" strokeWidth="4" />
         </svg>
@@ -369,10 +372,11 @@ function Wheel({ data, onFinish }: { data: GameData; onFinish: (n: number) => vo
         aria-disabled={phase === 'stopping' || feedback === true}
         onPointerDown={(event) => {
           event.preventDefault();
+          lastPointerActionRef.current = performance.now();
           handlePrimaryAction();
         }}
-        onClick={(event) => {
-          if (event.detail === 0) handlePrimaryAction();
+        onClick={() => {
+          if (performance.now() - lastPointerActionRef.current > 700) handlePrimaryAction();
         }}
         style={{ touchAction: 'manipulation' }}
         className={phase === 'spinning' || phase === 'stopping' ? 'bg-amber-500 text-white hover:bg-amber-600' : 'gradient-primary text-primary-foreground'}
