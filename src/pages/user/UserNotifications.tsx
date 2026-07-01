@@ -46,6 +46,39 @@ function formatTimestamp(ts: string): string {
   }
 }
 
+function getNotificationDestination(notification: Notification): { tab: string; params?: Record<string, string> } {
+  const source = notification.referenceType || notification.type;
+  const tabMap: Record<string, string> = {
+    chat: 'chat',
+    message: 'chat',
+    activity: 'activities',
+    calendar: 'calendar',
+    reminder: 'calendar',
+    achievement: 'achievements',
+    streak: 'achievements',
+    payment: 'shop',
+    recommendation: 'resources',
+    alert: 'home',
+    system: 'home',
+  };
+  const tab = tabMap[source] || 'home';
+  const params: Record<string, string> = {};
+  if (notification.sourceUserId) params.sourceUserId = notification.sourceUserId;
+  if (!notification.referenceId) return { tab, params: Object.keys(params).length ? params : undefined };
+
+  const paramMap: Record<string, string> = {
+    chat: 'chatId',
+    message: 'chatId',
+    activity: 'activityId',
+    calendar: 'eventId',
+    reminder: 'eventId',
+    achievement: 'achievementId',
+  };
+  const param = paramMap[source];
+  if (param) params[param] = notification.referenceId;
+  return { tab, params: Object.keys(params).length ? params : undefined };
+}
+
 export default function UserNotifications({ onUnreadCountChange, onNavigate }: UserNotificationsProps) {
   const { user } = useAuth();
   const [notifs, setNotifs] = useState<Notification[]>([]);
@@ -103,21 +136,13 @@ export default function UserNotifications({ onUnreadCountChange, onNavigate }: U
 
   const handleClick = async (n: Notification) => {
     if (!n.read) await markRead(n.id);
+    const destination = getNotificationDestination(n);
+    onNavigate?.(destination.tab, destination.params);
+  };
 
-    if (onNavigate && n.referenceType) {
-      const tabMap: Record<string, string> = {
-        chat: 'chat',
-        activity: 'activities',
-        calendar: 'calendar',
-        achievement: 'achievements',
-      };
-      const tab = tabMap[n.referenceType] || n.referenceType;
-      const params: Record<string, any> = {};
-      if (n.referenceType === 'chat' && n.referenceId) {
-        params.chatId = n.referenceId;
-      }
-      onNavigate(tab, params);
-    }
+  const handleMarkRead = async (event: React.MouseEvent, id: string) => {
+    event.stopPropagation();
+    await markRead(id);
   };
 
   if (!user) return null;
@@ -192,9 +217,26 @@ export default function UserNotifications({ onUnreadCountChange, onNavigate }: U
                     )}
                     <div className="flex items-center gap-2 mt-1.5">
                       <span className="text-[10px] text-[#b0a4c0]">{timeAgo}</span>
-                      {onNavigate && n.referenceType && (
+                      {onNavigate && (
                         <span className="text-[10px] font-semibold text-[#6b4c9a]">
-                          {n.referenceType === 'chat' ? 'Ir al chat →' : 'Ver →'}
+                          {(n.referenceType || n.type) === 'chat' || n.type === 'message' ? 'Ir al chat →' : 'Ver →'}
+                        </span>
+                      )}
+                      {!n.read && (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(event) => void handleMarkRead(event, n.id)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              void markRead(n.id);
+                            }
+                          }}
+                          className="ml-auto inline-flex items-center gap-1 rounded-lg border border-[#d8cbea] bg-white px-2 py-1 text-[10px] font-semibold text-[#6b4c9a] hover:bg-[#f5f0fa]"
+                        >
+                          <Check size={11} /> Marcar como leída
                         </span>
                       )}
                     </div>

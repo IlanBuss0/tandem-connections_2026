@@ -160,6 +160,7 @@ export default function TutorDashboard({ initialUserId, initialTab, onBack }: Tu
   const [tutorAgendaEvents, setTutorAgendaEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedNotificationChatId, setSelectedNotificationChatId] = useState<string | undefined>();
   const { unreadCount, setUnreadCount } = useUnreadNotifications(
     user && user.role === 'tutor' ? { id: String(user.id) } : null
   );
@@ -218,6 +219,26 @@ export default function TutorDashboard({ initialUserId, initialTab, onBack }: Tu
   const weeklyAdherence = weeklyActivitiesForHeader.length
     ? clampPct((weeklyActivitiesForHeader.filter(a => a.completed).length / weeklyActivitiesForHeader.length) * 100)
     : 0;
+
+  const navigateFromNotification = (nextTab: string, params?: Record<string, any>) => {
+    const tutorTabMap: Record<string, TabId> = {
+      home: 'overview',
+      achievements: 'overview',
+      shop: 'overview',
+      resources: 'overview',
+      activities: 'activities',
+      calendar: 'calendar',
+      chat: 'chat',
+    };
+    if (nextTab === 'chat') {
+      setSelectedNotificationChatId(params?.chatId ? String(params.chatId) : undefined);
+    }
+    if (params?.sourceUserId) {
+      const linkedIndex = linkedUsers.findIndex(linked => String(linked.id) === String(params.sourceUserId));
+      if (linkedIndex >= 0) setSelectedUser(linkedIndex);
+    }
+    setTab(tutorTabMap[nextTab] || 'overview');
+  };
 
   const insights = useMemo(() => {
     if (!mainUser) return [];
@@ -513,11 +534,16 @@ export default function TutorDashboard({ initialUserId, initialTab, onBack }: Tu
         )}
 
         {!loading && !error && tab === 'notifications' && (
-          <UserNotifications onUnreadCountChange={setUnreadCount} />
+          <UserNotifications onUnreadCountChange={setUnreadCount} onNavigate={navigateFromNotification} />
         )}
 
         {!loading && !error && tab === 'chat' && (
-          <ChatScreen profiles={chatProfiles} defaultProfileId={String(user.id)} />
+          <ChatScreen
+            key={selectedNotificationChatId ? `chat-${selectedNotificationChatId}` : 'chat'}
+            profiles={chatProfiles}
+            defaultProfileId={String(user.id)}
+            defaultSelectedId={selectedNotificationChatId}
+          />
         )}
 
         {!loading && !error && tab === 'agenda' && (

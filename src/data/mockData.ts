@@ -383,6 +383,7 @@ export interface Notification {
   actionLabel?: string;
   referenceType?: string;
   referenceId?: string;
+  sourceUserId?: string;
 }
 
 export const notifications: Notification[] = [

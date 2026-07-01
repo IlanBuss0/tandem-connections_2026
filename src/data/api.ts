@@ -430,6 +430,7 @@ function toLegacyNotification(notification: DbNotificacion): Notification {
     actionLabel: notification.reference_type === 'chat' ? 'Ir al chat' : undefined,
     referenceType: notification.reference_type || undefined,
     referenceId: notification.reference_id !== null ? String(notification.reference_id) : undefined,
+    sourceUserId: notification.id_usuario_actor !== null ? String(notification.id_usuario_actor) : undefined,
   } as Notification;
 }
 

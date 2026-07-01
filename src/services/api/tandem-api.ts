@@ -143,6 +143,42 @@ export const authApi = {
   },
 };
 
+class NotificationApiService extends CrudApiService<Notificacion> {
+  constructor() {
+    super("/api/notificaciones");
+  }
+
+  getMine(userId: string): Promise<Notificacion[]> {
+    return apiRequest<Notificacion[]>(`/api/notificaciones/mine?userId=${encodeURIComponent(userId)}`);
+  }
+
+  async markAllRead(userId: string): Promise<void> {
+    await apiRequest("/api/notificaciones/read-all", {
+      method: "PUT",
+      body: { userId: Number(userId) },
+    });
+  }
+}
+
+class FileApiService extends CrudApiService<Archivo> {
+  constructor() {
+    super("/api/archivos");
+  }
+
+  upload(file: File, onProgress?: (pct: number) => void, signal?: AbortSignal): Promise<{ id: number; url: string; nombre_archivo: string; content_type: string; peso_bytes: number }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiUploadFile("/api/archivos/upload", formData, onProgress, signal);
+  }
+
+  uploadWithType(file: File, idTipoArchivo: number, onProgress?: (pct: number) => void, signal?: AbortSignal): Promise<{ id: number; url: string; nombre_archivo: string; content_type: string; peso_bytes: number }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("id_tipo_archivo", String(idTipoArchivo));
+    return apiUploadFile("/api/archivos/upload", formData, onProgress, signal);
+  }
+}
+
 export const tandemApi = {
   auth: authApi,
   usuarios: new CrudApiService<Usuario>("/api/usuarios"),
@@ -167,18 +203,7 @@ export const tandemApi = {
   dispositivos: new CrudApiService<Dispositivo>("/api/dispositivos"),
   ubicacionesActuales: new CrudApiService<UbicacionActual>("/api/ubicaciones-actuales"),
   ubicacionesHistoriales: new CrudApiService<UbicacionHistorial>("/api/ubicaciones-historiales"),
-  notificaciones: {
-    ...new CrudApiService<Notificacion>("/api/notificaciones"),
-    async getMine(userId: string): Promise<Notificacion[]> {
-      return apiRequest<Notificacion[]>(`/api/notificaciones/mine?userId=${encodeURIComponent(userId)}`);
-    },
-    async markAllRead(userId: string): Promise<void> {
-      await apiRequest("/api/notificaciones/read-all", {
-        method: "PUT",
-        body: { userId: Number(userId) },
-      });
-    },
-  },
+  notificaciones: new NotificationApiService(),
   contactos: new CrudApiService<Contacto>("/api/contactos"),
   chats: new CrudApiService<Chat>("/api/chats"),
   participantesChats: new CrudApiService<ParticipanteChat>("/api/participantes-chats"),
@@ -188,20 +213,7 @@ export const tandemApi = {
   configuracionesAccesibilidad: new CrudApiService<ConfiguracionAccesibilidad>("/api/configuraciones-accesibilidad"),
   reportesUsuarios: new CrudApiService<ReporteUsuario>("/api/reportes-usuarios"),
   alcancesArchivos: new CrudApiService<AlcanceArchivo>("/api/alcances-archivos"),
-  archivos: {
-    ...new CrudApiService<Archivo>("/api/archivos"),
-    async upload(file: File, onProgress?: (pct: number) => void, signal?: AbortSignal): Promise<{ id: number; url: string; nombre_archivo: string; content_type: string; peso_bytes: number }> {
-      const formData = new FormData();
-      formData.append("file", file);
-      return apiUploadFile("/api/archivos/upload", formData, onProgress, signal);
-    },
-    async uploadWithType(file: File, idTipoArchivo: number, onProgress?: (pct: number) => void, signal?: AbortSignal): Promise<{ id: number; url: string; nombre_archivo: string; content_type: string; peso_bytes: number }> {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("id_tipo_archivo", String(idTipoArchivo));
-      return apiUploadFile("/api/archivos/upload", formData, onProgress, signal);
-    },
-  },
+  archivos: new FileApiService(),
   auditoriasEventos: new CrudApiService<AuditoriaEvento>("/api/auditorias-eventos"),
   autonomiasOperativas: new CrudApiService<AutonomiaOperativa>("/api/autonomias-operativas"),
   beneficiariosSuscripciones: new CrudApiService<BeneficiarioSuscripcion>("/api/beneficiarios-suscripciones"),

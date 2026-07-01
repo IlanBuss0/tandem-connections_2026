@@ -50,6 +50,7 @@ export default function ProfessionalDashboard() {
   const [loadingPatients, setLoadingPatients] = useState(true);
   const [professionalInviteCode, setProfessionalInviteCode] = useState('');
   const [joiningProfessionalInvite, setJoiningProfessionalInvite] = useState(false);
+  const [selectedNotificationChatId, setSelectedNotificationChatId] = useState<string | undefined>();
   const { unreadCount, setUnreadCount } = useUnreadNotifications(
     user && user.role === 'professional' ? { id: String(user.id) } : null
   );
@@ -148,6 +149,36 @@ export default function ProfessionalDashboard() {
 
   const patientDetail = selectedPatient ? linkedUsers.find(u => u.id === selectedPatient) : null;
 
+  const navigateFromNotification = (nextTab: string, params?: Record<string, any>) => {
+    const sourceUserId = params?.sourceUserId ? String(params.sourceUserId) : null;
+    const linkedPatient = sourceUserId && linkedUsers.some(item => String(item.id) === sourceUserId)
+      ? sourceUserId
+      : null;
+
+    if (nextTab === 'chat' && canSendMessages) {
+      setSelectedNotificationChatId(params?.chatId ? String(params.chatId) : undefined);
+      setSelectedPatient(null);
+      setTab('chat');
+      return;
+    }
+
+    if (linkedPatient) {
+      setSelectedPatient(linkedPatient);
+      setPatientTab(nextTab === 'activities' ? 'stats' : 'overview');
+      setTab('patients');
+      return;
+    }
+
+    if (nextTab === 'calendar' && canScheduleSessions) {
+      setSelectedPatient(null);
+      setTab('agenda');
+      return;
+    }
+
+    setSelectedPatient(null);
+    setTab('patients');
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <AppHeader
@@ -224,8 +255,15 @@ export default function ProfessionalDashboard() {
       </div>
 
       <div className="max-w-4xl mx-auto p-4 space-y-4">
-        {tab === 'chat' && canSendMessages && <ChatScreen />}
-        {tab === 'notifications' && <UserNotifications onUnreadCountChange={setUnreadCount} />}
+        {tab === 'chat' && canSendMessages && (
+          <ChatScreen
+            key={selectedNotificationChatId ? `chat-${selectedNotificationChatId}` : 'chat'}
+            defaultSelectedId={selectedNotificationChatId}
+          />
+        )}
+        {tab === 'notifications' && (
+          <UserNotifications onUnreadCountChange={setUnreadCount} onNavigate={navigateFromNotification} />
+        )}
         {tab === 'patients' && !selectedPatient && (
           <>
             <h2 className="font-heading font-bold text-xl text-foreground">Mis pacientes ({linkedUsers.length})</h2>

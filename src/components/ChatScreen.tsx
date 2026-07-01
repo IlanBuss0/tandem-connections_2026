@@ -143,8 +143,8 @@ export default function ChatScreen({
   }, [user?.id, user?.role]);
 
   useEffect(() => {
-    setSelectedId(null);
-  }, [resolvedProfileId]);
+    setSelectedId(defaultSelectedId || null);
+  }, [defaultSelectedId, resolvedProfileId]);
 
   useEffect(() => {
     let mounted = true;

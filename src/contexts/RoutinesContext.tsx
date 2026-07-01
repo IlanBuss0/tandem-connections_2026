@@ -54,7 +54,7 @@ export function RoutinesProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
-    if (!user) {
+    if (!user || user.role !== 'user') {
       setRoutines([]);
       setCustomCategories([]);
       setHiddenPredefined([]);
@@ -82,12 +82,12 @@ export function RoutinesProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   useEffect(() => {
-    if (!user || loadedUserId !== user.id) return;
+    if (!user || user.role !== 'user' || loadedUserId !== user.id) return;
     saveRoutinesForUser(user.id, routines as ApiDayRoutine[]).catch(() => undefined);
   }, [routines, user, loadedUserId]);
 
   useEffect(() => {
-    if (!user || loadedUserId !== user.id) return;
+    if (!user || user.role !== 'user' || loadedUserId !== user.id) return;
     saveCustomCategoriesForUser(user.id, customCategories, hiddenPredefined).catch(() => undefined);
   }, [customCategories, hiddenPredefined, user, loadedUserId]);
 
