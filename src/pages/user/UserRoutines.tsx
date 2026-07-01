@@ -9,6 +9,13 @@ import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } 
 const predefinedCategories = ['mañana', 'escuela', 'mediodía', 'tarde', 'noche'];
 const predefinedLabels: Record<string, string> = { mañana: '🌅 Mañana', escuela: '📚 Escuela', mediodía: '☀️ Mediodía', tarde: '🌤️ Tarde', noche: '🌙 Noche' };
 const iconChoices = ['⏰','🛏️','🚿','👕','🥣','🪥','🎒','🚶','📚','🍽️','🎮','✏️','⭐','🥪','🧠','🎧','👔','🍝','💭','🌙','🏃','🎵','📖','🧘','🐶','🛁','💊','🥗','🌳','🎨'];
+const reminderChoices = [
+  { value: -60, label: '1 hora antes' }, { value: -30, label: '30 min antes' },
+  { value: -15, label: '15 min antes' }, { value: -10, label: '10 min antes' },
+  { value: -5, label: '5 min antes' }, { value: 0, label: 'En el momento' },
+  { value: 5, label: '5 min después' }, { value: 10, label: '10 min después' },
+  { value: 15, label: '15 min después' },
+];
 
 function autoPictogramLabel(title: string): string {
   const words = title.trim().split(/\s+/);
@@ -18,7 +25,7 @@ function autoPictogramLabel(title: string): string {
   return meaningful.length > 0 ? meaningful[meaningful.length - 1] : words[words.length - 1];
 }
 
-export default function UserRoutines() {
+export default function UserRoutines({ initialRoutineId, initialItemId }: { initialRoutineId?: string; initialItemId?: string } = {}) {
   const { context: permissionContext } = usePermissionContext();
   const {
     routines, addRoutine, renameRoutine, deleteRoutine, duplicateRoutine,
@@ -39,9 +46,13 @@ export default function UserRoutines() {
 
   const [showAddItem, setShowAddItem] = useState(false);
   const [editingItem, setEditingItem] = useState<RoutineItem | null>(null);
-  const [form, setForm] = useState<{ time: string; title: string; icon: string; category: string; pictogramLabel: string }>({
-    time: '08:00', title: '', icon: '⭐', category: 'mañana', pictogramLabel: '',
+  const [form, setForm] = useState<{ time: string; title: string; icon: string; category: string; pictogramLabel: string; reminders: number[] }>({
+    time: '08:00', title: '', icon: '⭐', category: 'mañana', pictogramLabel: '', reminders: [],
   });
+
+  useEffect(() => {
+    if (initialRoutineId && routines.some(routine => routine.id === initialRoutineId)) setActiveId(initialRoutineId);
+  }, [initialRoutineId, routines]);
 
   const [pictogramView, setPictogramView] = useState(false);
 
@@ -106,12 +117,12 @@ export default function UserRoutines() {
 
   const openCreate = () => {
     setEditingItem(null);
-    setForm({ time: '08:00', title: '', icon: '⭐', category: 'mañana', pictogramLabel: '' });
+    setForm({ time: '08:00', title: '', icon: '⭐', category: 'mañana', pictogramLabel: '', reminders: [] });
     setShowAddItem(true);
   };
   const openEdit = (it: RoutineItem) => {
     setEditingItem(it);
-    setForm({ time: it.time, title: it.title, icon: it.icon, category: it.category, pictogramLabel: it.pictogramLabel || '' });
+    setForm({ time: it.time, title: it.title, icon: it.icon, category: it.category, pictogramLabel: it.pictogramLabel || '', reminders: it.reminders || [] });
     setShowAddItem(true);
   };
   const submitItem = () => {
@@ -298,6 +309,15 @@ export default function UserRoutines() {
           <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="¿Qué tenés que hacer?" className="w-full p-2.5 rounded-xl border border-[#ede4f8] bg-[#faf8ff] text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20" />
           <input value={form.pictogramLabel} onChange={e => setForm(f => ({ ...f, pictogramLabel: e.target.value }))} placeholder="Etiqueta para pictograma (opcional)" className="w-full p-2.5 rounded-xl border border-[#ede4f8] bg-[#faf8ff] text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20" />
           <div>
+            <p className="text-xs text-[#8b7aa0] mb-2">Avisarme</p>
+            <div className="flex flex-wrap gap-2">
+              {reminderChoices.map(choice => {
+                const selected = form.reminders.includes(choice.value);
+                return <button key={choice.value} type="button" onClick={() => setForm(current => ({ ...current, reminders: selected ? current.reminders.filter(value => value !== choice.value) : [...current.reminders, choice.value].sort((a, b) => a - b) }))} className={`rounded-xl border px-2.5 py-1.5 text-xs font-medium ${selected ? 'border-[#6b4c9a] bg-[#f5f0ff] text-[#6b4c9a]' : 'border-[#ede4f8] text-[#8b7aa0]'}`}>{choice.label}</button>;
+              })}
+            </div>
+          </div>
+          <div>
             <p className="text-xs text-[#8b7aa0] mb-1">Icono</p>
             <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
               {iconChoices.map(ic => (
@@ -366,7 +386,7 @@ export default function UserRoutines() {
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.04 }}
-                        className={`group flex items-center gap-3 p-3 rounded-2xl border transition-all ${item.completed ? 'bg-green-50 border-green-200' : 'bg-white border-[#f0e8f8] hover:border-[#d8c7ef] hover:shadow-md'}`}
+                        className={`group flex items-center gap-3 p-3 rounded-2xl border transition-all ${initialItemId === item.id ? 'ring-2 ring-[#6b4c9a] border-[#6b4c9a]' : ''} ${item.completed ? 'bg-green-50 border-green-200' : 'bg-white border-[#f0e8f8] hover:border-[#d8c7ef] hover:shadow-md'}`}
                       >
                         <button onClick={() => toggleItem(active.id, item.id)} className="shrink-0">
                           {item.completed ? <CheckCircle2 size={20} className="text-green-500" /> : <Circle size={20} className="text-[#8b7aa0]" />}
@@ -374,6 +394,7 @@ export default function UserRoutines() {
                         <span className="text-xl shrink-0">{item.icon}</span>
                         <div className="flex-1 text-left min-w-0">
                           <p className={`text-sm font-medium truncate ${item.completed ? 'line-through text-[#8b7aa0]' : 'text-[#4a4a5a]'}`}>{item.title}</p>
+                          {(item.reminders?.length || 0) > 0 && <p className="mt-0.5 text-[10px] text-[#6b4c9a]">🔔 {item.reminders!.length} aviso{item.reminders!.length === 1 ? '' : 's'}</p>}
                         </div>
                         <span className="text-xs text-[#8b7aa0] flex items-center gap-1">
                           <Clock size={12} /> {item.time}

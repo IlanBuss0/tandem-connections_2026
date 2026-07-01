@@ -396,11 +396,11 @@ function toAssignedLegacyActivity(
 }
 
 const NOTIFICATION_TYPE_MAP: Record<number, Notification['type']> = {
-  1: 'system',
-  2: 'activity',
-  3: 'system',
-  4: 'chat',
-  5: 'payment',
+  1: 'alert',
+  2: 'system',
+  3: 'reminder',
+  4: 'system',
+  5: 'chat',
 };
 
 const NOTIFICATION_ICON_MAP: Record<string, string> = {
@@ -417,7 +417,16 @@ const NOTIFICATION_ICON_MAP: Record<string, string> = {
 };
 
 function toLegacyNotification(notification: DbNotificacion): Notification {
-  const type = NOTIFICATION_TYPE_MAP[notification.id_tipo_notificacion] || 'reminder';
+  const referenceTypeMap: Record<string, Notification['type']> = {
+    chat: 'chat',
+    activity: 'activity',
+    calendar: 'reminder',
+    achievement: 'achievement',
+    payment: 'payment',
+  };
+  const type = (notification.reference_type && referenceTypeMap[notification.reference_type])
+    || NOTIFICATION_TYPE_MAP[notification.id_tipo_notificacion]
+    || 'system';
   return {
     id: String(notification.id),
     userId: String(notification.id_usuario_destino),
@@ -430,7 +439,11 @@ function toLegacyNotification(notification: DbNotificacion): Notification {
     actionLabel: notification.reference_type === 'chat' ? 'Ir al chat' : undefined,
     referenceType: notification.reference_type || undefined,
     referenceId: notification.reference_id !== null ? String(notification.reference_id) : undefined,
-    sourceUserId: notification.id_usuario_actor !== null ? String(notification.id_usuario_actor) : undefined,
+    sourceUserId: notification.context_user_id !== null
+      ? String(notification.context_user_id)
+      : notification.id_usuario_actor !== null ? String(notification.id_usuario_actor) : undefined,
+    routineId: notification.reference_routine_id || undefined,
+    itemId: notification.reference_item_id || undefined,
   } as Notification;
 }
 
@@ -1151,7 +1164,7 @@ export async function fetchPertenecienteHome(userId: string): Promise<Pertenecie
     fetchAssignedActivitiesByPerteneciente(Number(perteneciente.id)),
     tandemApi.actividades.getAll(),
     tandemApi.estadosActividades.getAll(),
-    tandemApi.notificaciones.getAll(),
+    tandemApi.notificaciones.getMine(),
     tandemApi.saldosPuntos.getAll(),
     tandemApi.avatares.getAll(),
     tandemApi.nivelesApoyos.getAll(),
@@ -1239,7 +1252,7 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
     tandemApi.actividades.getAll(),
     tandemApi.estadosActividades.getAll(),
     tandemApi.puntosOtorgados.getAll(),
-    tandemApi.notificaciones.getAll(),
+    Promise.resolve([] as DbNotificacion[]),
   ]);
 
   const tutor = (tutores as DbTutor[]).find(item => Number(item.id_usuario) === idUsuarioTutor);
@@ -1417,35 +1430,16 @@ export async function completeAssignedActivity(activity: Activity, userId: strin
   }, { token });
 }
 
-export async function fetchNotificationsForUser(userId: string): Promise<Notification[]> {
-  try {
-    const numericUserId = Number(userId);
-    const rows = await tandemApi.notificaciones.getAll();
-    return rows
-      .filter((row) => Number.isNaN(numericUserId) || row.id_usuario_destino === numericUserId)
-      .map(toLegacyNotification);
-  } catch {
-    return apiFetchWithFallback<Notification[]>([`/notifications?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/notifications`]);
-  }
-}
-
-export async function fetchMyNotifications(userId: string): Promise<Notification[]> {
-  try {
-    const rows = await tandemApi.notificaciones.getMine(userId);
-    return rows.map(toLegacyNotification);
-  } catch {
-    return fetchNotificationsForUser(userId);
-  }
+export async function fetchMyNotifications(): Promise<Notification[]> {
+  const rows = await tandemApi.notificaciones.getMine();
+  return rows.map(toLegacyNotification);
 }
 
 export async function markNotificationAsRead(notificationId: string): Promise<void> {
   const numericId = Number(notificationId);
   if (!Number.isFinite(numericId)) return;
 
-  await tandemApi.notificaciones.update(numericId, {
-    leida: true,
-    fecha_lectura: new Date().toISOString(),
-  });
+  await tandemApi.notificaciones.markRead(numericId);
 }
 
 export async function markNotificationsAsRead(notificationIds: string[]): Promise<void> {
@@ -1453,12 +1447,8 @@ export async function markNotificationsAsRead(notificationIds: string[]): Promis
   await Promise.all(uniqueIds.map(markNotificationAsRead));
 }
 
-export async function markAllNotificationsAsRead(userId: string): Promise<void> {
-  try {
-    await tandemApi.notificaciones.markAllRead(userId);
-  } catch {
-    await markNotificationsAsRead([]);
-  }
+export async function markAllNotificationsAsRead(): Promise<void> {
+  await tandemApi.notificaciones.markAllRead();
 }
 
 export async function fetchObjectivesForUser(userId: string): Promise<Objective[]> {
@@ -1735,6 +1725,7 @@ function normalizeRoutinesPayload(payload: unknown): DayRoutine[] {
               title: String(it.title || ''),
               icon: String(it.icon || 'â­'),
               completed: Boolean(it.completed),
+              reminders: Array.isArray(it.reminders) ? it.reminders.map(Number).filter(Number.isFinite) : [],
               category: String(it.category || 'maÃ±ana'),
             };
           })
@@ -1766,6 +1757,7 @@ export async function saveRoutinesForUser(userId: string, routines: DayRoutine[]
     const config = await getUserConfig(numericUserId, ROUTINES_CONFIG_KEY);
     if (config?.id) await tandemApi.configuracionesUsuarios.update(config.id, payload);
     else await tandemApi.configuracionesUsuarios.create(payload);
+    await apiRequest('/api/routine-reminders/sync', { method: 'PUT', body: { routines } });
     return routines;
   } catch (error) {
     throw error instanceof Error ? error : new Error('No se pudieron guardar las rutinas.');

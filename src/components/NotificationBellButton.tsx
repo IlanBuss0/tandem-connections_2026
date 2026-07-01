@@ -15,12 +15,12 @@ export function useUnreadNotifications(user: NotificationUser) {
       return;
     }
 
-    fetchMyNotifications(String(user.id))
+    fetchMyNotifications()
       .then((notifications) => {
         setUnreadCount(notifications.filter(notification => !notification.read).length);
       })
       .catch(() => {
-        setUnreadCount(0);
+        // Preserve the last valid count during temporary API failures.
       });
   }, [user]);
 

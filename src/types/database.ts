@@ -683,6 +683,9 @@ export interface Notificacion {
   fecha_lectura: string | null;
   reference_type: string | null;
   reference_id: number | null;
+  context_user_id: number | null;
+  reference_routine_id?: string | null;
+  reference_item_id?: string | null;
 }
 
 // ============================================================================

@@ -115,9 +115,9 @@ export default function AppShell() {
   const renderContent = () => {
     switch (activeTab) {
       case 'home': return <UserHome onNavigate={goToTab} />;
-      case 'routines': return <UserRoutines />;
+      case 'routines': return <UserRoutines key={`routines-${navKey}`} initialRoutineId={navParams?.routineId} initialItemId={navParams?.itemId} />;
       case 'calendar': return <UserCalendar />;
-      case 'activities': return <UserActivities />;
+      case 'activities': return <UserActivities key={`activities-${navKey}`} initialAssignedActivityId={navParams?.activityId} />;
       case 'shop': return <UserShop />;
       case 'pictograms': return <UserPictograms />;
       case 'chat': return <UserChat key={`chat-${navKey}`} initialSelectedId={navParams?.chatId} />;

@@ -183,11 +183,16 @@ export default function ChatScreen({
     [conversationsForUser, isOwnView, profileConvs, user]
   );
   const myConvs = useMemo(
-    () => dedupeDirectConversations(rawConvs, resolvedProfileId),
-    [rawConvs, resolvedProfileId]
+    () => {
+      const preferredFirst = defaultSelectedId
+        ? [...rawConvs].sort((a, b) => Number(sameId(b.id, defaultSelectedId)) - Number(sameId(a.id, defaultSelectedId)))
+        : rawConvs;
+      return dedupeDirectConversations(preferredFirst, resolvedProfileId);
+    },
+    [defaultSelectedId, rawConvs, resolvedProfileId]
   );
   const selectedConv: Conversation | null = useMemo(
-    () => myConvs.find(c => c.id === selectedId) || null,
+    () => myConvs.find(c => sameId(c.id, selectedId)) || null,
     [myConvs, selectedId]
   );
   const selectedMessages = useMemo(

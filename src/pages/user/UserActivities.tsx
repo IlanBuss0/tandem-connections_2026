@@ -173,7 +173,7 @@ function FilterSelect({
   );
 }
 
-export default function UserActivities() {
+export default function UserActivities({ initialAssignedActivityId }: { initialAssignedActivityId?: string } = {}) {
   const { user } = useAuth();
   const { forUser, complete: completeCustomActivity } = useCustomActivities();
   const { context: permissionContext } = usePermissionContext();
@@ -219,6 +219,12 @@ export default function UserActivities() {
     const demoActivity = user && !demoCompleted ? buildPictogramDemoActivity(user.id) : null;
     return [demoActivity, ...customForUser, ...localWithoutDuplicatedCustom].filter(Boolean) as Activity[];
   }, [customForUser, localActivities, user]);
+
+  useEffect(() => {
+    if (!initialAssignedActivityId) return;
+    const activity = merged.find(item => String((item as any).assignedActivityId) === String(initialAssignedActivityId));
+    if (activity) setExpandedId(activity.id);
+  }, [initialAssignedActivityId, merged]);
 
   useEffect(() => {
     const storedId = localStorage.getItem('tandem:execute-activity-id');

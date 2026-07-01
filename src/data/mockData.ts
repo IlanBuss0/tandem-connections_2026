@@ -219,6 +219,7 @@ export interface RoutineItem {
   completed: boolean;
   category: string;
   pictogramLabel?: string;
+  reminders?: number[];
 }
 
 export const juanDailyRoutine: RoutineItem[] = [
@@ -384,6 +385,8 @@ export interface Notification {
   referenceType?: string;
   referenceId?: string;
   sourceUserId?: string;
+  routineId?: string;
+  itemId?: string;
 }
 
 export const notifications: Notification[] = [

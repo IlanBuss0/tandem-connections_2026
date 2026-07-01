@@ -83,7 +83,10 @@ export function RoutinesProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user || user.role !== 'user' || loadedUserId !== user.id) return;
-    saveRoutinesForUser(user.id, routines as ApiDayRoutine[]).catch(() => undefined);
+    const timer = window.setTimeout(() => {
+      saveRoutinesForUser(user.id, routines as ApiDayRoutine[]).catch(() => undefined);
+    }, 300);
+    return () => window.clearTimeout(timer);
   }, [routines, user, loadedUserId]);
 
   useEffect(() => {

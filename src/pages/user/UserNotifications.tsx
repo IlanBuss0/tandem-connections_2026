@@ -8,6 +8,7 @@ import {
   Notification,
 } from '@/data/api';
 import { Bell, Check, MessageCircle, Calendar, Target, Trophy, ShieldAlert, Sparkles } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 
 type UserNotificationsProps = {
   onUnreadCountChange?: (count: number) => void;
@@ -54,6 +55,7 @@ function getNotificationDestination(notification: Notification): { tab: string; 
     activity: 'activities',
     calendar: 'calendar',
     reminder: 'calendar',
+    routine: 'routines',
     achievement: 'achievements',
     streak: 'achievements',
     payment: 'shop',
@@ -64,6 +66,10 @@ function getNotificationDestination(notification: Notification): { tab: string; 
   const tab = tabMap[source] || 'home';
   const params: Record<string, string> = {};
   if (notification.sourceUserId) params.sourceUserId = notification.sourceUserId;
+  if (source === 'routine') {
+    if (notification.routineId) params.routineId = notification.routineId;
+    if (notification.itemId) params.itemId = notification.itemId;
+  }
   if (!notification.referenceId) return { tab, params: Object.keys(params).length ? params : undefined };
 
   const paramMap: Record<string, string> = {
@@ -81,16 +87,23 @@ function getNotificationDestination(notification: Notification): { tab: string; 
 
 export default function UserNotifications({ onUnreadCountChange, onNavigate }: UserNotificationsProps) {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [notifs, setNotifs] = useState<Notification[]>([]);
   const [showAll, setShowAll] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!user) return;
+    setLoading(true);
     try {
-      const data = await fetchMyNotifications(user.id);
+      const data = await fetchMyNotifications();
       setNotifs(data);
-    } catch {
-      setNotifs([]);
+      setLoadError(null);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'No se pudieron cargar las notificaciones.');
+    } finally {
+      setLoading(false);
     }
   }, [user]);
 
@@ -119,8 +132,9 @@ export default function UserNotifications({ onUnreadCountChange, onNavigate }: U
 
     try {
       await markNotificationAsRead(id);
-    } catch {
+    } catch (error) {
       setNotifs(prev => prev.map(n => n.id === id ? { ...n, read: false } : n));
+      toast({ title: 'No se pudo marcar como leída', description: error instanceof Error ? error.message : 'Intentá nuevamente.', variant: 'destructive' });
     }
   };
 
@@ -128,9 +142,10 @@ export default function UserNotifications({ onUnreadCountChange, onNavigate }: U
     if (!user) return;
     setNotifs(prev => prev.map(n => ({ ...n, read: true })));
     try {
-      await markAllNotificationsAsRead(user.id);
-    } catch {
-      load();
+      await markAllNotificationsAsRead();
+    } catch (error) {
+      await load();
+      toast({ title: 'No se pudieron marcar las notificaciones', description: error instanceof Error ? error.message : 'Intentá nuevamente.', variant: 'destructive' });
     }
   };
 
@@ -176,8 +191,17 @@ export default function UserNotifications({ onUnreadCountChange, onNavigate }: U
       </div>
 
       <div className="space-y-2">
+        {loadError && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <p>{loadError}</p>
+            <button type="button" onClick={() => void load()} className="mt-2 font-semibold underline">Reintentar</button>
+          </div>
+        )}
+        {loading && notifs.length === 0 && (
+          <div className="py-12 text-center text-sm text-[#8b7aa0]">Cargando notificaciones…</div>
+        )}
         <AnimatePresence mode="popLayout">
-          {displayed.length === 0 && (
+          {!loading && !loadError && displayed.length === 0 && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

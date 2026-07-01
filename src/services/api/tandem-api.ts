@@ -143,19 +143,20 @@ export const authApi = {
   },
 };
 
-class NotificationApiService extends CrudApiService<Notificacion> {
-  constructor() {
-    super("/api/notificaciones");
+class NotificationApiService {
+  getMine(): Promise<Notificacion[]> {
+    return apiRequest<Notificacion[]>("/api/notificaciones/mine");
   }
 
-  getMine(userId: string): Promise<Notificacion[]> {
-    return apiRequest<Notificacion[]>(`/api/notificaciones/mine?userId=${encodeURIComponent(userId)}`);
+  async markRead(notificationId: number): Promise<void> {
+    await apiRequest(`/api/notificaciones/${encodeURIComponent(String(notificationId))}/read`, {
+      method: "PATCH",
+    });
   }
 
-  async markAllRead(userId: string): Promise<void> {
+  async markAllRead(): Promise<void> {
     await apiRequest("/api/notificaciones/read-all", {
-      method: "PUT",
-      body: { userId: Number(userId) },
+      method: "PATCH",
     });
   }
 }
