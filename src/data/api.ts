@@ -2327,10 +2327,12 @@ export interface PictogramCategory {
   total: number;
 }
 
-export async function fetchPictograms(query?: { category?: string; search?: string }): Promise<Pictogram[]> {
+export async function fetchPictograms(query?: { category?: string; search?: string; language?: string; limit?: number }): Promise<Pictogram[]> {
   const params = new URLSearchParams();
   if (query?.category && query.category !== 'todas') params.set('category', query.category);
   if (query?.search) params.set('search', query.search);
+  if (query?.language) params.set('language', query.language);
+  if (query?.limit) params.set('limit', String(query.limit));
   const q = params.toString();
   return apiFetchWithFallback<Pictogram[]>([q ? `/api/pictograms?${q}` : '/api/pictograms', q ? `/pictograms?${q}` : '/pictograms']);
 }

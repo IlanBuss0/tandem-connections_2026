@@ -87,6 +87,83 @@ function VisualValue({ value, className = '' }: { value?: string; className?: st
   return <span className={className}>{value || 'Soltá un pictograma'}</span>;
 }
 
+const PICTOGRAM_PAGE_SIZE = 24;
+const PICTOGRAM_MAX_RESULTS = 100;
+
+function usePictogramSearch(initialSearch: string) {
+  const [search, setSearchState] = useState(initialSearch);
+  const [limit, setLimit] = useState(PICTOGRAM_PAGE_SIZE);
+  const [pictograms, setPictograms] = useState<Pictogram[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const setSearch = (value: string) => {
+    setSearchState(value);
+    setLimit(PICTOGRAM_PAGE_SIZE);
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setLoading(true);
+      setError(null);
+      fetchPictograms({ search: search.trim(), language: 'es', limit })
+        .then(items => {
+          if (!cancelled) setPictograms(items);
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setPictograms([]);
+            setError('No se pudieron cargar los pictogramas. Intentá nuevamente.');
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [search, limit]);
+
+  return {
+    search,
+    setSearch,
+    pictograms,
+    loading,
+    error,
+    canLoadMore: pictograms.length >= limit && limit < PICTOGRAM_MAX_RESULTS,
+    loadMore: () => setLimit(current => Math.min(PICTOGRAM_MAX_RESULTS, current + PICTOGRAM_PAGE_SIZE)),
+  };
+}
+
+function PictogramSearchPanel({ initialSearch, onSelect, className = 'max-h-[520px]' }: { initialSearch: string; onSelect: (picto: Pictogram) => void; className?: string }) {
+  const { search, setSearch, pictograms, loading, error, canLoadMore, loadMore } = usePictogramSearch(initialSearch);
+
+  return (
+    <div className="space-y-2">
+      <div className="relative">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar pictograma..." className="pl-8" />
+      </div>
+      <div className={`grid grid-cols-3 gap-2 overflow-y-auto rounded-lg border bg-card p-2 ${className}`} aria-busy={loading}>
+        {pictograms.map(picto => (
+          <button key={picto.id} draggable onDragStart={event => event.dataTransfer.setData('application/json', JSON.stringify(picto))} onClick={() => onSelect(picto)} className="rounded-lg border border-border p-2 text-center hover:border-primary hover:bg-primary/5" title={picto.name}>
+            {picto.imageUrl ? <img src={picto.imageUrl} alt={picto.name} className="mx-auto h-12 w-12 object-contain" loading="lazy" /> : <span className="text-2xl">{picto.emoji}</span>}
+            <span className="mt-1 block truncate text-[10px] text-muted-foreground">{picto.name}</span>
+          </button>
+        ))}
+        {loading && pictograms.length === 0 && <p className="col-span-3 py-6 text-center text-xs text-muted-foreground">Buscando pictogramas…</p>}
+        {!loading && error && <p className="col-span-3 py-6 text-center text-xs text-destructive">{error}</p>}
+        {!loading && !error && pictograms.length === 0 && <p className="col-span-3 py-6 text-center text-xs text-muted-foreground">Sin resultados</p>}
+        {canLoadMore && <Button type="button" variant="outline" size="sm" onClick={loadMore} disabled={loading} className="col-span-3">{loading ? 'Cargando…' : 'Cargar más'}</Button>}
+      </div>
+    </div>
+  );
+}
+
 function MultipleChoiceSandbox({
   value,
   onChange,
@@ -96,28 +173,8 @@ function MultipleChoiceSandbox({
 }) {
   const rounds = value?.rounds?.length ? value.rounds : [emptyMcRound()];
   const [roundIndex, setRoundIndex] = useState(0);
-  const [search, setSearch] = useState('comer');
-  const [pictograms, setPictograms] = useState<Pictogram[]>([]);
 
   const current = rounds[Math.min(roundIndex, rounds.length - 1)] || emptyMcRound();
-
-  useEffect(() => {
-    let cancelled = false;
-    const timer = window.setTimeout(() => {
-      fetchPictograms({ search })
-        .then((items) => {
-          if (!cancelled) setPictograms(items.slice(0, 24));
-        })
-        .catch(() => {
-          if (!cancelled) setPictograms([]);
-        });
-    }, 250);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [search]);
 
   const updateRounds = (nextRounds: typeof rounds) => {
     onChange({ ...value, rounds: nextRounds });
@@ -240,28 +297,7 @@ function MultipleChoiceSandbox({
           </div>
         </div>
 
-        <div className="space-y-2">
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar pictograma..." className="pl-8" />
-          </div>
-          <div className="grid max-h-[420px] grid-cols-3 gap-2 overflow-y-auto rounded-lg border border-border bg-card p-2">
-            {pictograms.map((picto) => (
-              <button
-                key={picto.id}
-                draggable
-                onDragStart={e => e.dataTransfer.setData('application/json', JSON.stringify(picto))}
-                onClick={() => setPictogram(picto)}
-                className="rounded-lg border border-border p-2 text-center hover:border-primary hover:bg-primary/5"
-                title={picto.name}
-              >
-                {picto.imageUrl ? <img src={picto.imageUrl} alt={picto.name} className="mx-auto h-12 w-12 object-contain" loading="lazy" /> : <span className="text-2xl">{picto.emoji}</span>}
-                <span className="mt-1 block truncate text-[10px] text-muted-foreground">{picto.name}</span>
-              </button>
-            ))}
-            {pictograms.length === 0 && <p className="col-span-3 py-6 text-center text-xs text-muted-foreground">Sin resultados</p>}
-          </div>
-        </div>
+        <PictogramSearchPanel initialSearch="comer" onSelect={setPictogram} className="max-h-[420px]" />
       </div>
     </div>
   );
@@ -269,8 +305,9 @@ function MultipleChoiceSandbox({
 
 function WheelPreview({ round }: { round: WheelRound }) {
   const count = Math.max(1, round.options.length);
-  const radius = 110;
-  const point = (degrees: number) => {
+  const segmentRadius = 110;
+  const contentRadius = 76;
+  const point = (degrees: number, radius: number) => {
     const radians = (degrees - 90) * Math.PI / 180;
     return [120 + radius * Math.cos(radians), 120 + radius * Math.sin(radians)];
   };
@@ -280,12 +317,12 @@ function WheelPreview({ round }: { round: WheelRound }) {
       <svg viewBox="0 0 240 240" className="h-full w-full" aria-label="Vista previa de la ruleta">
         {round.options.map((option, index) => {
           const { start, center, end } = wheelSegmentAngles(index, count);
-          const [x1, y1] = point(start);
-          const [x2, y2] = point(end);
-          const [ix, iy] = point(center);
+          const [x1, y1] = point(start, segmentRadius);
+          const [x2, y2] = point(end, segmentRadius);
+          const [ix, iy] = point(center, contentRadius);
           return (
             <g key={index}>
-              <path d={`M 120 120 L ${x1} ${y1} A ${radius} ${radius} 0 0 1 ${x2} ${y2} Z`} fill={index % 2 ? 'hsl(var(--accent))' : 'hsl(var(--primary) / .18)'} stroke="hsl(var(--border))" />
+              <path d={`M 120 120 L ${x1} ${y1} A ${segmentRadius} ${segmentRadius} 0 0 1 ${x2} ${y2} Z`} fill={index % 2 ? 'hsl(var(--accent))' : 'hsl(var(--primary) / .18)'} stroke="hsl(var(--border))" />
               {isImageValue(option) ? <image href={option} x={ix - 23} y={iy - 23} width="46" height="46" preserveAspectRatio="xMidYMid meet" /> : <text x={ix} y={iy} textAnchor="middle" dominantBaseline="middle" fontSize="12">{option || '?'}</text>}
             </g>
           );
@@ -300,18 +337,8 @@ function WheelPrecisionSandbox({ value, onChange }: { value?: GameData; onChange
   const wheel = normalizeWheel(value?.wheel);
   const rounds = wheel.rounds.length ? wheel.rounds : [normalizeRound({ targetWord: '', options: [] }, wheel.settings.segments)];
   const [roundIndex, setRoundIndex] = useState(0);
-  const [search, setSearch] = useState('manzana');
-  const [pictograms, setPictograms] = useState<Pictogram[]>([]);
   const currentIndex = Math.min(roundIndex, rounds.length - 1);
   const current = rounds[currentIndex];
-
-  useEffect(() => {
-    let cancelled = false;
-    const timer = window.setTimeout(() => fetchPictograms({ search }).then(items => {
-      if (!cancelled) setPictograms(items.slice(0, 24));
-    }).catch(() => { if (!cancelled) setPictograms([]); }), 250);
-    return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [search]);
 
   const commit = (nextRounds = rounds, settings = wheel.settings) => onChange({ ...value, wheel: { rounds: nextRounds.map(round => normalizeRound(round, settings.segments)), settings } });
   const updateRound = (patch: Partial<WheelRound>) => commit(rounds.map((round, index) => index === currentIndex ? normalizeRound({ ...round, ...patch }, wheel.settings.segments) : round));
@@ -361,7 +388,7 @@ function WheelPrecisionSandbox({ value, onChange }: { value?: GameData; onChange
           <div><p className="mb-2 text-xs font-semibold">Opciones de la rueda</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{current.options.map((option, index) => <button key={index} onClick={() => markCorrect(index)} onDragOver={e => e.preventDefault()} onDrop={e => dropPicto(e, index)} className={`relative flex min-h-24 flex-col items-center justify-center rounded-lg border-2 p-2 ${current.correct === index ? 'border-green-500 bg-green-50' : 'border-border bg-card'}`}><VisualValue value={option} className={isImageValue(option) ? 'h-14 w-14' : 'text-xs'} /><span className="mt-1 text-[10px]">{current.correct === index ? '● correcto' : `Segmento ${index + 1}`}</span></button>)}</div></div>
           <div className="rounded-lg border bg-card p-3"><p className="mb-2 text-xs font-semibold text-muted-foreground">Vista previa</p><WheelPreview round={current} /></div>
         </div>
-        <div className="space-y-2"><div className="relative"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar pictograma..." className="pl-8" /></div><div className="grid max-h-[520px] grid-cols-3 gap-2 overflow-y-auto rounded-lg border bg-card p-2">{pictograms.map(picto => <button key={picto.id} draggable onDragStart={e => e.dataTransfer.setData('application/json', JSON.stringify(picto))} onClick={() => assignPictogram(picto)} className="rounded-lg border p-2 hover:border-primary" title={picto.name}>{picto.imageUrl ? <img src={picto.imageUrl} alt={picto.name} className="mx-auto h-12 w-12 object-contain" /> : <span className="text-2xl">{picto.emoji}</span>}<span className="mt-1 block truncate text-[10px]">{picto.name}</span></button>)}{!pictograms.length && <p className="col-span-3 py-6 text-center text-xs text-muted-foreground">Sin resultados</p>}</div></div>
+        <PictogramSearchPanel initialSearch="manzana" onSelect={assignPictogram} />
       </div>
     </div>
   );
