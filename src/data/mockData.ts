@@ -376,11 +376,13 @@ export interface Notification {
   userId: string;
   title: string;
   message: string;
-  type: 'reminder' | 'achievement' | 'message' | 'alert' | 'recommendation' | 'streak';
+  type: 'reminder' | 'achievement' | 'message' | 'alert' | 'recommendation' | 'streak' | 'chat' | 'activity' | 'system' | 'payment';
   icon: string;
   read: boolean;
   timestamp: string;
   actionLabel?: string;
+  referenceType?: string;
+  referenceId?: string;
 }
 
 export const notifications: Notification[] = [

@@ -94,7 +94,8 @@ export type TipoNotificacionNombre =
   | 'Vinculo'
   | 'Pago'
   | 'Mensaje'
-  | 'ZonaSegura';
+  | 'ZonaSegura'
+  | 'Chat';
 
 export type EstadoReporteNombre = 'Abierto' | 'EnRevision' | 'Resuelto' | 'Descartado';
 export type TipoEventoZonaSeguraNombre = 'Entrada' | 'Salida';
@@ -680,6 +681,8 @@ export interface Notificacion {
   leida: boolean;
   fecha_creacion: string;
   fecha_lectura: string | null;
+  reference_type: string | null;
+  reference_id: number | null;
 }
 
 // ============================================================================

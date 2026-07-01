@@ -582,6 +582,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       window.dispatchEvent(new CustomEvent('permisos:updated', { detail: payload }));
     });
 
+    nextSocket.on('notification:new', (payload) => {
+      logRealtime('notification:new recibido', payload);
+      window.dispatchEvent(new CustomEvent('notification:new', { detail: payload }));
+    });
+
     nextSocket.onAny((eventName) => {
       if (
         eventName.startsWith('chat:') &&

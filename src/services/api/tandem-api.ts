@@ -167,7 +167,18 @@ export const tandemApi = {
   dispositivos: new CrudApiService<Dispositivo>("/api/dispositivos"),
   ubicacionesActuales: new CrudApiService<UbicacionActual>("/api/ubicaciones-actuales"),
   ubicacionesHistoriales: new CrudApiService<UbicacionHistorial>("/api/ubicaciones-historiales"),
-  notificaciones: new CrudApiService<Notificacion>("/api/notificaciones"),
+  notificaciones: {
+    ...new CrudApiService<Notificacion>("/api/notificaciones"),
+    async getMine(userId: string): Promise<Notificacion[]> {
+      return apiRequest<Notificacion[]>(`/api/notificaciones/mine?userId=${encodeURIComponent(userId)}`);
+    },
+    async markAllRead(userId: string): Promise<void> {
+      await apiRequest("/api/notificaciones/read-all", {
+        method: "PUT",
+        body: { userId: Number(userId) },
+      });
+    },
+  },
   contactos: new CrudApiService<Contacto>("/api/contactos"),
   chats: new CrudApiService<Chat>("/api/chats"),
   participantesChats: new CrudApiService<ParticipanteChat>("/api/participantes-chats"),

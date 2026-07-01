@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Bell } from 'lucide-react';
-import { fetchNotificationsForUser } from '@/data/api';
+import { fetchMyNotifications } from '@/data/api';
 
 type NotificationUser = {
   id: string;
@@ -9,28 +9,42 @@ type NotificationUser = {
 export function useUnreadNotifications(user: NotificationUser) {
   const [unreadCount, setUnreadCount] = useState(0);
 
-  useEffect(() => {
-    let mounted = true;
-
+  const refresh = useCallback(() => {
     if (!user) {
       setUnreadCount(0);
       return;
     }
 
-    fetchNotificationsForUser(String(user.id))
+    fetchMyNotifications(String(user.id))
       .then((notifications) => {
-        if (mounted) {
-          setUnreadCount(notifications.filter(notification => !notification.read).length);
-        }
+        setUnreadCount(notifications.filter(notification => !notification.read).length);
       })
       .catch(() => {
-        if (mounted) setUnreadCount(0);
+        setUnreadCount(0);
       });
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setUnreadCount(0);
+      return;
+    }
+
+    refresh();
+
+    const intervalId = setInterval(refresh, 15000);
+
+    const handleNotificationEvent = () => {
+      refresh();
+    };
+
+    window.addEventListener('notification:new', handleNotificationEvent);
 
     return () => {
-      mounted = false;
+      clearInterval(intervalId);
+      window.removeEventListener('notification:new', handleNotificationEvent);
     };
-  }, [user?.id]);
+  }, [refresh, user]);
 
   return { unreadCount, setUnreadCount };
 }

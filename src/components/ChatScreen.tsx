@@ -51,9 +51,11 @@ function isImageAttachment(archivo: { url?: string; content_type?: string }) {
 export default function ChatScreen({
   profiles,
   defaultProfileId,
+  defaultSelectedId,
 }: {
   profiles?: ChatViewProfile[];
   defaultProfileId?: string;
+  defaultSelectedId?: string;
 }) {
   const { user } = useAuth();
   const { conversationsForUser, messagesFor, send, edit, remove, markRead, createDirect, createGroup, updateConversation, uploadConversationAvatar, hideConversation, setActiveConversation, sendTyping, typingUsersFor, allContacts, getPersonById, connectionStatus } = useChat();
@@ -62,7 +64,7 @@ export default function ChatScreen({
   const [profileConvs, setProfileConvs] = useState<Conversation[]>([]);
   const [profileMessages, setProfileMessages] = useState<ChatMessage[]>([]);
   const [loadingProfileChats, setLoadingProfileChats] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(defaultSelectedId || null);
   const [draft, setDraft] = useState('');
   const [showNew, setShowNew] = useState(false);
   const [newMode, setNewMode] = useState<'direct' | 'group'>('direct');

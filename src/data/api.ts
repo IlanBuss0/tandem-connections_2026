@@ -395,16 +395,41 @@ function toAssignedLegacyActivity(
   };
 }
 
+const NOTIFICATION_TYPE_MAP: Record<number, Notification['type']> = {
+  1: 'system',
+  2: 'activity',
+  3: 'system',
+  4: 'chat',
+  5: 'payment',
+};
+
+const NOTIFICATION_ICON_MAP: Record<string, string> = {
+  chat: '💬',
+  activity: '🎯',
+  system: '🔔',
+  payment: '💰',
+  message: '💬',
+  reminder: '⏰',
+  achievement: '🏆',
+  alert: '⚠️',
+  recommendation: '⭐',
+  streak: '🔥',
+};
+
 function toLegacyNotification(notification: DbNotificacion): Notification {
+  const type = NOTIFICATION_TYPE_MAP[notification.id_tipo_notificacion] || 'reminder';
   return {
     id: String(notification.id),
     userId: String(notification.id_usuario_destino),
     title: notification.titulo,
     message: notification.cuerpo || '',
-    type: 'reminder',
-    icon: '!',
+    type,
+    icon: NOTIFICATION_ICON_MAP[type] || '🔔',
     read: notification.leida,
     timestamp: notification.fecha_creacion,
+    actionLabel: notification.reference_type === 'chat' ? 'Ir al chat' : undefined,
+    referenceType: notification.reference_type || undefined,
+    referenceId: notification.reference_id !== null ? String(notification.reference_id) : undefined,
   } as Notification;
 }
 
@@ -1403,6 +1428,15 @@ export async function fetchNotificationsForUser(userId: string): Promise<Notific
   }
 }
 
+export async function fetchMyNotifications(userId: string): Promise<Notification[]> {
+  try {
+    const rows = await tandemApi.notificaciones.getMine(userId);
+    return rows.map(toLegacyNotification);
+  } catch {
+    return fetchNotificationsForUser(userId);
+  }
+}
+
 export async function markNotificationAsRead(notificationId: string): Promise<void> {
   const numericId = Number(notificationId);
   if (!Number.isFinite(numericId)) return;
@@ -1416,6 +1450,14 @@ export async function markNotificationAsRead(notificationId: string): Promise<vo
 export async function markNotificationsAsRead(notificationIds: string[]): Promise<void> {
   const uniqueIds = Array.from(new Set(notificationIds));
   await Promise.all(uniqueIds.map(markNotificationAsRead));
+}
+
+export async function markAllNotificationsAsRead(userId: string): Promise<void> {
+  try {
+    await tandemApi.notificaciones.markAllRead(userId);
+  } catch {
+    await markNotificationsAsRead([]);
+  }
 }
 
 export async function fetchObjectivesForUser(userId: string): Promise<Objective[]> {

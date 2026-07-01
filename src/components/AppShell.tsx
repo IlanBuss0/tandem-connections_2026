@@ -69,6 +69,8 @@ export default function AppShell() {
     user && user.role === 'user' ? { id: String(user.id) } : null
   );
   const [tutorView, setTutorView] = useState<TutorView>({ view: 'landing' });
+  const [navParams, setNavParams] = useState<Record<string, any> | null>(null);
+  const [navKey, setNavKey] = useState(0);
 
   useEffect(() => {
     try {
@@ -102,10 +104,12 @@ export default function AppShell() {
   }
   if (user.role === 'professional') return <ProfessionalDashboard />;
 
-  const goToTab = (tab: string) => {
+  const goToTab = (tab: string, params?: Record<string, any>) => {
     setEditingProfilePersonalData(false);
     setActiveTab(tab);
     setSidebarOpen(false);
+    setNavParams(params || null);
+    if (params) setNavKey(k => k + 1);
   };
 
   const renderContent = () => {
@@ -116,10 +120,10 @@ export default function AppShell() {
       case 'activities': return <UserActivities />;
       case 'shop': return <UserShop />;
       case 'pictograms': return <UserPictograms />;
-      case 'chat': return <UserChat />;
+      case 'chat': return <UserChat key={`chat-${navKey}`} initialSelectedId={navParams?.chatId} />;
       case 'emotions': return <UserEmotions />;
       case 'achievements': return <UserAchievements />;
-      case 'notifications': return <UserNotifications onUnreadCountChange={setUnreadNotifs} />;
+      case 'notifications': return <UserNotifications onUnreadCountChange={setUnreadNotifs} onNavigate={goToTab} />;
       case 'resources': return <UserResources />;
       case 'profile':
         return editingProfilePersonalData
