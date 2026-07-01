@@ -9,6 +9,8 @@ import { GAME_TEMPLATES, GameTemplate } from '@/data/miniGames';
 import { fetchLinkedPertenecientesForSupportUser, fetchPictograms, ActivityCategory, ActivityType, type Pictogram, type User } from '@/data/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { GameData, GameType } from '@/data/miniGames';
+import type { WheelRound } from '@/data/miniGames';
+import { normalizeRound, normalizeWheel, parseWheel, serializeWheel, wheelSegmentAngles, wheelValidationError } from '@/data/wheelPrecision';
 import { useToast } from '@/components/ui/use-toast';
 
 const CATEGORIES: ActivityCategory[] = ['autonomía personal','higiene','organización','escuela','cocina básica','transporte','compras','manejo del dinero','emociones','comunicación','vida social','seguridad personal','rutinas del hogar','regulación emocional','preparación para salidas','anticipación de cambios'];
@@ -18,7 +20,7 @@ const DURATIONS = ['3 min','5 min','10 min','15 min','20 min','30 min','45 min']
 
 function serializeGameContent(gameType?: GameType, gameData?: GameData) {
   if (!gameType || !gameData) return '';
-  if (gameType === 'wheel') return gameData.wheel?.words?.join('\n') || '';
+  if (gameType === 'wheel') return serializeWheel(gameData.wheel);
   if (gameType === 'drag-word') return (gameData.dragRounds || []).map(item => `${item.image}|${item.correct}|${item.letters.join(',')}`).join('\n');
   if (gameType === 'fill-blank') return (gameData.fill || []).map(item => `${item.sentence}|${item.options.join(',')}|${item.correct}`).join('\n');
   if (gameType === 'multiple-choice') return (gameData.rounds || []).map(item => `${item.image}|${item.prompt}|${item.options.join(',')}|${item.correct}`).join('\n');
@@ -35,7 +37,7 @@ function serializeGameContent(gameType?: GameType, gameData?: GameData) {
 
 function parseGameContent(gameType: GameType, text: string, previous?: GameData): GameData {
   const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
-  if (gameType === 'wheel') return { wheel: { words: lines } };
+  if (gameType === 'wheel') return { ...previous, wheel: parseWheel(text) };
   if (gameType === 'drag-word') return { dragRounds: lines.map(line => { const [image = '', correct = '', letters = ''] = line.split('|'); return { image, correct: correct.trim(), letters: letters.split(',').map(l => l.trim()).filter(Boolean) }; }) };
   if (gameType === 'fill-blank') return { fill: lines.map(line => { const [sentence = '', options = '', correct = '0'] = line.split('|'); return { sentence, options: options.split(',').map(item => item.trim()).filter(Boolean), correct: Number(correct) || 0 }; }) };
   if (gameType === 'multiple-choice') return { rounds: lines.map(line => { const [image = '', prompt = '', options = '', correct = '0'] = line.split('|'); return { image, prompt, options: options.split(',').map(item => item.trim()).filter(Boolean), correct: Number(correct) || 0 }; }) };
@@ -51,7 +53,7 @@ function parseGameContent(gameType: GameType, text: string, previous?: GameData)
 }
 
 function contentHelp(gameType?: GameType) {
-  if (gameType === 'wheel') return 'Una palabra/frase por linea.';
+  if (gameType === 'wheel') return 'Usá el editor visual. La primera línea contiene la configuración y las restantes las rondas.';
   if (gameType === 'drag-word') return 'Usá el editor visual de abajo. Formato: emoji|palabra_correcta|letra1,letra2,letra3,...';
   if (gameType === 'fill-blank') return 'Formato: frase con ___|opcion1,opcion2,opcion3|indice correcto empezando en 0';
   if (gameType === 'multiple-choice') return 'Formato: emoji|pregunta|opcion1,opcion2,opcion3,opcion4|indice correcto empezando en 0';
@@ -260,6 +262,106 @@ function MultipleChoiceSandbox({
             {pictograms.length === 0 && <p className="col-span-3 py-6 text-center text-xs text-muted-foreground">Sin resultados</p>}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function WheelPreview({ round }: { round: WheelRound }) {
+  const count = Math.max(1, round.options.length);
+  const radius = 110;
+  const point = (degrees: number) => {
+    const radians = (degrees - 90) * Math.PI / 180;
+    return [120 + radius * Math.cos(radians), 120 + radius * Math.sin(radians)];
+  };
+  return (
+    <div className="relative mx-auto h-60 w-60">
+      <div className="absolute -top-2 left-1/2 z-10 -translate-x-1/2 text-2xl text-primary">▼</div>
+      <svg viewBox="0 0 240 240" className="h-full w-full" aria-label="Vista previa de la ruleta">
+        {round.options.map((option, index) => {
+          const { start, center, end } = wheelSegmentAngles(index, count);
+          const [x1, y1] = point(start);
+          const [x2, y2] = point(end);
+          const [ix, iy] = point(center);
+          return (
+            <g key={index}>
+              <path d={`M 120 120 L ${x1} ${y1} A ${radius} ${radius} 0 0 1 ${x2} ${y2} Z`} fill={index % 2 ? 'hsl(var(--accent))' : 'hsl(var(--primary) / .18)'} stroke="hsl(var(--border))" />
+              {isImageValue(option) ? <image href={option} x={ix - 23} y={iy - 23} width="46" height="46" preserveAspectRatio="xMidYMid meet" /> : <text x={ix} y={iy} textAnchor="middle" dominantBaseline="middle" fontSize="12">{option || '?'}</text>}
+            </g>
+          );
+        })}
+        <circle cx="120" cy="120" r="18" fill="hsl(var(--card))" stroke="hsl(var(--primary))" strokeWidth="3" />
+      </svg>
+    </div>
+  );
+}
+
+function WheelPrecisionSandbox({ value, onChange }: { value?: GameData; onChange: (next: GameData) => void }) {
+  const wheel = normalizeWheel(value?.wheel);
+  const rounds = wheel.rounds.length ? wheel.rounds : [normalizeRound({ targetWord: '', options: [] }, wheel.settings.segments)];
+  const [roundIndex, setRoundIndex] = useState(0);
+  const [search, setSearch] = useState('manzana');
+  const [pictograms, setPictograms] = useState<Pictogram[]>([]);
+  const currentIndex = Math.min(roundIndex, rounds.length - 1);
+  const current = rounds[currentIndex];
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(() => fetchPictograms({ search }).then(items => {
+      if (!cancelled) setPictograms(items.slice(0, 24));
+    }).catch(() => { if (!cancelled) setPictograms([]); }), 250);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [search]);
+
+  const commit = (nextRounds = rounds, settings = wheel.settings) => onChange({ ...value, wheel: { rounds: nextRounds.map(round => normalizeRound(round, settings.segments)), settings } });
+  const updateRound = (patch: Partial<WheelRound>) => commit(rounds.map((round, index) => index === currentIndex ? normalizeRound({ ...round, ...patch }, wheel.settings.segments) : round));
+  const setSegments = (segments: number) => {
+    const settings = { ...wheel.settings, segments };
+    commit(rounds.map(round => {
+      const correctValue = round.options[round.correct] || round.image;
+      const options = [...round.options];
+      if (round.correct >= segments && correctValue) options[segments - 1] = correctValue;
+      return normalizeRound({ ...round, options, correct: Math.min(round.correct, segments - 1), image: correctValue }, segments);
+    }), settings);
+  };
+  const assignPictogram = (picto: Pictogram, optionIndex = current.correct) => {
+    const image = picto.imageUrl || picto.emoji;
+    const options = current.options.map((option, index) => index === optionIndex ? image : option);
+    updateRound(optionIndex === current.correct ? { options, image } : { options });
+  };
+  const markCorrect = (correct: number) => updateRound({ correct, image: current.options[correct] || '' });
+  const addRound = () => { commit([...rounds, normalizeRound({ targetWord: '', options: [] }, wheel.settings.segments)]); setRoundIndex(rounds.length); };
+  const removeRound = () => {
+    if (rounds.length === 1) return;
+    commit(rounds.filter((_, index) => index !== currentIndex));
+    setRoundIndex(Math.max(0, currentIndex - 1));
+  };
+  const dropPicto = (event: React.DragEvent, optionIndex: number) => {
+    event.preventDefault();
+    const raw = event.dataTransfer.getData('application/json');
+    if (raw) try { assignPictogram(JSON.parse(raw), optionIndex); } catch { /* noop */ }
+  };
+
+  return (
+    <div className="space-y-4 rounded-lg border border-primary/20 bg-primary/5 p-3">
+      <div className="grid gap-3 rounded-lg border bg-card p-3 sm:grid-cols-3">
+        <label className="text-xs font-medium">Segmentos: {wheel.settings.segments}<input type="range" min={4} max={8} value={wheel.settings.segments} onChange={e => setSegments(Number(e.target.value))} className="mt-2 w-full accent-primary" /></label>
+        <label className="text-xs font-medium">Velocidad: {wheel.settings.initialSpeed}<input type="range" min={1} max={5} value={wheel.settings.initialSpeed} onChange={e => commit(rounds, { ...wheel.settings, initialSpeed: Number(e.target.value) })} className="mt-2 w-full accent-primary" /></label>
+        <label className="flex items-center justify-between gap-2 text-xs font-medium">Acelerar por ronda<input type="checkbox" checked={wheel.settings.speedIncrease} onChange={e => commit(rounds, { ...wheel.settings, speedIncrease: e.target.checked })} className="h-5 w-5 accent-primary" /></label>
+      </div>
+      <div className="flex items-center gap-1 overflow-x-auto">
+        {rounds.map((_, index) => <button key={index} onClick={() => setRoundIndex(index)} className={`h-8 rounded-md border px-3 text-xs font-semibold ${currentIndex === index ? 'bg-primary text-primary-foreground' : 'bg-card'}`}>Ronda {index + 1}</button>)}
+        <Button size="sm" variant="outline" onClick={addRound}><Plus size={14} className="mr-1" />Nueva</Button>
+        <Button size="sm" variant="outline" onClick={removeRound} disabled={rounds.length === 1}><Trash2 size={14} /></Button>
+      </div>
+      <Input value={current.targetWord} onChange={e => updateRound({ targetWord: e.target.value.toUpperCase() })} placeholder="Palabra objetivo" />
+      <div className="grid gap-4 lg:grid-cols-[1fr_240px]">
+        <div className="space-y-3">
+          <div onDragOver={e => e.preventDefault()} onDrop={e => dropPicto(e, current.correct)} className="rounded-xl border-2 border-dashed border-primary/40 bg-card p-3 text-center"><p className="mb-2 text-xs font-semibold">Pictograma correcto</p><VisualValue value={current.image} className={isImageValue(current.image) ? 'mx-auto h-24 w-24' : 'text-sm text-muted-foreground'} /><p className="mt-2 text-[10px] text-muted-foreground">Arrastrá aquí o al segmento correcto</p></div>
+          <div><p className="mb-2 text-xs font-semibold">Opciones de la rueda</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{current.options.map((option, index) => <button key={index} onClick={() => markCorrect(index)} onDragOver={e => e.preventDefault()} onDrop={e => dropPicto(e, index)} className={`relative flex min-h-24 flex-col items-center justify-center rounded-lg border-2 p-2 ${current.correct === index ? 'border-green-500 bg-green-50' : 'border-border bg-card'}`}><VisualValue value={option} className={isImageValue(option) ? 'h-14 w-14' : 'text-xs'} /><span className="mt-1 text-[10px]">{current.correct === index ? '● correcto' : `Segmento ${index + 1}`}</span></button>)}</div></div>
+          <div className="rounded-lg border bg-card p-3"><p className="mb-2 text-xs font-semibold text-muted-foreground">Vista previa</p><WheelPreview round={current} /></div>
+        </div>
+        <div className="space-y-2"><div className="relative"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar pictograma..." className="pl-8" /></div><div className="grid max-h-[520px] grid-cols-3 gap-2 overflow-y-auto rounded-lg border bg-card p-2">{pictograms.map(picto => <button key={picto.id} draggable onDragStart={e => e.dataTransfer.setData('application/json', JSON.stringify(picto))} onClick={() => assignPictogram(picto)} className="rounded-lg border p-2 hover:border-primary" title={picto.name}>{picto.imageUrl ? <img src={picto.imageUrl} alt={picto.name} className="mx-auto h-12 w-12 object-contain" /> : <span className="text-2xl">{picto.emoji}</span>}<span className="mt-1 block truncate text-[10px]">{picto.name}</span></button>)}{!pictograms.length && <p className="col-span-3 py-6 text-center text-xs text-muted-foreground">Sin resultados</p>}</div></div>
       </div>
     </div>
   );
@@ -649,6 +751,14 @@ export default function ActivityBuilder({ initialId, onClose, assignableUsersOve
   const canNext = !errors[step];
 
   const persist = async (publishNow: boolean) => {
+    if (publishNow && form.gameType === 'wheel') {
+      const wheelError = wheelValidationError(form.gameData?.wheel);
+      if (wheelError) {
+        toast({ title: 'La ruleta está incompleta', description: wheelError, variant: 'destructive' });
+        setStep(2);
+        return;
+      }
+    }
     setSaving(true);
     const cleanSteps = form.steps.map((s, i) => ({ s, ic: form.stepIcons[i] || '📌' })).filter(x => x.s.trim());
     try {
@@ -903,7 +1013,16 @@ export default function ActivityBuilder({ initialId, onClose, assignableUsersOve
                     }}
                   />
                 )}
-                {form.gameType && form.gameType !== 'multiple-choice' && form.gameType !== 'drag-word' && (
+                {form.gameType === 'wheel' && (
+                  <WheelPrecisionSandbox
+                    value={form.gameData}
+                    onChange={(nextGameData) => {
+                      setForm(prev => ({ ...prev, gameData: nextGameData }));
+                      setGameContentText(serializeGameContent('wheel', nextGameData));
+                    }}
+                  />
+                )}
+                {form.gameType && form.gameType !== 'multiple-choice' && form.gameType !== 'drag-word' && form.gameType !== 'wheel' && (
                   <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
                     <div className="mb-2 flex items-center justify-between gap-3">
                       <div>

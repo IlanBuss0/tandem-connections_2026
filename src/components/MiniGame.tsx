@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Check, X, RotateCcw, Trophy } from 'lucide-react';
 import type { GameType, GameData } from '@/data/miniGames';
+import { normalizeWheel, selectedWheelSegment, wheelScore, wheelSegmentAngles } from '@/data/wheelPrecision';
 
 interface Props {
   gameType: GameType;
@@ -227,80 +228,158 @@ function DragWord({ data, onFinish }: { data: GameData; onFinish: (n: number) =>
   );
 }
 
-// ========== Wheel ==========
+// ========== Wheel Precision ==========
 function Wheel({ data, onFinish }: { data: GameData; onFinish: (n: number) => void }) {
-  const words = data.wheel?.words || [];
-  const [angle, setAngle] = useState(0);
-  const [picked, setPicked] = useState<number | null>(null);
-  const [spins, setSpins] = useState(0);
-  const spinning = useRef(false);
+  const wheel = useMemo(() => normalizeWheel(data.wheel), [data.wheel]);
+  const reduceMotion = useReducedMotion();
+  const [roundIndex, setRoundIndex] = useState(0);
+  const [phase, setPhase] = useState<'ready' | 'spinning' | 'stopping' | 'result'>('ready');
+  const [attempt, setAttempt] = useState(1);
+  const [feedback, setFeedback] = useState<boolean | null>(null);
+  const [selectedSegment, setSelectedSegment] = useState<number | null>(null);
+  const frameRef = useRef<number | null>(null);
+  const completionTimerRef = useRef<number | null>(null);
+  const wheelRef = useRef<SVGSVGElement | null>(null);
+  const angleRef = useRef(0);
+  const speedRef = useRef(0);
+  const lastTimeRef = useRef(0);
+  const attemptsRef = useRef<number[]>([]);
+  const phaseRef = useRef<typeof phase>('ready');
+  const animationSessionRef = useRef(0);
+  const correctResultRef = useRef(false);
+  const round = wheel.rounds[roundIndex];
 
-  const slice = 360 / words.length;
+  const cancelAnimation = () => {
+    animationSessionRef.current += 1;
+    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+    frameRef.current = null;
+  };
+  const changePhase = (next: typeof phase) => {
+    phaseRef.current = next;
+    setPhase(next);
+  };
+  useEffect(() => () => {
+    cancelAnimation();
+    if (completionTimerRef.current !== null) window.clearTimeout(completionTimerRef.current);
+  }, []);
 
-  const spin = () => {
-    if (spinning.current) return;
-    spinning.current = true;
-    setPicked(null);
-    const target = Math.floor(Math.random() * words.length);
-    const final = 360 * 5 + (360 - target * slice - slice / 2);
-    setAngle(prev => prev + final);
-    setTimeout(() => {
-      setPicked(target);
-      setSpins(s => s + 1);
-      spinning.current = false;
-    }, 2200);
+  if (!round) return <p className="text-center text-sm text-muted-foreground">Esta ruleta no tiene rondas configuradas.</p>;
+
+  const targetSpeed = (360 * wheel.settings.initialSpeed / 3000) * (wheel.settings.speedIncrease ? 1.15 ** roundIndex : 1);
+  const renderFrame = (nextAngle: number) => {
+    angleRef.current = nextAngle;
+    if (wheelRef.current) wheelRef.current.style.transform = `rotate(${nextAngle}deg)`;
+  };
+  const start = () => {
+    if (phaseRef.current !== 'ready' && phaseRef.current !== 'result') return;
+    if (phaseRef.current === 'result' && correctResultRef.current) return;
+    cancelAnimation();
+    const session = animationSessionRef.current;
+    setFeedback(null);
+    setSelectedSegment(null);
+    correctResultRef.current = false;
+    changePhase('spinning');
+    speedRef.current = reduceMotion ? targetSpeed : 0;
+    lastTimeRef.current = performance.now();
+    const tick = (now: number) => {
+      if (session !== animationSessionRef.current || phaseRef.current !== 'spinning') return;
+      const delta = Math.min(32, now - lastTimeRef.current);
+      lastTimeRef.current = now;
+      speedRef.current += (targetSpeed - speedRef.current) * Math.min(1, delta / 650);
+      renderFrame(angleRef.current + speedRef.current * delta);
+      frameRef.current = requestAnimationFrame(tick);
+    };
+    frameRef.current = requestAnimationFrame(tick);
+  };
+  const stop = () => {
+    if (phaseRef.current !== 'spinning') return;
+    cancelAnimation();
+    const session = animationSessionRef.current;
+    changePhase('stopping');
+    const started = performance.now();
+    const duration = reduceMotion ? 120 : 1000 + Math.random() * 1000;
+    const initialSpeed = Math.max(speedRef.current, targetSpeed * 0.7);
+    lastTimeRef.current = started;
+    const tick = (now: number) => {
+      if (session !== animationSessionRef.current || phaseRef.current !== 'stopping') return;
+      const progress = Math.min(1, (now - started) / duration);
+      const delta = Math.min(32, now - lastTimeRef.current);
+      lastTimeRef.current = now;
+      const speed = initialSpeed * (1 - progress) ** 2;
+      renderFrame(angleRef.current + speed * delta);
+      if (progress < 1) frameRef.current = requestAnimationFrame(tick);
+      else {
+        frameRef.current = null;
+        const selected = selectedWheelSegment(angleRef.current, wheel.settings.segments);
+        const ok = selected === round.correct;
+        correctResultRef.current = ok;
+        setSelectedSegment(selected);
+        setFeedback(ok);
+        changePhase('result');
+        if (ok) {
+          const completedAttempts = [...attemptsRef.current, attempt];
+          attemptsRef.current = completedAttempts;
+          completionTimerRef.current = window.setTimeout(() => {
+            if (roundIndex + 1 >= wheel.rounds.length) onFinish(wheelScore(completedAttempts));
+            else {
+              setRoundIndex(index => index + 1);
+              setAttempt(1);
+              setFeedback(null);
+              correctResultRef.current = false;
+              changePhase('ready');
+            }
+          }, 900);
+        } else setAttempt(value => value + 1);
+      }
+    };
+    frameRef.current = requestAnimationFrame(tick);
+  };
+  const handlePrimaryAction = () => {
+    if (phaseRef.current === 'spinning') stop();
+    else if (phaseRef.current === 'ready' || (phaseRef.current === 'result' && !correctResultRef.current)) start();
   };
 
+  const radius = 116;
+  const point = (degrees: number) => {
+    const radians = (degrees - 90) * Math.PI / 180;
+    return [130 + radius * Math.cos(radians), 130 + radius * Math.sin(radians)];
+  };
   return (
     <div className="space-y-4 text-center">
-      <p className="text-sm text-muted-foreground">Hacé girar la ruleta y leé en voz alta lo que toque.</p>
-      <div className="relative mx-auto" style={{ width: 260, height: 260 }}>
-        <div className="absolute -top-1 left-1/2 -translate-x-1/2 z-10 text-2xl">▼</div>
-        <motion.div
-          className="absolute inset-0 rounded-full border-4 border-primary overflow-hidden"
-          style={{ transformOrigin: '50% 50%' }}
-          animate={{ rotate: angle }}
-          transition={{ duration: 2, ease: 'easeOut' }}
-        >
-          {words.map((w, i) => {
-            const rot = i * slice;
-            const bg = i % 2 === 0 ? 'hsl(var(--primary) / 0.15)' : 'hsl(var(--accent) / 0.3)';
-            return (
-              <div key={i} className="absolute inset-0" style={{ transform: `rotate(${rot}deg)` }}>
-                <div
-                  className="absolute left-1/2 top-0 origin-bottom text-xs font-medium px-2 py-1"
-                  style={{
-                    width: slice * 2.2,
-                    height: 130,
-                    transform: `translateX(-50%) rotate(${slice / 2}deg)`,
-                    background: bg,
-                    clipPath: `polygon(50% 100%, 0 0, 100% 0)`,
-                  }}
-                >
-                  <span className="block text-center mt-2 text-foreground">{w}</span>
-                </div>
-              </div>
-            );
+      <div><p className="text-sm text-muted-foreground">Buscá:</p><p className="text-2xl font-bold text-foreground">&ldquo;{round.targetWord}&rdquo;</p></div>
+      <div className="flex justify-center gap-4 text-xs text-muted-foreground"><span>Intento: {attempt}</span><span>Ronda {roundIndex + 1}/{wheel.rounds.length}</span></div>
+      <div className="relative mx-auto h-[270px] w-[270px]">
+        <div className="absolute -top-1 left-1/2 z-10 -translate-x-1/2 text-3xl text-primary">▼</div>
+        <svg ref={wheelRef} viewBox="0 0 260 260" className="h-full w-full drop-shadow will-change-transform" aria-label={`Ruleta de ${wheel.settings.segments} pictogramas`}>
+          {round.options.map((option, index) => {
+            const { start: startAngle, center, end: endAngle } = wheelSegmentAngles(index, wheel.settings.segments);
+            const [x1, y1] = point(startAngle);
+            const [x2, y2] = point(endAngle);
+            const [ix, iy] = point(center);
+            const fill = selectedSegment === index && phase === 'result' ? (feedback ? 'hsl(142 70% 75%)' : 'hsl(0 80% 82%)') : index % 2 ? 'hsl(var(--accent))' : 'hsl(var(--primary) / .2)';
+            return <g key={index}><path d={`M 130 130 L ${x1} ${y1} A ${radius} ${radius} 0 0 1 ${x2} ${y2} Z`} fill={fill} stroke="hsl(var(--border))" strokeWidth={selectedSegment === index && phase === 'result' ? 3 : 1} />{option.startsWith('http') ? <image href={option} x={ix - 24} y={iy - 24} width="48" height="48" preserveAspectRatio="xMidYMid meet" /> : <text x={ix} y={iy} textAnchor="middle" dominantBaseline="middle" fontSize="11">{option}</text>}</g>;
           })}
-        </motion.div>
+          <circle cx="130" cy="130" r="19" fill="hsl(var(--card))" stroke="hsl(var(--primary))" strokeWidth="4" />
+        </svg>
       </div>
-      {picked !== null && (
-        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-primary/10 border border-primary/30 rounded-xl p-4">
-          <p className="text-xs text-muted-foreground">Salió:</p>
-          <p className="text-2xl font-bold text-foreground">{words[picked]}</p>
-        </motion.div>
-      )}
-      <div className="flex gap-2 justify-center">
-        <Button onClick={spin} className="gradient-primary text-primary-foreground">
-          <RotateCcw size={14} className="mr-1" /> Girar
-        </Button>
-        {spins >= 3 && (
-          <Button variant="outline" onClick={() => onFinish(100)}>
-            Terminar <Trophy size={14} className="ml-1" />
-          </Button>
-        )}
-      </div>
-      <p className="text-xs text-muted-foreground">Giros: {spins} (mínimo 3 para terminar)</p>
+      <FeedbackBanner ok={feedback} msg={feedback === true ? `¡Correcto! Lo lograste en ${attempt} intento${attempt === 1 ? '' : 's'}.` : feedback === false ? 'No era ese... intentá de nuevo.' : undefined} />
+      <Button
+        type="button"
+        aria-label={phase === 'spinning' ? 'Parar la ruleta' : phase === 'stopping' ? 'Frenando la ruleta' : 'Girar la ruleta'}
+        aria-disabled={phase === 'stopping' || feedback === true}
+        onPointerDown={(event) => {
+          event.preventDefault();
+          handlePrimaryAction();
+        }}
+        onClick={(event) => {
+          if (event.detail === 0) handlePrimaryAction();
+        }}
+        style={{ touchAction: 'manipulation' }}
+        className={phase === 'spinning' || phase === 'stopping' ? 'bg-amber-500 text-white hover:bg-amber-600' : 'gradient-primary text-primary-foreground'}
+      >
+        <RotateCcw size={16} className={`mr-2 ${phase === 'stopping' ? 'animate-spin' : ''}`} />
+        {phase === 'spinning' ? '¡Pará!' : phase === 'stopping' ? 'Frenando…' : 'Girar'}
+      </Button>
     </div>
   );
 }

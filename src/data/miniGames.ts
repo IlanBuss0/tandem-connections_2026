@@ -18,7 +18,10 @@ export type GameType =
 // Una "ronda" o ítem dentro del juego
 export interface MCItem { prompt: string; image: string; options: string[]; correct: number; }
 export interface DragWordItem { image: string; correct: string; letters: string[]; }
-export interface WheelItem { words: string[]; }
+export interface WheelRound { targetWord: string; image: string; options: string[]; correct: number; }
+export interface WheelSettings { segments: number; initialSpeed: number; speedIncrease: boolean; }
+export interface WheelItem { rounds: WheelRound[]; settings: WheelSettings; }
+export interface LegacyWheelItem { words: string[]; }
 export interface MemoryItem { pairs: { a: string; b: string }[]; }
 export interface SequenceItem { prompt: string; steps: string[]; }
 export interface TFItem { statement: string; answer: boolean; }
@@ -33,7 +36,7 @@ export interface GameData {
   // Cada juego puede tener una de estas estructuras
   rounds?: MCItem[];
   dragRounds?: DragWordItem[];
-  wheel?: WheelItem;
+  wheel?: WheelItem | LegacyWheelItem;
   memory?: MemoryItem;
   sequence?: SequenceItem;
   tf?: TFItem[];
@@ -133,22 +136,29 @@ export const GAME_TEMPLATES: GameTemplate[] = [
     },
   },
   {
-    id: 'gtpl-wheel-greetings',
-    name: 'Ruleta de saludos',
+    id: 'gtpl-wheel-precision',
+    name: 'Ruleta de precisión: frutas',
     emoji: '🎡',
-    category: 'vida social',
+    category: 'comunicación',
     type: 'juego',
     difficulty: 'fácil',
     duration: '5 min',
-    objective: 'Practicar saludos según contexto',
-    description: 'Hacé girar la ruleta y practicá el saludo que toque.',
-    steps: ['Hacer girar la ruleta'],
-    stepIcons: ['🎡'],
-    points: 40,
-    completionMessage: '¡Buenísimo! Practicaste muchos saludos.',
-    tags: ['wheel','social'],
+    objective: 'Reconocer frutas por su pictograma',
+    description: 'Frená la ruleta cuando el pictograma indicado quede bajo la flecha.',
+    steps: ['Leer la palabra', 'Girar la ruleta', 'Frenar en el pictograma correcto'],
+    stepIcons: ['👀', '🎡', '👆'],
+    points: 60,
+    completionMessage: '¡Excelente precisión! Encontraste las frutas.',
+    tags: ['wheel','frutas','pictogramas'],
     gameType: 'wheel',
-    gameData: { wheel: { words: ['Hola 👋','Buen día ☀️','Chau 👋','Buenas tardes 🌇','Hasta luego 🚪','Buenas noches 🌙','¿Cómo estás? 🙂','Encantado 🤝'] } },
+    gameData: { wheel: {
+      settings: { segments: 6, initialSpeed: 3, speedIncrease: true },
+      rounds: [
+        { targetWord: 'MANZANA', image: 'https://static.arasaac.org/pictograms/13645/13645_300.png', options: ['https://static.arasaac.org/pictograms/13645/13645_300.png','https://static.arasaac.org/pictograms/10218/10218_300.png','https://static.arasaac.org/pictograms/2483/2483_300.png','https://static.arasaac.org/pictograms/2561/2561_300.png','https://static.arasaac.org/pictograms/3247/3247_300.png','https://static.arasaac.org/pictograms/3022/3022_300.png'], correct: 0 },
+        { targetWord: 'BANANA', image: 'https://static.arasaac.org/pictograms/10218/10218_300.png', options: ['https://static.arasaac.org/pictograms/2561/2561_300.png','https://static.arasaac.org/pictograms/10218/10218_300.png','https://static.arasaac.org/pictograms/3247/3247_300.png','https://static.arasaac.org/pictograms/13645/13645_300.png','https://static.arasaac.org/pictograms/3022/3022_300.png','https://static.arasaac.org/pictograms/2483/2483_300.png'], correct: 1 },
+        { targetWord: 'NARANJA', image: 'https://static.arasaac.org/pictograms/2483/2483_300.png', options: ['https://static.arasaac.org/pictograms/3022/3022_300.png','https://static.arasaac.org/pictograms/3247/3247_300.png','https://static.arasaac.org/pictograms/2483/2483_300.png','https://static.arasaac.org/pictograms/10218/10218_300.png','https://static.arasaac.org/pictograms/2561/2561_300.png','https://static.arasaac.org/pictograms/13645/13645_300.png'], correct: 2 },
+      ],
+    } },
   },
   {
     id: 'gtpl-memory-objects',
