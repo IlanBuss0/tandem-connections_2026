@@ -13,6 +13,10 @@ export interface AccessibilitySettings {
   wordSpacing: number;
   textAlignLeft: boolean;
   dyslexiaFont: boolean;
+  dyslexiaTextSize: boolean;
+  dyslexiaSpacing: boolean;
+  dyslexiaLineHeight: boolean;
+  dyslexiaLeftAlign: boolean;
   uppercase: boolean;
   contrast: ContrastMode;
   colorFilter: ColorFilter;
@@ -44,6 +48,10 @@ export const DEFAULT_SETTINGS: AccessibilitySettings = {
   wordSpacing: 0,
   textAlignLeft: false,
   dyslexiaFont: false,
+  dyslexiaTextSize: false,
+  dyslexiaSpacing: false,
+  dyslexiaLineHeight: false,
+  dyslexiaLeftAlign: false,
   uppercase: false,
   contrast: 'normal',
   colorFilter: 'none',
@@ -121,12 +129,10 @@ export const ACCESSIBILITY_PROFILES: AccessibilityProfile[] = [
     icon: 'book',
     patch: {
       dyslexiaFont: true,
-      lineHeight: 2,
-      letterSpacing: 0.05,
-      wordSpacing: 0.22,
-      textAlignLeft: true,
-      pauseAnimations: true,
-      contentSpacing: 1.2,
+      dyslexiaTextSize: true,
+      dyslexiaSpacing: true,
+      dyslexiaLineHeight: true,
+      dyslexiaLeftAlign: true,
     },
   },
   {
@@ -190,7 +196,28 @@ export const ACCESSIBILITY_PROFILES: AccessibilityProfile[] = [
 const KEY = (uid: string) => `tandem:accessibility:${uid}`;
 
 function normalize(raw: Partial<AccessibilitySettings> | null | undefined): AccessibilitySettings {
-  return { ...DEFAULT_SETTINGS, ...(raw ?? {}) };
+  const normalized = { ...DEFAULT_SETTINGS, ...(raw ?? {}) };
+
+  // Migrate the former dyslexia preset, which stored generic spacing values and
+  // unrelated animation/content-spacing changes, to the five isolated tools.
+  if (raw?.activeProfile === 'dyslexia' && raw.dyslexiaTextSize === undefined) {
+    return {
+      ...normalized,
+      lineHeight: DEFAULT_SETTINGS.lineHeight,
+      letterSpacing: DEFAULT_SETTINGS.letterSpacing,
+      wordSpacing: DEFAULT_SETTINGS.wordSpacing,
+      textAlignLeft: DEFAULT_SETTINGS.textAlignLeft,
+      pauseAnimations: DEFAULT_SETTINGS.pauseAnimations,
+      contentSpacing: DEFAULT_SETTINGS.contentSpacing,
+      dyslexiaFont: true,
+      dyslexiaTextSize: true,
+      dyslexiaSpacing: true,
+      dyslexiaLineHeight: true,
+      dyslexiaLeftAlign: true,
+    };
+  }
+
+  return normalized;
 }
 
 function load(uid: string): AccessibilitySettings {
@@ -331,7 +358,11 @@ function applyToDom(settings: AccessibilitySettings) {
     'a11y-filter-protanopia': settings.colorFilter === 'protanopia',
     'a11y-filter-deuteranopia': settings.colorFilter === 'deuteranopia',
     'a11y-filter-tritanopia': settings.colorFilter === 'tritanopia',
-    'a11y-dyslexia': settings.dyslexiaFont,
+    'accessibility-dyslexia-font': settings.dyslexiaFont,
+    'accessibility-dyslexia-text-size': settings.dyslexiaTextSize,
+    'accessibility-dyslexia-spacing': settings.dyslexiaSpacing,
+    'accessibility-dyslexia-line-height': settings.dyslexiaLineHeight,
+    'accessibility-dyslexia-left-align': settings.dyslexiaLeftAlign,
     'a11y-uppercase': settings.uppercase,
     'a11y-text-left': settings.textAlignLeft,
     'a11y-reduce-motion': settings.reduceMotion,

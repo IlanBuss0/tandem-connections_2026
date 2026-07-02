@@ -23,7 +23,7 @@ body :is(h1, h2, h3, h4, h5, h6) {
   letter-spacing: var(--a11y-letter-spacing);
 }
 
-body.a11y-text-left * {
+body.a11y-text-left :is(p, li, label, textarea, .text-content, .card-content) {
   text-align: left !important;
 }
 
@@ -31,9 +31,62 @@ body.a11y-uppercase * {
   text-transform: uppercase !important;
 }
 
-body.a11y-dyslexia,
-body.a11y-dyslexia * {
-  font-family: "Atkinson Hyperlegible", "Segoe UI", Verdana, Arial, sans-serif !important;
+/* Expected assets (not bundled):
+   public/fonts/OpenDyslexic-Regular.woff2
+   public/fonts/OpenDyslexic-Bold.woff2 */
+@font-face {
+  font-family: "OpenDyslexic";
+  src: url("/fonts/OpenDyslexic-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "OpenDyslexic";
+  src: url("/fonts/OpenDyslexic-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+body.accessibility-dyslexia-font,
+body.accessibility-dyslexia-font :is(main, article, section, form, p, span, label, li, input, textarea, select, h1, h2, h3, h4, h5, h6) {
+  font-family: "OpenDyslexic", "Atkinson Hyperlegible", "Nunito", Arial, sans-serif !important;
+}
+
+body.accessibility-dyslexia-text-size :is(p, li, label, input, textarea, select, .text-content, .card-content) {
+  font-size: 1.04em;
+}
+
+body.accessibility-dyslexia-spacing :is(p, li, label, input, textarea, select, .text-content, .card-content) {
+  letter-spacing: 0.035em;
+  word-spacing: 0.08em;
+}
+
+body.accessibility-dyslexia-line-height :is(p, li, label, textarea, .text-content, .card-content) {
+  line-height: 1.75 !important;
+}
+
+body.accessibility-dyslexia-left-align :is(p, li, label, textarea, .text-content, .card-content) {
+  text-align: left !important;
+}
+
+body.accessibility-dyslexia-left-align :is(button, button *, [role="button"], [role="button"] *, a.button, .btn, .nav-item, .bottom-nav, .a11y-widget button, .a11y-widget button *) {
+  text-align: center !important;
+}
+
+body.accessibility-dyslexia-text-size :is(button, button *, [role="button"], [role="button"] *, .btn, .nav-item, .bottom-nav, .badge, [class*="badge"], [class*="chip"]) {
+  font-size: inherit;
+}
+
+body.accessibility-dyslexia-spacing :is(button, button *, [role="button"], [role="button"] *, .btn, .nav-item, .bottom-nav, .badge, [class*="badge"], [class*="chip"]) {
+  letter-spacing: normal;
+  word-spacing: normal;
+}
+
+body.accessibility-dyslexia-line-height :is(button, button *, [role="button"], [role="button"] *, .btn, .nav-item, .bottom-nav, .badge, [class*="badge"], [class*="chip"]) {
+  line-height: normal !important;
 }
 
 body.a11y-spacing-on :is(main, section, article, form, nav, header, footer) {

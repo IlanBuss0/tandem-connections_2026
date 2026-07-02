@@ -216,41 +216,36 @@ export default function AccessibilityWidget() {
           onClick: () => toggle('dyslexiaFont'),
         },
         {
+          id: 'dyslexia-text-size',
+          label: 'Texto mas grande',
+          description: 'Aumenta levemente el texto de lectura.',
+          icon: Plus,
+          active: settings.dyslexiaTextSize,
+          onClick: () => toggle('dyslexiaTextSize'),
+        },
+        {
           id: 'text-spacing',
           label: 'Espaciado de texto',
-          description: 'Aumenta letras, palabras y separacion del contenido.',
+          description: 'Aumenta levemente el espacio entre letras y palabras.',
           icon: SlidersHorizontal,
-          active:
-            settings.letterSpacing > DEFAULT_SETTINGS.letterSpacing ||
-            settings.wordSpacing > DEFAULT_SETTINGS.wordSpacing ||
-            settings.contentSpacing > DEFAULT_SETTINGS.contentSpacing,
-          value: settings.contentSpacing > DEFAULT_SETTINGS.contentSpacing ? `x${settings.contentSpacing.toFixed(1)}` : undefined,
-          onClick: () => {
-            const active =
-              settings.letterSpacing > DEFAULT_SETTINGS.letterSpacing ||
-              settings.wordSpacing > DEFAULT_SETTINGS.wordSpacing ||
-              settings.contentSpacing > DEFAULT_SETTINGS.contentSpacing;
-            update('letterSpacing', active ? DEFAULT_SETTINGS.letterSpacing : 0.05);
-            update('wordSpacing', active ? DEFAULT_SETTINGS.wordSpacing : 0.22);
-            update('contentSpacing', active ? DEFAULT_SETTINGS.contentSpacing : 1.25);
-          },
+          active: settings.dyslexiaSpacing,
+          onClick: () => toggle('dyslexiaSpacing'),
         },
         {
           id: 'line-height',
           label: 'Altura de linea',
           description: 'Amplia o normaliza el interlineado.',
           icon: Type,
-          active: settings.lineHeight > DEFAULT_SETTINGS.lineHeight,
-          value: settings.lineHeight.toFixed(1),
-          onClick: () => update('lineHeight', settings.lineHeight > DEFAULT_SETTINGS.lineHeight ? DEFAULT_SETTINGS.lineHeight : 1.9),
+          active: settings.dyslexiaLineHeight,
+          onClick: () => toggle('dyslexiaLineHeight'),
         },
         {
           id: 'align-left',
           label: 'Alinear texto a la izquierda',
           description: 'Evita bloques centrados o justificados.',
           icon: AlignLeft,
-          active: settings.textAlignLeft,
-          onClick: () => toggle('textAlignLeft'),
+          active: settings.dyslexiaLeftAlign,
+          onClick: () => toggle('dyslexiaLeftAlign'),
         },
         {
           id: 'uppercase',
