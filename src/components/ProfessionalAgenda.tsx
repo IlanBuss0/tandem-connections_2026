@@ -4,6 +4,7 @@ import { CalendarEvent, User } from '@/data/api';
 import { useCalendar } from '@/contexts/CalendarContext';
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, Loader2, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import ReminderPicker from '@/components/ReminderPicker';
 
 interface Props {
   patients: User[];
@@ -27,6 +28,7 @@ function emptyForm(date: string): TherapyForm {
     time: '09:00',
     description: '',
     patientId: '',
+    reminders: [],
   };
 }
 
@@ -105,6 +107,7 @@ export default function ProfessionalAgenda({ patients }: Props) {
       time: event.time,
       description: cleanDescription(event.description),
       patientId: parsePatientId(event.description),
+      reminders: event.reminders || [],
     });
     setShowForm(true);
   };
@@ -118,6 +121,7 @@ export default function ProfessionalAgenda({ patients }: Props) {
       time: form.time,
       type: 'terapia' as const,
       description: buildDescription(form.description, form.patientId),
+      reminders: form.reminders,
     };
 
     setSaving(true);
@@ -250,6 +254,7 @@ export default function ProfessionalAgenda({ patients }: Props) {
               ))}
             </select>
             <textarea value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} placeholder="Notas de la sesion o evento importante" className="w-full p-2 rounded-lg border border-border bg-background text-sm resize-none h-16" />
+            <ReminderPicker value={form.reminders} onChange={reminders => setForm(prev => ({ ...prev, reminders }))} />
             <button disabled={saving} onClick={submit} className="w-full py-2 rounded-lg gradient-primary text-primary-foreground text-sm font-semibold inline-flex items-center justify-center gap-1 disabled:opacity-60">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               {editing ? 'Guardar cambios' : 'Crear evento'}

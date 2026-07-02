@@ -438,7 +438,9 @@ function toLegacyNotification(notification: DbNotificacion): Notification {
     timestamp: notification.fecha_creacion,
     actionLabel: notification.reference_type === 'chat' ? 'Ir al chat' : undefined,
     referenceType: notification.reference_type || undefined,
-    referenceId: notification.reference_id !== null ? String(notification.reference_id) : undefined,
+    referenceId: notification.reference_type === 'calendar' && notification.reference_calendar_event_id
+      ? notification.reference_calendar_event_id
+      : notification.reference_id !== null ? String(notification.reference_id) : undefined,
     sourceUserId: notification.context_user_id !== null
       ? String(notification.context_user_id)
       : notification.id_usuario_actor !== null ? String(notification.id_usuario_actor) : undefined,
@@ -1485,6 +1487,7 @@ export async function createCalendarEvent(userId: string, data: Omit<CalendarEve
       userId,
     };
     await saveCalendarEventForUser(userId, created);
+    await syncCalendarReminders(userId);
     return created;
   }
 
@@ -1513,6 +1516,7 @@ export async function updateCalendarEvent(eventId: string, patch: Partial<Calend
     } else {
       await saveCalendarEventForUser(userId, updated, config);
     }
+    await syncCalendarReminders(userId);
     return updated;
   }
 
@@ -1529,6 +1533,7 @@ export async function deleteCalendarEvent(eventId: string): Promise<void> {
     } else {
       await tandemApi.configuracionesUsuarios.delete(config.id);
     }
+    await syncCalendarReminders(userId);
     return;
   }
 
@@ -1630,6 +1635,7 @@ function normalizeCalendarEventsPayload(payload: unknown, userId: string): Calen
         type,
         description: String(event.description || ''),
         color: String(event.color || calendarTypeColor(type)),
+        reminders: Array.isArray(event.reminders) ? event.reminders.map(Number).filter(Number.isFinite) : [],
       } as CalendarEvent;
     })
     .filter((event): event is CalendarEvent => Boolean(event));
@@ -1704,6 +1710,18 @@ async function saveCalendarEventForUser(userId: string, event: CalendarEvent, ex
   await tandemApi.configuracionesUsuarios.create(payload);
 }
 
+async function syncCalendarReminders(userId: string): Promise<void> {
+  const events = await fetchCalendarEventsForUser(userId);
+  await apiRequest('/api/routine-reminders/calendar/sync', {
+    method: 'PUT',
+    body: {
+      userId: Number(userId),
+      events,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    },
+  });
+}
+
 export interface DayRoutine { id: string; name: string; dayOfWeek: number | null; items: RoutineItem[]; date?: string }
 const ROUTINES_CONFIG_KEY = 'routines.mi-dia';
 
@@ -1757,7 +1775,10 @@ export async function saveRoutinesForUser(userId: string, routines: DayRoutine[]
     const config = await getUserConfig(numericUserId, ROUTINES_CONFIG_KEY);
     if (config?.id) await tandemApi.configuracionesUsuarios.update(config.id, payload);
     else await tandemApi.configuracionesUsuarios.create(payload);
-    await apiRequest('/api/routine-reminders/sync', { method: 'PUT', body: { routines } });
+    await apiRequest('/api/routine-reminders/sync', {
+      method: 'PUT',
+      body: { routines, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
+    });
     return routines;
   } catch (error) {
     throw error instanceof Error ? error : new Error('No se pudieron guardar las rutinas.');

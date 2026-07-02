@@ -42,6 +42,7 @@ import ChatScreen from '@/components/ChatScreen';
 import AppHeader from '@/components/AppHeader';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
+import ReminderPicker from '@/components/ReminderPicker';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
 import UserNotifications from '@/pages/user/UserNotifications';
 import TutorConnections from '@/pages/tutor/TutorConnections';
@@ -928,6 +929,7 @@ function TutorCalendar({
     time: '09:00',
     type: 'personal',
     description: '',
+    reminders: [],
   });
 
   const eventsOn = (date: string) => events.filter(event => event.date === date);
@@ -962,7 +964,7 @@ function TutorCalendar({
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ title: '', date: selectedDate, time: '09:00', type: 'personal', description: '' });
+    setForm({ title: '', date: selectedDate, time: '09:00', type: 'personal', description: '', reminders: [] });
     setShowForm(true);
   };
 
@@ -974,6 +976,7 @@ function TutorCalendar({
       time: event.time,
       type: event.type,
       description: event.description,
+      reminders: event.reminders || [],
     });
     setShowForm(true);
   };
@@ -1118,6 +1121,7 @@ function TutorCalendar({
               {eventTypes.map(type => <option key={type} value={type}>{typeEmoji[type]} {type}</option>)}
             </select>
             <textarea value={form.description} onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} placeholder="Descripcion opcional" className="w-full p-2 rounded-lg border border-border bg-background text-sm resize-none h-16" />
+            <ReminderPicker value={form.reminders} onChange={reminders => setForm(prev => ({ ...prev, reminders }))} />
             <button disabled={saving} onClick={submit} className="w-full py-2 rounded-lg gradient-primary text-primary-foreground text-sm font-semibold inline-flex items-center justify-center gap-1 disabled:opacity-60">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} {editing ? 'Guardar cambios' : 'Crear evento'}
             </button>
