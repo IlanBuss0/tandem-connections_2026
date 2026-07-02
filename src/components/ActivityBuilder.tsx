@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { GameData, GameType } from '@/data/miniGames';
 import type { WheelRound } from '@/data/miniGames';
 import { normalizeRound, normalizeWheel, parseWheel, serializeWheel, wheelSegmentAngles, wheelValidationError } from '@/data/wheelPrecision';
+import { DEFAULT_MEMORY_SETTINGS, memoryValidationError, normalizeMemory } from '@/data/memoryGame';
 import { useToast } from '@/components/ui/use-toast';
 
 const CATEGORIES: ActivityCategory[] = ['autonomía personal','higiene','organización','escuela','cocina básica','transporte','compras','manejo del dinero','emociones','comunicación','vida social','seguridad personal','rutinas del hogar','regulación emocional','preparación para salidas','anticipación de cambios'];
@@ -26,7 +27,11 @@ function serializeGameContent(gameType?: GameType, gameData?: GameData) {
   if (gameType === 'multiple-choice') return (gameData.rounds || []).map(item => `${item.image}|${item.prompt}|${item.options.join(',')}|${item.correct}`).join('\n');
   if (gameType === 'true-false') return (gameData.tf || []).map(item => `${item.statement}|${item.answer ? 'true' : 'false'}`).join('\n');
   if (gameType === 'sequence-order') return gameData.sequence ? `${gameData.sequence.prompt}\n${gameData.sequence.steps.join('\n')}` : '';
-  if (gameType === 'memory') return (gameData.memory?.pairs || []).map(item => `${item.a}|${item.b}`).join('\n');
+  if (gameType === 'memory') {
+    const memory = normalizeMemory(gameData.memory);
+    const settings = `@settings|${memory.settings.previewEnabled}|${memory.settings.previewSeconds}|${memory.settings.timed}|${memory.settings.timeLimitSeconds}`;
+    return [settings, ...memory.pairs.map(item => `${item.a}|${item.b}|${item.aLabel || ''}|${item.bLabel || ''}`)].join('\n');
+  }
   if (gameType === 'count-objects') return (gameData.count || []).map(item => `${item.emoji}|${item.count}`).join('\n');
   if (gameType === 'matching-pairs') return gameData.matching ? `${gameData.matching.left.join(',')}\n${gameData.matching.right.join(',')}\n${gameData.matching.correctMap.join(',')}` : '';
   if (gameType === 'category-sort') return (gameData.category?.items || []).map(item => `${item.label}|${item.categoryIndex}`).join('\n');
@@ -43,7 +48,21 @@ function parseGameContent(gameType: GameType, text: string, previous?: GameData)
   if (gameType === 'multiple-choice') return { rounds: lines.map(line => { const [image = '', prompt = '', options = '', correct = '0'] = line.split('|'); return { image, prompt, options: options.split(',').map(item => item.trim()).filter(Boolean), correct: Number(correct) || 0 }; }) };
   if (gameType === 'true-false') return { tf: lines.map(line => { const [statement = '', answer = 'false'] = line.split('|'); return { statement, answer: answer.trim().toLowerCase() === 'true' }; }) };
   if (gameType === 'sequence-order') return { sequence: { prompt: lines[0] || 'Ordena los pasos', steps: lines.slice(1) } };
-  if (gameType === 'memory') return { memory: { pairs: lines.map(line => { const [a = '', b = ''] = line.split('|'); return { a, b }; }) } };
+  if (gameType === 'memory') {
+    const settingsLine = lines.find(line => line.startsWith('@settings|'));
+    const pairLines = lines.filter(line => !line.startsWith('@settings|'));
+    const previousSettings = normalizeMemory(previous?.memory).settings;
+    const [, previewEnabled, previewSeconds, timed, timeLimitSeconds] = settingsLine?.split('|') || [];
+    return { memory: {
+      pairs: pairLines.map(line => { const [a = '', b = '', aLabel = '', bLabel = ''] = line.split('|'); return { a, b, aLabel: aLabel || undefined, bLabel: bLabel || undefined }; }),
+      settings: settingsLine ? {
+        previewEnabled: previewEnabled === 'true',
+        previewSeconds: Number(previewSeconds) || DEFAULT_MEMORY_SETTINGS.previewSeconds,
+        timed: timed === 'true',
+        timeLimitSeconds: Number(timeLimitSeconds) || DEFAULT_MEMORY_SETTINGS.timeLimitSeconds,
+      } : previousSettings,
+    } };
+  }
   if (gameType === 'count-objects') return { count: lines.map(line => { const [emoji = '', count = '0'] = line.split('|'); return { emoji, count: Number(count) || 0 }; }) };
   if (gameType === 'matching-pairs') { const [left = '', right = '', correctMap = ''] = lines; return { matching: { left: left.split(',').map(item => item.trim()).filter(Boolean), right: right.split(',').map(item => item.trim()).filter(Boolean), correctMap: correctMap.split(',').map(item => Number(item.trim()) || 0) } }; }
   if (gameType === 'category-sort') return { category: { categories: previous?.category?.categories || [{ name: 'Categoria 1', emoji: '1' }, { name: 'Categoria 2', emoji: '2' }], items: lines.map(line => { const [label = '', categoryIndex = '0'] = line.split('|'); return { label, categoryIndex: Number(categoryIndex) || 0 }; }) } };
@@ -59,7 +78,7 @@ function contentHelp(gameType?: GameType) {
   if (gameType === 'multiple-choice') return 'Formato: emoji|pregunta|opcion1,opcion2,opcion3,opcion4|indice correcto empezando en 0';
   if (gameType === 'true-false') return 'Formato: afirmacion|true o false';
   if (gameType === 'sequence-order') return 'Primera linea: consigna. Lineas siguientes: pasos en orden.';
-  if (gameType === 'memory') return 'Formato: elemento A|elemento B';
+  if (gameType === 'memory') return 'Usá el editor visual para combinar texto, emoji y pictogramas.';
   if (gameType === 'count-objects') return 'Formato: emoji|cantidad correcta';
   if (gameType === 'matching-pairs') return 'Linea 1: palabras. Linea 2: pictogramas. Linea 3: mapa de indices correctos.';
   if (gameType === 'category-sort') return 'Formato: palabra|indice de categoria empezando en 0';
@@ -401,6 +420,68 @@ function shuffleArray<T>(arr: T[]): T[] {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+
+function MemorySandbox({ value, onChange }: { value?: GameData; onChange: (next: GameData) => void }) {
+  const memory = normalizeMemory(value?.memory);
+  const pairs = memory.pairs.length ? memory.pairs : Array.from({ length: 4 }, () => ({ a: '', b: '' }));
+  const [selected, setSelected] = useState<{ pair: number; side: 'a' | 'b' }>({ pair: 0, side: 'a' });
+
+  const commit = (nextPairs = pairs, settings = memory.settings) => onChange({ ...value, memory: { pairs: nextPairs, settings } });
+  const updateSide = (pairIndex: number, side: 'a' | 'b', content: string, accessibleLabel?: string) => {
+    const labelKey = side === 'a' ? 'aLabel' : 'bLabel';
+    commit(pairs.map((pair, index) => index === pairIndex ? { ...pair, [side]: content, [labelKey]: accessibleLabel } : pair));
+  };
+  const addPair = () => {
+    if (pairs.length >= 8) return;
+    commit([...pairs, { a: '', b: '' }]);
+    setSelected({ pair: pairs.length, side: 'a' });
+  };
+  const removePair = (pairIndex: number) => {
+    if (pairs.length <= 4) return;
+    commit(pairs.filter((_, index) => index !== pairIndex));
+    setSelected(current => ({ ...current, pair: Math.min(current.pair, pairs.length - 2) }));
+  };
+  const assignPictogram = (picto: Pictogram) => updateSide(selected.pair, selected.side, picto.imageUrl || picto.emoji, picto.name);
+
+  return (
+    <div className="space-y-4 rounded-lg border border-primary/20 bg-primary/5 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-foreground">Constructor visual de memoria</p>
+          <p className="text-xs text-muted-foreground">Relacioná dos contenidos distintos: pictograma, emoji o texto.</p>
+        </div>
+        <Button type="button" size="sm" variant="outline" onClick={addPair} disabled={pairs.length >= 8}><Plus size={14} className="mr-1" />Pareja</Button>
+      </div>
+
+      <div className="grid gap-3 rounded-lg border border-border bg-card p-3 sm:grid-cols-2">
+        <label className="flex items-center justify-between gap-3 text-xs font-medium">Mostrar cartas al comenzar<input type="checkbox" checked={memory.settings.previewEnabled} onChange={event => commit(pairs, { ...memory.settings, previewEnabled: event.target.checked })} className="h-5 w-5 accent-primary" /></label>
+        <label className="flex items-center justify-between gap-3 text-xs font-medium">Usar contrarreloj<input type="checkbox" checked={memory.settings.timed} onChange={event => commit(pairs, { ...memory.settings, timed: event.target.checked })} className="h-5 w-5 accent-primary" /></label>
+        {memory.settings.previewEnabled && <label className="text-xs font-medium">Vista previa: {memory.settings.previewSeconds}s<input type="range" min={2} max={8} value={memory.settings.previewSeconds} onChange={event => commit(pairs, { ...memory.settings, previewSeconds: Number(event.target.value) })} className="mt-2 w-full accent-primary" /></label>}
+        {memory.settings.timed && <label className="text-xs font-medium">Tiempo: {memory.settings.timeLimitSeconds}s<input type="range" min={30} max={180} step={15} value={memory.settings.timeLimitSeconds} onChange={event => commit(pairs, { ...memory.settings, timeLimitSeconds: Number(event.target.value) })} className="mt-2 w-full accent-primary" /></label>}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_240px]">
+        <div className="space-y-2">
+          {pairs.map((pair, pairIndex) => (
+            <div key={pairIndex} className="rounded-lg border border-border bg-card p-2">
+              <div className="mb-2 flex items-center justify-between"><span className="text-xs font-bold text-primary">Pareja {pairIndex + 1}</span><Button type="button" size="sm" variant="ghost" onClick={() => removePair(pairIndex)} disabled={pairs.length <= 4} aria-label={`Eliminar pareja ${pairIndex + 1}`}><Trash2 size={14} /></Button></div>
+              <div className="grid grid-cols-2 gap-2">
+                {(['a', 'b'] as const).map(side => (
+                  <div key={side} onClick={() => setSelected({ pair: pairIndex, side })} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); const raw = event.dataTransfer.getData('application/json'); if (raw) try { const picto = JSON.parse(raw) as Pictogram; updateSide(pairIndex, side, picto.imageUrl || picto.emoji, picto.name); } catch { /* noop */ } }} className={`rounded-lg border-2 p-2 ${selected.pair === pairIndex && selected.side === side ? 'border-primary bg-primary/5' : 'border-border'}`}>
+                    <div className="mb-2 flex h-20 items-center justify-center overflow-hidden rounded-md bg-muted/30 text-3xl"><VisualValue value={pair[side]} className={isImageValue(pair[side]) ? 'h-16 w-16' : ''} /></div>
+                    <Input value={pair[side]} onFocus={() => setSelected({ pair: pairIndex, side })} onChange={event => updateSide(pairIndex, side, event.target.value)} placeholder={`Lado ${side.toUpperCase()}`} aria-label={`Pareja ${pairIndex + 1}, lado ${side.toUpperCase()}`} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          <p className="text-xs text-muted-foreground">{pairs.length}/8 parejas · mínimo 4</p>
+        </div>
+        <div><p className="mb-2 text-xs font-semibold text-muted-foreground">Asignar al lado {selected.side.toUpperCase()} de la pareja {selected.pair + 1}</p><PictogramSearchPanel initialSearch="escuela" onSelect={assignPictogram} className="max-h-[520px]" /></div>
+      </div>
+    </div>
+  );
 }
 
 function DragWordSandbox({
@@ -786,6 +867,14 @@ export default function ActivityBuilder({ initialId, onClose, assignableUsersOve
         return;
       }
     }
+    if (publishNow && form.gameType === 'memory') {
+      const memoryError = memoryValidationError(form.gameData?.memory);
+      if (memoryError) {
+        toast({ title: 'El juego de memoria está incompleto', description: memoryError, variant: 'destructive' });
+        setStep(2);
+        return;
+      }
+    }
     setSaving(true);
     const cleanSteps = form.steps.map((s, i) => ({ s, ic: form.stepIcons[i] || '📌' })).filter(x => x.s.trim());
     try {
@@ -1049,7 +1138,16 @@ export default function ActivityBuilder({ initialId, onClose, assignableUsersOve
                     }}
                   />
                 )}
-                {form.gameType && form.gameType !== 'multiple-choice' && form.gameType !== 'drag-word' && form.gameType !== 'wheel' && (
+                {form.gameType === 'memory' && (
+                  <MemorySandbox
+                    value={form.gameData}
+                    onChange={(nextGameData) => {
+                      setForm(prev => ({ ...prev, gameData: nextGameData }));
+                      setGameContentText(serializeGameContent('memory', nextGameData));
+                    }}
+                  />
+                )}
+                {form.gameType && form.gameType !== 'multiple-choice' && form.gameType !== 'drag-word' && form.gameType !== 'wheel' && form.gameType !== 'memory' && (
                   <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
                     <div className="mb-2 flex items-center justify-between gap-3">
                       <div>

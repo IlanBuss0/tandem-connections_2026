@@ -22,7 +22,14 @@ export interface WheelRound { targetWord: string; image: string; options: string
 export interface WheelSettings { segments: number; initialSpeed: number; speedIncrease: boolean; }
 export interface WheelItem { rounds: WheelRound[]; settings: WheelSettings; }
 export interface LegacyWheelItem { words: string[]; }
-export interface MemoryItem { pairs: { a: string; b: string }[]; }
+export interface MemorySettings {
+  previewEnabled: boolean;
+  previewSeconds: number;
+  timed: boolean;
+  timeLimitSeconds: number;
+}
+export interface MemoryPair { a: string; b: string; aLabel?: string; bLabel?: string; }
+export interface MemoryItem { pairs: MemoryPair[]; settings?: MemorySettings; }
 export interface SequenceItem { prompt: string; steps: string[]; }
 export interface TFItem { statement: string; answer: boolean; }
 export interface CountItem { emoji: string; count: number; decoys?: string[]; }

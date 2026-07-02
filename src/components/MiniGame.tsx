@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Check, X, RotateCcw, Trophy } from 'lucide-react';
 import type { GameType, GameData } from '@/data/miniGames';
 import { normalizeWheel, selectedWheelSegment, wheelMotion, wheelScore, wheelSegmentAngles } from '@/data/wheelPrecision';
+import { memoryScore, normalizeMemory } from '@/data/memoryGame';
 
 interface Props {
   gameType: GameType;
@@ -389,8 +390,8 @@ function Wheel({ data, onFinish }: { data: GameData; onFinish: (n: number) => vo
 }
 
 // ========== Memory ==========
-function Memory({ data, onFinish }: { data: GameData; onFinish: (n: number) => void }) {
-  const pairs = data.memory?.pairs || [];
+function LegacyMemory({ data, onFinish }: { data: GameData; onFinish: (n: number) => void }) {
+  const pairs = useMemo(() => data.memory?.pairs || [], [data.memory?.pairs]);
   const cards = useMemo(() => {
     const arr: { id: number; pairId: number; label: string }[] = [];
     pairs.forEach((p, i) => {
@@ -456,6 +457,117 @@ function Memory({ data, onFinish }: { data: GameData; onFinish: (n: number) => v
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function Memory({ data, onFinish }: { data: GameData; onFinish: (n: number) => void }) {
+  const memory = useMemo(() => normalizeMemory(data.memory), [data.memory]);
+  const pairs = memory.pairs;
+  const reduceMotion = useReducedMotion();
+  const [gameId, setGameId] = useState(0);
+  const cards = useMemo(() => {
+    void gameId;
+    return shuffleArray(pairs.flatMap((pair, pairId) => [
+      { id: pairId * 2, pairId, label: pair.a, accessibleLabel: pair.aLabel || (pair.a.startsWith('http') ? 'Pictograma' : pair.a) },
+      { id: pairId * 2 + 1, pairId, label: pair.b, accessibleLabel: pair.bLabel || (pair.b.startsWith('http') ? 'Pictograma' : pair.b) },
+    ]));
+  }, [pairs, gameId]);
+  const [flipped, setFlipped] = useState<number[]>([]);
+  const [matched, setMatched] = useState<number[]>([]);
+  const [tries, setTries] = useState(0);
+  const triesRef = useRef(0);
+  const [phase, setPhase] = useState<'preview' | 'playing' | 'expired'>(() => memory.settings.previewEnabled ? 'preview' : 'playing');
+  const [secondsLeft, setSecondsLeft] = useState(memory.settings.timeLimitSeconds);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const completionRef = useRef(false);
+
+  useEffect(() => {
+    if (phase !== 'preview') return;
+    const timer = window.setTimeout(() => setPhase('playing'), memory.settings.previewSeconds * 1000);
+    return () => window.clearTimeout(timer);
+  }, [phase, memory.settings.previewSeconds]);
+
+  useEffect(() => {
+    if (!memory.settings.timed || phase !== 'playing') return;
+    const timer = window.setInterval(() => setSecondsLeft(current => {
+      if (current <= 1) {
+        setPhase('expired');
+        setFlipped([]);
+        return 0;
+      }
+      return current - 1;
+    }), 1000);
+    return () => window.clearInterval(timer);
+  }, [phase, memory.settings.timed]);
+
+  useEffect(() => {
+    if (flipped.length !== 2 || phase !== 'playing') return;
+    const first = cards.find(card => card.id === flipped[0]);
+    const second = cards.find(card => card.id === flipped[1]);
+    if (!first || !second) return;
+    const nextTries = triesRef.current + 1;
+    const correct = first.pairId === second.pairId;
+    setTries(nextTries);
+    triesRef.current = nextTries;
+    setFeedback(correct ? '¡Encontraste una pareja!' : 'Probemos otra pareja');
+    const timer = window.setTimeout(() => {
+      setFlipped([]);
+      setFeedback(null);
+      if (!correct) return;
+      setMatched(current => {
+        const next = [...current, first.pairId];
+        if (next.length === pairs.length && !completionRef.current) {
+          completionRef.current = true;
+          window.setTimeout(() => onFinish(memoryScore(pairs.length, nextTries)), reduceMotion ? 0 : 600);
+        }
+        return next;
+      });
+    }, reduceMotion ? 100 : correct ? 500 : 900);
+    return () => window.clearTimeout(timer);
+  }, [cards, flipped, onFinish, pairs.length, phase, reduceMotion]);
+
+  const flip = (id: number) => {
+    if (phase !== 'playing' || flipped.length >= 2 || flipped.includes(id)) return;
+    const card = cards.find(candidate => candidate.id === id);
+    if (!card || matched.includes(card.pairId)) return;
+    setFlipped(current => [...current, id]);
+  };
+  const restart = () => {
+    completionRef.current = false;
+    setFlipped([]);
+    setMatched([]);
+    setTries(0);
+    triesRef.current = 0;
+    setFeedback(null);
+    setSecondsLeft(memory.settings.timeLimitSeconds);
+    setGameId(current => current + 1);
+    setPhase(memory.settings.previewEnabled ? 'preview' : 'playing');
+  };
+
+  if (!pairs.length) return <p>Sin contenido</p>;
+  const showAll = phase === 'preview';
+  const gridColumns = pairs.length <= 4 ? 'grid-cols-2 sm:grid-cols-4' : pairs.length <= 6 ? 'grid-cols-3 sm:grid-cols-4' : 'grid-cols-4';
+  return (
+    <div className="space-y-4">
+      <ProgressBar value={(matched.length / pairs.length) * 100} />
+      <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground" aria-live="polite">
+        <span>Parejas: {matched.length}/{pairs.length}</span><span>Intentos: {tries}</span>
+        {memory.settings.timed && <span className={secondsLeft <= 10 ? 'font-bold text-amber-600' : ''}>Tiempo: {secondsLeft}s</span>}
+      </div>
+      {phase === 'preview' && <p className="text-center text-sm font-semibold text-primary">Memorizá las cartas…</p>}
+      {phase === 'expired' && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-center"><p className="font-semibold text-amber-800">Se terminó el tiempo</p><p className="text-xs text-amber-700">Podés volver a intentarlo cuando quieras.</p></div>}
+      <div className={`grid ${gridColumns} gap-2`} aria-label="Tablero de memoria">
+        {cards.map((card, index) => {
+          const isMatched = matched.includes(card.pairId);
+          const isOpen = showAll || flipped.includes(card.id) || isMatched;
+          return <button key={card.id} type="button" onClick={() => flip(card.id)} disabled={phase !== 'playing' || isMatched || flipped.length >= 2} aria-label={isOpen ? `Carta ${index + 1}: ${card.accessibleLabel}${isMatched ? ', pareja encontrada' : ''}` : `Carta ${index + 1}, oculta`} aria-pressed={isOpen} className={`aspect-square min-h-20 rounded-xl border-2 flex items-center justify-center overflow-hidden p-2 text-xl font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-default ${isOpen ? isMatched ? 'bg-green-100 border-green-500 text-green-800' : 'bg-primary/10 border-primary' : 'bg-card border-border text-muted-foreground hover:bg-muted'}`}>
+            {isOpen ? <VisualValue value={card.label} className="h-full max-h-24 w-full object-contain" /> : <span aria-hidden="true">?</span>}
+          </button>;
+        })}
+      </div>
+      <div className="min-h-6 text-center text-sm font-medium text-primary" aria-live="polite">{feedback}</div>
+      {phase === 'expired' && <Button type="button" onClick={restart} className="w-full gradient-primary text-primary-foreground"><RotateCcw size={16} className="mr-2" />Intentar de nuevo</Button>}
     </div>
   );
 }
