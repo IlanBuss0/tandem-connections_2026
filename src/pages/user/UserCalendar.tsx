@@ -5,6 +5,7 @@ import PermissionBlocked from '@/components/PermissionBlocked';
 import { useCalendar, eventTypes, typeEmoji } from '@/contexts/CalendarContext';
 import { CalendarEvent } from '@/data/api';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
+import ReminderPicker from '@/components/ReminderPicker';
 
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const dayNamesShort = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
@@ -49,6 +50,7 @@ export default function UserCalendar() {
     time: '09:00',
     type: 'personal',
     description: '',
+    reminders: [],
   });
 
   const canUseCalendar = isPermissionEnabled(
@@ -122,7 +124,7 @@ export default function UserCalendar() {
 
   const openCreate = (date = selectedDate) => {
     setEditing(null);
-    setForm({ title: '', date, time: '09:00', type: 'personal', description: '' });
+    setForm({ title: '', date, time: '09:00', type: 'personal', description: '', reminders: [] });
     setShowForm(true);
   };
 
@@ -134,6 +136,7 @@ export default function UserCalendar() {
       time: event.time,
       type: event.type,
       description: event.description,
+      reminders: event.reminders || [],
     });
     setShowForm(true);
   };
@@ -354,6 +357,7 @@ export default function UserCalendar() {
                 placeholder="Descripción (opcional)"
                 className="h-20 w-full resize-none rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
               />
+              <ReminderPicker value={form.reminders} onChange={reminders => setForm(current => ({ ...current, reminders }))} />
               <button
                 onClick={submit}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-3 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] transition"

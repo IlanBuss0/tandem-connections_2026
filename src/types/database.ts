@@ -686,6 +686,7 @@ export interface Notificacion {
   context_user_id: number | null;
   reference_routine_id?: string | null;
   reference_item_id?: string | null;
+  reference_calendar_event_id?: string | null;
 }
 
 // ============================================================================

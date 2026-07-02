@@ -255,6 +255,7 @@ export interface CalendarEvent {
   description: string;
   userId: string;
   color: string;
+  reminders?: number[];
 }
 
 const today = new Date();
