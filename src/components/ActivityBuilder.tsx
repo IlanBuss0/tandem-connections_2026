@@ -13,6 +13,7 @@ import type { WheelRound } from '@/data/miniGames';
 import { normalizeRound, normalizeWheel, parseWheel, serializeWheel, wheelSegmentAngles, wheelValidationError } from '@/data/wheelPrecision';
 import { DEFAULT_MEMORY_SETTINGS, memoryValidationError, normalizeMemory } from '@/data/memoryGame';
 import { useToast } from '@/components/ui/use-toast';
+import { aiPictogramsApi } from '@/services/ai-pictograms';
 
 const CATEGORIES: ActivityCategory[] = ['autonomía personal','higiene','organización','escuela','cocina básica','transporte','compras','manejo del dinero','emociones','comunicación','vida social','seguridad personal','rutinas del hogar','regulación emocional','preparación para salidas','anticipación de cambios'];
 const TYPES: ActivityType[] = ['guiada','juego','regulación','decisión'];
@@ -109,7 +110,7 @@ function VisualValue({ value, className = '' }: { value?: string; className?: st
 const PICTOGRAM_PAGE_SIZE = 24;
 const PICTOGRAM_MAX_RESULTS = 100;
 
-function usePictogramSearch(initialSearch: string) {
+function usePictogramSearch(initialSearch: string, targetPertenecienteId?: string) {
   const [search, setSearchState] = useState(initialSearch);
   const [limit, setLimit] = useState(PICTOGRAM_PAGE_SIZE);
   const [pictograms, setPictograms] = useState<Pictogram[]>([]);
@@ -126,7 +127,7 @@ function usePictogramSearch(initialSearch: string) {
     const timer = window.setTimeout(() => {
       setLoading(true);
       setError(null);
-      fetchPictograms({ search: search.trim(), language: 'es', limit })
+      fetchPictograms({ search: search.trim(), language: 'es', limit, targetPertenecienteId })
         .then(items => {
           if (!cancelled) setPictograms(items);
         })
@@ -145,7 +146,7 @@ function usePictogramSearch(initialSearch: string) {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [search, limit]);
+  }, [search, limit, targetPertenecienteId]);
 
   return {
     search,
@@ -158,8 +159,8 @@ function usePictogramSearch(initialSearch: string) {
   };
 }
 
-function PictogramSearchPanel({ initialSearch, onSelect, className = 'max-h-[520px]' }: { initialSearch: string; onSelect: (picto: Pictogram) => void; className?: string }) {
-  const { search, setSearch, pictograms, loading, error, canLoadMore, loadMore } = usePictogramSearch(initialSearch);
+function PictogramSearchPanel({ initialSearch, onSelect, className = 'max-h-[520px]', targetPertenecienteId }: { initialSearch: string; onSelect: (picto: Pictogram) => void; className?: string; targetPertenecienteId?: string }) {
+  const { search, setSearch, pictograms, loading, error, canLoadMore, loadMore } = usePictogramSearch(initialSearch, targetPertenecienteId);
 
   return (
     <div className="space-y-2">
@@ -186,9 +187,11 @@ function PictogramSearchPanel({ initialSearch, onSelect, className = 'max-h-[520
 function MultipleChoiceSandbox({
   value,
   onChange,
+  targetPertenecienteId,
 }: {
   value?: GameData;
   onChange: (next: GameData) => void;
+  targetPertenecienteId?: string;
 }) {
   const rounds = value?.rounds?.length ? value.rounds : [emptyMcRound()];
   const [roundIndex, setRoundIndex] = useState(0);
@@ -316,7 +319,7 @@ function MultipleChoiceSandbox({
           </div>
         </div>
 
-        <PictogramSearchPanel initialSearch="comer" onSelect={setPictogram} className="max-h-[420px]" />
+        <PictogramSearchPanel initialSearch="comer" onSelect={setPictogram} className="max-h-[420px]" targetPertenecienteId={targetPertenecienteId} />
       </div>
     </div>
   );
@@ -352,7 +355,7 @@ function WheelPreview({ round }: { round: WheelRound }) {
   );
 }
 
-function WheelPrecisionSandbox({ value, onChange }: { value?: GameData; onChange: (next: GameData) => void }) {
+function WheelPrecisionSandbox({ value, onChange, targetPertenecienteId }: { value?: GameData; onChange: (next: GameData) => void; targetPertenecienteId?: string }) {
   const wheel = normalizeWheel(value?.wheel);
   const rounds = wheel.rounds.length ? wheel.rounds : [normalizeRound({ targetWord: '', options: [] }, wheel.settings.segments)];
   const [roundIndex, setRoundIndex] = useState(0);
@@ -407,7 +410,7 @@ function WheelPrecisionSandbox({ value, onChange }: { value?: GameData; onChange
           <div><p className="mb-2 text-xs font-semibold">Opciones de la rueda</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{current.options.map((option, index) => <button key={index} onClick={() => markCorrect(index)} onDragOver={e => e.preventDefault()} onDrop={e => dropPicto(e, index)} className={`relative flex min-h-24 flex-col items-center justify-center rounded-lg border-2 p-2 ${current.correct === index ? 'border-green-500 bg-green-50' : 'border-border bg-card'}`}><VisualValue value={option} className={isImageValue(option) ? 'h-14 w-14' : 'text-xs'} /><span className="mt-1 text-[10px]">{current.correct === index ? '● correcto' : `Segmento ${index + 1}`}</span></button>)}</div></div>
           <div className="rounded-lg border bg-card p-3"><p className="mb-2 text-xs font-semibold text-muted-foreground">Vista previa</p><WheelPreview round={current} /></div>
         </div>
-        <PictogramSearchPanel initialSearch="manzana" onSelect={assignPictogram} />
+        <PictogramSearchPanel initialSearch="manzana" onSelect={assignPictogram} targetPertenecienteId={targetPertenecienteId} />
       </div>
     </div>
   );
@@ -422,7 +425,7 @@ function shuffleArray<T>(arr: T[]): T[] {
   return a;
 }
 
-function MemorySandbox({ value, onChange }: { value?: GameData; onChange: (next: GameData) => void }) {
+function MemorySandbox({ value, onChange, targetPertenecienteId }: { value?: GameData; onChange: (next: GameData) => void; targetPertenecienteId?: string }) {
   const memory = normalizeMemory(value?.memory);
   const pairs = memory.pairs.length ? memory.pairs : Array.from({ length: 4 }, () => ({ a: '', b: '' }));
   const [selected, setSelected] = useState<{ pair: number; side: 'a' | 'b' }>({ pair: 0, side: 'a' });
@@ -478,7 +481,7 @@ function MemorySandbox({ value, onChange }: { value?: GameData; onChange: (next:
           ))}
           <p className="text-xs text-muted-foreground">{pairs.length}/8 parejas · mínimo 4</p>
         </div>
-        <div><p className="mb-2 text-xs font-semibold text-muted-foreground">Asignar al lado {selected.side.toUpperCase()} de la pareja {selected.pair + 1}</p><PictogramSearchPanel initialSearch="escuela" onSelect={assignPictogram} className="max-h-[520px]" /></div>
+        <div><p className="mb-2 text-xs font-semibold text-muted-foreground">Asignar al lado {selected.side.toUpperCase()} de la pareja {selected.pair + 1}</p><PictogramSearchPanel initialSearch="escuela" onSelect={assignPictogram} className="max-h-[520px]" targetPertenecienteId={targetPertenecienteId} /></div>
       </div>
     </div>
   );
@@ -487,9 +490,11 @@ function MemorySandbox({ value, onChange }: { value?: GameData; onChange: (next:
 function DragWordSandbox({
   value,
   onChange,
+  targetPertenecienteId,
 }: {
   value?: GameData;
   onChange: (next: GameData) => void;
+  targetPertenecienteId?: string;
 }) {
   const rounds = value?.dragRounds?.length ? value.dragRounds : [{ image: '', correct: '', letters: [] }];
   const [roundIndex, setRoundIndex] = useState(0);
@@ -501,7 +506,7 @@ function DragWordSandbox({
   useEffect(() => {
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      fetchPictograms({ search })
+      fetchPictograms({ search, targetPertenecienteId })
         .then((items) => {
           if (!cancelled) setPictograms(items.slice(0, 24));
         })
@@ -510,7 +515,7 @@ function DragWordSandbox({
         });
     }, 250);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [search]);
+  }, [search, targetPertenecienteId]);
 
   const updateRounds = (nextRounds: typeof rounds) => {
     onChange({ ...value, dragRounds: nextRounds });
@@ -876,6 +881,56 @@ export default function ActivityBuilder({ initialId, onClose, assignableUsersOve
       }
     }
     setSaving(true);
+
+    try {
+      const mineCreations = await aiPictogramsApi.mine().catch(() => [] as any[]);
+      const privateCreations = mineCreations.filter((x: any) => x.status === 'private');
+
+      const collectUrls = (obj: any): string[] => {
+        if (!obj) return [];
+        if (typeof obj === 'string') {
+          return obj.startsWith('http') ? [obj] : [];
+        }
+        if (Array.isArray(obj)) {
+          return obj.flatMap(collectUrls);
+        }
+        if (typeof obj === 'object') {
+          return Object.values(obj).flatMap(collectUrls);
+        }
+        return [];
+      };
+
+      const usedUrls = collectUrls(form.gameData);
+      const usedPrivateCreations = privateCreations.filter((c: any) => usedUrls.includes(c.imageUrl));
+
+      if (usedPrivateCreations.length > 0) {
+        if (form.assignedToIds.length !== 1) {
+          toast({
+            title: 'No se puede guardar la actividad',
+            description: 'Usaste un pictograma privado. Para poder guardarla, esta actividad debe estar asignada a un único perteneciente (el destinatario de ese pictograma).',
+            variant: 'destructive',
+          });
+          setSaving(false);
+          return;
+        }
+
+        const singleAssignedId = Number(form.assignedToIds[0]);
+        const unauthorizedCreations = usedPrivateCreations.filter((c: any) => Number(c.targetPertenecienteId) !== singleAssignedId);
+
+        if (unauthorizedCreations.length > 0) {
+          toast({
+            title: 'No se puede guardar la actividad',
+            description: `El pictograma "${unauthorizedCreations[0].name}" es privado y pertenece a otro usuario. Cambialo o asigná la actividad al destinatario correcto.`,
+            variant: 'destructive',
+          });
+          setSaving(false);
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('Error validating private pictograms', err);
+    }
+
     const cleanSteps = form.steps.map((s, i) => ({ s, ic: form.stepIcons[i] || '📌' })).filter(x => x.s.trim());
     try {
       const result = await createOrUpdate({
@@ -1114,6 +1169,7 @@ export default function ActivityBuilder({ initialId, onClose, assignableUsersOve
                 {form.gameType === 'drag-word' && (
                   <DragWordSandbox
                     value={form.gameData}
+                    targetPertenecienteId={form.assignedToIds.join(',')}
                     onChange={(nextGameData) => {
                       setForm(prev => ({ ...prev, gameData: nextGameData }));
                       setGameContentText(serializeGameContent('drag-word', nextGameData));
@@ -1123,6 +1179,7 @@ export default function ActivityBuilder({ initialId, onClose, assignableUsersOve
                 {form.gameType === 'multiple-choice' && (
                   <MultipleChoiceSandbox
                     value={form.gameData}
+                    targetPertenecienteId={form.assignedToIds.join(',')}
                     onChange={(nextGameData) => {
                       setForm(prev => ({ ...prev, gameData: nextGameData }));
                       setGameContentText(serializeGameContent('multiple-choice', nextGameData));
@@ -1132,6 +1189,7 @@ export default function ActivityBuilder({ initialId, onClose, assignableUsersOve
                 {form.gameType === 'wheel' && (
                   <WheelPrecisionSandbox
                     value={form.gameData}
+                    targetPertenecienteId={form.assignedToIds.join(',')}
                     onChange={(nextGameData) => {
                       setForm(prev => ({ ...prev, gameData: nextGameData }));
                       setGameContentText(serializeGameContent('wheel', nextGameData));
@@ -1141,6 +1199,7 @@ export default function ActivityBuilder({ initialId, onClose, assignableUsersOve
                 {form.gameType === 'memory' && (
                   <MemorySandbox
                     value={form.gameData}
+                    targetPertenecienteId={form.assignedToIds.join(',')}
                     onChange={(nextGameData) => {
                       setForm(prev => ({ ...prev, gameData: nextGameData }));
                       setGameContentText(serializeGameContent('memory', nextGameData));
