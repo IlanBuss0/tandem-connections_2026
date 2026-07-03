@@ -52,7 +52,7 @@ body.a11y-uppercase * {
 
 body.accessibility-dyslexia-font,
 body.accessibility-dyslexia-font :is(main, article, section, form, p, span, label, li, input, textarea, select, h1, h2, h3, h4, h5, h6) {
-  font-family: "OpenDyslexic", "Atkinson Hyperlegible", "Nunito", Arial, sans-serif !important;
+  font-family: "OpenDyslexic", "Atkinson Hyperlegible", "Montserrat", Arial, sans-serif !important;
 }
 
 body.accessibility-dyslexia-text-size :is(p, li, label, input, textarea, select, .text-content, .card-content) {
@@ -313,7 +313,7 @@ body.accessibility-large-click-area :is(button, a, input, select, textarea, summ
   border-radius: 10px;
   background: #2f2440;
   color: #ffffff;
-  font: 700 14px/1.35 Inter, "Nunito", "Segoe UI", Arial, sans-serif;
+  font: 700 14px/1.35 Inter, "Montserrat", "Segoe UI", Arial, sans-serif;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
   pointer-events: none;
   transform: translate(14px, 14px);
@@ -323,7 +323,7 @@ body.accessibility-large-click-area :is(button, a, input, select, textarea, summ
 .a11y-widget * {
   animation-play-state: running !important;
   filter: none !important;
-  font-family: Inter, "Nunito", "Segoe UI", Arial, sans-serif !important;
+  font-family: Inter, "Montserrat", "Segoe UI", Arial, sans-serif !important;
   letter-spacing: 0 !important;
   line-height: normal !important;
   text-align: left !important;

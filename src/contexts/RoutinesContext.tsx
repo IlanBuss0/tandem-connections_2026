@@ -13,6 +13,10 @@ export interface DayRoutine {
   date?: string;          // DD/MM/AAAA para identificar rutinas con el mismo nombre
 }
 
+export const predefinedCategories = ['mañana', 'escuela', 'mediodía', 'tarde', 'noche'];
+export const predefinedLabels: Record<string, string> = { mañana: '🌅 Mañana', escuela: '📚 Escuela', mediodía: '☀️ Mediodía', tarde: '🌤️ Tarde', noche: '🌙 Noche' };
+export const iconChoices = ['⏰','🛏️','🚿','👕','🥣','🪥','🎒','🚶','📚','🍽️','🎮','✏️','⭐','🥪','🧠','🎧','👔','🍝','💭','🌙','🏃','🎵','📖','🧘','🐶','🛁','💊','🥗','🌳','🎨'];
+
 const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
 function todayDate(): string {

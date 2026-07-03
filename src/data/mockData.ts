@@ -251,7 +251,7 @@ export interface CalendarEvent {
   title: string;
   date: string;
   time: string;
-  type: 'terapia' | 'escuela' | 'personal' | 'médico' | 'social' | 'actividad';
+  type: string;
   description: string;
   userId: string;
   color: string;

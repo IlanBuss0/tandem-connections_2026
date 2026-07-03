@@ -364,15 +364,15 @@ export default function TutorAdvancedStats({ activities, emotions, events, adher
             <p className="font-bold text-foreground">{mainUser.supportLevel}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Autonomia</p>
+            <p className="text-xs text-muted-foreground">Autonomía</p>
             <p className="font-bold text-foreground">{mainUser.autonomy}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Autogestion</p>
+            <p className="text-xs text-muted-foreground">Autogestión</p>
             <p className="font-bold text-foreground">{mainUser.canSelfManage ? 'Habilitada' : 'Asistida'}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Estado del vinculo</p>
+            <p className="text-xs text-muted-foreground">Estado del vínculo</p>
             <p className="font-bold text-foreground">{mainUser.linkStatus}</p>
           </div>
         </div>

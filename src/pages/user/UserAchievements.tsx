@@ -186,7 +186,7 @@ export default function UserAchievements() {
               </div>
             ) : (
               <div className="rounded-3xl border border-dashed border-[#e0d8f0] bg-[#faf8ff] px-6 py-14 text-center text-sm text-[#8b7aa0] shadow-sm">
-                Todavia no hay logros desbloqueados.
+                Todavía no hay logros desbloqueados.
               </div>
             )}
           </section>

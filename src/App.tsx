@@ -67,7 +67,7 @@ function AuthGate() {
 
   const content = isLoading ? (
     <div className="min-h-screen bg-background flex items-center justify-center text-sm font-medium text-muted-foreground">
-      Cargando sesion...
+      Cargando sesión...
     </div>
   ) : professionalInviteToken && isAuthenticated ? (
     <ProfessionalInviteLinkHandler token={professionalInviteToken} />

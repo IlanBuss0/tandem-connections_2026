@@ -131,7 +131,7 @@ function AccessibilityProfileSummary({ settings }: { settings: AccessibilitySett
             ))}
           </div>
         ) : (
-          <p className="mt-1 text-sm text-[#8b7aa0]">Configuracion estandar.</p>
+          <p className="mt-1 text-sm text-[#8b7aa0]">Configuración estándar.</p>
         )}
       </div>
     </div>
@@ -282,7 +282,7 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
         telefonoText: next.usuario?.telefono ? String(next.usuario.telefono) : '',
       });
     } catch {
-      setError('No se pudo cargar la configuracion del perfil.');
+      setError('No se pudo cargar la configuración del perfil.');
     } finally {
       setLoading(false);
     }
@@ -346,7 +346,7 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
         preferences: form.preferences,
       });
       await refreshUser();
-      toast({ title: 'Configuracion guardada' });
+      toast({ title: 'Configuración guardada' });
       await load();
       onBack?.();
     } catch {
@@ -363,9 +363,9 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
     <form className="pb-24 lg:pb-6 space-y-6" onSubmit={handleSubmit}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-3xl sm:text-4xl font-bold text-[#6b4c9a] leading-tight">{isPersonalMode ? 'Datos personales' : 'Configuracion de perfil'}</h2>
+          <h2 className="text-3xl sm:text-4xl font-bold text-[#6b4c9a] leading-tight">{isPersonalMode ? 'Datos personales' : 'Configuración de perfil'}</h2>
           <p className="text-sm sm:text-base text-[#8b7aa0] mt-1 font-medium">
-            {isPersonalMode ? 'Informacion visible para tu cuenta y tu red de apoyo.' : 'Autonomia, privacidad y accesibilidad.'}
+            {isPersonalMode ? 'Información visible para tu cuenta y tu red de apoyo.' : 'Autonomía, privacidad y accesibilidad.'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -392,7 +392,7 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
       {(!settings && !error) || loading ? (
         <div className="flex items-center gap-2 rounded-2xl border border-[#f0e8f8] bg-white p-4 text-sm text-[#8b7aa0] shadow-lg">
           <Loader2 size={16} className="animate-spin" />
-          Cargando configuracion...
+          Cargando configuración...
         </div>
       ) : (
         <>
@@ -401,7 +401,7 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
               <SectionHeader
                 icon={UserRound}
                 title="Datos personales"
-                description="Informacion visible para tu cuenta y tu red de apoyo."
+                description="Información visible para tu cuenta y tu red de apoyo."
               />
               <div className="mb-4 flex items-center gap-4 rounded-lg border border-border bg-background p-3">
                 <div className="relative w-16 h-16 rounded-full overflow-hidden bg-muted flex items-center justify-center text-3xl shrink-0">
@@ -472,7 +472,7 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
             <SectionHeader
               icon={Shield}
               title="Perfil perteneciente"
-              description="Informacion definida por tu tutor o profesional a cargo."
+              description="Información definida por tu tutor o profesional a cargo."
             />
             <div className="grid gap-3 md:grid-cols-2">
               <ReadOnlyInfo
@@ -480,15 +480,15 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
                 value={(settings?.supportLevels ?? []).find(level => level.id === form.perteneciente.id_nivel_apoyo)?.nombre || 'Sin registrar'}
               />
               <ReadOnlyInfo
-                label="Autonomia operativa"
+                label="Autonomía operativa"
                 value={(settings?.autonomies ?? []).find(autonomy => autonomy.id === form.perteneciente.id_autonomia_operativa)?.nombre || 'Sin registrar'}
               />
               <ReadOnlyInfo
-                label="Autogestion"
+                label="Autogestión"
                 value={form.perteneciente.puede_autogestionarse ? 'Habilitada' : 'Asistida'}
               />
               <ReadOnlyInfo
-                label="Observacion general"
+                label="Observación general"
                 value={form.perteneciente.observacion_general || 'Sin observaciones'}
                 className="md:col-span-2"
               />
@@ -504,14 +504,14 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
             <SectionHeader
               icon={Bell}
               title="Preferencias y privacidad"
-              description="Controles guardados en configuracion del usuario."
+              description="Controles guardados en configuración del usuario."
             />
             <div className="grid gap-3 md:grid-cols-2">
               <ToggleRow label="Notificaciones" description="Recibir avisos importantes." checked={form.preferences.recibir_notificaciones} onChange={value => updatePreference('recibir_notificaciones', value)} />
               <ToggleRow label="Recordatorios" description="Avisos de actividades pendientes." checked={form.preferences.recordatorios_actividad} onChange={value => updatePreference('recordatorios_actividad', value)} />
               <ToggleRow label="Resumen semanal" description="Guardar preferencia de reporte semanal." checked={form.preferences.resumen_semanal} onChange={value => updatePreference('resumen_semanal', value)} />
-              <ToggleRow label="Compartir ubicacion" description="Permitir uso de ubicacion con apoyo autorizado." checked={form.preferences.compartir_ubicacion} onChange={value => updatePreference('compartir_ubicacion', value)} />
-              <ToggleRow label="Mensajes" description="Permitir mensajes dentro de TANDEM." checked={form.preferences.permitir_mensajes} onChange={value => updatePreference('permitir_mensajes', value)} />
+              <ToggleRow label="Compartir ubicación" description="Permitir uso de ubicación con apoyo autorizado." checked={form.preferences.compartir_ubicacion} onChange={value => updatePreference('compartir_ubicacion', value)} />
+              <ToggleRow label="Mensajes" description="Permitir mensajes dentro de TÁNDEM." checked={form.preferences.permitir_mensajes} onChange={value => updatePreference('permitir_mensajes', value)} />
               <ToggleRow label="Progreso visible" description="Mostrar progreso a la red de apoyo." checked={form.preferences.mostrar_progreso_red_apoyo} onChange={value => updatePreference('mostrar_progreso_red_apoyo', value)} />
             </div>
           </section>
@@ -522,11 +522,11 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
             <SectionHeader
               icon={Eye}
               title="Accesibilidad"
-              description="Perfil cargado automaticamente desde la burbuja de accesibilidad."
+              description="Perfil cargado automáticamente desde la burbuja de accesibilidad."
             />
             <AccessibilityProfileSummary settings={accessibilitySettings} />
             <div className="mt-3 rounded-2xl border border-[#f0e8f8] bg-[#faf8ff] p-3 text-xs text-[#8b7aa0]">
-              Para cambiar estos ajustes usa la burbuja flotante de accesibilidad. La configuracion se guarda y se carga automaticamente despues del login.
+              Para cambiar estos ajustes usa la burbuja flotante de accesibilidad. La configuración se guarda y se carga automáticamente después del login.
             </div>
           </section>
           )}

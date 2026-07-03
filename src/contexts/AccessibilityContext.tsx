@@ -88,7 +88,7 @@ export const ACCESSIBILITY_PROFILES: AccessibilityProfile[] = [
   {
     id: 'motor',
     name: 'Discapacidad motora',
-    description: 'Detiene animaciones, muestra informacion, amplia areas clickeables y agranda el cursor.',
+    description: 'Detiene animaciones, muestra información, amplía áreas clickeables y agranda el cursor.',
     icon: 'hand',
     patch: {
       bigCursor: true,
@@ -101,7 +101,7 @@ export const ACCESSIBILITY_PROFILES: AccessibilityProfile[] = [
   {
     id: 'blind',
     name: 'Ceguera',
-    description: 'Lectura asistida, foco reforzado y mejor soporte para navegacion por teclado.',
+    description: 'Lectura asistida, foco reforzado y mejor soporte para navegación por teclado.',
     icon: 'ear',
     patch: {
       pageReader: true,
@@ -137,7 +137,7 @@ export const ACCESSIBILITY_PROFILES: AccessibilityProfile[] = [
   },
   {
     id: 'low-vision',
-    name: 'Vision baja',
+    name: 'Visión baja',
     description: 'Texto grande, alto contraste, cursor grande y enlaces visibles.',
     icon: 'eye',
     patch: {
@@ -153,7 +153,7 @@ export const ACCESSIBILITY_PROFILES: AccessibilityProfile[] = [
   {
     id: 'cognitive',
     name: 'Cognitivo y aprendizaje',
-    description: 'Guia de lectura, foco claro, menos movimiento y texto mas comodo.',
+    description: 'Guía de lectura, foco claro, menos movimiento y texto más cómodo.',
     icon: 'brain',
     patch: {
       cursor: 'reading-guide',
@@ -167,8 +167,8 @@ export const ACCESSIBILITY_PROFILES: AccessibilityProfile[] = [
   },
   {
     id: 'epilepsy',
-    name: 'Convulsiones y epilepticos',
-    description: 'Detiene animaciones, reduce movimiento y baja la saturacion.',
+    name: 'Convulsiones y epilépticos',
+    description: 'Detiene animaciones, reduce movimiento y baja la saturación.',
     icon: 'zap',
     patch: {
       pauseAnimations: true,

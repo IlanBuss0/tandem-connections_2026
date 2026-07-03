@@ -27,57 +27,57 @@ const audiences = [
       'Calendario simple y visual.',
       'Tareas y actividades ordenadas.',
       'Registro emocional con emojis y comentarios.',
-      'Avatar, puntos y motivacion accesible.',
+      'Avatar, puntos y motivación accesible.',
     ],
   },
   {
     eyebrow: 'Para tutores y familias',
-    title: 'Acompanhar mejor, sin ocupar el lugar del otro.',
+    title: 'Acompañar mejor, sin ocupar el lugar del otro.',
     icon: UsersRound,
-    problem: 'Acompanhar muchas veces implica estar pendiente de todo y decidir cuando intervenir sin invadir.',
+    problem: 'Acompañar muchas veces implica estar pendiente de todo y decidir cuándo intervenir sin invadir.',
     offers: [
       'Seguimiento de actividades.',
-      'Informacion sobre como se sintio la persona.',
-      'Visualizacion de avances.',
-      'Geolocalizacion configurable en plan pago.',
+      'Información sobre cómo se sintió la persona.',
+      'Visualización de avances.',
+      'Geolocalización configurable en plan pago.',
     ],
   },
   {
     eyebrow: 'Para profesionales',
-    title: 'Mas contexto para acompanar mejor.',
+    title: 'Más contexto para acompañar mejor.',
     icon: Stethoscope,
-    problem: 'Entre sesiones, la informacion puede llegar incompleta, desordenada o depender solo del relato familiar.',
+    problem: 'Entre sesiones, la información puede llegar incompleta, desordenada o depender solo del relato familiar.',
     offers: [
       'Listado de seguimiento.',
       'Registro emocional luego de tareas.',
-      'Informacion concreta sobre rutinas y dificultades.',
-      'Sesion virtual de prueba dentro de la app.',
+      'Información concreta sobre rutinas y dificultades.',
+      'Sesión virtual de prueba dentro de la app.',
     ],
   },
 ];
 
 const problems = [
-  'Rutinas dificiles de ordenar o anticipar.',
+  'Rutinas difíciles de ordenar o anticipar.',
   'Emociones que no siempre encuentran una forma clara de expresarse.',
-  'Comunicacion fragmentada entre persona, familia y profesional.',
+  'Comunicación fragmentada entre persona, familia y profesional.',
   'Sobrecarga familiar y seguimientos poco consistentes.',
   'Herramientas poco accesibles para necesidades reales.',
 ];
 
 const features = [
-  { icon: CalendarDays, title: 'Organizacion diaria', text: 'Calendario, tareas y actividades destacadas para construir previsibilidad.' },
-  { icon: MessageCircleHeart, title: 'Registro emocional', text: 'Emojis y comentarios para contar como se vivio cada actividad.' },
-  { icon: HeartHandshake, title: 'Acompanamiento claro', text: 'Paneles para tutores y profesionales con informacion mas ordenada.' },
-  { icon: Sparkles, title: 'Motivacion cuidada', text: 'Avatar personalizable, puntos y recursos visuales sin infantilizar la experiencia.' },
-  { icon: MapPinned, title: 'Plan premium', text: 'Estamos construyendo prueba gratis, geolocalizacion y lugares configurables.' },
-  { icon: Star, title: 'Profesionales', text: 'Seguimiento y posibilidad de ofrecer una primera sesion virtual de prueba.' },
+  { icon: CalendarDays, title: 'Organización diaria', text: 'Calendario, tareas y actividades destacadas para construir previsibilidad.' },
+  { icon: MessageCircleHeart, title: 'Registro emocional', text: 'Emojis y comentarios para contar cómo se vivió cada actividad.' },
+  { icon: HeartHandshake, title: 'Acompañamiento claro', text: 'Paneles para tutores y profesionales con información más ordenada.' },
+  { icon: Sparkles, title: 'Motivación cuidada', text: 'Avatar personalizable, puntos y recursos visuales sin infantilizar la experiencia.' },
+  { icon: MapPinned, title: 'Plan premium', text: 'Estamos construyendo prueba gratis, geolocalización y lugares configurables.' },
+  { icon: Star, title: 'Profesionales', text: 'Seguimiento y posibilidad de ofrecer una primera sesión virtual de prueba.' },
 ];
 
 const steps = [
-  'La persona organiza su dia con apoyos claros.',
+  'La persona organiza su día con apoyos claros.',
   'Realiza tareas y actividades a su ritmo.',
-  'Registra como se sintio despues.',
-  'Tutores y profesionales acompanan con informacion mas clara.',
+  'Registra cómo se sintió después.',
+  'Tutores y profesionales acompañan con información más clara.',
 ];
 
 export default function Landing({ onNavigate }: LandingProps) {
@@ -101,10 +101,10 @@ export default function Landing({ onNavigate }: LandingProps) {
       <section className="landing-hero">
         <div className="landing-hero-copy">
           <p className="landing-kicker">TÁNDEM · Avanzamos juntos</p>
-          <h1>TÁNDEM: una forma mas humana de acompanar la autonomia</h1>
+          <h1>TÁNDEM: una forma más humana de acompañar la autonomía</h1>
           <p className="landing-hero-text">
             Una plataforma pensada para personas con TEA, familias y profesionales. Organizamos rutinas,
-            emociones y acompanamiento en un mismo lugar, para que cada persona pueda avanzar a su ritmo.
+            emociones y acompañamiento en un mismo lugar, para que cada persona pueda avanzar a su ritmo.
           </p>
           <div className="landing-hero-actions">
             <a className="landing-link-button landing-button-primary" href="#app">
@@ -118,15 +118,15 @@ export default function Landing({ onNavigate }: LandingProps) {
             </a>
           </div>
         </div>
-        <div className="landing-hero-panel" aria-label="Resumen visual de TANDEM">
+        <div className="landing-hero-panel" aria-label="Resumen visual de TÁNDEM">
           <div className="landing-phone">
-            <div className="landing-phone-top">Mi dia</div>
+            <div className="landing-phone-top">Mi día</div>
             <div className="landing-task landing-task-strong">
               <span>Actividad destacada</span>
               <strong>Preparar mochila</strong>
             </div>
             <div className="landing-task">
-              <span>Como me senti</span>
+              <span>Cómo me sentí</span>
               <strong>Tranquilo 🙂</strong>
             </div>
             <div className="landing-progress">
@@ -140,10 +140,10 @@ export default function Landing({ onNavigate }: LandingProps) {
       <section className="landing-section landing-problem-section" id="problema">
         <div className="landing-section-heading">
           <p className="landing-kicker">El problema</p>
-          <h2>Acompanhar tambien necesita orden, claridad y respeto.</h2>
+          <h2>Acompañar también necesita orden, claridad y respeto.</h2>
           <p>
             Muchas personas con TEA y sus redes de apoyo conviven con herramientas dispersas. TÁNDEM busca
-            ordenar esa informacion sin convertir la experiencia en algo frio o medico.
+            ordenar esa información sin convertir la experiencia en algo frío o médico.
           </p>
         </div>
         <div className="landing-problem-grid">
@@ -187,15 +187,15 @@ export default function Landing({ onNavigate }: LandingProps) {
       <section className="landing-section landing-building-section">
         <div className="landing-building-copy">
           <p className="landing-kicker">Que queremos construir</p>
-          <h2>Tecnologia que ordene los vinculos y los haga mas humanos.</h2>
+          <h2>Tecnología que ordene los vínculos y los haga más humanos.</h2>
           <p>
             TÁNDEM busca ser una herramienta inclusiva, simple y respetuosa: un puente entre persona,
-            familia y profesional donde cada avance, incluso pequeno, tenga valor.
+            familia y profesional donde cada avance, incluso pequeño, tenga valor.
           </p>
         </div>
         <div className="landing-building-list">
-          <span>Promover autonomia</span>
-          <span>Acompanhar sin invadir</span>
+          <span>Promover autonomía</span>
+          <span>Acompañar sin invadir</span>
           <span>Comunicar con claridad</span>
           <span>Valorar cada avance</span>
         </div>
@@ -204,7 +204,7 @@ export default function Landing({ onNavigate }: LandingProps) {
       <section className="landing-section" id="app">
         <div className="landing-section-heading">
           <p className="landing-kicker">Funcionalidades</p>
-          <h2>Estamos construyendo una app que acompana la vida cotidiana.</h2>
+          <h2>Estamos construyendo una app que acompaña la vida cotidiana.</h2>
         </div>
         <div className="landing-feature-grid">
           {features.map(({ icon: Icon, title, text }) => (
@@ -219,8 +219,8 @@ export default function Landing({ onNavigate }: LandingProps) {
 
       <section className="landing-section landing-steps-section">
         <div className="landing-section-heading">
-          <p className="landing-kicker">Como funciona</p>
-          <h2>Un recorrido simple para acompanar con mas informacion.</h2>
+          <p className="landing-kicker">Cómo funciona</p>
+          <h2>Un recorrido simple para acompañar con más información.</h2>
         </div>
         <ol className="landing-steps">
           {steps.map((step, index) => (
