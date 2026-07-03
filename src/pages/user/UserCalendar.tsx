@@ -374,7 +374,7 @@ export default function UserCalendar() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="rounded-3xl border border-[#f0e8f8] bg-white p-4 sm:p-5 shadow-lg"
+        className="min-w-0 max-w-full rounded-3xl border border-[#f0e8f8] bg-white p-4 sm:p-5 shadow-lg"
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -398,22 +398,22 @@ export default function UserCalendar() {
             <p className="mt-3 text-sm font-semibold text-[#4a4a5a]">No hay actividades para este día</p>
           </div>
         ) : (
-          <div className="mt-5 space-y-3">
+          <div className="mt-5 min-w-0 max-w-full space-y-3">
             {selectedDayEvents.map((event, index) => (
               <motion.div
                 key={event.id}
                 initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.04 }}
-                className={`group rounded-2xl border p-4 ${typeBg[event.type] || 'bg-[#faf8ff] border-[#ede4f8]'}`}
+                className={`group min-w-0 max-w-full overflow-hidden rounded-2xl border p-4 ${typeBg[event.type] || 'bg-[#faf8ff] border-[#ede4f8]'}`}
               >
-                <div className="flex items-start gap-3">
+                <div className="flex min-w-0 max-w-full items-start gap-3">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/70 text-xl">
                     {typeEmoji[event.type] || '•'}
                   </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold truncate">{event.title}</p>
-                    {event.description && <p className="mt-1 text-xs leading-relaxed opacity-80">{event.description}</p>}
+                  <div className="min-w-0 max-w-full flex-1">
+                    <p className="max-w-full whitespace-normal [overflow-wrap:anywhere] text-sm font-bold">{event.title}</p>
+                    {event.description && <p className="mt-1 max-w-full whitespace-normal [overflow-wrap:anywhere] text-xs leading-relaxed opacity-80">{event.description}</p>}
                     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs opacity-75">
                       <span className="inline-flex items-center gap-1"><Clock size={12} /> {event.time}</span>
                       <span className="capitalize">{event.type}</span>
