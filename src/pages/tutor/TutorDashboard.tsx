@@ -43,6 +43,7 @@ import AppHeader from '@/components/AppHeader';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
 import ReminderPicker from '@/components/ReminderPicker';
+import AiPictogramStudio from '@/components/AiPictogramStudio';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
 import UserNotifications from '@/pages/user/UserNotifications';
 import TutorConnections from '@/pages/tutor/TutorConnections';
@@ -79,7 +80,8 @@ type TabId =
   | 'insights'
   | 'notifications'
   | 'profile'
-  | 'settings';
+  | 'settings'
+  | 'pictograms';
 
 const tabs: { id: TabId; label: string; icon: typeof BarChart3 }[] = [
   { id: 'overview', label: 'Inicio', icon: BarChart3 },
@@ -93,11 +95,12 @@ const tabs: { id: TabId; label: string; icon: typeof BarChart3 }[] = [
   { id: 'calendar', label: 'Calendario', icon: Calendar },
   { id: 'insights', label: 'Tranquilidad', icon: Shield },
   { id: 'notifications', label: 'Notificaciones', icon: Bell },
+  { id: 'pictograms', label: 'Pictogramas IA', icon: Sparkles },
   { id: 'profile', label: 'Perfil', icon: UserRound },
   { id: 'settings', label: 'Config', icon: Settings },
 ];
 
-const tutorTabs = tabs.filter(item => ['agenda', 'chat', 'notifications'].includes(item.id));
+const tutorTabs = tabs.filter(item => ['agenda', 'chat', 'notifications', 'pictograms'].includes(item.id));
 const belongingTabs = tabs.filter(item => ['overview', 'stats', 'activities', 'location', 'emotions', 'calendar', 'insights', 'profile', 'settings', 'connections'].includes(item.id));
 
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -524,7 +527,7 @@ export default function TutorDashboard({ initialUserId, initialTab, onBack }: Tu
           </div>
         )}
 
-        {!loading && !error && !mainUser && tab !== 'notifications' && tab !== 'connections' && tab !== 'chat' && tab !== 'agenda' && (
+        {!loading && !error && !mainUser && tab !== 'notifications' && tab !== 'connections' && tab !== 'chat' && tab !== 'agenda' && tab !== 'pictograms' && (
           <div className="bg-card rounded-xl border border-border p-8 text-center">
             <Shield size={30} className="mx-auto text-muted-foreground mb-3" />
             <p className="font-semibold text-foreground">No hay pertenecientes vinculados</p>
@@ -551,11 +554,13 @@ export default function TutorDashboard({ initialUserId, initialTab, onBack }: Tu
           <TutorCalendar userId={user.id} events={tutorAgendaEvents} onChanged={loadTutorAgenda} compact />
         )}
 
+        {!loading && !error && tab === 'pictograms' && <AiPictogramStudio />}
+
         {!loading && !error && tab === 'connections' && (
           <TutorConnections initialPertenecienteId={mainUser?.pertenecienteId} />
         )}
 
-        {!loading && !error && mainUser && tab !== 'notifications' && tab !== 'chat' && tab !== 'agenda' && tab !== 'connections' && (
+        {!loading && !error && mainUser && tab !== 'notifications' && tab !== 'chat' && tab !== 'agenda' && tab !== 'connections' && tab !== 'pictograms' && (
           <>
             <div className="hidden">
               <span className="text-4xl">{mainUser.avatar}</span>

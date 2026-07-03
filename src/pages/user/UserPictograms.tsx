@@ -5,6 +5,7 @@ import { Search, Heart, Download, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
+import { aiPictogramsApi } from '@/services/ai-pictograms';
 
 export default function UserPictograms() {
   const { user } = useAuth();
@@ -17,6 +18,7 @@ export default function UserPictograms() {
   const [favoritePictograms, setFavoritePictograms] = useState<Pictogram[]>([]);
   const [selected, setSelected] = useState<Pictogram | null>(null);
   const [pictograms, setPictograms] = useState<Pictogram[]>([]);
+  const [personalPictograms, setPersonalPictograms] = useState<Pictogram[]>([]);
   const canUsePictograms = isPermissionEnabled(
     permissionContext?.perteneciente?.permisos_efectivos?.permisos,
     PERTENECIENTE_PERMISSIONS.USAR_PICTOGRAMAS,
@@ -75,10 +77,20 @@ export default function UserPictograms() {
     return () => { mounted = false; };
   }, [canUsePictograms, selectedCats, search]);
 
+  useEffect(() => {
+    if (!canUsePictograms || !user?.id) return setPersonalPictograms([]);
+    aiPictogramsApi.available().then(items => setPersonalPictograms(items.map(item => ({
+      id: item.id, name: item.name, category: item.category, imageUrl: item.imageUrl,
+      tags: [], emoji: '', author: 'TANDEM IA',
+    } as Pictogram)))).catch(() => setPersonalPictograms([]));
+  }, [canUsePictograms, user?.id]);
+
+  const mergedPictograms = [...personalPictograms, ...pictograms].filter((item, index, all) => all.findIndex(other => other.id === item.id) === index)
+    .filter(pic => (!search.trim() || `${pic.name} ${pic.category}`.toLowerCase().includes(search.toLowerCase())) && (selectedCats.size === 0 || selectedCats.has(pic.category)));
   const visiblePictograms = showFavorites
     ? favoritePictograms.filter(pic => !search.trim() || `${pic.name} ${pic.category} ${pic.tags.join(' ')}`.toLowerCase().includes(search.toLowerCase()))
-    : pictograms;
-  const visibleCategories = categories.length > 0 ? categories : Array.from(new Set(pictograms.map(p => p.category)));
+    : mergedPictograms;
+  const visibleCategories = Array.from(new Set([...categories, ...personalPictograms.map(p => p.category)])).filter(Boolean);
   const toggleCategory = (cat: string) => {
     if (cat === 'todas') {
       setSelectedCats(new Set());
