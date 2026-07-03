@@ -3,6 +3,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { useCalendar, eventTypes, typeEmoji } from '@/contexts/CalendarContext';
+import { useRoutines } from '@/contexts/RoutinesContext';
+import SectionSelector from '@/components/SectionSelector';
 import { CalendarEvent } from '@/data/api';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 import ReminderPicker from '@/components/ReminderPicker';
@@ -10,13 +12,17 @@ import ReminderPicker from '@/components/ReminderPicker';
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const dayNamesShort = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
-const typeBg: Record<CalendarEvent['type'], string> = {
+const typeBg: Record<string, string> = {
   terapia: 'bg-purple-100 text-purple-700 border-purple-200',
   escuela: 'bg-blue-100 text-blue-700 border-blue-200',
   personal: 'bg-amber-100 text-amber-700 border-amber-200',
   médico: 'bg-red-100 text-red-700 border-red-200',
   social: 'bg-green-100 text-green-700 border-green-200',
   actividad: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+  mañana: 'bg-amber-50 text-amber-700 border-amber-200',
+  mediodía: 'bg-orange-50 text-orange-700 border-orange-200',
+  tarde: 'bg-purple-50 text-purple-700 border-purple-200',
+  noche: 'bg-indigo-50 text-indigo-700 border-indigo-200',
 };
 
 function dateKey(date: Date) {
@@ -37,6 +43,27 @@ function labelDate(date: string) {
 export default function UserCalendar() {
   const { context: permissionContext } = usePermissionContext();
   const { events, addEvent, updateEvent, deleteEvent } = useCalendar();
+  const { customCategories } = useRoutines();
+
+  const getSectionEmoji = (catId: string) => {
+    const custom = customCategories.find(c => c.id === catId);
+    if (custom) return custom.icon;
+    return typeEmoji[catId] || '📅';
+  };
+
+  const getSectionName = (catId: string) => {
+    const custom = customCategories.find(c => c.id === catId);
+    if (custom) return custom.name;
+    const predefinedNames: Record<string, string> = {
+      mañana: 'Mañana',
+      escuela: 'Escuela',
+      mediodía: 'Mediodía',
+      tarde: 'Tarde',
+      noche: 'Noche',
+    };
+    return predefinedNames[catId] || catId;
+  };
+
   const today = new Date();
   const todayKey = dateKey(today);
   const [cursor, setCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
@@ -48,7 +75,7 @@ export default function UserCalendar() {
     title: '',
     date: todayKey,
     time: '09:00',
-    type: 'personal',
+    type: 'mañana',
     description: '',
     reminders: [],
   });
@@ -124,7 +151,7 @@ export default function UserCalendar() {
 
   const openCreate = (date = selectedDate) => {
     setEditing(null);
-    setForm({ title: '', date, time: '09:00', type: 'personal', description: '', reminders: [] });
+    setForm({ title: '', date, time: '09:00', type: 'mañana', description: '', reminders: [] });
     setShowForm(true);
   };
 
@@ -290,7 +317,7 @@ export default function UserCalendar() {
                             isToday ? 'bg-white/20 text-white' : 'bg-white text-[#6b4c9a]'
                           }`}
                         >
-                          {typeEmoji[event.type]} {event.title}
+                          {getSectionEmoji(event.type)} {event.title}
                         </span>
                       ))}
                     </div>
@@ -342,15 +369,11 @@ export default function UserCalendar() {
                   className="min-w-0 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
                 />
               </div>
-              <select
+              <SectionSelector
                 value={form.type}
-                onChange={event => setForm(current => ({ ...current, type: event.target.value as CalendarEvent['type'] }))}
-                className="w-full rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
-              >
-                {eventTypes.map(type => (
-                  <option key={type} value={type}>{typeEmoji[type]} {type}</option>
-                ))}
-              </select>
+                onChange={type => setForm(current => ({ ...current, type }))}
+                className="w-full flex items-center justify-between p-3 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
+              />
               <textarea
                 value={form.description}
                 onChange={event => setForm(current => ({ ...current, description: event.target.value }))}
@@ -409,14 +432,14 @@ export default function UserCalendar() {
               >
                 <div className="flex min-w-0 max-w-full items-start gap-3">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/70 text-xl">
-                    {typeEmoji[event.type] || '•'}
+                    {getSectionEmoji(event.type)}
                   </span>
                   <div className="min-w-0 max-w-full flex-1">
                     <p className="max-w-full whitespace-normal [overflow-wrap:anywhere] text-sm font-bold">{event.title}</p>
                     {event.description && <p className="mt-1 max-w-full whitespace-normal [overflow-wrap:anywhere] text-xs leading-relaxed opacity-80">{event.description}</p>}
                     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs opacity-75">
                       <span className="inline-flex items-center gap-1"><Clock size={12} /> {event.time}</span>
-                      <span className="capitalize">{event.type}</span>
+                      <span className="capitalize">{getSectionName(event.type)}</span>
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">

@@ -42,6 +42,7 @@ export interface CustomCategory {
   id: string;
   name: string;
   icon: string;
+  color?: string;
 }
 export type CalendarEvent = legacy.CalendarEvent;
 export type Conversation = legacy.Conversation;
@@ -1487,7 +1488,7 @@ export async function createCalendarEvent(userId: string, data: Omit<CalendarEve
       userId,
     };
     await saveCalendarEventForUser(userId, created);
-    await syncCalendarReminders(userId);
+    syncCalendarReminders(userId);
     return created;
   }
 
@@ -1516,7 +1517,7 @@ export async function updateCalendarEvent(eventId: string, patch: Partial<Calend
     } else {
       await saveCalendarEventForUser(userId, updated, config);
     }
-    await syncCalendarReminders(userId);
+    syncCalendarReminders(userId);
     return updated;
   }
 
@@ -1533,7 +1534,7 @@ export async function deleteCalendarEvent(eventId: string): Promise<void> {
     } else {
       await tandemApi.configuracionesUsuarios.delete(config.id);
     }
-    await syncCalendarReminders(userId);
+    syncCalendarReminders(userId);
     return;
   }
 
@@ -1711,15 +1712,19 @@ async function saveCalendarEventForUser(userId: string, event: CalendarEvent, ex
 }
 
 async function syncCalendarReminders(userId: string): Promise<void> {
-  const events = await fetchCalendarEventsForUser(userId);
-  await apiRequest('/api/routine-reminders/calendar/sync', {
-    method: 'PUT',
-    body: {
-      userId: Number(userId),
-      events,
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    },
-  });
+  try {
+    const events = await fetchCalendarEventsForUser(userId);
+    await apiRequest('/api/routine-reminders/calendar/sync', {
+      method: 'PUT',
+      body: {
+        userId: Number(userId),
+        events,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      },
+    });
+  } catch (error) {
+    console.error('Error syncing calendar reminders:', error);
+  }
 }
 
 export interface DayRoutine { id: string; name: string; dayOfWeek: number | null; items: RoutineItem[]; date?: string }
