@@ -176,7 +176,7 @@ export default function AccessibilityWidget() {
   const profileLabel = useMemo(() => {
     const profile = ACCESSIBILITY_PROFILES.find(item => item.id === settings.activeProfile);
     if (profile) return profile.name;
-    if (activeCount > 0) return 'Configuracion personalizada';
+    if (activeCount > 0) return 'Configuración personalizada';
     return 'Sin ajustes activos';
   }, [activeCount, settings.activeProfile]);
 
@@ -192,7 +192,7 @@ export default function AccessibilityWidget() {
         {
           id: 'increase-text',
           label: 'Agrandar texto',
-          description: 'Aumenta el tamano general de la interfaz.',
+          description: 'Aumenta el tamaño general de la interfaz.',
           icon: Plus,
           active: settings.fontScale > DEFAULT_SETTINGS.fontScale,
           value: `${Math.round(settings.fontScale * 100)}%`,
@@ -404,7 +404,7 @@ export default function AccessibilityWidget() {
       navigation: [
         {
           id: 'information',
-          label: 'Informacion',
+          label: 'Información',
           description: 'Muestra una etiqueta al pasar el mouse por elementos importantes.',
           icon: Focus,
           active: settings.information,
@@ -412,8 +412,8 @@ export default function AccessibilityWidget() {
         },
         {
           id: 'large-click-area',
-          label: 'Agrandar areas clickeables',
-          description: 'Amplia el area de botones, enlaces y otros controles.',
+          label: 'Agrandar áreas clickeables',
+          description: 'Amplía el área de botones, enlaces y otros controles.',
           icon: Hand,
           active: settings.largeClickArea,
           onClick: () => toggle('largeClickArea'),
@@ -432,15 +432,15 @@ export default function AccessibilityWidget() {
         },
         {
           id: 'simplified-navigation',
-          label: 'Navegacion simplificada',
-          description: 'Aumenta areas tactiles y separa controles interactivos.',
+          label: 'Navegación simplificada',
+          description: 'Aumenta áreas táctiles y separa controles interactivos.',
           icon: Keyboard,
           active: settings.simplifiedNavigation,
           onClick: () => toggle('simplifiedNavigation'),
         },
         {
           id: 'page-reader',
-          label: 'Lectura de pagina',
+          label: 'Lectura de página',
           description: 'Lee el contenido principal de la pantalla actual.',
           icon: Headphones,
           active: settings.pageReader,
@@ -589,24 +589,24 @@ export default function AccessibilityWidget() {
                 <ToolGrid tools={tools.visual} />
               </Section>
 
-              <Section title="Movimiento y concentracion">
+              <Section title="Movimiento y concentración">
                 <ToolGrid tools={tools.movement} />
               </Section>
 
-              <Section title="Navegacion">
+              <Section title="Navegación">
                 <ToolGrid tools={tools.navigation} />
               </Section>
             </div>
 
             <footer className="border-t border-slate-200 bg-slate-50 px-4 py-4">
-              {resetNotice && <p className="mb-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">Configuracion restablecida.</p>}
+              {resetNotice && <p className="mb-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">Configuración restablecida.</p>}
               <button
                 type="button"
                 onClick={resetAll}
                 className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-[#2357ff] bg-white px-4 py-3 text-sm font-extrabold text-[#2357ff] transition hover:bg-[#eef3ff] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#b9a7ff]"
               >
                 <RotateCcw size={18} />
-                Restablecer configuracion
+                Restablecer configuración
               </button>
             </footer>
           </aside>

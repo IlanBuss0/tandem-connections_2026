@@ -179,16 +179,16 @@ export default function UserProfile({ onConfigure }: { onConfigure?: () => void 
       <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 sm:p-5 shadow-lg">
         <h3 className="mb-3 flex items-center gap-2 font-semibold text-[#6b4c9a]">
           <UserRound size={16} className="text-[#6b4c9a]" />
-          Perfil de autonomia
+          Perfil de autonomía
         </h3>
         <div className="grid gap-3 sm:grid-cols-3">
           <InfoItem label="Nivel de apoyo" value={profile?.supportLevel || 'Sin registrar'} />
-          <InfoItem label="Autonomia" value={profile?.autonomy || 'Sin registrar'} />
-          <InfoItem label="Autogestion" value={profile?.canSelfManage ? 'Habilitada' : 'Asistida'} />
+          <InfoItem label="Autonomía" value={profile?.autonomy || 'Sin registrar'} />
+          <InfoItem label="Autogestión" value={profile?.canSelfManage ? 'Habilitada' : 'Asistida'} />
         </div>
         {profile?.observation && (
           <div className="mt-3 rounded-2xl bg-[#faf8ff] p-3">
-            <p className="text-[11px] font-medium uppercase tracking-normal text-[#8b7aa0]">Observacion</p>
+            <p className="text-[11px] font-medium uppercase tracking-normal text-[#8b7aa0]">Observación</p>
             <p className="mt-1 text-sm text-[#4a4a5a]">{profile.observation}</p>
           </div>
         )}

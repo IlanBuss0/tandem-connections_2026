@@ -14,7 +14,7 @@ const TABS: Array<{ id: ShopTab; label: string; icon: typeof Sparkles }> = [
   { id: 'avatar', label: 'Mi avatar', icon: Sparkles },
   { id: 'tienda', label: 'Tienda', icon: ShoppingBag },
   { id: 'inventario', label: 'Inventario', icon: Backpack },
-  { id: 'configuracion', label: 'Configuracion', icon: Settings },
+  { id: 'configuracion', label: 'Configuración', icon: Settings },
 ];
 
 const CATS: Array<ShopCategory | 'todas'> = ['todas', 'pelo', 'accesorio', 'ropa', 'fondo', 'mascota'];
@@ -356,12 +356,12 @@ function AvatarSettingsTab() {
     try {
       const result = await saveAppearance(draft);
       if (result.ok) {
-        toast({ title: 'Avatar actualizado', description: 'La configuracion se guardo correctamente.' });
+        toast({ title: 'Avatar actualizado', description: 'La configuración se guardó correctamente.' });
       } else {
         toast({ title: 'No se pudo guardar', description: result.reason, variant: 'destructive' });
       }
     } catch {
-      toast({ title: 'No se pudo guardar', description: 'Revisa la conexion con el backend.', variant: 'destructive' });
+      toast({ title: 'No se pudo guardar', description: 'Revisa la conexión con el backend.', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -375,7 +375,7 @@ function AvatarSettingsTab() {
             <Settings size={20} />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-[#6b4c9a]">Configuracion del avatar</h3>
+            <h3 className="text-lg font-semibold text-[#6b4c9a]">Configuración del avatar</h3>
             <p className="text-sm text-[#8b7aa0]">Los cambios se ven en la vista previa antes de aplicarlos.</p>
           </div>
         </div>

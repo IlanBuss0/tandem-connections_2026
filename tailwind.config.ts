@@ -13,8 +13,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        heading: ['Quicksand', 'sans-serif'],
-        body: ['Nunito', 'sans-serif'],
+        heading: ['Walkyo', 'Montserrat', 'sans-serif'],
+        body: ['Montserrat', 'Arial', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
