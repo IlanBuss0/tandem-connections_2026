@@ -40,7 +40,7 @@ const userNav = [
   { id: 'notifications', label: 'Notificaciones', icon: Bell },
   { id: 'resources', label: 'Recursos', icon: BookOpen },
   { id: 'profile', label: 'Perfil', icon: User },
-  { id: 'profile-settings', label: 'Configuracion', icon: Settings },
+  { id: 'profile-settings', label: 'Configuración', icon: Settings },
 ];
 
 const ACTIVE_TAB_KEY = 'tandem_active_tab';

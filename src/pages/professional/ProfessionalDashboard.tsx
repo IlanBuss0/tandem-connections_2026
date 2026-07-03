@@ -15,6 +15,7 @@ import ProfessionalAgenda from '@/components/ProfessionalAgenda';
 import UserNotifications from '@/pages/user/UserNotifications';
 import { isPermissionEnabled, PROFESIONAL_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 import PermissionBlocked from '@/components/PermissionBlocked';
+import AiPictogramStudio from '@/components/AiPictogramStudio';
 import { useToast } from '@/components/ui/use-toast';
 import { useCalendar } from '@/contexts/CalendarContext';
 import { useSyncMobileMenuOpen } from '@/contexts/MobileMenuState';
@@ -143,6 +144,7 @@ export default function ProfessionalDashboard() {
     ...(canAssignActivities || canCreateCustomActivities ? [{ id: 'create', label: 'Crear actividad', icon: Sparkles }] : []),
     ...(canSendMessages ? [{ id: 'chat', label: 'Chat', icon: MessageCircle }] : []),
     { id: 'notifications', label: 'Notificaciones', icon: Bell },
+    { id: 'pictograms', label: 'Pictogramas IA', icon: Sparkles },
     { id: 'tools', label: 'Herramientas', icon: ClipboardPlus },
     { id: 'directory', label: 'Directorio', icon: FileText },
   ];
@@ -414,6 +416,7 @@ export default function ProfessionalDashboard() {
         )}
 
         {tab === 'agenda' && canScheduleSessions && <ProfessionalAgenda patients={linkedUsers} />}
+        {tab === 'pictograms' && <AiPictogramStudio />}
 
         {tab === 'tools' && (
           <div className="space-y-4">

@@ -148,7 +148,7 @@ export default function ProfessionalAgenda({ patients }: Props) {
       <div className="flex items-end justify-between gap-3">
         <div>
           <h2 className="font-heading font-bold text-xl text-foreground">Agenda</h2>
-          <p className="text-muted-foreground text-sm">Sesiones y eventos terapeuticos</p>
+          <p className="text-muted-foreground text-sm">Sesiones y eventos terapéuticos</p>
         </div>
         <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg gradient-primary text-primary-foreground text-sm">
           <Plus size={16} /> Evento
@@ -239,10 +239,10 @@ export default function ProfessionalAgenda({ patients }: Props) {
         {showForm && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="bg-card rounded-xl p-4 border border-primary/30 shadow-sm space-y-3 overflow-hidden">
             <div className="flex items-center justify-between">
-              <h4 className="font-semibold text-sm text-foreground">{editing ? 'Editar evento terapeutico' : 'Nuevo evento terapeutico'}</h4>
+              <h4 className="font-semibold text-sm text-foreground">{editing ? 'Editar evento terapéutico' : 'Nuevo evento terapéutico'}</h4>
               <button onClick={() => setShowForm(false)}><X size={16} className="text-muted-foreground" /></button>
             </div>
-            <input value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} placeholder="Titulo del evento" className="w-full p-2 rounded-lg border border-border bg-background text-sm" />
+            <input value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} placeholder="Título del evento" className="w-full p-2 rounded-lg border border-border bg-background text-sm" />
             <div className="grid grid-cols-2 gap-2">
               <input type="date" value={form.date} onChange={(event) => setForm((prev) => ({ ...prev, date: event.target.value }))} className="p-2 rounded-lg border border-border bg-background text-sm" />
               <input type="time" value={form.time} onChange={(event) => setForm((prev) => ({ ...prev, time: event.target.value }))} className="p-2 rounded-lg border border-border bg-background text-sm" />
@@ -253,7 +253,7 @@ export default function ProfessionalAgenda({ patients }: Props) {
                 <option key={patient.id} value={patient.id}>{patient.name}</option>
               ))}
             </select>
-            <textarea value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} placeholder="Notas de la sesion o evento importante" className="w-full p-2 rounded-lg border border-border bg-background text-sm resize-none h-16" />
+            <textarea value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} placeholder="Notas de la sesión o evento importante" className="w-full p-2 rounded-lg border border-border bg-background text-sm resize-none h-16" />
             <ReminderPicker value={form.reminders} onChange={reminders => setForm(prev => ({ ...prev, reminders }))} />
             <button disabled={saving} onClick={submit} className="w-full py-2 rounded-lg gradient-primary text-primary-foreground text-sm font-semibold inline-flex items-center justify-center gap-1 disabled:opacity-60">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}

@@ -1211,7 +1211,7 @@ export async function fetchPertenecienteHome(userId: string): Promise<Pertenecie
       .map(n => ({
         id: String(n.id),
         userId,
-        title: n.titulo || 'Notificacion',
+        title: n.titulo || 'Notificación',
         message: n.cuerpo || '',
         type: 'reminder',
         icon: '!',
@@ -2034,7 +2034,7 @@ export async function sendMessage(conversationId: string, senderId: string, send
 export async function updateMessage(messageId: string, text: string): Promise<void> {
   const token = getStoredAuthToken();
   if (!token || !isBackendUserId(messageId)) {
-    throw new Error('No hay sesion backend activa para editar el mensaje.');
+    throw new Error('No hay sesión backend activa para editar el mensaje.');
   }
 
   await apiRequest(`/api/mensajes/${encodeURIComponent(messageId)}`, {
@@ -2049,7 +2049,7 @@ export async function updateMessage(messageId: string, text: string): Promise<vo
 export async function deleteMessage(messageId: string): Promise<void> {
   const token = getStoredAuthToken();
   if (!token || !isBackendUserId(messageId)) {
-    throw new Error('No hay sesion backend activa para eliminar el mensaje.');
+    throw new Error('No hay sesión backend activa para eliminar el mensaje.');
   }
 
   await apiRequest(`/api/mensajes/${encodeURIComponent(messageId)}`, {
@@ -2072,7 +2072,7 @@ export async function markConversationRead(conversationId: string, messageId?: s
 export async function createDirectConversationWith(selfId: string, otherUserId: string): Promise<Conversation> {
   const token = getStoredAuthToken();
   if (!token || !isBackendUserId(otherUserId)) {
-    throw new Error('No hay sesion backend activa para crear el chat.');
+    throw new Error('No hay sesión backend activa para crear el chat.');
   }
 
   const chat = await apiRequest<BackendChatRow>('/api/chats/direct', {
@@ -2093,7 +2093,7 @@ export async function createGroupConversation(
 ): Promise<Conversation> {
   const token = getStoredAuthToken();
   if (!token) {
-    throw new Error('No hay sesion backend activa para crear el grupo.');
+    throw new Error('No hay sesión backend activa para crear el grupo.');
   }
 
   const response = await apiRequest<{ chat: BackendChatRow; participantes?: { id_usuario: number; es_admin?: boolean | null }[] }>('/api/chats/group', {
@@ -2120,7 +2120,7 @@ export async function updateConversationDetails(
 ): Promise<Conversation> {
   const token = getStoredAuthToken();
   if (!token || !isBackendUserId(conversationId)) {
-    throw new Error('No hay sesion backend activa para administrar el chat.');
+    throw new Error('No hay sesión backend activa para administrar el chat.');
   }
 
   const response = await apiRequest<{ chat: BackendChatRow; participantes?: { id_usuario: number; es_admin?: boolean | null }[] }>(`/api/chats/${encodeURIComponent(conversationId)}/manage`, {
@@ -2149,7 +2149,7 @@ export async function uploadChatAvatar(
 ): Promise<Conversation> {
   const token = getStoredAuthToken();
   if (!token || !isBackendUserId(conversationId)) {
-    throw new Error('No hay sesion backend activa para cambiar la foto del chat.');
+    throw new Error('No hay sesión backend activa para cambiar la foto del chat.');
   }
 
   const { apiUploadFile } = await import('@/services/api/client');
@@ -2172,7 +2172,7 @@ export async function uploadChatAvatar(
 export async function hideConversationForMe(conversationId: string): Promise<void> {
   const token = getStoredAuthToken();
   if (!token || !isBackendUserId(conversationId)) {
-    throw new Error('No hay sesion backend activa para eliminar el chat.');
+    throw new Error('No hay sesión backend activa para eliminar el chat.');
   }
 
   await apiRequest(`/api/chats/${encodeURIComponent(conversationId)}/me`, {

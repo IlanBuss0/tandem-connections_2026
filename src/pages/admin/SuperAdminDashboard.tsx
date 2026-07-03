@@ -17,6 +17,7 @@ import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
 import { users, tutors, professionals, activities, admins } from '@/data/api';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
 import UserNotifications from '@/pages/user/UserNotifications';
+import AiPictogramModeration from '@/components/AiPictogramModeration';
 import { SHOP_ITEMS } from '@/data/shopItems';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,7 +39,7 @@ import { toast } from '@/hooks/ui/use-toast';
 // SUPER ADMIN / GOD MODE DASHBOARD — fully functional, real data
 // =============================================================
 
-type SectionId = 'overview' | 'live' | 'sql' | 'builder' | 'tables' | 'system' | 'notifications';
+type SectionId = 'overview' | 'live' | 'sql' | 'builder' | 'tables' | 'system' | 'notifications' | 'pictograms';
 
 const NAV: { id: SectionId; label: string; icon: any }[] = [
   { id: 'overview', label: 'Overview', icon: Home },
@@ -48,6 +49,7 @@ const NAV: { id: SectionId; label: string; icon: any }[] = [
   { id: 'tables', label: 'Data Tables', icon: Database },
   { id: 'system', label: 'System', icon: Cpu },
   { id: 'notifications', label: 'Notifications', icon: Bell },
+  { id: 'pictograms', label: 'Pictogramas IA', icon: Sparkles },
 ];
 
 // ---------- Inject Bootstrap (scoped to admin dashboard only) ----------
@@ -223,6 +225,7 @@ export default function SuperAdminDashboard() {
           {section === 'tables' && <DataTablesSection tick={tick} />}
           {section === 'system' && <SystemSection tick={tick} />}
           {section === 'notifications' && <UserNotifications onUnreadCountChange={setUnreadCount} />}
+          {section === 'pictograms' && <AiPictogramModeration />}
         </div>
       </main>
     </div>

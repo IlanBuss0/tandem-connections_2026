@@ -255,7 +255,7 @@ export default function UserEmotions() {
             );
           })}
           {!stats.topEmotions.length && (
-            <p className="text-sm text-[#8b7aa0]">Todavia no hay registros emocionales.</p>
+            <p className="text-sm text-[#8b7aa0]">Todavía no hay registros emocionales.</p>
           )}
         </div>
       </section>
@@ -271,7 +271,7 @@ export default function UserEmotions() {
 
         {!loading && dates.length === 0 && (
           <div className="rounded-3xl border border-dashed border-[#e0d8f0] bg-[#faf8ff] px-6 py-14 text-center text-sm text-[#8b7aa0] shadow-sm">
-            No hay emociones registradas todavia.
+            No hay emociones registradas todavía.
           </div>
         )}
 

@@ -43,6 +43,7 @@ import AppHeader from '@/components/AppHeader';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
 import ReminderPicker from '@/components/ReminderPicker';
+import AiPictogramStudio from '@/components/AiPictogramStudio';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
 import UserNotifications from '@/pages/user/UserNotifications';
 import TutorConnections from '@/pages/tutor/TutorConnections';
@@ -79,7 +80,8 @@ type TabId =
   | 'insights'
   | 'notifications'
   | 'profile'
-  | 'settings';
+  | 'settings'
+  | 'pictograms';
 
 const tabs: { id: TabId; label: string; icon: typeof BarChart3 }[] = [
   { id: 'overview', label: 'Inicio', icon: BarChart3 },
@@ -93,11 +95,12 @@ const tabs: { id: TabId; label: string; icon: typeof BarChart3 }[] = [
   { id: 'calendar', label: 'Calendario', icon: Calendar },
   { id: 'insights', label: 'Tranquilidad', icon: Shield },
   { id: 'notifications', label: 'Notificaciones', icon: Bell },
+  { id: 'pictograms', label: 'Pictogramas IA', icon: Sparkles },
   { id: 'profile', label: 'Perfil', icon: UserRound },
   { id: 'settings', label: 'Config', icon: Settings },
 ];
 
-const tutorTabs = tabs.filter(item => ['agenda', 'chat', 'notifications'].includes(item.id));
+const tutorTabs = tabs.filter(item => ['agenda', 'chat', 'notifications', 'pictograms'].includes(item.id));
 const belongingTabs = tabs.filter(item => ['overview', 'stats', 'activities', 'location', 'emotions', 'calendar', 'insights', 'profile', 'settings', 'connections'].includes(item.id));
 
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -250,8 +253,8 @@ export default function TutorDashboard({ initialUserId, initialTab, onBack }: Tu
       },
       {
         text: todayEmotions.length > 0
-          ? `Hoy registro ${todayEmotions.length} estado emocional`
-          : 'Todavia no hay registro emocional de hoy',
+          ? `Hoy registró ${todayEmotions.length} estado emocional`
+          : 'Todavía no hay registro emocional de hoy',
         type: todayEmotions.length > 0 ? 'positive' : 'warning',
       },
       {
@@ -261,7 +264,7 @@ export default function TutorDashboard({ initialUserId, initialTab, onBack }: Tu
       {
         text: mainUser.canSelfManage
           ? 'Perfil marcado como autogestionable'
-          : `Nivel de apoyo: ${mainUser.supportLevel} - autonomia ${mainUser.autonomy}`,
+          : `Nivel de apoyo: ${mainUser.supportLevel} - autonomía ${mainUser.autonomy}`,
         type: mainUser.canSelfManage ? 'positive' : 'neutral',
       },
     ] as const;
@@ -524,7 +527,7 @@ export default function TutorDashboard({ initialUserId, initialTab, onBack }: Tu
           </div>
         )}
 
-        {!loading && !error && !mainUser && tab !== 'notifications' && tab !== 'connections' && tab !== 'chat' && tab !== 'agenda' && (
+        {!loading && !error && !mainUser && tab !== 'notifications' && tab !== 'connections' && tab !== 'chat' && tab !== 'agenda' && tab !== 'pictograms' && (
           <div className="bg-card rounded-xl border border-border p-8 text-center">
             <Shield size={30} className="mx-auto text-muted-foreground mb-3" />
             <p className="font-semibold text-foreground">No hay pertenecientes vinculados</p>
@@ -551,11 +554,13 @@ export default function TutorDashboard({ initialUserId, initialTab, onBack }: Tu
           <TutorCalendar userId={user.id} events={tutorAgendaEvents} onChanged={loadTutorAgenda} compact />
         )}
 
+        {!loading && !error && tab === 'pictograms' && <AiPictogramStudio />}
+
         {!loading && !error && tab === 'connections' && (
           <TutorConnections initialPertenecienteId={mainUser?.pertenecienteId} />
         )}
 
-        {!loading && !error && mainUser && tab !== 'notifications' && tab !== 'chat' && tab !== 'agenda' && tab !== 'connections' && (
+        {!loading && !error && mainUser && tab !== 'notifications' && tab !== 'chat' && tab !== 'agenda' && tab !== 'connections' && tab !== 'pictograms' && (
           <>
             <div className="hidden">
               <span className="text-4xl">{mainUser.avatar}</span>
@@ -731,13 +736,13 @@ function Stats({
                 </div>
               );
             })}
-            {Object.keys(byStatus).length === 0 && <EmptyText text="Todavia no hay actividades para medir." />}
+            {Object.keys(byStatus).length === 0 && <EmptyText text="Todavía no hay actividades para medir." />}
           </div>
         </div>
 
         <div className="bg-card rounded-xl p-4 border border-border">
           <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
-            <Heart size={16} className="text-primary" /> Ultimas emociones
+            <Heart size={16} className="text-primary" /> Últimas emociones
           </h3>
           <p className="text-xs text-muted-foreground mb-2">Registros de los ultimos 7 dias</p>
           <div className="space-y-1.5">
@@ -783,7 +788,7 @@ function Stats({
             <InfoItem label="Nivel" value={mainUser.level} />
             <InfoItem label="Puntos" value={mainUser.points} />
             <InfoItem label="Nivel de apoyo" value={mainUser.supportLevel} />
-            <InfoItem label="Autonomia" value={mainUser.autonomy} />
+            <InfoItem label="Autonomía" value={mainUser.autonomy} />
           </div>
         </div>
       </div>
@@ -1359,7 +1364,7 @@ function TutorLinkedProfile({
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <InfoItem label="Correo" value={email || 'Sin registrar'} />
-        <InfoItem label="Telefono" value={profile?.usuario?.telefono ? String(profile.usuario.telefono) : 'Sin registrar'} />
+        <InfoItem label="Teléfono" value={profile?.usuario?.telefono ? String(profile.usuario.telefono) : 'Sin registrar'} />
         <InfoItem label="Nacimiento" value={birthDate} />
         <InfoItem label="Ingreso" value={joinedAt} />
       </section>
@@ -1367,16 +1372,16 @@ function TutorLinkedProfile({
       <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
         <h3 className="mb-3 flex items-center gap-2 font-heading font-semibold text-foreground">
           <UserRound size={16} className="text-primary" />
-          Perfil de autonomia
+          Perfil de autonomía
         </h3>
         <div className="grid gap-3 sm:grid-cols-3">
           <InfoItem label="Nivel de apoyo" value={profile?.supportLevel || fallback.supportLevel} />
-          <InfoItem label="Autonomia" value={profile?.autonomy || fallback.autonomy} />
-          <InfoItem label="Autogestion" value={(profile?.canSelfManage ?? fallback.canSelfManage) ? 'Habilitada' : 'Asistida'} />
+          <InfoItem label="Autonomía" value={profile?.autonomy || fallback.autonomy} />
+          <InfoItem label="Autogestión" value={(profile?.canSelfManage ?? fallback.canSelfManage) ? 'Habilitada' : 'Asistida'} />
         </div>
         {(profile?.observation || fallback.observation) && (
           <div className="mt-3 rounded-lg bg-muted/40 p-3">
-            <p className="text-[11px] font-medium uppercase text-muted-foreground">Observacion</p>
+            <p className="text-[11px] font-medium uppercase text-muted-foreground">Observación</p>
             <p className="mt-1 text-sm text-foreground">{profile?.observation || fallback.observation}</p>
           </div>
         )}
@@ -1560,8 +1565,8 @@ function TutorLinkedSettings({ userId, onSaved }: { userId: string; onSaved: () 
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-2xl font-heading font-bold text-foreground">Configuracion del perteneciente</h2>
-          <p className="text-sm text-muted-foreground">Datos personales, autonomia, privacidad y accesibilidad.</p>
+          <h2 className="text-2xl font-heading font-bold text-foreground">Configuración del perteneciente</h2>
+          <p className="text-sm text-muted-foreground">Datos personales, autonomía, privacidad y accesibilidad.</p>
         </div>
         <Button type="button" size="sm" disabled={loading || saving || !canSave} onClick={submit} className="gap-2">
           {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
@@ -1579,12 +1584,12 @@ function TutorLinkedSettings({ userId, onSaved }: { userId: string; onSaved: () 
       {loading && !settings ? (
         <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
           <Loader2 size={16} className="animate-spin" />
-          Cargando configuracion...
+          Cargando configuración...
         </div>
       ) : (
         <>
           <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
-            <SectionHeader icon={UserRound} title="Datos personales" description="Informacion visible para la cuenta y red de apoyo." />
+            <SectionHeader icon={UserRound} title="Datos personales" description="Información visible para la cuenta y red de apoyo." />
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Nombre</Label>
@@ -1603,7 +1608,7 @@ function TutorLinkedSettings({ userId, onSaved }: { userId: string; onSaved: () 
                 <Input type="email" value={form.usuario.correo} onChange={e => updateUsuario('correo', e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label>Telefono</Label>
+                <Label>Teléfono</Label>
                 <Input inputMode="numeric" value={form.telefonoText} onChange={e => handlePhoneChange(e.target.value)} />
               </div>
               <div className="space-y-2">
@@ -1614,7 +1619,7 @@ function TutorLinkedSettings({ userId, onSaved }: { userId: string; onSaved: () 
           </section>
 
           <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
-            <SectionHeader icon={Shield} title="Perfil perteneciente" description="Configuracion de apoyo, autonomia y observaciones." />
+            <SectionHeader icon={Shield} title="Perfil perteneciente" description="Configuración de apoyo, autonomía y observaciones." />
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Nivel de apoyo</Label>
@@ -1626,9 +1631,9 @@ function TutorLinkedSettings({ userId, onSaved }: { userId: string; onSaved: () 
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Autonomia operativa</Label>
+                <Label>Autonomía operativa</Label>
                 <Select value={String(form.perteneciente.id_autonomia_operativa || '')} onValueChange={value => updatePerteneciente('id_autonomia_operativa', Number(value))}>
-                  <SelectTrigger><SelectValue placeholder="Seleccionar autonomia" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Seleccionar autonomía" /></SelectTrigger>
                   <SelectContent>
                     {(settings?.autonomies || []).map(autonomy => <SelectItem key={autonomy.id} value={String(autonomy.id)}>{autonomy.nombre}</SelectItem>)}
                   </SelectContent>
@@ -1636,27 +1641,27 @@ function TutorLinkedSettings({ userId, onSaved }: { userId: string; onSaved: () 
               </div>
               <div className="md:col-span-2">
                 <ToggleRow
-                  label="Autogestion habilitada"
-                  description="Permite completar acciones personales sin aprobacion previa."
+                  label="Autogestión habilitada"
+                  description="Permite completar acciones personales sin aprobación previa."
                   checked={form.perteneciente.puede_autogestionarse}
                   onChange={value => updatePerteneciente('puede_autogestionarse', value)}
                 />
               </div>
               <div className="space-y-2 md:col-span-2">
-                <Label>Observacion general</Label>
+                <Label>Observación general</Label>
                 <Textarea value={form.perteneciente.observacion_general || ''} onChange={e => updatePerteneciente('observacion_general', e.target.value)} rows={4} />
               </div>
             </div>
           </section>
 
           <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
-            <SectionHeader icon={Settings} title="Preferencias y privacidad" description="Controles guardados en configuracion del usuario." />
+            <SectionHeader icon={Settings} title="Preferencias y privacidad" description="Controles guardados en configuración del usuario." />
             <div className="grid gap-3 md:grid-cols-2">
               <ToggleRow label="Notificaciones" description="Recibir avisos importantes." checked={form.preferences.recibir_notificaciones} onChange={value => updatePreference('recibir_notificaciones', value)} />
               <ToggleRow label="Recordatorios" description="Avisos de actividades pendientes." checked={form.preferences.recordatorios_actividad} onChange={value => updatePreference('recordatorios_actividad', value)} />
               <ToggleRow label="Resumen semanal" description="Guardar preferencia de reporte semanal." checked={form.preferences.resumen_semanal} onChange={value => updatePreference('resumen_semanal', value)} />
-              <ToggleRow label="Compartir ubicacion" description="Permitir uso de ubicacion con apoyo autorizado." checked={form.preferences.compartir_ubicacion} onChange={value => updatePreference('compartir_ubicacion', value)} />
-              <ToggleRow label="Mensajes" description="Permitir mensajes dentro de TANDEM." checked={form.preferences.permitir_mensajes} onChange={value => updatePreference('permitir_mensajes', value)} />
+              <ToggleRow label="Compartir ubicación" description="Permitir uso de ubicación con apoyo autorizado." checked={form.preferences.compartir_ubicacion} onChange={value => updatePreference('compartir_ubicacion', value)} />
+              <ToggleRow label="Mensajes" description="Permitir mensajes dentro de TÁNDEM." checked={form.preferences.permitir_mensajes} onChange={value => updatePreference('permitir_mensajes', value)} />
               <ToggleRow label="Progreso visible" description="Mostrar progreso a la red de apoyo." checked={form.preferences.mostrar_progreso_red_apoyo} onChange={value => updatePreference('mostrar_progreso_red_apoyo', value)} />
             </div>
           </section>
@@ -1665,7 +1670,7 @@ function TutorLinkedSettings({ userId, onSaved }: { userId: string; onSaved: () 
             <SectionHeader icon={UserRound} title="Accesibilidad" description="Preferencias visuales personales." />
             <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-2 rounded-lg border border-border bg-background p-3">
-                <Label>Tamanio de texto</Label>
+                <Label>Tamaño de texto</Label>
                 <Select value={form.accessibility.tamanio_texto} onValueChange={value => updateAccessibility('tamanio_texto', value as SettingsFormState['accessibility']['tamanio_texto'])}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -1677,7 +1682,7 @@ function TutorLinkedSettings({ userId, onSaved }: { userId: string; onSaved: () 
               </div>
               <ToggleRow label="Alto contraste" description="Preferencia visual para contraste alto." checked={form.accessibility.contraste_alto} onChange={value => updateAccessibility('contraste_alto', value)} />
               <ToggleRow label="Reducir movimiento" description="Evitar animaciones intensas." checked={form.accessibility.reducir_movimiento} onChange={value => updateAccessibility('reducir_movimiento', value)} />
-              <ToggleRow label="Pictogramas grandes" description="Mostrar pictogramas con mayor tamano." checked={form.accessibility.pictogramas_grandes} onChange={value => updateAccessibility('pictogramas_grandes', value)} />
+              <ToggleRow label="Pictogramas grandes" description="Mostrar pictogramas con mayor tamaño." checked={form.accessibility.pictogramas_grandes} onChange={value => updateAccessibility('pictogramas_grandes', value)} />
             </div>
           </section>
         </>
