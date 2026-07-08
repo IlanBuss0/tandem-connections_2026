@@ -9,6 +9,7 @@ const root = '/api/pictogramas/ai';
 export const aiPictogramsApi = {
   targets: () => apiRequest<AiTarget[]>(root + '/targets'),
   generate: (data: FormData) => apiUploadFile<AiGeneration>(root + '/generations', data),
+  revise: (id: string, data: FormData) => apiUploadFile<AiGeneration>(root + '/generations/' + id + '/revise', data),
   discard: (id: string) => apiRequest(root + '/generations/' + id, { method: 'DELETE' }),
   save: (id: string, targetPertenecienteIds?: number[]) => apiRequest<AiCreation>(root + '/generations/' + id + '/save', { method: 'POST', body: { targetPertenecienteIds } }),
   mine: () => apiRequest<AiCreation[]>(root + '/creations/mine'),

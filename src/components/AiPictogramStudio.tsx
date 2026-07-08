@@ -19,11 +19,12 @@ export default function AiPictogramStudio() {
   const [reference, setReference] = useState<File|null>(null), [hasPeople, setHasPeople] = useState(false);
   const [catalogQuery, setCatalogQuery] = useState(''), [catalog, setCatalog] = useState<Pictogram[]>([]), [referencePic, setReferencePic] = useState<Pictogram|null>(null);
   const [preview, setPreview] = useState<AiGeneration|null>(null), [busy, setBusy] = useState(false);
+  const [revisionInstructions, setRevisionInstructions] = useState('');
 
   const load = async () => {
     const [t, m] = await Promise.all([aiPictogramsApi.targets(), aiPictogramsApi.mine()]);
     setTargets(t);
-    setMine(m);
+    setMine(m.filter((item, index, all) => all.findIndex(other => other.id === item.id) === index));
     setSelectedTargets(prev => prev.length > 0 ? prev : (t[0] ? [t[0].id] : []));
   };
 
@@ -52,25 +53,38 @@ export default function AiPictogramStudio() {
     };
   }, [catalogQuery]);
 
+  const buildGenerationFormData = () => {
+    const data = new FormData();
+    const firstTargetId = selectedTargets[0] || 0;
+    Object.entries({
+      targetPertenecienteId: String(firstTargetId),
+      name,
+      description,
+      category,
+      mode: reference || referencePic ? 'final' : mode,
+      referenceHadPeople: String(hasPeople),
+      revisionInstructions,
+    }).forEach(([k, v]) => data.set(k, v));
+    if (reference) data.set('reference', reference);
+    if (referencePic) data.set('referencePictogramId', referencePic.id);
+    return data;
+  };
+
   const generate = async () => {
     setBusy(true);
     try {
-      const data = new FormData();
-      const firstTargetId = selectedTargets[0] || 0;
-      Object.entries({
-        targetPertenecienteId: String(firstTargetId),
-        name,
-        description,
-        category,
-        mode: reference || referencePic ? 'final' : mode,
-        referenceHadPeople: String(hasPeople)
-      }).forEach(([k, v]) => data.set(k, v));
-      if (reference) data.set('reference', reference);
-      if (referencePic) data.set('referencePictogramId', referencePic.id);
-      setPreview(await aiPictogramsApi.generate(data));
+      const data = buildGenerationFormData();
+      const nextPreview = preview
+        ? await aiPictogramsApi.revise(preview.id, data)
+        : await aiPictogramsApi.generate(data);
+      setPreview(nextPreview);
+      if (preview) {
+        setRevisionInstructions('');
+        toast({ title: 'Vista previa actualizada' });
+      }
     } catch (e) {
       toast({
-        title: 'No se pudo generar',
+        title: preview ? 'No se pudo editar' : 'No se pudo generar',
         description: e instanceof Error ? e.message : 'Error inesperado',
         variant: 'destructive'
       });
@@ -80,11 +94,12 @@ export default function AiPictogramStudio() {
   };
 
   const save = async () => {
-    if (!preview) return;
+    if (!preview || busy) return;
     setBusy(true);
     try {
       await aiPictogramsApi.save(preview.id, selectedTargets);
       setPreview(null);
+      setRevisionInstructions('');
       await load();
       toast({ title: 'Guardado en privado' });
     } finally {
@@ -93,9 +108,16 @@ export default function AiPictogramStudio() {
   };
 
   const discard = async () => {
+    if (busy) return;
     if (preview) {
-      await aiPictogramsApi.discard(preview.id);
-      setPreview(null);
+      setBusy(true);
+      try {
+        await aiPictogramsApi.discard(preview.id);
+        setPreview(null);
+        setRevisionInstructions('');
+      } finally {
+        setBusy(false);
+      }
     }
   };
 
@@ -147,7 +169,7 @@ export default function AiPictogramStudio() {
                     checked={selectedTargets.includes(x.id)}
                     onChange={(e) => {
                       if (e.target.checked) {
-                        setSelectedTargets(prev => [...prev, x.id]);
+                        setSelectedTargets(prev => Array.from(new Set([...prev, x.id])));
                       } else {
                         setSelectedTargets(prev => prev.filter(id => id !== x.id));
                       }
@@ -192,16 +214,29 @@ export default function AiPictogramStudio() {
           </div>
           <Button onClick={generate} disabled={busy || selectedTargets.length === 0 || name.trim().length < 2 || description.trim().length < 5}>
             {busy ? <Loader2 className="mr-2 animate-spin" size={16} /> : <Sparkles className="mr-2" size={16} />}
-            Generar vista previa
+            {preview ? 'Editar vista previa' : 'Generar vista previa'}
           </Button>
         </div>
         <div className="flex min-h-80 items-center justify-center rounded-xl bg-muted/40 p-4">
           {preview ? (
             <div className="space-y-3">
               <img src={preview.previewUrl} alt={preview.name} className="aspect-square max-h-96 rounded-xl bg-white object-contain" />
+              <div className="rounded-lg border bg-background p-3">
+                <p className="mb-2 text-sm font-semibold">Editar antes de guardar</p>
+                <Textarea
+                  value={revisionInstructions}
+                  onChange={e => setRevisionInstructions(e.target.value)}
+                  maxLength={1200}
+                  placeholder="Escribi que queres cambiar. La IA usa esta preview como referencia y suma la imagen o pictograma que hayas elegido."
+                />
+                <Button className="mt-2 w-full" variant="outline" onClick={generate} disabled={busy || name.trim().length < 2 || description.trim().length < 5}>
+                  {busy ? <Loader2 className="mr-2 animate-spin" size={16} /> : <Sparkles className="mr-2" size={16} />}
+                  Regenerar edicion
+                </Button>
+              </div>
               <div className="flex gap-2">
-                <Button onClick={save}><Save className="mr-2" size={16} />Guardar privado</Button>
-                <Button variant="outline" onClick={discard}><Trash2 className="mr-2" size={16} />Descartar</Button>
+                <Button onClick={save} disabled={busy}><Save className="mr-2" size={16} />Guardar privado</Button>
+                <Button variant="outline" onClick={discard} disabled={busy}><Trash2 className="mr-2" size={16} />Descartar</Button>
               </div>
             </div>
           ) : (
