@@ -80,6 +80,8 @@ const steps = [
   'Tutores y profesionales acompañan con información más clara.',
 ];
 
+const heroBadges = ['Accesible', 'Visual', 'Flexible'];
+
 export default function Landing({ onNavigate }: LandingProps) {
   return (
     <main className="landing-page">
@@ -106,6 +108,14 @@ export default function Landing({ onNavigate }: LandingProps) {
             Una plataforma pensada para personas con TEA, familias y profesionales. Organizamos rutinas,
             emociones y acompañamiento en un mismo lugar, para que cada persona pueda avanzar a su ritmo.
           </p>
+          <div className="landing-hero-badges" aria-label="Puntos destacados de la propuesta">
+            {heroBadges.map(badge => (
+              <span className="landing-hero-badge" key={badge}>
+                <span aria-hidden="true">•</span>
+                {badge}
+              </span>
+            ))}
+          </div>
           <div className="landing-hero-actions">
             <a className="landing-link-button landing-button-primary" href="#app">
               Conocer la app
@@ -119,6 +129,7 @@ export default function Landing({ onNavigate }: LandingProps) {
           </div>
         </div>
         <div className="landing-hero-panel" aria-label="Resumen visual de TÁNDEM">
+          <div className="landing-hero-panel-badge">Diseñado para acompañar</div>
           <div className="landing-phone">
             <div className="landing-phone-top">Mi día</div>
             <div className="landing-task landing-task-strong">

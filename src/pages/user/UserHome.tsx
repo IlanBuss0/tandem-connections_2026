@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import { useGSAP } from '@gsap/react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCalendar, typeEmoji } from '@/contexts/CalendarContext';
-import { motion } from 'framer-motion';
 import {
   MessageCircle,
   Calendar,
@@ -79,6 +81,8 @@ function statusStyle(status: string): string {
 
 const CARD_GAP = 16;
 
+gsap.registerPlugin(ScrollTrigger);
+
 export default function UserHome({ onNavigate }: Props) {
   const { user } = useAuth();
   const { events, eventsOn } = useCalendar();
@@ -92,6 +96,56 @@ export default function UserHome({ onNavigate }: Props) {
   const [canScrollRight, setCanScrollRight] = useState(true);
   const [note, setNote] = useState('');
   const [saved, setSaved] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const panelRefs = useRef<Array<HTMLElement | null>>([]);
+
+  useGSAP(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const heroItems = Array.from(container.querySelectorAll<HTMLElement>('[data-hero-animate]'));
+    const revealSections = Array.from(container.querySelectorAll<HTMLElement>('[data-reveal-section]'));
+
+    const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+
+    tl.from(heroItems, {
+      y: 30,
+      opacity: 0,
+      duration: 0.7,
+      stagger: 0.18,
+      clearProps: 'all',
+    });
+
+    revealSections.forEach(section => {
+      gsap.from(section, {
+        y: 24,
+        opacity: 0,
+        duration: 0.75,
+        ease: 'power3.out',
+        scrollTrigger: {
+          trigger: section,
+          start: 'top 80%',
+          once: true,
+          toggleActions: 'play none none none',
+        },
+        clearProps: 'transform,opacity',
+      });
+    });
+  }, { scope: containerRef, dependencies: [loading] });
+
+  const handlePanelEnter = useCallback((index: number) => {
+    const panel = panelRefs.current[index];
+    if (panel) {
+      gsap.to(panel, { y: -4, scale: 1.01, opacity: 1, duration: 0.24, ease: 'power2.out' });
+    }
+  }, []);
+
+  const handlePanelLeave = useCallback((index: number) => {
+    const panel = panelRefs.current[index];
+    if (panel) {
+      gsap.to(panel, { y: 0, scale: 1, opacity: 1, duration: 0.24, ease: 'power2.out', clearProps: 'transform' });
+    }
+  }, []);
 
   const handleSaveNote = () => {
     if (!note.trim()) return;
@@ -187,325 +241,245 @@ export default function UserHome({ onNavigate }: Props) {
   if (!user || user.role !== 'user') return null;
 
   return (
-    <div className="pb-24 lg:pb-6 space-y-14">
-      {/* Greeting + Quick Access */}
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6 pt-2">
-        <motion.div
-          initial={{ opacity: 0, x: -10 }}
-          animate={{ opacity: 1, x: 0 }}
-        >
-          <h1 className="text-4xl sm:text-5xl font-bold text-[#6b4c9a] leading-tight">
-            Hola, {firstName}
-          </h1>
-          <p className="text-base sm:text-lg text-[#8b7aa0] mt-1.5 font-medium">
-            Veamos cómo va tu día
-          </p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, x: 10 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.05 }}
-          className="flex gap-3 sm:gap-4"
-        >
-          {[
-            { id: 'chat', label: 'Chat', icon: MessageCircle, bg: 'bg-[#A4DDED]', color: 'text-[#2a7a8f]' },
-            { id: 'calendar', label: 'Calendario', icon: Calendar, bg: 'bg-purple-100', color: 'text-purple-600' },
-            { id: 'resources', label: 'Notas', icon: FileText, bg: 'bg-amber-100', color: 'text-amber-600' },
-          ].map(item => (
-            <button
-              key={item.id}
-              onClick={() => onNavigate?.(item.id)}
-              className={`flex flex-col items-center gap-2 rounded-2xl ${item.bg} transition-all duration-200 w-24 sm:w-28 py-4 shadow-sm hover:shadow-md active:scale-95`}
-            >
-              <div className={`flex items-center justify-center ${item.color}`}>
-                <item.icon size={26} />
+    <div ref={containerRef} className="min-h-screen bg-transparent px-4 pb-6 pt-2 sm:px-6 lg:px-8">
+      <div className="relative left-1/2 right-1/2 w-screen -translate-x-1/2 -mt-6 sm:-mt-8">
+        <div className="w-full rounded-[24px] border border-[#e8dcf8] bg-gradient-to-br from-[#f9f4ff] via-[#f4ebff] to-[#eef8fb] py-5 shadow-[0_10px_30px_rgba(107,76,154,0.08)] sm:py-7">
+          <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8">
+            <div className="mx-auto flex max-w-3xl flex-col items-center gap-6">
+              <div data-hero-animate className="inline-flex items-center rounded-full border border-[#dbcdf5] bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7b5fa6] shadow-sm">
+                Resumen de hoy
               </div>
-              <span className="text-xs font-semibold text-[#4a4a5a]">{item.label}</span>
-            </button>
-          ))}
-        </motion.div>
-      </div>
-
-      {/* Mi Semana */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="w-full lg:w-[75%] mx-auto bg-white rounded-3xl shadow-lg border border-[#f0e8f8] p-4 sm:p-5"
-      >
-        <div className="grid grid-cols-3 items-center mb-3">
-          <div>
-            <p className="text-[10px] sm:text-xs font-semibold text-[#8b7aa0] uppercase tracking-wide">{monthLabel}</p>
-            <h2 className="text-lg sm:text-xl font-bold text-[#6b4c9a]">Mi Semana</h2>
-          </div>
-          <div className="flex items-center justify-center gap-1">
-            <button
-              onClick={() => {
-                const prev = new Date(weekStart);
-                prev.setDate(prev.getDate() - 7);
-                setWeekStart(prev);
-              }}
-              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#f5f0ff] text-[#8b7aa0] transition"
-              aria-label="Semana anterior"
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <button
-              onClick={() => setWeekStart(startOfWeek(new Date()))}
-              className="text-xs font-medium text-[#6b4c9a] px-2.5 py-1 rounded-full hover:bg-[#f5f0ff] transition"
-            >
-              Hoy
-            </button>
-            <button
-              onClick={() => {
-                const next = new Date(weekStart);
-                next.setDate(next.getDate() + 7);
-                setWeekStart(next);
-              }}
-              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[#f5f0ff] text-[#8b7aa0] transition"
-              aria-label="Semana siguiente"
-            >
-              <ChevronRight size={18} />
-            </button>
-          </div>
-          <div className="flex justify-end">
-            <button
-              onClick={() => onNavigate?.('calendar')}
-              className="text-xs font-semibold text-[#6b4c9a] hover:text-[#5a3c8a] hover:underline transition shrink-0"
-            >
-              Calendario
-            </button>
-          </div>
-        </div>
-
-        <div className="flex justify-between gap-1 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {weekDays.map((d, i) => {
-            const key = fmt(d);
-            const isToday = key === todayKey;
-            const isSelected = key === selectedDay;
-            const dayEvs = eventsOn(key);
-            const hasEvents = dayEvs.length > 0;
-
-            return (
-              <button
-                key={i}
-                onClick={() => setSelectedDay(key)}
-                className={`flex flex-1 flex-col items-center rounded-2xl border px-1 py-2.5 transition-all duration-200 ${
-                  isToday
-                    ? 'border-[#6b4c9a] bg-[#6b4c9a] text-white shadow-md shadow-purple-200'
-                    : isSelected
-                      ? 'border-[#d8c7ef] bg-[#f5f0ff] text-[#6b4c9a]'
-                    : hasEvents
-                      ? 'border-transparent bg-[#EFE3FF] text-[#6b4c9a]'
-                        : 'border-transparent text-[#6b4c9a] hover:bg-[#f5f0ff]'
-                }`}
-              >
-                <span className={`text-[11px] sm:text-xs font-semibold ${isToday ? 'text-white/80' : 'text-[#8b7aa0]'}`}>
-                  {DAYS_SHORT[i]}
-                </span>
-                <span className={`text-xl sm:text-2xl font-extrabold mt-1 leading-none ${isToday ? '' : 'text-[#4a3a6a]'}`}>
-                  {d.getDate()}
-                </span>
-                {hasEvents && (
-                  <div className={`mt-1.5 flex gap-1 ${isToday ? 'text-white/80' : ''}`}>
-                    {dayEvs.slice(0, 3).map(e => (
-                      <span
-                        key={e.id}
-                        className="h-1.5 w-1.5 rounded-full"
-                        style={{ backgroundColor: isToday ? 'currentColor' : '#6b4c9a' }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {selectedDay && eventsOn(selectedDay).length > 0 && (
-          <div className="mt-5 pt-4 border-t border-[#f0e8f8] space-y-2">
-            <p className="text-xs font-semibold text-[#8b7aa0] uppercase tracking-wide">
-              {selectedDay === todayKey
-                ? 'Hoy'
-                : new Date(selectedDay + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric' })}
-            </p>
-            {eventsOn(selectedDay).slice(0, 3).map(e => (
-              <div key={e.id} className="flex items-center gap-2.5 bg-[#faf8ff] rounded-xl px-3 py-2">
-                <span className="text-lg">{typeEmoji[e.type]}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-[#4a4a5a] truncate">{e.title}</p>
-                </div>
-                <span className="text-xs text-[#8b7aa0] font-medium">{e.time}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </motion.div>
-
-      {/* Actividades Pendientes */}
-      <motion.section
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-[#6b4c9a]">
-            Actividades Pendientes
-          </h2>
-          {pendingActivities.length > 0 && (
-            <button
-              onClick={() => onNavigate?.('activities')}
-              className="text-sm font-semibold text-[#6b4c9a] hover:text-[#5a3c8a] hover:underline transition shrink-0"
-            >
-              Ver todas
-            </button>
-          )}
-        </div>
-
-        {loading ? (
-          <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
-            Cargando actividades...
-          </div>
-        ) : pendingActivities.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-[#e0d8f0] bg-white p-12 text-center">
-            <Sparkles size={36} className="text-[#6b4c9a]" />
-            <p className="mt-3 text-lg font-semibold text-[#4a4a5a]">No tenés actividades pendientes</p>
-            <p className="mt-1 text-sm text-[#8b7aa0]">
-              {home.activities.length > 0
-                ? '¡Completaste todo!'
-                : 'Cuando te asignen actividades, van a aparecer acá.'}
-            </p>
-          </div>
-        ) : (
-          <div className="relative group/carousel">
-            {/* Scrollable container */}
-            <div
-              ref={scrollRef}
-              className="flex gap-4 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
-            >
-              {pendingActivities.map((activity, idx) => {
-                const progressVal = activity.completed
-                  ? 100
-                  : activity.status?.toLowerCase().includes('progreso')
-                    ? 50
-                    : 0;
-
-                return (
-                  <motion.div
-                    key={activity.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.04 }}
-                    className="snap-start shrink-0 w-[80%] sm:w-[48%] lg:w-[31%] cursor-pointer"
-                    onClick={() => {
-                      localStorage.setItem('tandem:execute-activity-id', activity.id);
-                      onNavigate?.('activities');
-                    }}
-                  >
-                    <div className="rounded-2xl bg-[#f0eaff] border border-[#e0d8f0] p-3 h-full flex flex-col shadow-sm hover:shadow-md transition-shadow">
-                      <div className="bg-white rounded-xl p-4 flex-1 flex flex-col">
-                        <div className="flex items-start gap-3">
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#f5f0ff] text-xl">
-                            {activityEmoji(activity.title)}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="font-bold text-sm text-[#4a4a5a] truncate">
-                              {activity.title}
-                            </p>
-                            <p className="mt-0.5 text-xs text-[#8b7aa0] line-clamp-2 leading-relaxed">
-                              {activity.description}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="mt-auto pt-3 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${statusStyle(activity.status)}`}>
-                              {activity.status}
-                            </span>
-                            <span className="text-[10px] font-medium text-[#8b7aa0]">{activity.assignedAt}</span>
-                          </div>
-                          <Progress value={progressVal} className="h-2 bg-[#ede4f8]" />
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
+              <h1 data-hero-animate className="text-4xl font-black leading-[0.95] tracking-[-0.02em] text-[#2e2344] sm:text-5xl">
+                Hola, {firstName}
+              </h1>
+              <p data-hero-animate className="max-w-2xl text-base leading-7 text-[#675a78] sm:text-lg">
+                Tu día se ve más claro cuando tenés lo importante a mano.
+              </p>
             </div>
 
-            {/* Left arrow */}
-            {canScrollLeft && (
-              <button
-                onClick={() => scrollCarousel('left')}
-                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-white border border-[#e0d8f0] shadow-md text-[#6b4c9a] hover:bg-[#f5f0ff] hover:text-[#5a3c8a] transition z-10"
-                aria-label="Anterior"
-              >
-                <ChevronLeft size={20} />
-              </button>
-            )}
-
-            {/* Right arrow */}
-            {canScrollRight && (
-              <button
-                onClick={() => scrollCarousel('right')}
-                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-white border border-[#e0d8f0] shadow-md text-[#6b4c9a] hover:bg-[#f5f0ff] hover:text-[#5a3c8a] transition z-10"
-                aria-label="Siguiente"
-              >
-                <ChevronRight size={20} />
-              </button>
-            )}
-          </div>
-        )}
-      </motion.section>
-
-      {/* Journal */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="w-full max-w-2xl mx-auto bg-white rounded-3xl shadow-lg border border-[#f0e8f8] p-6 sm:p-8"
-      >
-        <h2 className="text-2xl sm:text-3xl font-bold text-[#6b4c9a] text-center">
-          ¿Cómo te sentiste hoy?
-        </h2>
-
-        <textarea
-          value={note}
-          onChange={e => { setNote(e.target.value); setSaved(false); }}
-          placeholder="Escribí acá lo que sentís o pensás..."
-          rows={5}
-          className="mt-5 w-full resize-none rounded-2xl bg-[#f7f5fa] border border-[#ede4f8] p-5 text-sm text-[#4a4a5a] placeholder:text-[#b5a8c8] outline-none focus:ring-2 focus:ring-[#6b4c9a]/20 focus:border-[#6b4c9a]/30 transition"
-        />
-
-        <div className="mt-4 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-[#b5a8c8]">
-            <Smile size={18} className="hover:text-[#6b4c9a] transition cursor-pointer" />
-            <Paperclip size={16} className="hover:text-[#6b4c9a] transition cursor-pointer" />
-          </div>
-
-          <div className="flex items-center gap-3">
-            {saved && (
-              <motion.span
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0 }}
-                className="text-xs font-medium text-emerald-600"
-              >
-                Nota guardada
-              </motion.span>
-            )}
-            <button
-              onClick={handleSaveNote}
-              disabled={!note.trim()}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#6b4c9a] px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] transition disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Guardar nota
-              <Send size={14} />
-            </button>
+            <div data-hero-animate className="flex flex-wrap justify-center gap-2 mt-6">
+              {[
+                { id: 'chat', label: 'Chat', icon: MessageCircle, tone: 'bg-white/85 text-[#5c3f7f]' },
+                { id: 'calendar', label: 'Calendario', icon: Calendar, tone: 'bg-[#6f4ca6] text-white' },
+                { id: 'notes', label: 'Notas', icon: FileText, tone: 'bg-[#fffafc] text-[#7b5fa6]' },
+              ].map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => onNavigate?.(item.id)}
+                  className={`inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-semibold shadow-sm transition duration-200 hover:translate-y-[-1px] hover:scale-[1.02] ${item.tone}`}
+                >
+                  <item.icon size={16} />
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-      </motion.div>
+      </div>
+
+      <div className="mx-auto mt-8 sm:mt-10 flex w-full max-w-5xl flex-col space-y-3">
+        <section
+          data-reveal-section
+          ref={el => { panelRefs.current[0] = el; }}
+          onMouseEnter={() => handlePanelEnter(0)}
+          onMouseLeave={() => handlePanelLeave(0)}
+          className="rounded-[24px] border border-[#ece3f8] bg-white p-4 shadow-[0_8px_24px_rgba(107,76,154,0.06)] sm:p-5"
+        >
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-[0.24em] text-[#7b5fa6]">{monthLabel}</p>
+              <h2 className="text-lg sm:text-xl font-bold text-[#2e2344]">Mi semana</h2>
+            </div>
+            <button
+              onClick={() => onNavigate?.('calendar')}
+              className="text-sm font-semibold text-[#6f4ca6] transition hover:text-[#2e2344]"
+            >
+              Ver calendario
+            </button>
+          </div>
+
+          <div className="flex justify-between gap-1 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {weekDays.map((d, i) => {
+              const key = fmt(d);
+              const isToday = key === todayKey;
+              const isSelected = key === selectedDay;
+              const dayEvs = eventsOn(key);
+              const hasEvents = dayEvs.length > 0;
+
+              return (
+                <button
+                  key={i}
+                  onClick={() => setSelectedDay(key)}
+                  className={`flex flex-1 flex-col items-center rounded-2xl border px-1 py-2.5 transition-all duration-200 ${
+                    isToday
+                      ? 'border-[#6f4ca6] bg-[#6f4ca6] text-white shadow-sm'
+                      : isSelected
+                        ? 'border-[#e7daf7] bg-[#f8f2ff] text-[#2e2344]'
+                        : hasEvents
+                          ? 'border-transparent bg-[#f3eaff] text-[#6f4ca6]'
+                          : 'border-transparent text-[#6b6380] hover:bg-[#f8f2ff]'
+                  }`}
+                >
+                  <span className={`text-[11px] sm:text-xs font-semibold ${isToday ? 'text-white/80' : 'text-[#7b5fa6]'}`}>
+                    {DAYS_SHORT[i]}
+                  </span>
+                  <span className={`text-xl sm:text-2xl font-extrabold mt-1 leading-none ${isToday ? '' : 'text-[#4a3a6a]'}`}>
+                    {d.getDate()}
+                  </span>
+                  {hasEvents && (
+                    <div className={`mt-1.5 flex gap-1 ${isToday ? 'text-white/80' : ''}`}>
+                      {dayEvs.slice(0, 3).map(e => (
+                        <span
+                          key={e.id}
+                          className="h-1.5 w-1.5 rounded-full"
+                          style={{ backgroundColor: isToday ? 'currentColor' : '#6f4ca6' }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {selectedDay && eventsOn(selectedDay).length > 0 && (
+            <div className="mt-5 space-y-2 rounded-[20px] border border-[#efe8f8] bg-[#fcf9ff]/80 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#7b5fa6]">
+                {selectedDay === todayKey
+                  ? 'Hoy'
+                  : new Date(selectedDay + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric' })}
+              </p>
+              {eventsOn(selectedDay).slice(0, 3).map(e => (
+                <div key={e.id} className="flex items-center gap-2.5 border-b border-[#f1e8fb] px-1 py-2 last:border-b-0">
+                  <span className="text-lg">{typeEmoji[e.type]}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-[#4a4a5a]">{e.title}</p>
+                  </div>
+                  <span className="text-xs font-medium text-[#7b5fa6]">{e.time}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr] items-start py-8">
+          {/* Column izquierda: Estado emocional (editorial) */}
+          <section
+            data-reveal-section
+            ref={el => { panelRefs.current[2] = el; }}
+            onMouseEnter={() => handlePanelEnter(2)}
+            onMouseLeave={() => handlePanelLeave(2)}
+            className="py-6 bg-transparent p-0"
+          >
+            <div className="mb-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">Estado emocional</p>
+              <h3 className="text-2xl sm:text-3xl font-bold text-white">¿Cómo te sentiste hoy?</h3>
+            </div>
+
+            <div className="mt-4">
+              <h4 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-tight text-white/95">
+                {note?.trim() ? note : 'Contame brevemente cómo te sentiste hoy.'}
+              </h4>
+            </div>
+
+            <textarea
+              value={note}
+              onChange={e => { setNote(e.target.value); setSaved(false); }}
+              placeholder="Escribí acá lo que sentís o pensás..."
+              rows={3}
+              className="mt-6 w-full resize-none bg-transparent p-0 text-sm text-slate-100 placeholder:text-slate-300 outline-none transition focus:ring-0"
+            />
+
+            <div className="mt-4 flex items-center justify-between">
+              <div className="flex items-center gap-3 text-[#b5a8c8]">
+                <Smile size={18} className="cursor-pointer transition hover:text-[#d6bff6]" />
+                <Paperclip size={16} className="cursor-pointer transition hover:text-[#d6bff6]" />
+              </div>
+
+              <div className="flex items-center gap-3">
+                {saved && (
+                  <span className="text-xs font-medium text-emerald-600">Nota guardada</span>
+                )}
+                <button
+                  onClick={handleSaveNote}
+                  disabled={!note.trim()}
+                  className="text-sm font-semibold text-[#d6bff6] transition-opacity disabled:opacity-40"
+                >
+                  Guardar nota
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {/* Column derecha: Próximas acciones como Timeline */}
+          <section
+            data-reveal-section
+            ref={el => { panelRefs.current[1] = el; }}
+            onMouseEnter={() => handlePanelEnter(1)}
+            onMouseLeave={() => handlePanelLeave(1)}
+            className="py-6"
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">Tablero emocional</p>
+                <h3 className="text-lg font-semibold text-white">Elige cómo te sentís</h3>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mt-4">
+              {[
+                { id: 'tranquilo', label: 'Tranquilo', emoji: '😌', color: 'bg-emerald-500' },
+                { id: 'contento', label: 'Contento', emoji: '😊', color: 'bg-yellow-400' },
+                { id: 'animado', label: 'Animado', emoji: '🎉', color: 'bg-indigo-500' },
+                { id: 'ansioso', label: 'Ansioso', emoji: '😟', color: 'bg-orange-500' },
+                { id: 'frustrado', label: 'Frustrado', emoji: '😤', color: 'bg-red-500' },
+                { id: 'motivado', label: 'Motivado', emoji: '💪', color: 'bg-pink-500' },
+              ].map(e => (
+                <button
+                  key={e.id}
+                  onClick={() => { setNote(e.label); setSaved(false); }}
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2 bg-white/03 hover:bg-white/06 transition`}
+                >
+                  <span className={`${e.color} inline-flex h-9 w-9 items-center justify-center rounded-full text-white text-lg`}>{e.emoji}</span>
+                  <span className="text-sm font-semibold text-slate-100">{e.label}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        {/* Próximas acciones debajo de todo, fondo transparente para integrarse */}
+        <section
+          data-reveal-section
+          ref={el => { panelRefs.current[1] = el; }}
+          className="mt-6 py-6 bg-slate-900 p-6 rounded-lg"
+        >
+          <div className="mb-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">Próximas acciones</p>
+            <h3 className="text-lg font-semibold text-white">Lo que sigue</h3>
+          </div>
+
+          {loading ? (
+            <div className="py-4 text-sm text-slate-200">Cargando actividades...</div>
+          ) : pendingActivities.length === 0 ? (
+            <div className="py-4 text-sm text-slate-200">No tenés actividades pendientes.</div>
+          ) : (
+            <div className="relative pl-6">
+              <div className="absolute left-3 top-0 bottom-0 w-px bg-slate-800" aria-hidden />
+              {pendingActivities.slice(0, 6).map((activity, idx) => (
+                <div key={activity.id} className="relative mb-8 pl-6">
+                  <span className="absolute left-0 top-1.5 h-3 w-3 -translate-x-1/2 rounded-full bg-indigo-500" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-100">{activity.title}</p>
+                    <p className="mt-1 text-xs text-slate-300">{activity.description}</p>
+                    <div className="mt-1 text-[10px] text-slate-400">{activity.assignedAt}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
 
       {error && (
         <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">

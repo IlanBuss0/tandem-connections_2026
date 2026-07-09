@@ -66,6 +66,20 @@
   text-align: center;
   text-decoration: none;
   cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease, color 180ms ease;
+}
+
+.landing-button:hover,
+.landing-link-button:hover,
+.landing-button:focus-visible,
+.landing-link-button:focus-visible {
+  transform: translateY(-2px);
+}
+
+.landing-button:focus-visible,
+.landing-link-button:focus-visible {
+  outline: 3px solid rgba(111, 81, 142, 0.25);
+  outline-offset: 2px;
 }
 
 .landing-button-primary {
@@ -120,6 +134,25 @@
   line-height: 1.55;
 }
 
+.landing-hero-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.landing-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(111, 81, 142, 0.09);
+  color: #6f518e;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
 .landing-hero-actions {
   display: grid;
   grid-template-columns: 34% 28% 30%;
@@ -133,8 +166,22 @@
   width: 100%;
   padding: 8%;
   border-radius: 32px;
+  border: 1px solid rgba(111, 81, 142, 0.12);
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(238, 249, 246, 0.86));
   box-shadow: 0 28px 70px rgba(31, 49, 58, 0.14);
+}
+
+.landing-hero-panel-badge {
+  display: inline-flex;
+  margin-bottom: 1rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(111, 81, 142, 0.1);
+  color: #6f518e;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 .landing-phone {
@@ -221,6 +268,15 @@
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.84);
   box-shadow: 0 18px 42px rgba(31, 49, 58, 0.08);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.landing-problem-card:hover,
+.landing-audience-card:hover,
+.landing-feature-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(111, 81, 142, 0.25);
+  box-shadow: 0 22px 44px rgba(31, 49, 58, 0.12);
 }
 
 .landing-problem-card {
