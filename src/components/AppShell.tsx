@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
@@ -9,23 +9,24 @@ import CoinBadge from '@/components/CoinBadge';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
 import UserHome from '@/pages/user/UserHome';
-import UserRoutines from '@/pages/user/UserRoutines';
-import UserCalendar from '@/pages/user/UserCalendar';
-import UserActivities from '@/pages/user/UserActivities';
-import UserChat from '@/pages/user/UserChat';
-import UserEmotions from '@/pages/user/UserEmotions';
-import UserAchievements from '@/pages/user/UserAchievements';
-import UserProfile from '@/pages/user/UserProfile';
-import UserProfileSettings from '@/pages/user/UserProfileSettings';
-import UserPictograms from '@/pages/user/UserPictograms';
-import UserNotifications from '@/pages/user/UserNotifications';
-import UserResources from '@/pages/user/UserResources';
-import UserShop from '@/pages/user/UserShop';
-import TutorLanding from '@/pages/tutor/TutorLanding';
-import TutorDashboard from '@/pages/tutor/TutorDashboard';
-import ProfessionalDashboard from '@/pages/professional/ProfessionalDashboard';
-import SuperAdminDashboard from '@/pages/admin/SuperAdminDashboard';
 import { useSyncMobileMenuOpen } from '@/contexts/MobileMenuState';
+
+const UserRoutines = lazy(() => import('@/pages/user/UserRoutines'));
+const UserCalendar = lazy(() => import('@/pages/user/UserCalendar'));
+const UserActivities = lazy(() => import('@/pages/user/UserActivities'));
+const UserChat = lazy(() => import('@/pages/user/UserChat'));
+const UserEmotions = lazy(() => import('@/pages/user/UserEmotions'));
+const UserAchievements = lazy(() => import('@/pages/user/UserAchievements'));
+const UserProfile = lazy(() => import('@/pages/user/UserProfile'));
+const UserProfileSettings = lazy(() => import('@/pages/user/UserProfileSettings'));
+const UserPictograms = lazy(() => import('@/pages/user/UserPictograms'));
+const UserNotifications = lazy(() => import('@/pages/user/UserNotifications'));
+const UserResources = lazy(() => import('@/pages/user/UserResources'));
+const UserShop = lazy(() => import('@/pages/user/UserShop'));
+const TutorLanding = lazy(() => import('@/pages/tutor/TutorLanding'));
+const TutorDashboard = lazy(() => import('@/pages/tutor/TutorDashboard'));
+const ProfessionalDashboard = lazy(() => import('@/pages/professional/ProfessionalDashboard'));
+const SuperAdminDashboard = lazy(() => import('@/pages/admin/SuperAdminDashboard'));
 
 const userNav = [
   { id: 'home', label: 'Inicio', icon: Home },
@@ -45,6 +46,14 @@ const userNav = [
 
 const ACTIVE_TAB_KEY = 'tandem_active_tab';
 const validUserTabs = new Set(userNav.map(item => item.id));
+
+function ScreenFallback() {
+  return (
+    <div className="rounded-3xl border border-[#f0e8f8] bg-white p-6 text-sm font-medium text-[#8b7aa0] shadow-sm">
+      Cargando...
+    </div>
+  );
+}
 
 function loadActiveTab() {
   try {
@@ -84,25 +93,29 @@ export default function AppShell() {
 
   if (!user) return null;
 
-  if (user.role === 'admin') return <SuperAdminDashboard />;
+  if (user.role === 'admin') return <Suspense fallback={<ScreenFallback />}><SuperAdminDashboard /></Suspense>;
   if (user.role === 'tutor') {
     if (tutorView.view === 'landing') {
       return (
-        <TutorLanding
-          onSelectPerteneciente={(userId) => setTutorView({ view: 'dashboard', selectedUserId: userId, initialTab: 'overview' })}
-          onNavigateTo={(tab) => setTutorView({ view: 'dashboard', initialTab: tab })}
-        />
+        <Suspense fallback={<ScreenFallback />}>
+          <TutorLanding
+            onSelectPerteneciente={(userId) => setTutorView({ view: 'dashboard', selectedUserId: userId, initialTab: 'overview' })}
+            onNavigateTo={(tab) => setTutorView({ view: 'dashboard', initialTab: tab })}
+          />
+        </Suspense>
       );
     }
     return (
-      <TutorDashboard
-        initialUserId={tutorView.selectedUserId}
-        initialTab={tutorView.initialTab}
-        onBack={() => setTutorView({ view: 'landing' })}
-      />
+      <Suspense fallback={<ScreenFallback />}>
+        <TutorDashboard
+          initialUserId={tutorView.selectedUserId}
+          initialTab={tutorView.initialTab}
+          onBack={() => setTutorView({ view: 'landing' })}
+        />
+      </Suspense>
     );
   }
-  if (user.role === 'professional') return <ProfessionalDashboard />;
+  if (user.role === 'professional') return <Suspense fallback={<ScreenFallback />}><ProfessionalDashboard /></Suspense>;
 
   const goToTab = (tab: string, params?: Record<string, any>) => {
     setEditingProfilePersonalData(false);
@@ -211,7 +224,9 @@ export default function AppShell() {
       {/* Main content */}
       <main className="flex-1 min-w-0">
         <div className="max-w-7xl mx-auto p-3 sm:p-4 lg:p-6">
-          {renderContent()}
+          <Suspense fallback={<ScreenFallback />}>
+            {renderContent()}
+          </Suspense>
         </div>
       </main>
 

@@ -1,7 +1,6 @@
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { WalletProvider } from '@/contexts/WalletContext';
 import { CustomActivitiesProvider } from '@/contexts/CustomActivitiesContext';
-import { ChatProvider } from '@/contexts/ChatContext';
 import { AccessibilityProvider } from '@/contexts/AccessibilityContext';
 import { EmotionsProvider } from '@/contexts/EmotionsContext';
 import { RoutinesProvider } from '@/contexts/RoutinesContext';
@@ -107,17 +106,15 @@ const App = () => (
         <AccessibilityProvider>
           <WalletProvider>
             <CustomActivitiesProvider>
-              <ChatProvider>
-                <EmotionsProvider>
-                  <RoutinesProvider>
-                    <CalendarProvider>
-                      <MobileMenuProvider>
-                        <AuthGate />
-                      </MobileMenuProvider>
-                    </CalendarProvider>
-                  </RoutinesProvider>
-                </EmotionsProvider>
-              </ChatProvider>
+              <EmotionsProvider>
+                <RoutinesProvider>
+                  <CalendarProvider>
+                    <MobileMenuProvider>
+                      <AuthGate />
+                    </MobileMenuProvider>
+                  </CalendarProvider>
+                </RoutinesProvider>
+              </EmotionsProvider>
             </CustomActivitiesProvider>
           </WalletProvider>
         </AccessibilityProvider>

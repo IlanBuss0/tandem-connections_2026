@@ -157,6 +157,10 @@ interface WalletCtx {
 
 const WalletContext = createContext<WalletCtx | null>(null);
 
+function isBackendUserId(userId?: string) {
+  return Number.isInteger(Number(userId));
+}
+
 export function WalletProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const userId = user?.id ?? '__guest__';
@@ -309,8 +313,22 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [buildSnapshot, seedPoints, userId]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (!user || user.role !== 'user' || !isBackendUserId(user.id)) {
+      setSnapshot(null);
+      setState(loadLocalState(userId, seedPoints));
+      setLoading(false);
+      return;
+    }
+
+    const run = () => { void refresh(); };
+    if ('requestIdleCallback' in window) {
+      const idleId = window.requestIdleCallback(run, { timeout: 2500 });
+      return () => window.cancelIdleCallback(idleId);
+    }
+
+    const timer = window.setTimeout(run, 1200);
+    return () => window.clearTimeout(timer);
+  }, [refresh, seedPoints, user, userId]);
 
   useEffect(() => {
     saveLocalState(userId, state);

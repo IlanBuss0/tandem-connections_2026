@@ -18,6 +18,7 @@ export type ApiMutationResult = {
 export type ApiRequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
   token?: string | null;
+  cacheTtlMs?: number;
 };
 
 export class ApiError extends Error {
@@ -40,6 +41,19 @@ export const API_BASE_URL =
 function buildUrl(path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${API_BASE_URL.replace(/\/$/, "")}${normalizedPath}`;
+}
+
+const DEFAULT_GET_CACHE_TTL_MS = 30_000;
+const getCache = new Map<string, { expiresAt: number; value: unknown }>();
+const getInflight = new Map<string, Promise<unknown>>();
+
+function isCacheableGet(path: string, method?: string, body?: unknown): boolean {
+  return body === undefined && String(method || "GET").toUpperCase() === "GET" && !path.startsWith("/api/auth/");
+}
+
+function clearGetCache(): void {
+  getCache.clear();
+  getInflight.clear();
 }
 
 export function getDefaultAuthToken(): string | null {
@@ -168,7 +182,19 @@ async function apiRequestInternal<T>(
     storeDefaultAuthToken(token);
   }
   const method = init.method;
+  const cacheKey = `${String(method || "GET").toUpperCase()} ${path}`;
+  const cacheableGet = allowRefresh && isCacheableGet(path, method, body);
+  if (cacheableGet) {
+    const cached = getCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.value as T;
 
+    const inflight = getInflight.get(cacheKey);
+    if (inflight) return inflight as Promise<T>;
+  }
+
+  if (isMutatingMethod(method)) clearGetCache();
+
+  const requestPromise = (async (): Promise<T> => {
   const response = await fetch(buildUrl(path), {
     ...init,
     credentials: "include",
@@ -210,6 +236,23 @@ async function apiRequestInternal<T>(
   }
 
   return payload as T;
+  })();
+
+  if (cacheableGet) {
+    getInflight.set(cacheKey, requestPromise);
+    try {
+      const value = await requestPromise;
+      getCache.set(cacheKey, {
+        value,
+        expiresAt: Date.now() + (options.cacheTtlMs ?? DEFAULT_GET_CACHE_TTL_MS),
+      });
+      return value;
+    } finally {
+      getInflight.delete(cacheKey);
+    }
+  }
+
+  return requestPromise;
 }
 
 export async function apiUploadFile<T>(
