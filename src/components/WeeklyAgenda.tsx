@@ -10,7 +10,7 @@ interface Props {
 }
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 7); // 7am - 8pm
-const DAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
 function startOfWeek(d: Date) {
   const r = new Date(d);
@@ -92,7 +92,7 @@ export default function WeeklyAgenda({ user }: Props) {
               const isToday = fmt(d) === todayKey;
               return (
                 <div key={i} className={`p-2 text-center border-l border-border ${isToday ? 'bg-primary/10' : ''}`}>
-                  <p className="text-[10px] text-muted-foreground uppercase">{DAYS[i]}</p>
+                  <p translate="no" className="notranslate text-[10px] text-muted-foreground uppercase">{diasSemana[d.getDay()]}</p>
                   <p className={`text-sm font-bold ${isToday ? 'text-primary' : 'text-foreground'}`}>{d.getDate()}</p>
                 </div>
               );

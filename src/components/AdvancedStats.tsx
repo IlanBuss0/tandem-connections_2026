@@ -11,6 +11,8 @@ interface Props {
   activities?: Activity[];
 }
 
+const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
 export default function AdvancedStats({ user, activities }: Props) {
   const [loadedActivities, setLoadedActivities] = useState<Activity[]>([]);
 
@@ -58,7 +60,7 @@ export default function AdvancedStats({ user, activities }: Props) {
     const dailyAdherence: { day: string; pct: number; count: number }[] = [];
     for (let i = 13; i >= 0; i--) {
       const d = new Date(today); d.setDate(d.getDate() - i);
-      const label = d.toLocaleDateString('es', { weekday: 'short' }).slice(0, 1).toUpperCase();
+      const label = diasSemana[d.getDay()].slice(0, 1);
       // Mock determinístico basado en seed
       const seed = (d.getDate() + user.id.length) % 7;
       const pct = [85, 70, 95, 60, 90, 75, 50][seed];
@@ -118,7 +120,7 @@ export default function AdvancedStats({ user, activities }: Props) {
               className="flex-1 flex flex-col items-center gap-1 justify-end"
             >
               <div className="w-full rounded-t-md gradient-primary" style={{ height: `${d.pct}%`, minHeight: 4 }} title={`${d.pct}%`} />
-              <span className="text-[9px] text-muted-foreground">{d.day}</span>
+              <span translate="no" className="notranslate text-[9px] text-muted-foreground">{d.day}</span>
             </motion.div>
           ))}
         </div>

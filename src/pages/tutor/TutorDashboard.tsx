@@ -39,6 +39,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import ActivityManager from '@/components/ActivityManager';
 import ChatScreen from '@/components/ChatScreen';
+import { ChatProvider } from '@/contexts/ChatContext';
 import AppHeader from '@/components/AppHeader';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
@@ -104,7 +105,8 @@ const tutorTabs = tabs.filter(item => ['agenda', 'chat', 'notifications', 'picto
 const belongingTabs = tabs.filter(item => ['overview', 'stats', 'activities', 'location', 'emotions', 'calendar', 'insights', 'profile', 'settings', 'connections'].includes(item.id));
 
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-const dayNamesShort = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
+const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const diasSemanaOrdenCalendario = [1, 2, 3, 4, 5, 6, 0];
 
 const typeBg: Record<CalendarEvent['type'], string> = {
   terapia: 'bg-purple-100 text-purple-700 border-purple-200',
@@ -542,12 +544,14 @@ export default function TutorDashboard({ initialUserId, initialTab, onBack }: Tu
         )}
 
         {!loading && !error && tab === 'chat' && (
-          <ChatScreen
-            key={selectedNotificationChatId ? `chat-${selectedNotificationChatId}` : 'chat'}
-            profiles={chatProfiles}
-            defaultProfileId={String(user.id)}
-            defaultSelectedId={selectedNotificationChatId}
-          />
+          <ChatProvider>
+            <ChatScreen
+              key={selectedNotificationChatId ? `chat-${selectedNotificationChatId}` : 'chat'}
+              profiles={chatProfiles}
+              defaultProfileId={String(user.id)}
+              defaultSelectedId={selectedNotificationChatId}
+            />
+          </ChatProvider>
         )}
 
         {!loading && !error && tab === 'agenda' && (
@@ -1065,9 +1069,9 @@ function TutorCalendar({
       </div>
 
       <div className="bg-card rounded-xl border border-border p-2 sm:p-3">
-        <div className="grid grid-cols-7 gap-1 mb-1">
-          {dayNamesShort.map(day => (
-            <div key={day} className="text-[10px] sm:text-xs font-semibold text-center text-muted-foreground py-1">{day}</div>
+        <div translate="no" className="notranslate grid grid-cols-7 gap-1 mb-1">
+          {diasSemanaOrdenCalendario.map(dayIndex => (
+            <div key={dayIndex} translate="no" className="notranslate text-[10px] sm:text-xs font-semibold text-center text-muted-foreground py-1">{diasSemana[dayIndex]}</div>
           ))}
         </div>
         <div className="grid grid-cols-7 gap-1">

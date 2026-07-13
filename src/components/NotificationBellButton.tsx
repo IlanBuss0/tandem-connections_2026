@@ -8,24 +8,25 @@ type NotificationUser = {
 
 export function useUnreadNotifications(user: NotificationUser) {
   const [unreadCount, setUnreadCount] = useState(0);
+  const userId = user?.id;
 
   const refresh = useCallback(() => {
-    if (!user) {
+    if (!userId) {
       setUnreadCount(0);
       return;
     }
 
-    fetchMyNotifications()
+    fetchMyNotifications(userId)
       .then((notifications) => {
         setUnreadCount(notifications.filter(notification => !notification.read).length);
       })
       .catch(() => {
         // Preserve the last valid count during temporary API failures.
       });
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       setUnreadCount(0);
       return;
     }
@@ -44,7 +45,7 @@ export function useUnreadNotifications(user: NotificationUser) {
       clearInterval(intervalId);
       window.removeEventListener('notification:new', handleNotificationEvent);
     };
-  }, [refresh, user]);
+  }, [refresh, userId]);
 
   return { unreadCount, setUnreadCount };
 }

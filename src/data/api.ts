@@ -1169,6 +1169,29 @@ export interface TutorHomeData {
 }
 
 export async function fetchPertenecienteHome(userId: string): Promise<PertenecienteHomeData> {
+  if (!isBackendUserId(userId)) {
+    const user = legacy.getUserById(userId);
+    const activities = legacy.getActivitiesForUser(userId);
+    return {
+      perteneciente: null,
+      supportLevel: user?.supportLevel || 'Sin registrar',
+      autonomy: 'Sin registrar',
+      canSelfManage: Boolean(user?.onboarded),
+      points: user?.points ?? 0,
+      level: user?.level ?? 1,
+      experience: 0,
+      activities: activities.map(activity => ({
+        id: activity.id,
+        title: activity.title,
+        description: activity.description,
+        status: activity.status,
+        completed: activity.status === 'completada',
+        assignedAt: 'Hoy',
+      })),
+      notifications: legacy.getNotificationsForUser(userId),
+    };
+  }
+
   const perteneciente = await fetchPertenecienteByUsuarioId(userId);
   if (!perteneciente) {
     return {
@@ -1404,6 +1427,8 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
 }
 
 export async function fetchActivitiesForUser(userId: string): Promise<Activity[]> {
+  if (!isBackendUserId(userId)) return legacy.getActivitiesForUser(userId);
+
   try {
     const numericUserId = Number(userId);
     const [pertenecientes, actividades, estados] = await Promise.all([
@@ -1474,9 +1499,15 @@ export async function completeAssignedActivity(activity: Activity, userId: strin
   }, { token });
 }
 
-export async function fetchMyNotifications(): Promise<Notification[]> {
-  const rows = await tandemApi.notificaciones.getMine();
-  return rows.map(toLegacyNotification);
+export async function fetchMyNotifications(userId?: string): Promise<Notification[]> {
+  if (userId && !isBackendUserId(userId)) return legacy.getNotificationsForUser(userId);
+
+  try {
+    const rows = await tandemApi.notificaciones.getMine();
+    return rows.map(toLegacyNotification);
+  } catch {
+    return [];
+  }
 }
 
 export async function markNotificationAsRead(notificationId: string): Promise<void> {
@@ -1517,7 +1548,7 @@ export async function fetchCalendarEventsForUser(userId: string): Promise<Calend
     return events.sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
   }
 
-  return apiFetchWithFallback<CalendarEvent[]>([`/calendar/events?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/calendar/events`]);
+  return legacy.getEventsForUser(userId);
 }
 
 export async function createCalendarEvent(userId: string, data: Omit<CalendarEvent, 'id' | 'userId'>): Promise<CalendarEvent> {
@@ -1598,7 +1629,7 @@ export async function fetchEmotionRecordsForUser(userId: string): Promise<Emotio
     }
   }
 
-  return apiFetchWithFallback<EmotionalRecord[]>([`/emotions?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/emotions`]);
+  return legacy.getEmotionsForUser(userId);
 }
 
 export async function createEmotionRecord(userId: string, payload: Omit<EmotionalRecord, 'id' | 'userId'>): Promise<EmotionalRecord> {
@@ -1799,6 +1830,8 @@ function normalizeRoutinesPayload(payload: unknown): DayRoutine[] {
 }
 
 export async function fetchRoutinesForUser(userId: string): Promise<DayRoutine[]> {
+  if (!isBackendUserId(userId)) return [];
+
   try {
     const numericUserId = Number(userId);
     const config = await getUserConfig(numericUserId, ROUTINES_CONFIG_KEY);
@@ -1810,6 +1843,8 @@ export async function fetchRoutinesForUser(userId: string): Promise<DayRoutine[]
 }
 
 export async function saveRoutinesForUser(userId: string, routines: DayRoutine[]): Promise<DayRoutine[]> {
+  if (!isBackendUserId(userId)) return routines;
+
   try {
     const numericUserId = Number(userId);
     const payload = {
@@ -1834,6 +1869,8 @@ export async function saveRoutinesForUser(userId: string, routines: DayRoutine[]
 const CATEGORIES_CONFIG_KEY = 'routines.mi-dia.categories';
 
 export async function fetchCustomCategoriesForUser(userId: string): Promise<{ customCategories: CustomCategory[]; hiddenPredefined: string[] }> {
+  if (!isBackendUserId(userId)) return { customCategories: [], hiddenPredefined: [] };
+
   try {
     const numericUserId = Number(userId);
     const config = await getUserConfig(numericUserId, CATEGORIES_CONFIG_KEY);
@@ -1874,6 +1911,8 @@ export async function saveCustomCategoriesForUser(
   customCategories: CustomCategory[],
   hiddenPredefined: string[],
 ): Promise<void> {
+  if (!isBackendUserId(userId)) return;
+
   try {
     const numericUserId = Number(userId);
     const value = JSON.stringify({ customCategories, hiddenPredefined });
@@ -1968,6 +2007,8 @@ function backendMessageToChatMessage(message: DbMensaje & { archivos?: { id: num
 }
 
 export async function fetchConversationsForUser(userId: string): Promise<Conversation[]> {
+  if (!isBackendUserId(userId)) return legacy.getConversationsForUser(userId);
+
   const token = getStoredAuthToken();
   if (token && isBackendUserId(userId)) {
     const chats = await apiRequest<BackendChatRow[]>(`/api/chats/usuario/${encodeURIComponent(userId)}`, { token });

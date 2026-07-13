@@ -24,31 +24,32 @@ const CalendarContext = createContext<Ctx | null>(null);
 
 export function CalendarProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const userId = user?.id;
   const [events, setEvents] = useState<CalendarEvent[]>([]);
 
   const fetchEvents = useCallback(async () => {
-    if (!user) return;
+    if (!userId) return;
     try {
-      const data = await fetchCalendarEventsForUser(user.id);
+      const data = await fetchCalendarEventsForUser(userId);
       setEvents(data);
     } catch {
       setEvents([]);
     }
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
     fetchEvents();
-  }, [user, fetchEvents]);
+  }, [fetchEvents]);
 
   const addEvent: Ctx['addEvent'] = useCallback(async (data) => {
-    if (!user) return;
-    const created = await createCalendarEvent(user.id, { ...data, color: typeColor[data.type] });
+    if (!userId) return;
+    const created = await createCalendarEvent(userId, { ...data, color: typeColor[data.type] });
     setEvents(prev => {
       if (prev.some(e => e.id === created.id)) return prev;
       return [...prev, created];
     });
     fetchEvents();
-  }, [user, fetchEvents]);
+  }, [userId, fetchEvents]);
 
   const updateEventFn: Ctx['updateEvent'] = useCallback(async (id, patch) => {
     const updated = await updateCalendarEvent(id, { ...patch, color: patch.type ? typeColor[patch.type] : undefined });

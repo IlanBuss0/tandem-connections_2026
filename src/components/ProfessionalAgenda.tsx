@@ -11,7 +11,8 @@ interface Props {
 }
 
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-const dayNamesShort = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
+const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const diasSemanaOrdenCalendario = [1, 2, 3, 4, 5, 6, 0];
 
 type TherapyForm = Omit<CalendarEvent, 'id' | 'userId' | 'color' | 'type'> & {
   patientId: string;
@@ -19,6 +20,12 @@ type TherapyForm = Omit<CalendarEvent, 'id' | 'userId' | 'color' | 'type'> & {
 
 function fmt(d: Date) {
   return d.toISOString().split('T')[0];
+}
+
+function formatShortDateNoTranslate(date: string) {
+  const parsed = new Date(date + 'T12:00:00');
+  const dayAndMonth = parsed.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }).replace(/\./g, '');
+  return `${diasSemana[parsed.getDay()]} ${dayAndMonth}`;
 }
 
 function emptyForm(date: string): TherapyForm {
@@ -189,9 +196,9 @@ export default function ProfessionalAgenda({ patients }: Props) {
       </div>
 
       <div className="bg-card rounded-xl border border-border p-2 sm:p-3">
-        <div className="grid grid-cols-7 gap-1 mb-1">
-          {dayNamesShort.map((day) => (
-            <div key={day} className="text-[10px] sm:text-xs font-semibold text-center text-muted-foreground py-1">{day}</div>
+        <div translate="no" className="notranslate grid grid-cols-7 gap-1 mb-1">
+          {diasSemanaOrdenCalendario.map((dayIndex) => (
+            <div key={dayIndex} translate="no" className="notranslate text-[10px] sm:text-xs font-semibold text-center text-muted-foreground py-1">{diasSemana[dayIndex]}</div>
           ))}
         </div>
         <div className="grid grid-cols-7 gap-1">
@@ -338,7 +345,7 @@ export default function ProfessionalAgenda({ patients }: Props) {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{event.title}</p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(event.date + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })} · {event.time}
+                      <span translate="no" className="notranslate">{formatShortDateNoTranslate(event.date)}</span> · {event.time}
                       {patient ? ` · ${patient.name}` : ''}
                     </p>
                   </div>

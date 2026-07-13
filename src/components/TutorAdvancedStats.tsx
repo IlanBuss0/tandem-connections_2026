@@ -17,6 +17,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const EMOJI_COLORS = ['#7C3AED', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#8B5CF6'];
+const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
 interface Props {
   activities: TutorHomeData['byUserId'][string]['activities'];
@@ -57,7 +58,7 @@ export default function TutorAdvancedStats({ activities, emotions, events, adher
       const total = dayActs.length;
 
       return {
-        day: d.toLocaleDateString('es', { weekday: 'short' }).slice(0, 3).toUpperCase(),
+        day: diasSemana[d.getDay()],
         fullDate: dayStr,
         Completadas: done,
         'En progreso': progress,
@@ -198,6 +199,7 @@ export default function TutorAdvancedStats({ activities, emotions, events, adher
           <MiniKpi label="Adherencia" value={`${adherence}%`} className="text-primary bg-primary/5 border-primary/15" />
         </div>
 
+        <div translate="no" className="notranslate">
         <ResponsiveContainer width="100%" height={260}>
           <ComposedChart data={dailyActivityData} margin={{ top: 5, right: 5, bottom: 5, left: -15 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -219,6 +221,7 @@ export default function TutorAdvancedStats({ activities, emotions, events, adher
             <Line yAxisId="right" type="monotone" dataKey="pct" stroke="#7C3AED" strokeWidth={2} dot={{ r: 3 }} name="Adherencia" />
           </ComposedChart>
         </ResponsiveContainer>
+        </div>
 
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground md:grid-cols-4">
           <InfoPill label="Semana pasada" value={`${weekData.lastWeek}%`} />

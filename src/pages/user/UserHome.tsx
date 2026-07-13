@@ -48,7 +48,7 @@ function fmt(d: Date) {
   return d.toISOString().split('T')[0];
 }
 
-const DAYS_SHORT = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 function activityEmoji(title: string): string {
@@ -110,7 +110,6 @@ export default function UserHome({ onNavigate }: Props) {
 
     tl.from(heroItems, {
       y: 30,
-      opacity: 0,
       duration: 0.7,
       stagger: 0.18,
       clearProps: 'all',
@@ -119,7 +118,6 @@ export default function UserHome({ onNavigate }: Props) {
     revealSections.forEach(section => {
       gsap.from(section, {
         y: 24,
-        opacity: 0,
         duration: 0.75,
         ease: 'power3.out',
         scrollTrigger: {
@@ -128,7 +126,7 @@ export default function UserHome({ onNavigate }: Props) {
           once: true,
           toggleActions: 'play none none none',
         },
-        clearProps: 'transform,opacity',
+        clearProps: 'transform',
       });
     });
   }, { scope: containerRef, dependencies: [loading] });
@@ -136,14 +134,14 @@ export default function UserHome({ onNavigate }: Props) {
   const handlePanelEnter = useCallback((index: number) => {
     const panel = panelRefs.current[index];
     if (panel) {
-      gsap.to(panel, { y: -4, scale: 1.01, opacity: 1, duration: 0.24, ease: 'power2.out' });
+      gsap.to(panel, { y: -4, scale: 1.01, duration: 0.24, ease: 'power2.out' });
     }
   }, []);
 
   const handlePanelLeave = useCallback((index: number) => {
     const panel = panelRefs.current[index];
     if (panel) {
-      gsap.to(panel, { y: 0, scale: 1, opacity: 1, duration: 0.24, ease: 'power2.out', clearProps: 'transform' });
+      gsap.to(panel, { y: 0, scale: 1, duration: 0.24, ease: 'power2.out', clearProps: 'transform' });
     }
   }, []);
 
@@ -241,12 +239,12 @@ export default function UserHome({ onNavigate }: Props) {
   if (!user || user.role !== 'user') return null;
 
   return (
-    <div ref={containerRef} className="min-h-screen bg-transparent px-4 pb-6 pt-2 sm:px-6 lg:px-8">
+    <div ref={containerRef} className="min-h-screen px-4 pb-6 pt-2 sm:px-6 lg:px-8">
       <div className="relative left-1/2 right-1/2 w-screen -translate-x-1/2 -mt-6 sm:-mt-8">
-        <div className="w-full rounded-[24px] border border-[#e8dcf8] bg-gradient-to-br from-[#f9f4ff] via-[#f4ebff] to-[#eef8fb] py-5 shadow-[0_10px_30px_rgba(107,76,154,0.08)] sm:py-7">
+        <div className="w-full rounded-[24px] border border-[#e8dcf8] bg-gradient-to-br from-[#f9f4ff] via-[#f4ebff] to-[#eef8fb] py-5 shadow-[0_10px_30px_#eadff6] sm:py-7">
           <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8">
             <div className="mx-auto flex max-w-3xl flex-col items-center gap-6">
-              <div data-hero-animate className="inline-flex items-center rounded-full border border-[#dbcdf5] bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7b5fa6] shadow-sm">
+              <div data-hero-animate className="inline-flex items-center rounded-full border border-[#dbcdf5] bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7b5fa6] shadow-sm">
                 Resumen de hoy
               </div>
               <h1 data-hero-animate className="text-4xl font-black leading-[0.95] tracking-[-0.02em] text-[#2e2344] sm:text-5xl">
@@ -259,7 +257,7 @@ export default function UserHome({ onNavigate }: Props) {
 
             <div data-hero-animate className="flex flex-wrap justify-center gap-2 mt-6">
               {[
-                { id: 'chat', label: 'Chat', icon: MessageCircle, tone: 'bg-white/85 text-[#5c3f7f]' },
+                { id: 'chat', label: 'Chat', icon: MessageCircle, tone: 'bg-white text-[#5c3f7f]' },
                 { id: 'calendar', label: 'Calendario', icon: Calendar, tone: 'bg-[#6f4ca6] text-white' },
                 { id: 'notes', label: 'Notas', icon: FileText, tone: 'bg-[#fffafc] text-[#7b5fa6]' },
               ].map(item => (
@@ -283,7 +281,7 @@ export default function UserHome({ onNavigate }: Props) {
           ref={el => { panelRefs.current[0] = el; }}
           onMouseEnter={() => handlePanelEnter(0)}
           onMouseLeave={() => handlePanelLeave(0)}
-          className="rounded-[24px] border border-[#ece3f8] bg-white p-4 shadow-[0_8px_24px_rgba(107,76,154,0.06)] sm:p-5"
+          className="rounded-[24px] border border-[#ece3f8] bg-white p-4 shadow-[0_8px_24px_#f0e8f8] sm:p-5"
         >
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
@@ -298,7 +296,7 @@ export default function UserHome({ onNavigate }: Props) {
             </button>
           </div>
 
-          <div className="flex justify-between gap-1 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div translate="no" className="notranslate flex justify-between gap-1 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {weekDays.map((d, i) => {
               const key = fmt(d);
               const isToday = key === todayKey;
@@ -320,14 +318,14 @@ export default function UserHome({ onNavigate }: Props) {
                           : 'border-transparent text-[#6b6380] hover:bg-[#f8f2ff]'
                   }`}
                 >
-                  <span className={`text-[11px] sm:text-xs font-semibold ${isToday ? 'text-white/80' : 'text-[#7b5fa6]'}`}>
-                    {DAYS_SHORT[i]}
+                  <span translate="no" className={`notranslate text-[11px] sm:text-xs font-semibold ${isToday ? 'text-[#efe8ff]' : 'text-[#7b5fa6]'}`}>
+                    {diasSemana[d.getDay()]}
                   </span>
                   <span className={`text-xl sm:text-2xl font-extrabold mt-1 leading-none ${isToday ? '' : 'text-[#4a3a6a]'}`}>
                     {d.getDate()}
                   </span>
                   {hasEvents && (
-                    <div className={`mt-1.5 flex gap-1 ${isToday ? 'text-white/80' : ''}`}>
+                    <div className={`mt-1.5 flex gap-1 ${isToday ? 'text-[#efe8ff]' : ''}`}>
                       {dayEvs.slice(0, 3).map(e => (
                         <span
                           key={e.id}
@@ -343,7 +341,7 @@ export default function UserHome({ onNavigate }: Props) {
           </div>
 
           {selectedDay && eventsOn(selectedDay).length > 0 && (
-            <div className="mt-5 space-y-2 rounded-[20px] border border-[#efe8f8] bg-[#fcf9ff]/80 p-3">
+            <div className="mt-5 space-y-2 rounded-[20px] border border-[#efe8f8] bg-[#fcf9ff] p-3">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#7b5fa6]">
                 {selectedDay === todayKey
                   ? 'Hoy'
@@ -369,17 +367,11 @@ export default function UserHome({ onNavigate }: Props) {
             ref={el => { panelRefs.current[2] = el; }}
             onMouseEnter={() => handlePanelEnter(2)}
             onMouseLeave={() => handlePanelLeave(2)}
-            className="py-6 bg-transparent p-0"
+            className="rounded-[24px] border border-[#ece3f8] bg-white p-6 shadow-[0_8px_24px_#f0e8f8]"
           >
-            <div className="mb-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">Estado emocional</p>
-              <h3 className="text-2xl sm:text-3xl font-bold text-white">¿Cómo te sentiste hoy?</h3>
-            </div>
-
-            <div className="mt-4">
-              <h4 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-tight text-white/95">
-                {note?.trim() ? note : 'Contame brevemente cómo te sentiste hoy.'}
-              </h4>
+            <div className="mb-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#7b5fa6]">Estado emocional</p>
+              <h3 className="text-2xl sm:text-3xl font-bold text-[#2e2344]">¿Cómo te sentiste hoy?</h3>
             </div>
 
             <textarea
@@ -387,13 +379,13 @@ export default function UserHome({ onNavigate }: Props) {
               onChange={e => { setNote(e.target.value); setSaved(false); }}
               placeholder="Escribí acá lo que sentís o pensás..."
               rows={3}
-              className="mt-6 w-full resize-none bg-transparent p-0 text-sm text-slate-100 placeholder:text-slate-300 outline-none transition focus:ring-0"
+              className="mt-4 w-full resize-none rounded-2xl border border-[#efe8f8] bg-[#fcf9ff] p-3 text-sm text-[#4a4a5a] placeholder:text-[#8b7aa0] outline-none transition focus:ring-0"
             />
 
             <div className="mt-4 flex items-center justify-between">
-              <div className="flex items-center gap-3 text-[#b5a8c8]">
-                <Smile size={18} className="cursor-pointer transition hover:text-[#d6bff6]" />
-                <Paperclip size={16} className="cursor-pointer transition hover:text-[#d6bff6]" />
+              <div className="flex items-center gap-3 text-[#8b7aa0]">
+                <Smile size={18} className="cursor-pointer transition hover:text-[#6f4ca6]" />
+                <Paperclip size={16} className="cursor-pointer transition hover:text-[#6f4ca6]" />
               </div>
 
               <div className="flex items-center gap-3">
@@ -403,7 +395,7 @@ export default function UserHome({ onNavigate }: Props) {
                 <button
                   onClick={handleSaveNote}
                   disabled={!note.trim()}
-                  className="text-sm font-semibold text-[#d6bff6] transition-opacity disabled:opacity-40"
+                  className="text-sm font-semibold text-[#6f4ca6] transition disabled:text-[#b5a8c8]"
                 >
                   Guardar nota
                 </button>
@@ -417,31 +409,32 @@ export default function UserHome({ onNavigate }: Props) {
             ref={el => { panelRefs.current[1] = el; }}
             onMouseEnter={() => handlePanelEnter(1)}
             onMouseLeave={() => handlePanelLeave(1)}
-            className="py-6"
+            className="rounded-[24px] border border-[#ece3f8] bg-white p-6 shadow-[0_8px_24px_#f0e8f8]"
           >
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">Tablero emocional</p>
-                <h3 className="text-lg font-semibold text-white">Elige cómo te sentís</h3>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#7b5fa6]">Tablero emocional</p>
+                <h3 className="text-lg font-semibold text-[#2e2344]">Elige cómo te sentís</h3>
               </div>
             </div>
 
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mt-4">
               {[
-                { id: 'tranquilo', label: 'Tranquilo', emoji: '😌', color: 'bg-emerald-500' },
-                { id: 'contento', label: 'Contento', emoji: '😊', color: 'bg-yellow-400' },
-                { id: 'animado', label: 'Animado', emoji: '🎉', color: 'bg-indigo-500' },
-                { id: 'ansioso', label: 'Ansioso', emoji: '😟', color: 'bg-orange-500' },
-                { id: 'frustrado', label: 'Frustrado', emoji: '😤', color: 'bg-red-500' },
-                { id: 'motivado', label: 'Motivado', emoji: '💪', color: 'bg-pink-500' },
+                { id: 'tranquilo', label: 'Tranquilo', emoji: '😌' },
+                { id: 'contento', label: 'Contento', emoji: '😊' },
+                { id: 'animado', label: 'Animado', emoji: '🎉' },
+                { id: 'ansioso', label: 'Ansioso', emoji: '😟' },
+                { id: 'frustrado', label: 'Frustrado', emoji: '😤' },
+                { id: 'motivado', label: 'Motivado', emoji: '💪' },
               ].map(e => (
                 <button
                   key={e.id}
+                  aria-label={e.label}
+                  aria-pressed={note === e.label}
                   onClick={() => { setNote(e.label); setSaved(false); }}
-                  className={`flex items-center gap-3 rounded-lg px-3 py-2 bg-white/03 hover:bg-white/06 transition`}
+                  className="flex min-h-14 items-center justify-center rounded-lg border border-[#efe8f8] bg-[#fcf9ff] px-3 py-3 transition hover:bg-[#f8f2ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6f4ca6] focus-visible:ring-offset-2"
                 >
-                  <span className={`${e.color} inline-flex h-9 w-9 items-center justify-center rounded-full text-white text-lg`}>{e.emoji}</span>
-                  <span className="text-sm font-semibold text-slate-100">{e.label}</span>
+                  <span className="inline-flex h-10 w-10 items-center justify-center text-2xl leading-none" aria-hidden="true">{e.emoji}</span>
                 </button>
               ))}
             </div>
@@ -452,27 +445,27 @@ export default function UserHome({ onNavigate }: Props) {
         <section
           data-reveal-section
           ref={el => { panelRefs.current[1] = el; }}
-          className="mt-6 py-6 bg-slate-900 p-6 rounded-lg"
+          className="mt-6 rounded-[24px] border border-[#ece3f8] bg-white p-6 shadow-[0_8px_24px_#f0e8f8]"
         >
           <div className="mb-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">Próximas acciones</p>
-            <h3 className="text-lg font-semibold text-white">Lo que sigue</h3>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#7b5fa6]">Próximas acciones</p>
+            <h3 className="text-lg font-semibold text-[#2e2344]">Lo que sigue</h3>
           </div>
 
           {loading ? (
-            <div className="py-4 text-sm text-slate-200">Cargando actividades...</div>
+            <div className="py-4 text-sm text-[#4a4a5a]">Cargando actividades...</div>
           ) : pendingActivities.length === 0 ? (
-            <div className="py-4 text-sm text-slate-200">No tenés actividades pendientes.</div>
+            <div className="py-4 text-sm text-[#4a4a5a]">No tenés actividades pendientes.</div>
           ) : (
             <div className="relative pl-6">
-              <div className="absolute left-3 top-0 bottom-0 w-px bg-slate-800" aria-hidden />
+              <div className="absolute left-3 top-0 bottom-0 w-px bg-[#efe8f8]" aria-hidden />
               {pendingActivities.slice(0, 6).map((activity, idx) => (
                 <div key={activity.id} className="relative mb-8 pl-6">
                   <span className="absolute left-0 top-1.5 h-3 w-3 -translate-x-1/2 rounded-full bg-indigo-500" />
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-100">{activity.title}</p>
-                    <p className="mt-1 text-xs text-slate-300">{activity.description}</p>
-                    <div className="mt-1 text-[10px] text-slate-400">{activity.assignedAt}</div>
+                    <p className="text-sm font-semibold text-[#4a4a5a]">{activity.title}</p>
+                    <p className="mt-1 text-xs text-[#8b7aa0]">{activity.description}</p>
+                    <div className="mt-1 text-[10px] text-[#8b7aa0]">{activity.assignedAt}</div>
                   </div>
                 </div>
               ))}

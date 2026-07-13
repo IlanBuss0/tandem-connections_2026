@@ -10,7 +10,8 @@ import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } 
 import ReminderPicker from '@/components/ReminderPicker';
 
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-const dayNamesShort = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const diasSemanaOrdenCalendario = [1, 2, 3, 4, 5, 6, 0];
 
 const typeBg: Record<string, string> = {
   terapia: 'bg-purple-100 text-purple-700 border-purple-200',
@@ -256,10 +257,10 @@ export default function UserCalendar() {
           </button>
         </div>
 
-        <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2">
-          {dayNamesShort.map(day => (
-            <div key={day} className="py-1 text-center text-[10px] sm:text-xs font-semibold text-[#8b7aa0] uppercase tracking-wide">
-              {day}
+        <div translate="no" className="notranslate grid grid-cols-7 gap-1 sm:gap-2 mb-2">
+          {diasSemanaOrdenCalendario.map(dayIndex => (
+            <div key={dayIndex} translate="no" className="notranslate py-1 text-center text-[10px] sm:text-xs font-semibold text-[#8b7aa0] uppercase tracking-wide">
+              {diasSemana[dayIndex]}
             </div>
           ))}
         </div>

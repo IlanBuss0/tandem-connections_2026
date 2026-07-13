@@ -8,6 +8,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import ActivityManager from '@/components/ActivityManager';
 import AdvancedStats from '@/components/AdvancedStats';
 import ChatScreen from '@/components/ChatScreen';
+import { ChatProvider } from '@/contexts/ChatContext';
 import AppHeader from '@/components/AppHeader';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
@@ -258,10 +259,12 @@ export default function ProfessionalDashboard() {
 
       <div className="max-w-4xl mx-auto p-4 space-y-4">
         {tab === 'chat' && canSendMessages && (
-          <ChatScreen
-            key={selectedNotificationChatId ? `chat-${selectedNotificationChatId}` : 'chat'}
-            defaultSelectedId={selectedNotificationChatId}
-          />
+          <ChatProvider>
+            <ChatScreen
+              key={selectedNotificationChatId ? `chat-${selectedNotificationChatId}` : 'chat'}
+              defaultSelectedId={selectedNotificationChatId}
+            />
+          </ChatProvider>
         )}
         {tab === 'notifications' && (
           <UserNotifications onUnreadCountChange={setUnreadCount} onNavigate={navigateFromNotification} />
