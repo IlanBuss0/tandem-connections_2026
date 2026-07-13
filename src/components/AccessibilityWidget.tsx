@@ -34,6 +34,8 @@ import {
 import {
   ACCESSIBILITY_PROFILES,
   DEFAULT_SETTINGS,
+  isColorBlindnessMode,
+  nextColorBlindnessMode,
   type AccessibilitySettings,
   type ColorFilter,
   useAccessibility,
@@ -90,6 +92,28 @@ export default function AccessibilityWidget() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle('accessibility-menu-open', open);
+
+    if (!open) return;
+
+    const closeOnRouteChange = () => setOpen(false);
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+
+    window.addEventListener('popstate', closeOnRouteChange);
+    window.addEventListener('hashchange', closeOnRouteChange);
+    window.addEventListener('keydown', closeOnEscape);
+
+    return () => {
+      document.body.classList.remove('accessibility-menu-open');
+      window.removeEventListener('popstate', closeOnRouteChange);
+      window.removeEventListener('hashchange', closeOnRouteChange);
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (settings.cursor !== 'reading-mask' && settings.cursor !== 'reading-guide') return;
@@ -175,10 +199,11 @@ export default function AccessibilityWidget() {
 
   const profileLabel = useMemo(() => {
     const profile = ACCESSIBILITY_PROFILES.find(item => item.id === settings.activeProfile);
+    if (isColorBlindnessMode(settings.colorFilter)) return `Daltonismo: ${colorFilterLabel(settings.colorFilter)}`;
     if (profile) return profile.name;
     if (activeCount > 0) return 'Configuración personalizada';
     return 'Sin ajustes activos';
-  }, [activeCount, settings.activeProfile]);
+  }, [activeCount, settings.activeProfile, settings.colorFilter]);
 
   const resetAll = () => {
     reset();
@@ -328,11 +353,11 @@ export default function AccessibilityWidget() {
         {
           id: 'color-filters',
           label: 'Filtros para daltonismo',
-          description: 'Alterna entre protanopia, deuteranopia y tritanopia.',
+          description: 'Alterna entre deuteranopia, protanopia y tritanopia.',
           icon: Palette,
           active: isColorBlindnessFilter(settings.colorFilter),
           value: colorFilterLabel(settings.colorFilter),
-          onClick: () => update('colorFilter', nextColorFilter(settings.colorFilter)),
+          onClick: () => update('colorFilter', nextColorBlindnessMode(settings.colorFilter)),
         },
         {
           id: 'highlight-links',
@@ -469,19 +494,6 @@ export default function AccessibilityWidget() {
 
   return (
     <>
-      <svg aria-hidden="true" className="a11y-widget absolute h-0 w-0">
-        <defs>
-          <filter id="a11y-protanopia">
-            <feColorMatrix type="matrix" values="0.567 0.433 0 0 0  0.558 0.442 0 0 0  0 0.242 0.758 0 0  0 0 0 1 0" />
-          </filter>
-          <filter id="a11y-deuteranopia">
-            <feColorMatrix type="matrix" values="0.625 0.375 0 0 0  0.7 0.3 0 0 0  0 0.3 0.7 0 0  0 0 0 1 0" />
-          </filter>
-          <filter id="a11y-tritanopia">
-            <feColorMatrix type="matrix" values="0.95 0.05 0 0 0  0 0.433 0.567 0 0  0 0.475 0.525 0 0  0 0 0 1 0" />
-          </filter>
-        </defs>
-      </svg>
       {informationTooltip && (
         <div
           className="accessibility-info-tooltip"
@@ -517,7 +529,7 @@ export default function AccessibilityWidget() {
             onClick={() => setOpen(false)}
           />
 
-          <aside className="absolute bottom-0 left-0 top-0 flex w-full max-w-[440px] flex-col overflow-hidden bg-white text-slate-950 shadow-2xl sm:w-[420px]">
+          <aside className="accessibility-panel absolute bottom-0 left-0 top-0 flex w-full max-w-[440px] flex-col overflow-hidden bg-white text-slate-950 shadow-2xl sm:w-[420px]">
             <header className="bg-gradient-to-br from-[#2357ff] via-[#5b35d5] to-[#7b2ff2] px-5 pb-5 pt-4 text-white">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3">
@@ -545,12 +557,15 @@ export default function AccessibilityWidget() {
               </div>
             </header>
 
-            <div className="flex-1 overflow-y-auto px-4 py-5">
+            <div className="accessibility-panel-scroll flex-1 overflow-y-auto px-4 py-5">
               <Section title="Perfiles predeterminados" description="Activan combinaciones de herramientas. Luego podes ajustar cada opcion manualmente.">
                 <div className="grid gap-3">
                   {ACCESSIBILITY_PROFILES.map(profile => {
                     const Icon = PROFILE_ICONS[profile.icon] ?? Accessibility;
-                    const active = settings.activeProfile === profile.id;
+                    const colorMode = profile.id === 'color' && isColorBlindnessMode(settings.colorFilter)
+                      ? colorFilterLabel(settings.colorFilter)
+                      : null;
+                    const active = profile.id === 'color' ? Boolean(colorMode) : settings.activeProfile === profile.id;
 
                     return (
                       <button
@@ -573,6 +588,11 @@ export default function AccessibilityWidget() {
                         <span className="min-w-0 flex-1">
                           <span className="block text-sm font-extrabold text-slate-950">{profile.name}</span>
                           <span className="mt-1 block text-xs leading-5 text-slate-600">{profile.description}</span>
+                          {colorMode && (
+                            <span className="mt-2 inline-flex rounded-full bg-[#2357ff] px-2.5 py-1 text-xs font-extrabold text-white">
+                              {colorMode}
+                            </span>
+                          )}
                         </span>
                         <ActiveMark active={active} />
                       </button>
@@ -726,12 +746,6 @@ function getReadablePageText() {
   const clone = document.body.cloneNode(true) as HTMLElement;
   clone.querySelectorAll('.a11y-widget, script, style, noscript').forEach(element => element.remove());
   return (clone.innerText || document.title || 'No hay texto disponible para leer.').trim().slice(0, 4500);
-}
-
-function nextColorFilter(current: ColorFilter): ColorFilter {
-  const sequence: ColorFilter[] = ['none', 'protanopia', 'deuteranopia', 'tritanopia'];
-  const index = sequence.indexOf(current);
-  return sequence[(index + 1) % sequence.length] ?? 'protanopia';
 }
 
 function colorFilterLabel(filter: ColorFilter) {
