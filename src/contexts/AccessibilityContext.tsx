@@ -3,7 +3,8 @@ import { useAuth } from './AuthContext';
 import { fetchAccessibilitySettings, saveAccessibilitySettings } from '@/data/api';
 
 export type ContrastMode = 'normal' | 'high' | 'inverted' | 'dark' | 'light';
-export type ColorFilter = 'none' | 'desaturate' | 'monochrome' | 'protanopia' | 'deuteranopia' | 'tritanopia';
+export type ColorBlindnessMode = 'none' | 'deuteranopia' | 'protanopia' | 'tritanopia';
+export type ColorFilter = ColorBlindnessMode | 'desaturate' | 'monochrome';
 export type CursorMode = 'normal' | 'big' | 'reading-mask' | 'reading-guide';
 
 export interface AccessibilitySettings {
@@ -119,7 +120,6 @@ export const ACCESSIBILITY_PROFILES: AccessibilityProfile[] = [
     patch: {
       colorFilter: 'deuteranopia',
       smartContrast: true,
-      highlightLinks: true,
     },
   },
   {
@@ -195,6 +195,21 @@ export const ACCESSIBILITY_PROFILES: AccessibilityProfile[] = [
 
 const KEY = (uid: string) => `tandem:accessibility:${uid}`;
 
+export function canPersistAccessibilitySettings(userId: string | null | undefined): userId is string {
+  return Boolean(userId);
+}
+
+export function nextColorBlindnessMode(current: ColorFilter): ColorBlindnessMode {
+  const sequence: ColorBlindnessMode[] = ['none', 'deuteranopia', 'protanopia', 'tritanopia'];
+  const index = sequence.indexOf(current as ColorBlindnessMode);
+  if (index === -1) return 'deuteranopia';
+  return sequence[(index + 1) % sequence.length] ?? 'deuteranopia';
+}
+
+export function isColorBlindnessMode(filter: ColorFilter): filter is Exclude<ColorBlindnessMode, 'none'> {
+  return filter === 'deuteranopia' || filter === 'protanopia' || filter === 'tritanopia';
+}
+
 function normalize(raw: Partial<AccessibilitySettings> | null | undefined): AccessibilitySettings {
   const normalized = { ...DEFAULT_SETTINGS, ...(raw ?? {}) };
 
@@ -251,16 +266,24 @@ const AccessibilityContext = createContext<AccessibilityContextValue | null>(nul
 export function AccessibilityProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const uid = user?.id ?? '__guest__';
-  const [settings, setSettings] = useState<AccessibilitySettings>(() => load(uid));
-  const [loadedUid, setLoadedUid] = useState(uid);
+  const [settings, setSettings] = useState<AccessibilitySettings>(DEFAULT_SETTINGS);
+  const [loadedUid, setLoadedUid] = useState(canPersistAccessibilitySettings(user?.id) ? '' : uid);
 
   useEffect(() => {
     let cancelled = false;
-    const localSettings = load(uid);
+    const canPersist = canPersistAccessibilitySettings(user?.id);
+    const localSettings = canPersist ? load(uid) : DEFAULT_SETTINGS;
     setSettings(localSettings);
-    setLoadedUid(user?.id ? '' : uid);
+    setLoadedUid(canPersist ? '' : uid);
 
-    if (!user?.id) {
+    if (!canPersist) {
+      // Guest accessibility choices are intentionally memory-only. Remove the
+      // key used by older versions so a landing-page refresh always starts clean.
+      try {
+        localStorage.removeItem(KEY('__guest__'));
+      } catch {
+        // Storage can be unavailable in privacy modes; defaults still apply.
+      }
       return () => {
         cancelled = true;
       };
@@ -283,8 +306,9 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
   }, [uid, user?.id]);
 
   useEffect(() => {
+    if (!canPersistAccessibilitySettings(user?.id) || loadedUid !== uid) return;
     save(uid, settings);
-  }, [uid, settings]);
+  }, [uid, settings, loadedUid, user?.id]);
 
   useEffect(() => {
     if (!user?.id || loadedUid !== uid) return;
@@ -313,6 +337,18 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
     if (!profile) return;
 
     setSettings(prev => {
+      if (profileId === 'color') {
+        const nextMode = nextColorBlindnessMode(prev.colorFilter);
+        if (nextMode === 'none') return DEFAULT_SETTINGS;
+
+        return {
+          ...DEFAULT_SETTINGS,
+          smartContrast: true,
+          colorFilter: nextMode,
+          activeProfile: 'color',
+        };
+      }
+
       if (prev.activeProfile === profileId) {
         return DEFAULT_SETTINGS;
       }
@@ -348,16 +384,12 @@ function applyToDom(settings: AccessibilitySettings) {
   html.style.setProperty('--a11y-saturation', String(settings.saturation));
 
   const flags: Record<string, boolean> = {
-    'a11y-smart-contrast': settings.smartContrast,
     'a11y-contrast-high': settings.contrast === 'high',
     'a11y-contrast-inverted': settings.contrast === 'inverted',
     'a11y-contrast-dark': settings.contrast === 'dark',
     'a11y-contrast-light': settings.contrast === 'light',
     'a11y-filter-desaturate': settings.colorFilter === 'desaturate',
     'a11y-filter-monochrome': settings.colorFilter === 'monochrome',
-    'a11y-filter-protanopia': settings.colorFilter === 'protanopia',
-    'a11y-filter-deuteranopia': settings.colorFilter === 'deuteranopia',
-    'a11y-filter-tritanopia': settings.colorFilter === 'tritanopia',
     'accessibility-dyslexia-font': settings.dyslexiaFont,
     'accessibility-dyslexia-text-size': settings.dyslexiaTextSize,
     'accessibility-dyslexia-spacing': settings.dyslexiaSpacing,
@@ -384,4 +416,18 @@ function applyToDom(settings: AccessibilitySettings) {
   };
 
   Object.entries(flags).forEach(([className, enabled]) => body.classList.toggle(className, enabled));
+
+  // Daltonism and smart-contrast styles belong to app content, never to the
+  // sibling accessibility widget. These modes intentionally avoid body filters.
+  const contentRoot = document.querySelector<HTMLElement>('.accessibility-content-root');
+  if (contentRoot) {
+    const contentFlags: Record<string, boolean> = {
+      'accessibility-smart-contrast': settings.smartContrast,
+      'accessibility-colorblind-deuteranopia': settings.colorFilter === 'deuteranopia',
+      'accessibility-colorblind-protanopia': settings.colorFilter === 'protanopia',
+      'accessibility-colorblind-tritanopia': settings.colorFilter === 'tritanopia',
+    };
+
+    Object.entries(contentFlags).forEach(([className, enabled]) => contentRoot.classList.toggle(className, enabled));
+  }
 }
