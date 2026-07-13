@@ -29,7 +29,6 @@ const typeColors: Record<string, string> = {
   decisión: 'bg-amber-100 text-amber-700',
 };
 
-const pictogramUrl = (id: number) => `https://static.arasaac.org/pictograms/${id}/${id}_300.png`;
 const isImageIcon = (value?: string) => Boolean(value?.startsWith('http'));
 
 function StepIcon({ value, fallback, className = '' }: { value?: string; fallback: string | number; className?: string }) {
@@ -38,40 +37,6 @@ function StepIcon({ value, fallback, className = '' }: { value?: string; fallbac
   }
 
   return <>{value || fallback}</>;
-}
-
-function buildPictogramDemoActivity(userId: string): Activity {
-  return {
-    id: `demo-pictogramas-${userId}`,
-    title: 'Preparar una merienda con pictogramas',
-    category: 'comunicación',
-    objective: 'Usar apoyos visuales para seguir una rutina simple',
-    description: 'Actividad de ejemplo para ver pictogramas reales de ARASAAC dentro de los pasos.',
-    difficulty: 'fácil',
-    duration: '5 min',
-    steps: [
-      'Lavarse las manos antes de empezar',
-      'Elegir una comida para la merienda',
-      'Servir agua o bebida',
-      'Sentarse en la mesa',
-      'Comer tranquilo y guardar lo usado',
-    ],
-    stepIcons: [
-      pictogramUrl(4576),
-      pictogramUrl(4610),
-      pictogramUrl(5599),
-      pictogramUrl(7284),
-      pictogramUrl(2349),
-    ],
-    status: 'pendiente',
-    recommendedBy: 'app',
-    recommendedByName: 'TANDEM',
-    progress: 0,
-    assignedTo: userId,
-    points: 30,
-    type: 'guiada',
-    completionMessage: '¡Muy bien! Seguiste una rutina usando pictogramas.',
-  };
 }
 
 type ActivityDateFilter = 'all' | 'newest' | 'oldest';
@@ -215,9 +180,7 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
       const backendCustomId = (activity as any).backendCustomActivityId;
       return !backendCustomId || !customBackendIds.has(Number(backendCustomId));
     });
-    const demoCompleted = localStorage.getItem('tandem:demo-completed') === 'true';
-    const demoActivity = user && !demoCompleted ? buildPictogramDemoActivity(user.id) : null;
-    return [demoActivity, ...customForUser, ...localWithoutDuplicatedCustom].filter(Boolean) as Activity[];
+    return [...customForUser, ...localWithoutDuplicatedCustom] as Activity[];
   }, [customForUser, localActivities, user]);
 
   useEffect(() => {
@@ -319,10 +282,6 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
 
   async function completeActivity(id: string) {
     if (!canCompleteActivities) return;
-    if (id.includes('demo-pictogramas')) {
-      localStorage.setItem('tandem:demo-completed', 'true');
-      return;
-    }
     const activity = merged.find(item => item.id === id);
     if (!activity || !user) return;
     if ((activity as any).isCustom) {

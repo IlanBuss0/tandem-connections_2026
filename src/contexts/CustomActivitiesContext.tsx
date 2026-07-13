@@ -155,6 +155,7 @@ export function CustomActivitiesProvider({ children }: { children: ReactNode }) 
         data.description?.trim(),
         data.objective?.trim() ? `Objetivo: ${data.objective.trim()}` : '',
         data.steps?.length ? `Pasos: ${data.steps.join(' | ')}` : '',
+        data.gameType && data.gameData ? `Juego: ${JSON.stringify({ gameType: data.gameType, gameData: data.gameData })}` : '',
       ].filter(Boolean).join('\n'),
       fecha_creacion: existing?.createdAt ? new Date(existing.createdAt).toISOString() : new Date(now).toISOString(),
       activa: true,

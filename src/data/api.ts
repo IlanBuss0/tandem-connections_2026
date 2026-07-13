@@ -1,6 +1,7 @@
 import * as legacy from './mockData';
 import { tandemApi } from '@/services/api';
 import { API_BASE_URL, ApiError, apiRequest, clearDefaultAuthToken, unwrapApiData } from '@/services/api/client';
+import type { GameData, GameType } from '@/data/miniGames';
 import type {
   Actividad as DbActividad,
   ActividadAsignada as DbActividadAsignada,
@@ -350,9 +351,29 @@ function extractCustomSteps(description?: string | null): string[] {
 function customDescriptionWithoutMetadata(description?: string | null): string {
   return (description || '')
     .split('\n')
-    .filter(line => !line.trim().startsWith('Objetivo:') && !line.trim().startsWith('Pasos:'))
+    .filter(line =>
+      !line.trim().startsWith('Objetivo:') &&
+      !line.trim().startsWith('Pasos:') &&
+      !line.trim().startsWith('Juego:')
+    )
     .join('\n')
     .trim();
+}
+
+function parseActivityGameMetadata(description?: string | null): { gameType?: GameType; gameData?: GameData } {
+  const line = (description || '').split('\n').find(item => item.trim().startsWith('Juego:'));
+  if (!line) return {};
+
+  const raw = line.replace(/^Juego:\s*/i, '').trim();
+  if (!raw) return {};
+
+  try {
+    const parsed = JSON.parse(raw) as { gameType?: GameType; gameData?: GameData };
+    if (!parsed.gameType || !parsed.gameData) return {};
+    return { gameType: parsed.gameType, gameData: parsed.gameData };
+  } catch {
+    return {};
+  }
 }
 
 function toAssignedLegacyActivity(
@@ -373,6 +394,7 @@ function toAssignedLegacyActivity(
   const completed = isCompletedStatus(status, assignment);
   const customDescription = 'id_actividad_base' in activity ? customDescriptionWithoutMetadata(activity.descripcion) : '';
   const customSteps = 'id_actividad_base' in activity ? extractCustomSteps(activity.descripcion) : null;
+  const gameMetadata = parseActivityGameMetadata(activity.descripcion);
 
   return {
     ...base,
@@ -389,6 +411,7 @@ function toAssignedLegacyActivity(
     assignedActivityId: assignment.id,
     backendActivityId: assignment.id_actividad,
     backendCustomActivityId: assignment.id_actividad_personalizada,
+    ...gameMetadata,
   } as Activity & {
     assignedActivityId: number;
     backendActivityId: number | null;
@@ -473,6 +496,13 @@ async function fetchPertenecienteByUsuarioId(userId: string | number): Promise<D
     if (error instanceof ApiError && error.status === 404) return null;
     throw error;
   }
+}
+
+async function fetchCustomActivitiesByPerteneciente(idPerteneciente: number): Promise<DbActividadPersonalizada[]> {
+  return apiRequest<DbActividadPersonalizada[]>(
+    `/api/actividades-personalizadas?id_perteneciente=${encodeURIComponent(String(idPerteneciente))}`,
+    { token: getStoredAuthToken() },
+  );
 }
 
 export async function fetchPermissionContext(): Promise<PermissionContext> {
@@ -1157,6 +1187,7 @@ export async function fetchPertenecienteHome(userId: string): Promise<Pertenecie
   const [
     asignadas,
     actividades,
+    actividadesPersonalizadas,
     estados,
     notificaciones,
     saldos,
@@ -1166,6 +1197,7 @@ export async function fetchPertenecienteHome(userId: string): Promise<Pertenecie
   ] = await Promise.all([
     fetchAssignedActivitiesByPerteneciente(Number(perteneciente.id)),
     tandemApi.actividades.getAll(),
+    fetchCustomActivitiesByPerteneciente(Number(perteneciente.id)),
     tandemApi.estadosActividades.getAll(),
     tandemApi.notificaciones.getMine(),
     tandemApi.saldosPuntos.getAll(),
@@ -1175,7 +1207,7 @@ export async function fetchPertenecienteHome(userId: string): Promise<Pertenecie
   ]);
 
   const activitiesById = new Map((actividades as DbActividad[]).map(a => [Number(a.id), a]));
-  const customById = new Map<number, DbActividadPersonalizada>();
+  const customById = new Map((actividadesPersonalizadas as DbActividadPersonalizada[]).map(a => [Number(a.id), a]));
   const statusById = new Map((estados as DbEstadoActividad[]).map(e => [Number(e.id), e]));
   const saldo = (saldos as DbSaldoPuntos[]).find(s => Number(s.id_perteneciente) === Number(perteneciente.id));
   const avatar = (avatares as DbAvatar[]).find(a => Number(a.id_perteneciente) === Number(perteneciente.id));
@@ -1192,7 +1224,10 @@ export async function fetchPertenecienteHome(userId: string): Promise<Pertenecie
     experience: avatar?.experiencia ?? 0,
     activities: (asignadas as DbActividadAsignada[])
       .filter(a => Number(a.id_perteneciente) === Number(perteneciente.id))
-      .filter(a => Boolean(a.id_actividad && activitiesById.has(Number(a.id_actividad))))
+      .filter(a =>
+        Boolean(a.id_actividad && activitiesById.has(Number(a.id_actividad))) ||
+        Boolean(a.id_actividad_personalizada && customById.has(Number(a.id_actividad_personalizada)))
+      )
       .map(a => {
         const base = a.id_actividad ? activitiesById.get(Number(a.id_actividad)) : undefined;
         const custom = a.id_actividad_personalizada ? customById.get(Number(a.id_actividad_personalizada)) : undefined;
@@ -1270,7 +1305,6 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
   const supportById = new Map((nivelesApoyo as DbNivelApoyo[]).map(item => [Number(item.id), item.nombre]));
   const autonomyById = new Map((autonomias as DbAutonomiaOperativa[]).map(item => [Number(item.id), item.nombre]));
   const activityById = new Map((actividades as DbActividad[]).map(item => [Number(item.id), item]));
-  const customActivityById = new Map<number, DbActividadPersonalizada>();
   const activityStatusById = new Map((estadosActividades as DbEstadoActividad[]).map(item => [Number(item.id), item]));
   const pointById = new Map((puntosOtorgados as DbPuntoOtorgado[]).map(item => [Number(item.id), item]));
 
@@ -1309,7 +1343,11 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
   const byUserId: TutorHomeData['byUserId'] = {};
 
   await Promise.all(linkedUsers.map(async linked => {
-    const assignedRows = await fetchAssignedActivitiesByPerteneciente(Number(linked.pertenecienteId));
+    const [assignedRows, customActivities] = await Promise.all([
+      fetchAssignedActivitiesByPerteneciente(Number(linked.pertenecienteId)),
+      fetchCustomActivitiesByPerteneciente(Number(linked.pertenecienteId)),
+    ]);
+    const customActivityById = new Map((customActivities as DbActividadPersonalizada[]).map(item => [Number(item.id), item]));
     const assignedForUser = assignedRows
       .sort((a, b) => String(b.fecha_asignacion || '').localeCompare(String(a.fecha_asignacion || '')))
       .map(item => {
@@ -1376,9 +1414,12 @@ export async function fetchActivitiesForUser(userId: string): Promise<Activity[]
     const perteneciente = pertenecientes.find(item => Number(item.id_usuario) === numericUserId);
     if (!perteneciente) return [];
 
-    const asignadas = await fetchAssignedActivitiesByPerteneciente(Number(perteneciente.id));
+    const [asignadas, actividadesPersonalizadas] = await Promise.all([
+      fetchAssignedActivitiesByPerteneciente(Number(perteneciente.id)),
+      fetchCustomActivitiesByPerteneciente(Number(perteneciente.id)),
+    ]);
     const activityById = new Map((actividades as DbActividad[]).map(item => [Number(item.id), item]));
-    const customById = new Map<number, DbActividadPersonalizada>();
+    const customById = new Map((actividadesPersonalizadas as DbActividadPersonalizada[]).map(item => [Number(item.id), item]));
     const statusById = new Map((estados as DbEstadoActividad[]).map(item => [Number(item.id), item]));
 
     return asignadas

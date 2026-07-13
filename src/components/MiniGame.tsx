@@ -547,23 +547,58 @@ function Memory({ data, onFinish }: { data: GameData; onFinish: (n: number) => v
 
   if (!pairs.length) return <p>Sin contenido</p>;
   const showAll = phase === 'preview';
+  const isComparing = phase === 'playing' && flipped.length >= 2;
   const gridColumns = pairs.length <= 4 ? 'grid-cols-2 sm:grid-cols-4' : pairs.length <= 6 ? 'grid-cols-3 sm:grid-cols-4' : 'grid-cols-4';
   return (
-    <div className="space-y-4">
+    <div className="space-y-2 sm:space-y-3">
       <ProgressBar value={(matched.length / pairs.length) * 100} />
-      <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground" aria-live="polite">
+      <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-[11px] leading-tight text-muted-foreground sm:text-xs" aria-live="polite">
         <span>Parejas: {matched.length}/{pairs.length}</span><span>Intentos: {tries}</span>
         {memory.settings.timed && <span className={secondsLeft <= 10 ? 'font-bold text-amber-600' : ''}>Tiempo: {secondsLeft}s</span>}
       </div>
       {phase === 'preview' && <p className="text-center text-sm font-semibold text-primary">Memorizá las cartas…</p>}
       {phase === 'expired' && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-center"><p className="font-semibold text-amber-800">Se terminó el tiempo</p><p className="text-xs text-amber-700">Podés volver a intentarlo cuando quieras.</p></div>}
-      <div className={`grid ${gridColumns} gap-2`} aria-label="Tablero de memoria">
+      <div className={`mx-auto grid w-full max-w-[28rem] ${gridColumns} gap-1.5 sm:gap-2`} aria-label="Tablero de memoria">
         {cards.map((card, index) => {
           const isMatched = matched.includes(card.pairId);
           const isOpen = showAll || flipped.includes(card.id) || isMatched;
-          return <button key={card.id} type="button" onClick={() => flip(card.id)} disabled={phase !== 'playing' || isMatched || flipped.length >= 2} aria-label={isOpen ? `Carta ${index + 1}: ${card.accessibleLabel}${isMatched ? ', pareja encontrada' : ''}` : `Carta ${index + 1}, oculta`} aria-pressed={isOpen} className={`aspect-square min-h-20 rounded-xl border-2 flex items-center justify-center overflow-hidden p-2 text-xl font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-default ${isOpen ? isMatched ? 'bg-green-100 border-green-500 text-green-800' : 'bg-primary/10 border-primary' : 'bg-card border-border text-muted-foreground hover:bg-muted'}`}>
-            {isOpen ? <VisualValue value={card.label} className="h-full max-h-24 w-full object-contain" /> : <span aria-hidden="true">?</span>}
-          </button>;
+          const disabled = phase !== 'playing' || isMatched || isComparing;
+          const stateClasses = isOpen
+            ? isMatched ? 'border-green-500 text-green-800' : 'border-primary text-primary'
+            : 'border-border text-muted-foreground hover:bg-muted';
+          return (
+            <button
+              key={card.id}
+              type="button"
+              onClick={() => flip(card.id)}
+              disabled={disabled}
+              aria-label={isOpen ? `Carta ${index + 1}: ${card.accessibleLabel}${isMatched ? ', pareja encontrada' : ''}` : `Carta ${index + 1}, oculta`}
+              aria-pressed={isOpen}
+              data-state={isOpen ? 'front' : 'back'}
+              data-matched={isMatched ? 'true' : 'false'}
+              className={`group aspect-square min-h-[72px] rounded-lg border-2 bg-transparent p-0 text-lg font-bold [perspective:900px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-default sm:min-h-0 sm:rounded-xl ${stateClasses}`}
+            >
+              <span
+                data-testid="memory-card-inner"
+                className={`relative block h-full w-full rounded-[inherit] transition-transform duration-300 [transform-style:preserve-3d] motion-reduce:transition-opacity motion-reduce:duration-150 motion-reduce:[transform:none] ${isOpen && !reduceMotion ? '[transform:rotateY(180deg)]' : ''}`}
+              >
+                <span
+                  data-testid="memory-card-back"
+                  aria-hidden="true"
+                  className={`absolute inset-0 flex items-center justify-center rounded-[inherit] bg-card text-xl shadow-sm [backface-visibility:hidden] motion-reduce:transition-opacity motion-reduce:duration-150 ${isOpen && reduceMotion ? 'opacity-0' : 'opacity-100'}`}
+                >
+                  ?
+                </span>
+                <span
+                  data-testid="memory-card-front"
+                  aria-hidden="true"
+                  className={`absolute inset-0 flex items-center justify-center overflow-hidden rounded-[inherit] p-1.5 text-base shadow-sm [backface-visibility:hidden] [transform:rotateY(180deg)] motion-reduce:[transform:none] motion-reduce:transition-opacity motion-reduce:duration-150 sm:p-2 sm:text-xl ${isMatched ? 'bg-green-100' : 'bg-primary/10'} ${isOpen && reduceMotion ? 'opacity-100' : reduceMotion ? 'opacity-0' : ''}`}
+                >
+                  <VisualValue value={card.label} className="h-full max-h-20 w-full object-contain sm:max-h-24" />
+                </span>
+              </span>
+            </button>
+          );
         })}
       </div>
       <div className="min-h-6 text-center text-sm font-medium text-primary" aria-live="polite">{feedback}</div>
