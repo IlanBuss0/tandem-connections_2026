@@ -92,7 +92,7 @@ function AuthGate() {
 
   return (
     <>
-      {content}
+      <div className="accessibility-content-root">{content}</div>
       <AccessibilityWidget />
     </>
   );
