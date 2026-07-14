@@ -25,6 +25,9 @@ type NoteTemplate = {
   id: string;
   name: string;
   description: string;
+  accent: string;
+  preview: string[];
+  table?: string[][];
   build: (session: ProfessionalSession) => string;
 };
 
@@ -33,18 +36,31 @@ const noteTemplates: NoteTemplate[] = [
     id: 'blank',
     name: 'Pagina en blanco',
     description: 'Crea un Google Docs vacio para escribir libremente.',
+    accent: '#64748b',
+    preview: ['Pagina libre', 'Sin estructura previa', 'Ideal para notas abiertas'],
     build: () => '',
   },
   {
     id: 'therapy-session',
     name: 'Nota de sesion',
     description: 'Estructura general para registro clinico breve.',
+    accent: '#7c3aed',
+    preview: ['Motivo y objetivo', 'Observaciones clinicas', 'Plan para proxima sesion'],
+    table: [
+      ['Campo', 'Registro'],
+      ['Estado general', ''],
+      ['Riesgo / alertas', ''],
+      ['Tarea acordada', ''],
+    ],
     build: session => `NOTA DE SESION
 
 Sesion: ${session.titulo || 'Sesion profesional'}
 Fecha: ${new Date(session.fecha_sesion).toLocaleDateString('es-AR')}
 Hora: ${new Date(session.fecha_sesion).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
 Duracion: ${session.duracion_minutos} minutos
+
+RESUMEN RAPIDO
+
 
 MOTIVO / OBJETIVO DE LA SESION
 
@@ -72,12 +88,22 @@ PLAN PARA PROXIMA SESION
 
 NOTAS ADMINISTRATIVAS
 
+TABLA DE SEGUIMIENTO
+
 `,
   },
   {
     id: 'cbt',
     name: 'TCC / conducta',
     description: 'Pensamientos, emociones, conductas e intervenciones.',
+    accent: '#0f766e',
+    preview: ['Situacion trabajada', 'Pensamientos y emociones', 'Estrategias practicadas'],
+    table: [
+      ['Situacion', 'Pensamiento', 'Emocion', 'Respuesta alternativa'],
+      ['', '', '', ''],
+      ['', '', '', ''],
+      ['', '', '', ''],
+    ],
     build: session => `REGISTRO TCC / CONDUCTUAL
 
 Sesion: ${session.titulo || 'Sesion profesional'}
@@ -109,12 +135,22 @@ TAREA PARA CASA
 
 SEGUIMIENTO PARA PROXIMA SESION
 
+TABLA TCC
+
 `,
   },
   {
     id: 'family',
     name: 'Entrevista familiar',
     description: 'Para reuniones con tutor, familia o red de apoyo.',
+    accent: '#db2777',
+    preview: ['Participantes', 'Acuerdos familiares', 'Recomendaciones'],
+    table: [
+      ['Participante', 'Rol', 'Acuerdo / compromiso'],
+      ['', '', ''],
+      ['', '', ''],
+      ['', '', ''],
+    ],
     build: session => `ENTREVISTA FAMILIAR / RED DE APOYO
 
 Sesion: ${session.titulo || 'Sesion profesional'}
@@ -143,12 +179,22 @@ RECOMENDACIONES
 
 PLAN DE SEGUIMIENTO
 
+TABLA DE ACUERDOS
+
 `,
   },
   {
     id: 'school-support',
     name: 'Apoyo escolar / funcional',
     description: 'Rutina, autonomia, adaptaciones y objetivos.',
+    accent: '#2563eb',
+    preview: ['Area trabajada', 'Nivel de apoyo', 'Adaptaciones'],
+    table: [
+      ['Area', 'Apoyo utilizado', 'Respuesta', 'Proximo paso'],
+      ['Organizacion', '', '', ''],
+      ['Autonomia', '', '', ''],
+      ['Regulacion', '', '', ''],
+    ],
     build: session => `APOYO ESCOLAR / FUNCIONAL
 
 Sesion: ${session.titulo || 'Sesion profesional'}
@@ -182,9 +228,108 @@ AVANCES OBSERVADOS
 
 PROXIMOS PASOS
 
+TABLA FUNCIONAL
+
+`,
+  },
+  {
+    id: 'progress-plan',
+    name: 'Progreso y plan',
+    description: 'Resumen de avances, barreras y objetivos proximos.',
+    accent: '#ea580c',
+    preview: ['Avances', 'Barreras', 'Objetivos proximos'],
+    table: [
+      ['Objetivo', 'Estado', 'Evidencia', 'Proximo ajuste'],
+      ['', 'En progreso', '', ''],
+      ['', 'Logrado', '', ''],
+      ['', 'Pendiente', '', ''],
+    ],
+    build: session => `PROGRESO Y PLAN DE INTERVENCION
+
+Sesion: ${session.titulo || 'Sesion profesional'}
+Fecha: ${new Date(session.fecha_sesion).toLocaleDateString('es-AR')}
+
+AVANCES OBSERVADOS
+
+
+BARRERAS / DIFICULTADES
+
+
+RECURSOS QUE FUNCIONARON
+
+
+OBJETIVOS PARA EL PROXIMO PERIODO
+- 
+- 
+- 
+
+INDICADORES A MONITOREAR
+
+
+TABLA DE OBJETIVOS
+
 `,
   },
 ];
+
+function hexToRgbColor(hex: string) {
+  const clean = hex.replace('#', '');
+  const value = Number.parseInt(clean, 16);
+  return {
+    color: {
+      rgbColor: {
+        red: ((value >> 16) & 255) / 255,
+        green: ((value >> 8) & 255) / 255,
+        blue: (value & 255) / 255,
+      },
+    },
+  };
+}
+
+function buildFormatRequests(text: string, template: NoteTemplate) {
+  const requests: any[] = [];
+  const firstLineEnd = text.indexOf('\n');
+  if (firstLineEnd > 0) {
+    requests.push({
+      updateTextStyle: {
+        range: { startIndex: 1, endIndex: firstLineEnd + 1 },
+        textStyle: {
+          bold: true,
+          fontSize: { magnitude: 18, unit: 'PT' },
+          foregroundColor: hexToRgbColor(template.accent),
+        },
+        fields: 'bold,fontSize,foregroundColor',
+      },
+    });
+    requests.push({
+      updateParagraphStyle: {
+        range: { startIndex: 1, endIndex: firstLineEnd + 1 },
+        paragraphStyle: { namedStyleType: 'TITLE' },
+        fields: 'namedStyleType',
+      },
+    });
+  }
+
+  const sectionPattern = /^[A-ZÁÉÍÓÚÑ0-9 /]+$/gm;
+  let match: RegExpExecArray | null;
+  while ((match = sectionPattern.exec(text)) !== null) {
+    if (match.index === 0) continue;
+    const start = match.index + 1;
+    const end = start + match[0].length;
+    requests.push({
+      updateTextStyle: {
+        range: { startIndex: start, endIndex: end },
+        textStyle: {
+          bold: true,
+          foregroundColor: hexToRgbColor(template.accent),
+        },
+        fields: 'bold,foregroundColor',
+      },
+    });
+  }
+
+  return requests;
+}
 
 function loadScript(src: string) {
   return new Promise<void>((resolve, reject) => {
@@ -267,28 +412,83 @@ export default function ProfessionalPrivateNote({ session }: { session: Professi
     toast({ title: 'Documento vinculado', description: 'Tandem guardo solo el acceso al Google Docs.' });
   };
 
-  const applyTemplateToDocument = async (documentId: string, token: string, templateText: string) => {
-    if (!templateText.trim()) return;
+  const fillLastTable = async (documentId: string, token: string, rows: string[][]) => {
+    if (!rows.length) return;
+    const documentResponse = await fetch(
+      `https://docs.googleapis.com/v1/documents/${encodeURIComponent(documentId)}?fields=body/content/table`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!documentResponse.ok) return;
+    const googleDocument = await documentResponse.json();
+    const tables = (googleDocument.body?.content || []).filter((item: any) => item.table);
+    const table = tables[tables.length - 1]?.table;
+    if (!table) return;
+
+    const insertRequests: any[] = [];
+    table.tableRows?.forEach((row: any, rowIndex: number) => {
+      row.tableCells?.forEach((cell: any, columnIndex: number) => {
+        const text = rows[rowIndex]?.[columnIndex];
+        if (!text) return;
+        insertRequests.push({
+          insertText: {
+            location: { index: Number(cell.startIndex) + 1 },
+            text,
+          },
+        });
+      });
+    });
+
+    if (!insertRequests.length) return;
     const response = await fetch(`https://docs.googleapis.com/v1/documents/${encodeURIComponent(documentId)}:batchUpdate`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        requests: [
-          {
-            insertText: {
-              location: { index: 1 },
-              text: templateText,
-            },
-          },
-        ],
-      }),
+      body: JSON.stringify({ requests: insertRequests.reverse() }),
+    });
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error(detail || 'Google Docs rechazo el contenido de la tabla.');
+    }
+  };
+
+  const applyTemplateToDocument = async (documentId: string, token: string, template: NoteTemplate) => {
+    const templateText = template.build(session);
+    if (!templateText.trim()) return;
+    const requests: any[] = [
+      {
+        insertText: {
+          location: { index: 1 },
+          text: templateText,
+        },
+      },
+      ...buildFormatRequests(templateText, template),
+    ];
+    if (template.table?.length) {
+      requests.push({
+        insertTable: {
+          rows: template.table.length,
+          columns: template.table[0]?.length || 2,
+          location: { index: templateText.length + 1 },
+        },
+      });
+    }
+
+    const response = await fetch(`https://docs.googleapis.com/v1/documents/${encodeURIComponent(documentId)}:batchUpdate`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ requests }),
     });
     if (!response.ok) {
       const detail = await response.text();
       throw new Error(detail || 'Google Docs rechazo la plantilla.');
+    }
+    if (template.table?.length) {
+      await fillLastTable(documentId, token, template.table);
     }
   };
 
@@ -310,7 +510,7 @@ export default function ProfessionalPrivateNote({ session }: { session: Professi
         throw new Error(detail || 'Google Docs rechazo la creacion del documento.');
       }
       const created = await response.json();
-      await applyTemplateToDocument(created.documentId, token, template.build(session));
+      await applyTemplateToDocument(created.documentId, token, template);
       await persistDocument({ id: created.documentId, name: created.title || title });
     } catch (error) {
       toast({
@@ -407,17 +607,42 @@ export default function ProfessionalPrivateNote({ session }: { session: Professi
           </p>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {noteTemplates.map(template => (
             <button
               key={template.id}
               type="button"
               onClick={() => createDriveDocument(template)}
               disabled={Boolean(working)}
-              className="rounded-lg border bg-background p-4 text-left transition hover:border-primary hover:bg-primary/5 disabled:pointer-events-none disabled:opacity-60"
+              className="group overflow-hidden rounded-lg border bg-background text-left transition hover:-translate-y-0.5 hover:border-primary hover:shadow-md disabled:pointer-events-none disabled:opacity-60"
             >
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <div className="bg-muted/30 p-4">
+                <div className="mx-auto aspect-[4/5] max-w-[180px] rounded border bg-white p-3 shadow-sm">
+                  <div className="mb-2 h-3 w-3/4 rounded" style={{ backgroundColor: template.accent }} />
+                  <div className="mb-3 h-1.5 w-1/2 rounded bg-slate-200" />
+                  <div className="space-y-1.5">
+                    {template.preview.map((line, index) => (
+                      <div key={line} className="space-y-1">
+                        <div className="h-1.5 rounded" style={{ width: `${92 - index * 13}%`, backgroundColor: index === 0 ? `${template.accent}33` : '#e5e7eb' }} />
+                        <div className="h-1 rounded bg-slate-100" style={{ width: `${76 - index * 8}%` }} />
+                      </div>
+                    ))}
+                  </div>
+                  {template.table && (
+                    <div className="mt-3 grid grid-cols-2 overflow-hidden rounded border border-slate-200">
+                      {Array.from({ length: 6 }, (_, index) => (
+                        <div
+                          key={index}
+                          className="h-5 border-b border-r border-slate-100"
+                          style={{ backgroundColor: index < 2 ? `${template.accent}24` : '#ffffff' }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-4">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md" style={{ backgroundColor: `${template.accent}1f`, color: template.accent }}>
                   {template.id === 'blank' ? <Plus size={17} /> : <LayoutTemplate size={17} />}
                 </div>
                 <div className="min-w-0">
