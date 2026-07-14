@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchActivitiesForUser, fetchAllProfessionals, fetchLinkedPertenecientesForSupportUser, getEmotionsForUser, getObjectivesForUser, getRecommendationsForUser, joinProfessionalInviteByCode, type Activity, type CalendarEvent, type Professional, type User } from '@/data/api';
+import { fetchActivitiesForUser, fetchEmotionRecordsForUser, fetchLinkedPertenecientesForSupportUser, joinProfessionalInviteByCode, type Activity, type CalendarEvent, type EmotionalRecord, type User } from '@/data/api';
 import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, MessageSquare, Sparkles, MessageCircle, Bell, X, KeyRound, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,8 @@ import AppHeader from '@/components/AppHeader';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
 import ProfessionalAgenda from '@/components/ProfessionalAgenda';
+import ProfessionalCalendar from '@/components/ProfessionalCalendar';
+import ProfessionalProfileSettings from '@/components/ProfessionalProfileSettings';
 import UserNotifications from '@/pages/user/UserNotifications';
 import { isPermissionEnabled, PROFESIONAL_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 import PermissionBlocked from '@/components/PermissionBlocked';
@@ -48,7 +50,8 @@ export default function ProfessionalDashboard() {
   useSyncMobileMenuOpen(menuOpen);
   const [linkedUsers, setLinkedUsers] = useState<User[]>([]);
   const [activitiesByUser, setActivitiesByUser] = useState<Record<string, Activity[]>>({});
-  const [allProfessionals, setAllProfessionals] = useState<Professional[]>([]);
+  const [emotionsByUser, setEmotionsByUser] = useState<Record<string, EmotionalRecord[]>>({});
+  const [patientsError, setPatientsError] = useState<string | null>(null);
   const [loadingPatients, setLoadingPatients] = useState(true);
   const [professionalInviteCode, setProfessionalInviteCode] = useState('');
   const [joiningProfessionalInvite, setJoiningProfessionalInvite] = useState(false);
@@ -63,12 +66,10 @@ export default function ProfessionalDashboard() {
     setLoadingPatients(true);
     Promise.all([
       fetchLinkedPertenecientesForSupportUser(user.id, 'professional'),
-      fetchAllProfessionals().catch(() => []),
     ])
-      .then(([patients, professionals]) => {
+      .then(([patients]) => {
         if (cancelled) return;
         setLinkedUsers(patients);
-        setAllProfessionals(professionals);
         Promise.all(
           patients.map(patient =>
             fetchActivitiesForUser(patient.id)
@@ -78,7 +79,10 @@ export default function ProfessionalDashboard() {
         ).then(entries => {
           if (!cancelled) setActivitiesByUser(Object.fromEntries(entries));
         });
+        Promise.all(patients.map(patient => fetchEmotionRecordsForUser(patient.id).then(rows => [patient.id, rows] as const).catch(() => [patient.id, []] as const)))
+          .then(entries => { if (!cancelled) setEmotionsByUser(Object.fromEntries(entries)); });
       })
+      .catch(() => { if (!cancelled) setPatientsError('No pudimos cargar tus pacientes vinculados.'); })
       .finally(() => {
         if (!cancelled) setLoadingPatients(false);
     });
@@ -88,6 +92,7 @@ export default function ProfessionalDashboard() {
   const reloadPatients = async () => {
     if (!user || user.role !== 'professional') return;
     setLoadingPatients(true);
+    setPatientsError(null);
     try {
       const patients = await fetchLinkedPertenecientesForSupportUser(user.id, 'professional');
       setLinkedUsers(patients);
@@ -99,6 +104,8 @@ export default function ProfessionalDashboard() {
         )
       );
       setActivitiesByUser(Object.fromEntries(entries));
+      const emotions = await Promise.all(patients.map(patient => fetchEmotionRecordsForUser(patient.id).then(rows => [patient.id, rows] as const).catch(() => [patient.id, []] as const)));
+      setEmotionsByUser(Object.fromEntries(emotions));
     } finally {
       setLoadingPatients(false);
     }
@@ -142,15 +149,26 @@ export default function ProfessionalDashboard() {
   const tabs = [
     { id: 'patients', label: 'Pacientes', icon: Users },
     ...(canScheduleSessions ? [{ id: 'agenda', label: 'Agenda', icon: Calendar }] : []),
+    ...(canScheduleSessions ? [{ id: 'calendar', label: 'Calendario', icon: Calendar }] : []),
     ...(canAssignActivities || canCreateCustomActivities ? [{ id: 'create', label: 'Crear actividad', icon: Sparkles }] : []),
     ...(canSendMessages ? [{ id: 'chat', label: 'Chat', icon: MessageCircle }] : []),
     { id: 'notifications', label: 'Notificaciones', icon: Bell },
     { id: 'pictograms', label: 'Pictogramas IA', icon: Sparkles },
     { id: 'tools', label: 'Herramientas', icon: ClipboardPlus },
-    { id: 'directory', label: 'Directorio', icon: FileText },
+    { id: 'profile', label: 'Mi perfil', icon: FileText },
   ];
 
   const patientDetail = selectedPatient ? linkedUsers.find(u => u.id === selectedPatient) : null;
+  const linkForUser = (userId: string) => vinculosByUsuarioPerteneciente.get(String(userId));
+  const patientHasPermission = (userId: string, permission: string, fallback = false) => {
+    const link = linkForUser(userId);
+    return Boolean(link?.permisos_efectivos.vinculo_aprobado)
+      && isPermissionEnabled(link?.permisos_efectivos.permisos, permission, fallback);
+  };
+  const agendaPatients = linkedUsers
+    .filter(patient => patientHasPermission(patient.id, PROFESIONAL_PERMISSIONS.AGENDAR_SESIONES, true))
+    .map(patient => ({ ...patient, pertenecienteId: Number(linkForUser(patient.id)?.perteneciente.id) }));
+  const activityPatients = linkedUsers.filter(patient => patientHasPermission(patient.id, PROFESIONAL_PERMISSIONS.ASIGNAR_ACTIVIDADES, true));
 
   const navigateFromNotification = (nextTab: string, params?: Record<string, any>) => {
     const sourceUserId = params?.sourceUserId ? String(params.sourceUserId) : null;
@@ -172,14 +190,8 @@ export default function ProfessionalDashboard() {
       return;
     }
 
-    if (nextTab === 'calendar' && canScheduleSessions) {
-      setSelectedPatient(null);
-      setTab('agenda');
-      return;
-    }
-
     setSelectedPatient(null);
-    setTab('patients');
+    setTab(nextTab === 'calendar' && canScheduleSessions ? 'calendar' : 'patients');
   };
 
   return (
@@ -282,18 +294,18 @@ export default function ProfessionalDashboard() {
                 No hay pertenecientes vinculados a este profesional.
               </div>
             )}
+            {patientsError && <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{patientsError}</div>}
             {linkedUsers.map(u => {
               const acts = activitiesByUser[u.id] || [];
               const completed = acts.filter(a => a.status === 'completada').length;
               const adherence = acts.length > 0 ? Math.round((completed / acts.length) * 100) : 0;
-              const emotions = getEmotionsForUser(u.id);
-              const objs = getObjectivesForUser(u.id).filter(o => o.status === 'activo');
+              const emotions = emotionsByUser[u.id] || [];
               const nextSession = nextTherapySessionForPatient(professionalCalendarEvents, u.id);
               const linkPermissions = vinculosByUsuarioPerteneciente.get(String(u.id))?.permisos_efectivos;
               const canViewPatientHistory = Boolean(permissionContext) && isPermissionEnabled(linkPermissions?.permisos, PROFESIONAL_PERMISSIONS.VER_HISTORIAL, false);
 
               return (
-                <motion.button key={u.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} onClick={() => { setSelectedPatient(u.id); setPatientTab('stats'); }} className="w-full bg-card rounded-xl border border-border overflow-hidden text-left hover:border-primary/30 transition-all">
+                <motion.button key={u.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} onClick={() => { setSelectedPatient(u.id); setPatientTab('overview'); }} className="w-full bg-card rounded-xl border border-border overflow-hidden text-left hover:border-primary/30 transition-all">
                   <div className="p-4 flex items-center gap-4">
                     <span className="text-4xl">{u.avatar}</span>
                     <div className="flex-1">
@@ -306,9 +318,9 @@ export default function ProfessionalDashboard() {
                     </div>
                   </div>
                   <div className="grid grid-cols-4 gap-2 px-4 pb-4">
-                    <div className="bg-muted/50 rounded-lg p-2 text-center"><p className="text-xs text-muted-foreground">Actividades</p><p className="font-bold text-foreground">{completed}/{acts.length}</p></div>
-                    <div className="bg-muted/50 rounded-lg p-2 text-center"><p className="text-xs text-muted-foreground">Emociones</p><p className="font-bold text-foreground">{emotions.length}</p></div>
-                    <div className="bg-muted/50 rounded-lg p-2 text-center"><p className="text-xs text-muted-foreground">Objetivos</p><p className="font-bold text-foreground">{objs.length}</p></div>
+                    <div className="bg-muted/50 rounded-lg p-2 text-center"><p className="text-xs text-muted-foreground">Actividades</p><p className="font-bold text-foreground">{canViewPatientHistory ? `${completed}/${acts.length}` : '-'}</p></div>
+                    <div className="bg-muted/50 rounded-lg p-2 text-center"><p className="text-xs text-muted-foreground">Emociones</p><p className="font-bold text-foreground">{canViewPatientHistory ? emotions.length : '-'}</p></div>
+                    <div className="bg-muted/50 rounded-lg p-2 text-center"><p className="text-xs text-muted-foreground">Historial</p><p className="font-bold text-foreground text-xs">{canViewPatientHistory ? 'Habilitado' : 'Privado'}</p></div>
                     <div className="bg-muted/50 rounded-lg p-2 text-center"><p className="text-xs text-muted-foreground">Próx. sesión</p><p className="font-bold text-foreground text-xs">{nextSession ? nextSession.date.slice(5) : '-'}</p></div>
                   </div>
                   <div className="px-4 pb-3 flex gap-1">
@@ -324,9 +336,7 @@ export default function ProfessionalDashboard() {
           const acts = activitiesByUser[patientDetail.id] || [];
           const completed = acts.filter(a => a.status === 'completada').length;
           const adherence = acts.length > 0 ? Math.round((completed / acts.length) * 100) : 0;
-          const emotions = getEmotionsForUser(patientDetail.id);
-          const objs = getObjectivesForUser(patientDetail.id).filter(o => o.status === 'activo');
-          const recs = getRecommendationsForUser(patientDetail.id);
+          const emotions = emotionsByUser[patientDetail.id] || [];
           const patientPermissions = vinculosByUsuarioPerteneciente.get(String(patientDetail.id))?.permisos_efectivos?.permisos;
           const canViewPatientHistory = Boolean(permissionContext) && isPermissionEnabled(patientPermissions, PROFESIONAL_PERMISSIONS.VER_HISTORIAL, false);
           const canMessagePatient = isPermissionEnabled(patientPermissions, PROFESIONAL_PERMISSIONS.ENVIAR_MENSAJES, false);
@@ -350,7 +360,7 @@ export default function ProfessionalDashboard() {
                 ))}
               </div>
 
-              {patientTab === 'stats' && canViewPatientHistory && <AdvancedStats user={patientDetail} activities={acts} />}
+              {patientTab === 'stats' && canViewPatientHistory && <AdvancedStats user={patientDetail} activities={acts} emotions={emotions} />}
               {patientTab === 'overview' && canViewPatientHistory && (<>
               <div className="bg-card rounded-xl p-5 border border-border">
                 <div className="flex items-center gap-4 mb-4">
@@ -381,36 +391,16 @@ export default function ProfessionalDashboard() {
                 </div>
               </div>
 
-              <div className="bg-card rounded-xl p-4 border border-border">
-                <h4 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2"><Target size={16} className="text-primary" /> Objetivos terapéuticos</h4>
-                {objs.map(obj => (
-                  <div key={obj.id} className="mb-3">
-                    <div className="flex justify-between text-sm"><span className="text-foreground">{obj.title}</span><span className="text-muted-foreground">{Math.round((obj.progress/obj.target)*100)}%</span></div>
-                    <div className="w-full bg-muted rounded-full h-2 mt-1"><div className="bg-primary h-2 rounded-full" style={{width:`${(obj.progress/obj.target)*100}%`}}/></div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="bg-card rounded-xl p-4 border border-border">
-                <h4 className="font-heading font-semibold text-foreground mb-3">📝 Observaciones y recomendaciones</h4>
-                {recs.filter(r=>r.source==='profesional').slice(0,5).map(r => (
-                  <div key={r.id} className="flex items-start gap-2 py-2 border-b border-border/50 last:border-0">
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${r.priority==='alta'?'bg-red-100 text-red-700':r.priority==='media'?'bg-amber-100 text-amber-700':'bg-green-100 text-green-700'}`}>{r.priority}</span>
-                    <div><p className="text-sm text-foreground">{r.title}</p><p className="text-xs text-muted-foreground">{r.description}</p></div>
-                  </div>
-                ))}
-              </div>
-
               <div className="flex gap-2">
                 {canMessagePatient && <Button className="flex-1 gradient-primary text-primary-foreground"><MessageSquare size={14} className="mr-1" /> Enviar mensaje</Button>}
-                {canSchedulePatient && <Button variant="outline" className="flex-1"><Calendar size={14} className="mr-1" /> Proponer sesión</Button>}
+                {canSchedulePatient && <Button variant="outline" className="flex-1" onClick={() => { setSelectedPatient(null); setTab('agenda'); }}><Calendar size={14} className="mr-1" /> Proponer sesión</Button>}
               </div>
               </>)}
             </div>
           );
         })()}
 
-        {tab === 'create' && (canAssignActivities || canCreateCustomActivities) && <ActivityManager />}
+        {tab === 'create' && (canAssignActivities || canCreateCustomActivities) && <ActivityManager assignableUsers={activityPatients} />}
         {tab === 'create' && !(canAssignActivities || canCreateCustomActivities) && (
           <PermissionBlocked
             title="Creacion de actividades deshabilitada"
@@ -418,8 +408,12 @@ export default function ProfessionalDashboard() {
           />
         )}
 
-        {tab === 'agenda' && canScheduleSessions && <ProfessionalAgenda patients={linkedUsers} />}
+        {tab === 'agenda' && canScheduleSessions && <ProfessionalAgenda patients={agendaPatients} />}
+        {tab === 'calendar' && canScheduleSessions && (
+          <ProfessionalCalendar patients={agendaPatients} onOpenAgenda={() => setTab('agenda')} />
+        )}
         {tab === 'pictograms' && <AiPictogramStudio />}
+        {tab === 'profile' && <ProfessionalProfileSettings />}
 
         {tab === 'tools' && (
           <div className="space-y-4">
@@ -479,27 +473,6 @@ export default function ProfessionalDashboard() {
           </div>
         )}
 
-        {tab === 'directory' && (
-          <>
-            <h2 className="font-heading font-bold text-xl text-foreground">Directorio de profesionales</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {allProfessionals.map(p => (
-                <div key={p.id} className="bg-card rounded-xl p-4 border border-border">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-3xl">{p.avatar}</span>
-                    <div><p className="font-semibold text-sm text-foreground">{p.name}</p><p className="text-xs text-primary">{p.specialty}</p></div>
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-2">{p.description}</p>
-                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground mb-3"><span>📍 {p.modality}</span><span>🕐 {p.availability}</span></div>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" className="flex-1 text-xs">Contactar</Button>
-                    <Button size="sm" className="flex-1 text-xs gradient-primary text-primary-foreground">Sesión de prueba</Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
       </div>
     </div>
   );

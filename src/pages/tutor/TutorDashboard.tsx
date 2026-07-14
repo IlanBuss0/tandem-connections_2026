@@ -48,6 +48,7 @@ import AiPictogramStudio from '@/components/AiPictogramStudio';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
 import UserNotifications from '@/pages/user/UserNotifications';
 import TutorConnections from '@/pages/tutor/TutorConnections';
+import ProfessionalDirectory from '@/components/ProfessionalDirectory';
 import {
   createCalendarEvent,
   deleteCalendarEvent,
@@ -82,7 +83,8 @@ type TabId =
   | 'notifications'
   | 'profile'
   | 'settings'
-  | 'pictograms';
+  | 'pictograms'
+  | 'directory';
 
 const tabs: { id: TabId; label: string; icon: typeof BarChart3 }[] = [
   { id: 'overview', label: 'Inicio', icon: BarChart3 },
@@ -99,9 +101,10 @@ const tabs: { id: TabId; label: string; icon: typeof BarChart3 }[] = [
   { id: 'pictograms', label: 'Pictogramas IA', icon: Sparkles },
   { id: 'profile', label: 'Perfil', icon: UserRound },
   { id: 'settings', label: 'Config', icon: Settings },
+  { id: 'directory', label: 'Profesionales', icon: Users },
 ];
 
-const tutorTabs = tabs.filter(item => ['agenda', 'chat', 'notifications', 'pictograms'].includes(item.id));
+const tutorTabs = tabs.filter(item => ['agenda', 'chat', 'notifications', 'pictograms', 'directory'].includes(item.id));
 const belongingTabs = tabs.filter(item => ['overview', 'stats', 'activities', 'location', 'emotions', 'calendar', 'insights', 'profile', 'settings', 'connections'].includes(item.id));
 
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -529,7 +532,7 @@ export default function TutorDashboard({ initialUserId, initialTab, onBack }: Tu
           </div>
         )}
 
-        {!loading && !error && !mainUser && tab !== 'notifications' && tab !== 'connections' && tab !== 'chat' && tab !== 'agenda' && tab !== 'pictograms' && (
+        {!loading && !error && !mainUser && tab !== 'notifications' && tab !== 'connections' && tab !== 'chat' && tab !== 'agenda' && tab !== 'pictograms' && tab !== 'directory' && (
           <div className="bg-card rounded-xl border border-border p-8 text-center">
             <Shield size={30} className="mx-auto text-muted-foreground mb-3" />
             <p className="font-semibold text-foreground">No hay pertenecientes vinculados</p>
@@ -559,12 +562,13 @@ export default function TutorDashboard({ initialUserId, initialTab, onBack }: Tu
         )}
 
         {!loading && !error && tab === 'pictograms' && <AiPictogramStudio />}
+        {!loading && !error && tab === 'directory' && <ProfessionalDirectory />}
 
         {!loading && !error && tab === 'connections' && (
           <TutorConnections initialPertenecienteId={mainUser?.pertenecienteId} />
         )}
 
-        {!loading && !error && mainUser && tab !== 'notifications' && tab !== 'chat' && tab !== 'agenda' && tab !== 'connections' && tab !== 'pictograms' && (
+        {!loading && !error && mainUser && tab !== 'notifications' && tab !== 'chat' && tab !== 'agenda' && tab !== 'connections' && tab !== 'pictograms' && tab !== 'directory' && (
           <>
             <div className="hidden">
               <span className="text-4xl">{mainUser.avatar}</span>

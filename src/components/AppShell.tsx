@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWallet } from '@/contexts/WalletContext';
-import { Home, Calendar, CheckSquare, MessageCircle, Heart, Trophy, User, Sun, Bell, LogOut, X, Image, BookOpen, ShoppingBag, Settings } from 'lucide-react';
+import { Home, Calendar, CheckSquare, MessageCircle, Heart, Trophy, User, Sun, Bell, LogOut, X, Image, BookOpen, ShoppingBag, Settings, Stethoscope } from 'lucide-react';
 import AvatarPreview from '@/components/AvatarPreview';
 import AppHeader from '@/components/AppHeader';
 import CoinBadge from '@/components/CoinBadge';
@@ -23,6 +23,7 @@ const UserPictograms = lazy(() => import('@/pages/user/UserPictograms'));
 const UserNotifications = lazy(() => import('@/pages/user/UserNotifications'));
 const UserResources = lazy(() => import('@/pages/user/UserResources'));
 const UserShop = lazy(() => import('@/pages/user/UserShop'));
+const ProfessionalDirectory = lazy(() => import('@/components/ProfessionalDirectory'));
 const TutorLanding = lazy(() => import('@/pages/tutor/TutorLanding'));
 const TutorDashboard = lazy(() => import('@/pages/tutor/TutorDashboard'));
 const ProfessionalDashboard = lazy(() => import('@/pages/professional/ProfessionalDashboard'));
@@ -40,6 +41,7 @@ const userNav = [
   { id: 'achievements', label: 'Logros', icon: Trophy },
   { id: 'notifications', label: 'Notificaciones', icon: Bell },
   { id: 'resources', label: 'Recursos', icon: BookOpen },
+  { id: 'professional-directory', label: 'Profesionales', icon: Stethoscope },
   { id: 'profile', label: 'Perfil', icon: User },
   { id: 'profile-settings', label: 'Configuración', icon: Settings },
 ];
@@ -138,6 +140,7 @@ export default function AppShell() {
       case 'achievements': return <UserAchievements />;
       case 'notifications': return <UserNotifications onUnreadCountChange={setUnreadNotifs} onNavigate={goToTab} />;
       case 'resources': return <UserResources />;
+      case 'professional-directory': return <ProfessionalDirectory />;
       case 'profile':
         return editingProfilePersonalData
           ? <UserProfileSettings mode="personal" onBack={() => setEditingProfilePersonalData(false)} />

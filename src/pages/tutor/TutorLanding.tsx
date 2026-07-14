@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Calendar, ChevronLeft, ChevronRight, Clock, Copy, Check, Loader2, LogOut, Menu, MessageCircle, Plus, QrCode, Sparkles, UserRound, Users, X } from 'lucide-react';
+import { Bell, Calendar, ChevronLeft, ChevronRight, Clock, Copy, Check, Loader2, LogOut, Menu, MessageCircle, Plus, QrCode, Sparkles, Stethoscope, UserRound, Users, X } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useAuth } from '@/contexts/AuthContext';
 import AppHeader from '@/components/AppHeader';
@@ -124,6 +124,7 @@ export default function TutorLanding({ onSelectPerteneciente, onNavigateTo }: Tu
     { id: 'chat', label: 'Chat', icon: MessageCircle },
     { id: 'notifications', label: 'Notificaciones', icon: Bell },
     { id: 'pictograms', label: 'Pictogramas IA', icon: Sparkles },
+    { id: 'directory', label: 'Profesionales', icon: Stethoscope },
   ];
 
   const tutorQuickActions = [
@@ -131,6 +132,7 @@ export default function TutorLanding({ onSelectPerteneciente, onNavigateTo }: Tu
     { id: 'chat', label: 'Chat', icon: MessageCircle, desc: 'Mensajes con la red de apoyo' },
     { id: 'notifications', label: 'Notificaciones', icon: Bell, desc: 'Alertas y novedades' },
     { id: 'pictograms', label: 'Pictogramas IA', icon: Sparkles, desc: 'Crear imágenes personalizadas con IA' },
+    { id: 'directory', label: 'Profesionales', icon: Stethoscope, desc: 'Encontrar profesionales validados' },
   ];
 
   return (

@@ -17,6 +17,7 @@ import type {
   Mensaje as DbMensaje,
   Notificacion as DbNotificacion,
   Perteneciente as DbPerteneciente,
+  PerfilProfesional as DbPerfilProfesional,
   PlanSuscripcion as DbPlanSuscripcion,
   Profesional as DbProfesional,
   PuntoOtorgado as DbPuntoOtorgado,
@@ -46,6 +47,76 @@ export interface CustomCategory {
   color?: string;
 }
 export type CalendarEvent = legacy.CalendarEvent;
+export interface ProfessionalSession {
+  id: number;
+  id_profesional: number;
+  id_perteneciente: number;
+  fecha_sesion: string;
+  titulo: string;
+  duracion_minutos: number;
+  estado: 'programada' | 'completada' | 'cancelada';
+  recordatorios: number[];
+}
+
+export interface PrivateProfessionalNote {
+  id: number;
+  id_sesion_profesional: number;
+  contenido: { type: 'doc'; content: unknown[] };
+  version: number;
+  fecha_actualizacion: string;
+  documento_drive?: {
+    id: number;
+    google_file_id: string;
+    nombre: string;
+    mime_type: string;
+    web_view_url: string;
+    fecha_vinculacion: string;
+  } | null;
+}
+
+function professionalSessionToCalendarEvent(session: ProfessionalSession, userId: string): CalendarEvent {
+  const date = new Date(session.fecha_sesion);
+  return {
+    id: `professional-session-${session.id}`,
+    title: session.titulo || 'Sesion profesional',
+    date: date.toISOString().slice(0, 10),
+    time: date.toTimeString().slice(0, 5),
+    type: 'terapia',
+    description: `Sesion profesional · ${session.duracion_minutos} min · Estado: ${session.estado}`,
+    userId,
+    color: calendarTypeColor('terapia'),
+    reminders: session.recordatorios || [],
+  };
+}
+
+export interface ProfessionalPublicProfile {
+  id: number;
+  id_profesional: number;
+  nombre: string;
+  profesion: string;
+  especialidad: string | null;
+  institucion: string | null;
+  descripcion: string | null;
+  experiencia: string | null;
+  precio_sesion: number | null;
+  informacion_precio: string | null;
+  modalidad: string | null;
+  disponibilidad: string | null;
+  correo_contacto: string | null;
+  whatsapp_contacto: string | null;
+}
+
+export interface ProfessionalOwnProfile {
+  profesional: DbProfesional;
+  perfil: (DbPerfilProfesional & {
+    modalidad?: string | null;
+    disponibilidad?: string | null;
+    correo_contacto?: string | null;
+    whatsapp_contacto?: string | null;
+    publicar_correo?: boolean;
+    publicar_whatsapp?: boolean;
+  }) | null;
+}
 export type Conversation = legacy.Conversation;
 export type ChatMessage = legacy.ChatMessage & {
   editedAt?: string;
@@ -1545,7 +1616,18 @@ export async function fetchCalendarEventsForUser(userId: string): Promise<Calend
       }
     });
 
-    return events.sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+    let professionalSessionEvents: CalendarEvent[] = [];
+    try {
+      const sessions = await fetchProfessionalSessions();
+      professionalSessionEvents = sessions
+        .filter(session => session.estado !== 'cancelada')
+        .map(session => professionalSessionToCalendarEvent(session, userId));
+    } catch {
+      professionalSessionEvents = [];
+    }
+
+    return [...events, ...professionalSessionEvents]
+      .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
   }
 
   return legacy.getEventsForUser(userId);
@@ -2469,6 +2551,60 @@ export async function fetchTutorById(id: string): Promise<Tutor | null> {
 
 export async function fetchProfessionalById(id: string): Promise<Professional | null> {
   try { return await apiFetchWithFallback<Professional>([`/professionals/${encodeURIComponent(id)}`]); } catch { return null; }
+}
+
+export async function fetchProfessionalSessions(idPerteneciente?: number): Promise<ProfessionalSession[]> {
+  const query = idPerteneciente ? `?id_perteneciente=${encodeURIComponent(String(idPerteneciente))}` : '';
+  return apiRequest<ProfessionalSession[]>(`/api/sesiones-profesionales${query}`, { token: getStoredAuthToken() });
+}
+
+export async function createProfessionalSession(payload: Omit<ProfessionalSession, 'id' | 'id_profesional'>): Promise<{ id: number }> {
+  return apiRequest('/api/sesiones-profesionales', { method: 'POST', token: getStoredAuthToken(), body: payload });
+}
+
+export async function updateProfessionalSession(id: number, payload: Partial<ProfessionalSession>): Promise<{ rowsAffected: number }> {
+  return apiRequest(`/api/sesiones-profesionales/${id}`, { method: 'PUT', token: getStoredAuthToken(), body: payload });
+}
+
+export async function deleteProfessionalSession(id: number): Promise<void> {
+  await apiRequest(`/api/sesiones-profesionales/${id}`, { method: 'DELETE', token: getStoredAuthToken() });
+}
+
+export async function fetchPrivateProfessionalNote(idSession: number): Promise<PrivateProfessionalNote | null> {
+  try {
+    return await apiRequest(`/api/sesiones-profesionales/${idSession}/private-note`, { token: getStoredAuthToken() });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export async function savePrivateProfessionalNote(idSession: number, contenido: PrivateProfessionalNote['contenido']): Promise<PrivateProfessionalNote> {
+  return apiRequest(`/api/sesiones-profesionales/${idSession}/private-note`, {
+    method: 'PUT', token: getStoredAuthToken(), body: { contenido },
+  });
+}
+
+export async function linkPrivateNoteDriveDocument(idSession: number, document: { google_file_id: string; nombre: string }): Promise<NonNullable<PrivateProfessionalNote['documento_drive']>> {
+  return apiRequest(`/api/sesiones-profesionales/${idSession}/private-note/drive`, {
+    method: 'PUT', token: getStoredAuthToken(), body: document,
+  });
+}
+
+export async function unlinkPrivateNoteDriveDocument(idSession: number): Promise<void> {
+  await apiRequest(`/api/sesiones-profesionales/${idSession}/private-note/drive`, { method: 'DELETE', token: getStoredAuthToken() });
+}
+
+export async function fetchProfessionalOwnProfile(): Promise<ProfessionalOwnProfile> {
+  return apiRequest('/api/perfiles-profesionales/mine', { token: getStoredAuthToken() });
+}
+
+export async function saveProfessionalOwnProfile(payload: Record<string, unknown>): Promise<ProfessionalOwnProfile> {
+  return apiRequest('/api/perfiles-profesionales/mine', { method: 'PUT', token: getStoredAuthToken(), body: payload });
+}
+
+export async function fetchProfessionalDirectory(): Promise<ProfessionalPublicProfile[]> {
+  return apiRequest('/api/perfiles-profesionales/directory', { token: getStoredAuthToken() });
 }
 
 export async function fetchPricingPlans(): Promise<PricingPlan[]> {

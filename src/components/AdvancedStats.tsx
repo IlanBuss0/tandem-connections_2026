@@ -2,18 +2,19 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, Activity as ActivityIcon, Heart, Target, Award, Calendar, Clock, Sparkles } from 'lucide-react';
 import {
-  Activity, fetchActivitiesForUser, getEmotionsForUser, getObjectivesForUser, calendarEvents,
+  Activity, fetchActivitiesForUser, getEmotionsForUser, getObjectivesForUser, calendarEvents, type EmotionalRecord,
   achievements as allAchievements, User,
 } from '@/data/api';
 
 interface Props {
   user: User;
   activities?: Activity[];
+  emotions?: EmotionalRecord[];
 }
 
 const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
-export default function AdvancedStats({ user, activities }: Props) {
+export default function AdvancedStats({ user, activities, emotions: providedEmotions }: Props) {
   const [loadedActivities, setLoadedActivities] = useState<Activity[]>([]);
 
   useEffect(() => {
@@ -49,7 +50,7 @@ export default function AdvancedStats({ user, activities }: Props) {
     completed.forEach(a => { byDifficulty[a.difficulty] = (byDifficulty[a.difficulty] || 0) + 1; });
 
     // Emociones
-    const emotions = getEmotionsForUser(user.id);
+    const emotions = providedEmotions ?? getEmotionsForUser(user.id);
     const emotionAvg = emotions.length ? (emotions.reduce((s, e) => s + e.intensity, 0) / emotions.length).toFixed(1) : '0';
     const emotionMap: Record<string, number> = {};
     emotions.forEach(e => { emotionMap[e.emotion] = (emotionMap[e.emotion] || 0) + 1; });
@@ -93,7 +94,7 @@ export default function AdvancedStats({ user, activities }: Props) {
       objsActive, objsCompleted, avgObjProgress,
       upcomingEvents, userAchievements, minutesThisWeek,
     };
-  }, [activities, loadedActivities, user]);
+  }, [activities, loadedActivities, providedEmotions, user]);
 
   return (
     <div className="space-y-4">
@@ -195,11 +196,12 @@ export default function AdvancedStats({ user, activities }: Props) {
                 </div>
               );
             })}
+            {stats.topEmotions.length === 0 && <p className="text-xs text-muted-foreground">Sin registros emocionales.</p>}
           </div>
         </div>
 
         {/* Objetivos */}
-        <div className="bg-card rounded-xl p-4 border border-border">
+        {(stats.objsActive.length > 0 || stats.objsCompleted.length > 0) && <div className="bg-card rounded-xl p-4 border border-border">
           <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
             <Target size={16} className="text-primary" /> Objetivos terapéuticos
           </h3>
@@ -217,11 +219,11 @@ export default function AdvancedStats({ user, activities }: Props) {
               </div>
             );
           })}
-        </div>
+        </div>}
       </div>
 
       {/* Logros recientes */}
-      <div className="bg-card rounded-xl p-4 border border-border">
+      {stats.userAchievements.length > 0 && <div className="bg-card rounded-xl p-4 border border-border">
         <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
           <Sparkles size={16} className="text-primary" /> Logros desbloqueados
         </h3>
@@ -233,10 +235,10 @@ export default function AdvancedStats({ user, activities }: Props) {
             </div>
           ))}
         </div>
-      </div>
+      </div>}
 
       {/* Próximos eventos */}
-      <div className="bg-card rounded-xl p-4 border border-border">
+      {stats.upcomingEvents > 0 && <div className="bg-card rounded-xl p-4 border border-border">
         <h3 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
           <Calendar size={16} className="text-primary" /> Próximos eventos ({stats.upcomingEvents})
         </h3>
@@ -252,7 +254,7 @@ export default function AdvancedStats({ user, activities }: Props) {
             </div>
           ))}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

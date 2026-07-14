@@ -457,8 +457,11 @@ export interface SesionProfesional {
   id_profesional: number;
   id_perteneciente: number;
   fecha_sesion: string;
-  nota_sesion: string | null;
-  recomendacion: string | null;
+  titulo: string;
+  duracion_minutos: number;
+  estado: 'programada' | 'completada' | 'cancelada';
+  recordatorios: number[];
+  legacy_calendar_event_id?: string | null;
 }
 
 // ============================================================================
@@ -656,6 +659,12 @@ export interface PerfilProfesional {
   precio_sesion: number | null;
   informacion_precio: string | null;
   visible_en_tienda: boolean;
+  modalidad?: string | null;
+  disponibilidad?: string | null;
+  correo_contacto?: string | null;
+  whatsapp_contacto?: string | null;
+  publicar_correo?: boolean;
+  publicar_whatsapp?: boolean;
 }
 
 export interface ResenaProfesional {
