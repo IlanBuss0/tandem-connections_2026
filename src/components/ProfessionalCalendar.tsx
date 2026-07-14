@@ -10,6 +10,12 @@ import { useToast } from '@/components/ui/use-toast';
 
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const weekDays = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
+const recurrenceLabels: Record<string, string> = {
+  weekly: 'Semanal',
+  twice_weekly: '2x semana',
+  biweekly: 'Cada 2 semanas',
+  monthly: 'Mensual',
+};
 
 function dateKey(date: Date) {
   const year = date.getFullYear();
@@ -155,6 +161,11 @@ export default function ProfessionalCalendar({ patients, onOpenAgenda }: { patie
                     <p className="text-sm text-muted-foreground">
                       {patient?.name || 'Paciente'} · {new Date(session.fecha_sesion).toLocaleString('es-AR', { dateStyle: 'medium', timeStyle: 'short' })} · {session.duracion_minutos} min
                     </p>
+                    {session.recurrence_group_id && session.recurrence_rule?.frequency && (
+                      <p className="mt-1 text-xs text-primary">
+                        {recurrenceLabels[session.recurrence_rule.frequency] || 'Recurrente'} · sesion #{Number(session.recurrence_index || 0) + 1}
+                      </p>
+                    )}
                   </div>
                   <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] capitalize text-muted-foreground">{session.estado}</span>
                 </div>

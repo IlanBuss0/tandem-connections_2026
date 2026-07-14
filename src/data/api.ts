@@ -56,6 +56,9 @@ export interface ProfessionalSession {
   duracion_minutos: number;
   estado: 'programada' | 'completada' | 'cancelada';
   recordatorios: number[];
+  recurrence_group_id?: string | null;
+  recurrence_rule?: { frequency: 'none' | 'weekly' | 'twice_weekly' | 'biweekly' | 'monthly'; count?: number } | null;
+  recurrence_index?: number;
 }
 
 export interface PrivateProfessionalNote {
