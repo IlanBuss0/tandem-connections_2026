@@ -1,4 +1,4 @@
-import { Lock } from 'lucide-react';
+import { Lock } from "lucide-react";
 
 export default function PermissionBlocked({
   title,
