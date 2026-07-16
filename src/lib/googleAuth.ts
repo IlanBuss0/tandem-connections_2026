@@ -5,8 +5,13 @@ declare global {
   }
 }
 
+// drive.file alcanza para documents.create/get/batchUpdate sobre archivos
+// creados por la app o abiertos via el Picker (confirmado en la doc oficial
+// de Google) — no hace falta el scope "documents" completo, que da acceso a
+// TODOS los Docs del profesional y dispara la pantalla de consentimiento
+// "sensible" de Google (mas alarmante de lo necesario, y puede requerir
+// verificacion CASA para apps en produccion).
 export const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
-export const GOOGLE_DOCS_SCOPE = "https://www.googleapis.com/auth/documents";
 export const GOOGLE_DOCS_MIME_TYPE = "application/vnd.google-apps.document";
 export const GOOGLE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
 export const GOOGLE_CONSENT_STORAGE_KEY = "tandem.googleDriveConsentGranted";
@@ -55,16 +60,11 @@ export function invalidateGoogleToken() {
   cachedToken = null;
 }
 
-export async function requestGoogleAccessToken(forceConsent = false) {
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-  if (!clientId) throw new Error("Falta VITE_GOOGLE_CLIENT_ID.");
-
-  await ensureGoogleScripts();
-
-  return await new Promise<string>((resolve, reject) => {
+function requestTokenOnce(clientId: string, prompt: string) {
+  return new Promise<string>((resolve, reject) => {
     const tokenClient = window.google.accounts.oauth2.initTokenClient({
       client_id: clientId,
-      scope: `${GOOGLE_DRIVE_SCOPE} ${GOOGLE_DOCS_SCOPE}`,
+      scope: GOOGLE_DRIVE_SCOPE,
       callback: (tokenResponse: {
         access_token?: string;
         expires_in?: number | string;
@@ -90,13 +90,32 @@ export async function requestGoogleAccessToken(forceConsent = false) {
         );
       },
     });
-
-    const alreadyGranted =
-      localStorage.getItem(GOOGLE_CONSENT_STORAGE_KEY) === "1";
-    tokenClient.requestAccessToken({
-      prompt: forceConsent || !alreadyGranted ? "consent" : "",
-    });
+    tokenClient.requestAccessToken({ prompt });
   });
+}
+
+export async function requestGoogleAccessToken(forceConsent = false) {
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  if (!clientId) throw new Error("Falta VITE_GOOGLE_CLIENT_ID.");
+
+  await ensureGoogleScripts();
+
+  const alreadyGranted =
+    localStorage.getItem(GOOGLE_CONSENT_STORAGE_KEY) === "1";
+  const attemptSilently = !forceConsent && alreadyGranted;
+
+  try {
+    return await requestTokenOnce(clientId, attemptSilently ? "" : "consent");
+  } catch (error) {
+    if (!attemptSilently) throw error;
+    // El intento silencioso fallo — lo mas probable es que el profesional
+    // haya revocado el acceso de Tandem desde su cuenta de Google. En vez
+    // de dejarlo trabado con un error generico, se limpia la bandera de
+    // consentimiento vieja y se reintenta mostrando la pantalla de permiso
+    // de Google de nuevo (como la primera vez).
+    localStorage.removeItem(GOOGLE_CONSENT_STORAGE_KEY);
+    return await requestTokenOnce(clientId, "consent");
+  }
 }
 
 async function getGoogleAccessToken() {

@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { withGoogleToken } from "@/lib/googleAuth";
+import { GoogleApiError, withGoogleToken } from "@/lib/googleAuth";
 import {
   createDoc,
   getDocEndIndex,
@@ -37,6 +37,13 @@ import { findTemplate, noteTemplates } from "@/data/noteTemplates";
 import type { ProfessionalSession } from "@/data/api";
 
 type Mode = "append" | "new-doc";
+
+function isDriveApiDisabled(error: unknown) {
+  return (
+    error instanceof GoogleApiError &&
+    (error.reason === "accessNotConfigured" || error.reason === "SERVICE_DISABLED")
+  );
+}
 
 function todayShort() {
   return new Date().toLocaleDateString("es-AR", {
@@ -112,8 +119,15 @@ export default function NewSessionDialog({
               currentDocId,
               noteAppProperties(session, template.id),
             );
-          } catch {
-            // Drive API deshabilitada: la sección igual quedó agregada
+          } catch (metadataError) {
+            if (!isDriveApiDisabled(metadataError)) {
+              toast({
+                title: "La sección se agregó, pero no se pudo actualizar la plantilla por defecto",
+                description:
+                  metadataError instanceof Error ? metadataError.message : undefined,
+                variant: "destructive",
+              });
+            }
           }
         });
         toast({
@@ -129,24 +143,42 @@ export default function NewSessionDialog({
         const folder = await resolveSessionFolder(token, session, patientName);
         const title = `${todayShort()} · ${session.titulo || "Sesión"}`;
         const doc = await createDoc(token, title);
-        await moveFile(token, doc.documentId, folder.id);
-        await insertBlocks(
-          doc.documentId,
-          token,
-          template.blocks(todaySession, patientName),
-          template.accent,
-        );
-        await setAppProperties(
-          token,
-          doc.documentId,
-          noteAppProperties(session, template.id),
-        );
-        return { id: doc.documentId, name: doc.title || title, folder: folder.name };
+        // A partir de acá el doc ya existe en Drive: si algo falla, se
+        // devuelve igual (con el error adjunto) para no perder la
+        // referencia y no arriesgarse a que un reintento cree un duplicado.
+        try {
+          await moveFile(token, doc.documentId, folder.id);
+          await insertBlocks(
+            doc.documentId,
+            token,
+            template.blocks(todaySession, patientName),
+            template.accent,
+          );
+          await setAppProperties(
+            token,
+            doc.documentId,
+            noteAppProperties(session, template.id),
+          );
+          return { id: doc.documentId, name: doc.title || title, folder: folder.name, partialError: null as unknown };
+        } catch (partialError) {
+          return { id: doc.documentId, name: doc.title || title, folder: folder.name, partialError };
+        }
       });
-      toast({
-        title: "Nota creada",
-        description: `“${created.name}” quedó en la carpeta “${created.folder}”.`,
-      });
+      if (created.partialError) {
+        toast({
+          title: "El documento se creó pero quedó incompleto",
+          description:
+            created.partialError instanceof Error
+              ? created.partialError.message
+              : "No se pudo terminar de organizar o completar la plantilla.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Nota creada",
+          description: `“${created.name}” quedó en la carpeta “${created.folder}”.`,
+        });
+      }
       onOpenChange(false);
       onCreatedDoc({ id: created.id, name: created.name });
     } catch (error) {

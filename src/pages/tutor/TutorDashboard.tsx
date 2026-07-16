@@ -43,7 +43,7 @@ import { ChatProvider } from '@/contexts/ChatContext';
 import AppHeader from '@/components/AppHeader';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
-import ReminderPicker from '@/components/ReminderPicker';
+import PersonalEventCalendar from '@/components/PersonalEventCalendar';
 import AiPictogramStudio from '@/components/AiPictogramStudio';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
 import UserNotifications from '@/pages/user/UserNotifications';
@@ -65,7 +65,6 @@ import {
   type TutorHomeData,
   type TutorHomeLinkedUser,
 } from '@/data/api';
-import { eventTypes, typeEmoji } from '@/contexts/CalendarContext';
 import { useSyncMobileMenuOpen } from '@/contexts/MobileMenuState';
 import { toast } from '@/hooks/ui/use-toast';
 
@@ -107,25 +106,8 @@ const tabs: { id: TabId; label: string; icon: typeof BarChart3 }[] = [
 const tutorTabs = tabs.filter(item => ['agenda', 'chat', 'notifications', 'pictograms', 'directory'].includes(item.id));
 const belongingTabs = tabs.filter(item => ['overview', 'stats', 'activities', 'location', 'emotions', 'calendar', 'insights', 'profile', 'settings', 'connections'].includes(item.id));
 
-const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-const diasSemanaOrdenCalendario = [1, 2, 3, 4, 5, 6, 0];
-
-const typeBg: Record<CalendarEvent['type'], string> = {
-  terapia: 'bg-purple-100 text-purple-700 border-purple-200',
-  escuela: 'bg-blue-100 text-blue-700 border-blue-200',
-  personal: 'bg-amber-100 text-amber-700 border-amber-200',
-  médico: 'bg-red-100 text-red-700 border-red-200',
-  social: 'bg-green-100 text-green-700 border-green-200',
-  actividad: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-};
-
 function todayKey() {
   return new Date().toISOString().split('T')[0];
-}
-
-function fmt(d: Date) {
-  return d.toISOString().split('T')[0];
 }
 
 function typeColorForEvent(type: CalendarEvent['type']) {
@@ -930,258 +912,27 @@ function TutorCalendar({
   onChanged: () => void;
   compact?: boolean;
 }) {
-  const today = new Date();
-  const [cursor, setCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
-  const [selectedDate, setSelectedDate] = useState(fmt(today));
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<CalendarEvent | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState<Omit<CalendarEvent, 'id' | 'userId' | 'color'>>({
-    title: '',
-    date: fmt(today),
-    time: '09:00',
-    type: 'personal',
-    description: '',
-    reminders: [],
-  });
-
-  const eventsOn = (date: string) => events.filter(event => event.date === date);
-
-  const grid = useMemo(() => {
-    const year = cursor.getFullYear();
-    const month = cursor.getMonth();
-    const firstOfMonth = new Date(year, month, 1);
-    const startOffset = (firstOfMonth.getDay() + 6) % 7;
-    const start = new Date(year, month, 1 - startOffset);
-    return Array.from({ length: 42 }, (_, i) => {
-      const d = new Date(start);
-      d.setDate(start.getDate() + i);
-      return d;
-    });
-  }, [cursor, compact]);
-
-  const dayEvents = eventsOn(selectedDate).sort((a, b) => a.time.localeCompare(b.time));
-  const monthLabel = `${monthNames[cursor.getMonth()]} ${cursor.getFullYear()}`;
-
-  const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const next = new Date(cursor.getFullYear(), parseInt(e.target.value), 1);
-    setCursor(next);
-    setSelectedDate(fmt(next));
+  const handleCreate = async (data: Omit<CalendarEvent, 'id' | 'userId' | 'color'>) => {
+    await createCalendarEvent(userId, { ...data, color: typeColorForEvent(data.type) });
+    await onChanged();
   };
-
-  const handleYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const next = new Date(parseInt(e.target.value), cursor.getMonth(), 1);
-    setCursor(next);
-    setSelectedDate(fmt(next));
+  const handleUpdate = async (id: string, patch: Partial<Omit<CalendarEvent, 'id' | 'userId'>>) => {
+    await updateCalendarEvent(id, { ...patch, color: patch.type ? typeColorForEvent(patch.type) : undefined });
+    await onChanged();
   };
-
-  const openCreate = () => {
-    setEditing(null);
-    setForm({ title: '', date: selectedDate, time: '09:00', type: 'personal', description: '', reminders: [] });
-    setShowForm(true);
-  };
-
-  const openEdit = (event: CalendarEvent) => {
-    setEditing(event);
-    setForm({
-      title: event.title,
-      date: event.date,
-      time: event.time,
-      type: event.type,
-      description: event.description,
-      reminders: event.reminders || [],
-    });
-    setShowForm(true);
-  };
-
-  const submit = async () => {
-    const payload = { ...form, title: form.title.trim(), color: typeColorForEvent(form.type) };
-    if (!payload.title) return;
-    setSaving(true);
-    try {
-      if (editing) await updateCalendarEvent(editing.id, payload);
-      else await createCalendarEvent(userId, payload);
-      setShowForm(false);
-      setSelectedDate(form.date);
-      await onChanged();
-      toast({ title: editing ? 'Evento actualizado' : 'Evento creado' });
-    } catch {
-      toast({ title: 'No se pudo guardar el evento', variant: 'destructive' });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const remove = async (eventId: string) => {
-    if (!confirm('Eliminar evento?')) return;
-    try {
-      await deleteCalendarEvent(eventId);
-      await onChanged();
-      toast({ title: 'Evento eliminado' });
-    } catch {
-      toast({ title: 'No se pudo eliminar el evento', variant: 'destructive' });
-    }
+  const handleDelete = async (id: string) => {
+    await deleteCalendarEvent(id);
+    await onChanged();
   };
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-heading font-bold text-foreground">{compact ? 'Agenda' : 'Calendario'}</h2>
-          <p className="text-muted-foreground text-sm">{monthLabel}</p>
-        </div>
-        <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg gradient-primary text-primary-foreground text-sm">
-          <Plus size={16} /> Evento
-        </button>
-      </div>
-
-      <div className="flex flex-col items-center gap-1.5">
-        <div className="flex items-center justify-between bg-card rounded-xl border border-border p-2 w-full">
-          <button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))} className="p-2 rounded-lg hover:bg-muted text-foreground">
-            <ChevronLeft size={18} />
-          </button>
-          <div className="flex items-center gap-0">
-            <select
-              value={cursor.getMonth()}
-              onChange={handleMonthChange}
-              className="appearance-none bg-transparent rounded-lg px-2 py-1 text-sm font-semibold text-foreground hover:bg-muted transition cursor-pointer outline-none"
-            >
-              {monthNames.map((name, i) => (
-                <option key={i} value={i}>{name}</option>
-              ))}
-            </select>
-            <select
-              value={cursor.getFullYear()}
-              onChange={handleYearChange}
-              className="appearance-none bg-transparent rounded-lg px-2 py-1 text-sm font-semibold text-foreground hover:bg-muted transition cursor-pointer outline-none"
-            >
-              {Array.from({ length: 21 }, (_, i) => today.getFullYear() - 10 + i).map(year => (
-                <option key={year} value={year}>{year}</option>
-              ))}
-            </select>
-          </div>
-          <button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))} className="p-2 rounded-lg hover:bg-muted text-foreground">
-            <ChevronRight size={18} />
-          </button>
-        </div>
-        <button
-          onClick={() => { setCursor(new Date(today.getFullYear(), today.getMonth(), 1)); setSelectedDate(fmt(today)); }}
-          className="text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted px-3 py-1 rounded-lg transition"
-        >
-          Hoy
-        </button>
-      </div>
-
-      <div className="bg-card rounded-xl border border-border p-2 sm:p-3">
-        <div translate="no" className="notranslate grid grid-cols-7 gap-1 mb-1">
-          {diasSemanaOrdenCalendario.map(dayIndex => (
-            <div key={dayIndex} translate="no" className="notranslate text-[10px] sm:text-xs font-semibold text-center text-muted-foreground py-1">{diasSemana[dayIndex]}</div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-1">
-          {grid.map((day, i) => {
-            const ds = fmt(day);
-            const isCurrentMonth = day.getMonth() === cursor.getMonth();
-            const isToday = ds === fmt(today);
-            const isSelected = ds === selectedDate;
-            const dayEventsForCell = eventsOn(ds);
-            return (
-              <button
-                key={i}
-                onClick={() => setSelectedDate(ds)}
-                className={`relative aspect-square sm:aspect-auto sm:min-h-[72px] p-1 sm:p-1.5 rounded-lg border text-left transition-all flex flex-col ${
-                  isToday ? 'border-primary bg-primary text-primary-foreground shadow-md shadow-purple-200' :
-                  isSelected ? 'border-primary/40 ring-2 ring-primary/20 bg-primary/5' :
-                  isCurrentMonth ? 'border-border bg-background hover:border-primary/30' :
-                  'border-transparent bg-muted/30 text-muted-foreground'
-                }`}
-              >
-                <span className={`text-xs sm:text-sm font-semibold ${isToday ? 'text-primary-foreground' : ''}`}>{day.getDate()}</span>
-                <div className="flex flex-col gap-0.5 mt-0.5 overflow-hidden">
-                  {dayEventsForCell.slice(0, 2).map(event => (
-                    <span key={event.id} className="hidden sm:block text-[9px] truncate px-1 rounded" style={{ backgroundColor: event.color, color: 'white' }}>
-                      {typeEmoji[event.type]} {event.title}
-                    </span>
-                  ))}
-                  {dayEventsForCell.length > 0 && (
-                    <span className="sm:hidden flex gap-0.5 absolute bottom-1 left-1/2 -translate-x-1/2">
-                      {dayEventsForCell.slice(0, 3).map(event => (
-                        <span key={event.id} className="w-1 h-1 rounded-full" style={{ backgroundColor: event.color }} />
-                      ))}
-                    </span>
-                  )}
-                  {dayEventsForCell.length > 2 && <span className="hidden sm:block text-[9px] text-muted-foreground">+{dayEventsForCell.length - 2}</span>}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <AnimatePresence>
-        {showForm && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="bg-card rounded-xl p-4 border border-primary/30 shadow-sm space-y-3 overflow-hidden">
-            <div className="flex items-center justify-between">
-              <h4 className="font-semibold text-sm text-foreground">{editing ? 'Editar evento' : 'Nuevo evento'}</h4>
-              <button onClick={() => setShowForm(false)}><X size={16} className="text-muted-foreground" /></button>
-            </div>
-            <input value={form.title} onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))} placeholder="Titulo del evento" className="w-full p-2 rounded-lg border border-border bg-background text-sm" />
-            <div className="grid grid-cols-2 gap-2">
-              <input type="date" value={form.date} onChange={e => setForm(prev => ({ ...prev, date: e.target.value }))} className="p-2 rounded-lg border border-border bg-background text-sm" />
-              <input type="time" value={form.time} onChange={e => setForm(prev => ({ ...prev, time: e.target.value }))} className="p-2 rounded-lg border border-border bg-background text-sm" />
-            </div>
-            <select value={form.type} onChange={e => setForm(prev => ({ ...prev, type: e.target.value as CalendarEvent['type'] }))} className="w-full p-2 rounded-lg border border-border bg-background text-sm">
-              {eventTypes.map(type => <option key={type} value={type}>{typeEmoji[type]} {type}</option>)}
-            </select>
-            <textarea value={form.description} onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} placeholder="Descripcion opcional" className="w-full p-2 rounded-lg border border-border bg-background text-sm resize-none h-16" />
-            <ReminderPicker value={form.reminders} onChange={reminders => setForm(prev => ({ ...prev, reminders }))} />
-            <button disabled={saving} onClick={submit} className="w-full py-2 rounded-lg gradient-primary text-primary-foreground text-sm font-semibold inline-flex items-center justify-center gap-1 disabled:opacity-60">
-              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} {editing ? 'Guardar cambios' : 'Crear evento'}
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <div>
-        <h3 className="font-heading font-semibold text-foreground mb-3">
-          {selectedDate === fmt(today) ? 'Hoy' : new Date(selectedDate + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
-        </h3>
-        {dayEvents.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground bg-card rounded-xl border border-dashed border-border">
-            <p className="text-sm">No hay eventos para este dia</p>
-            <button onClick={openCreate} className="mt-3 inline-flex items-center gap-1 text-primary hover:underline text-sm"><Plus size={14} /> Agregar uno</button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {dayEvents.map((event, i) => (
-              <motion.div
-                key={event.id}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.05 }}
-                className={`group p-4 rounded-xl border ${typeBg[event.type] || 'bg-card border-border'}`}
-              >
-                <div className="flex items-start gap-3">
-                  <span className="text-2xl">{typeEmoji[event.type] || '•'}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm">{event.title}</p>
-                    {event.description && <p className="text-xs mt-1 opacity-80">{event.description}</p>}
-                    <div className="flex items-center gap-3 mt-2 text-xs opacity-70">
-                      <span className="flex items-center gap-1"><Clock size={12} /> {event.time}</span>
-                      <span className="capitalize">- {event.type}</span>
-                    </div>
-                  </div>
-                  <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => openEdit(event)} className="p-1.5 rounded hover:bg-white/40" title="Editar"><Pencil size={14} /></button>
-                    <button onClick={() => remove(event.id)} className="p-1.5 rounded hover:bg-white/40" title="Eliminar"><Trash2 size={14} /></button>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+    <PersonalEventCalendar
+      heading={compact ? 'Agenda' : 'Calendario'}
+      events={events}
+      onCreate={handleCreate}
+      onUpdate={handleUpdate}
+      onDelete={handleDelete}
+    />
   );
 }
 

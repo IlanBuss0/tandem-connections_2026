@@ -8,9 +8,16 @@ import {
   Plus,
   Save,
   Trash2,
-  X,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -22,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import ProfessionalPrivateNote from "@/components/ProfessionalPrivateNote";
+import { sessionStatusBadgeClass } from "@/lib/sessionStatus";
 import {
   createProfessionalSession,
   deleteProfessionalSession,
@@ -132,23 +140,33 @@ export default function ProfessionalAgenda({
     if (!form?.id_perteneciente || !form.titulo.trim()) return;
     setSaving(true);
     try {
-      const payload = {
+      const basePayload = {
         id_perteneciente: Number(form.id_perteneciente),
         titulo: form.titulo.trim(),
         fecha_sesion: new Date(`${form.fecha}T${form.hora}:00`).toISOString(),
         duracion_minutos: Number(form.duracion_minutos),
         estado: form.estado,
         recordatorios: [],
-        recurrence_rule:
-          form.id || form.recurrence_frequency === "none"
-            ? { frequency: "none" as const }
-            : {
-                frequency: form.recurrence_frequency,
-                count: Number(form.recurrence_count),
-              },
       };
-      if (form.id) await updateProfessionalSession(form.id, payload);
-      else await createProfessionalSession(payload);
+      if (form.id) {
+        // No mandar recurrence_rule al editar: el backend preserva la
+        // recurrencia existente cuando el campo viene ausente. Si se
+        // manda {frequency:"none"} acá, pisa la serie real (bug: el
+        // badge de recurrencia queda mostrando "No se repite" en una
+        // sesion que sigue perteneciendo a una serie).
+        await updateProfessionalSession(form.id, basePayload);
+      } else {
+        await createProfessionalSession({
+          ...basePayload,
+          recurrence_rule:
+            form.recurrence_frequency === "none"
+              ? { frequency: "none" as const }
+              : {
+                  frequency: form.recurrence_frequency,
+                  count: Number(form.recurrence_count),
+                },
+        });
+      }
       toast({
         title: form.id
           ? "Sesion actualizada"
@@ -206,16 +224,14 @@ export default function ProfessionalAgenda({
         </Button>
       </div>
 
-      {form && (
-        <div className="rounded-xl border border-primary/30 bg-card p-4 space-y-4">
-          <div className="flex justify-between">
-            <h3 className="font-semibold">
-              {form.id ? "Editar sesion" : "Programar sesion"}
-            </h3>
-            <button onClick={() => setForm(null)}>
-              <X size={16} />
-            </button>
-          </div>
+      <Dialog open={Boolean(form)} onOpenChange={(open) => !open && setForm(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {form?.id ? "Editar sesion" : "Programar sesion"}
+            </DialogTitle>
+          </DialogHeader>
+          {form && (
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
               <Label>Paciente</Label>
@@ -378,16 +394,21 @@ export default function ProfessionalAgenda({
               </>
             )}
           </div>
-          <Button
-            className="w-full"
-            onClick={submit}
-            disabled={saving || !form.id_perteneciente}
-          >
-            <Save size={15} className="mr-2" />
-            {saving ? "Guardando..." : "Guardar sesion"}
-          </Button>
-        </div>
-      )}
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setForm(null)} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={submit}
+              disabled={saving || !form?.id_perteneciente}
+            >
+              <Save size={15} className="mr-2" />
+              {saving ? "Guardando..." : "Guardar sesion"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {loading ? (
         <div className="flex items-center justify-center rounded-xl border p-8 text-muted-foreground">
@@ -428,14 +449,14 @@ export default function ProfessionalAgenda({
                       · {session.duracion_minutos} min
                     </p>
                     <div className="mt-1 flex flex-wrap gap-1">
-                      <span className="inline-block rounded-full bg-muted px-2 py-0.5 text-[10px] capitalize">
+                      <Badge className={`capitalize ${sessionStatusBadgeClass(session.estado)}`}>
                         {session.estado}
-                      </span>
+                      </Badge>
                       {recurrenceLabel && (
-                        <span className="inline-block rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
+                        <Badge className="bg-primary/10 text-primary">
                           {recurrenceLabel} · #
                           {Number(session.recurrence_index || 0) + 1}
-                        </span>
+                        </Badge>
                       )}
                     </div>
                   </div>

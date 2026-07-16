@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   fetchPrivateProfessionalNote,
   linkPrivateNoteDriveDocument,
@@ -23,6 +24,7 @@ import {
 } from "@/data/api";
 import {
   GOOGLE_DOCS_MIME_TYPE,
+  GoogleApiError,
   ensureGoogleScripts,
   requestGoogleAccessToken,
   withGoogleToken,
@@ -47,6 +49,16 @@ function buildDocsUrl(fileId: string) {
   return `https://docs.google.com/document/d/${fileId}/edit`;
 }
 
+/** La Drive API puede no estar habilitada todavia en el proyecto de Cloud
+ * del profesional: ese caso especifico se omite en silencio (la nota igual
+ * se crea, solo queda sin carpeta/metadata). Cualquier otro error se avisa. */
+function isDriveApiDisabled(error: unknown) {
+  return (
+    error instanceof GoogleApiError &&
+    (error.reason === "accessNotConfigured" || error.reason === "SERVICE_DISABLED")
+  );
+}
+
 export default function ProfessionalPrivateNote({
   session,
   patientName,
@@ -55,15 +67,19 @@ export default function ProfessionalPrivateNote({
   patientName?: string;
 }) {
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [document, setDocument] = useState<DriveDocument | null>(null);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState<"create" | "pick" | "unlink" | "link" | null>(null);
   const [viewingDoc, setViewingDoc] = useState<{ id: string; name: string } | null>(null);
-  const [iframeNonce, setIframeNonce] = useState(0);
   const [newSessionOpen, setNewSessionOpen] = useState(false);
   const [seriesDocs, setSeriesDocs] = useState<DriveFile[] | null>(null);
   const [seriesOpen, setSeriesOpen] = useState(false);
   const [seriesLoading, setSeriesLoading] = useState(false);
+  // Doc que se llegó a crear en Drive pero cuyo vínculo con la sesión (en el
+  // backend de Tándem) todavía no se guardó — para poder reintentar el link
+  // sin volver a crear el documento y duplicarlo.
+  const [unlinkedDoc, setUnlinkedDoc] = useState<{ id: string; name: string } | null>(null);
 
   const loadLinkedDocument = useCallback(async () => {
     setLoading(true);
@@ -95,10 +111,27 @@ export default function ProfessionalPrivateNote({
     });
     setDocument(linked);
     setViewingDoc({ id: linked.google_file_id, name: linked.nombre });
+    setUnlinkedDoc(null);
     toast({
       title: "Documento vinculado",
       description: "Tandem guardo solo el acceso al Google Docs.",
     });
+  };
+
+  const retryLinkDocument = async () => {
+    if (!unlinkedDoc) return;
+    setWorking("link");
+    try {
+      await persistDocument(unlinkedDoc);
+    } catch (error) {
+      toast({
+        title: "Sigue sin poder vincularse",
+        description: error instanceof Error ? error.message : undefined,
+        variant: "destructive",
+      });
+    } finally {
+      setWorking(null);
+    }
   };
 
   const loadSeriesDocs = useCallback(async () => {
@@ -124,10 +157,14 @@ export default function ProfessionalPrivateNote({
 
   const createDriveDocument = async (template: NoteTemplate) => {
     setWorking("create");
+    // Referencia al doc ya creado en Drive (si se llega a crear) para poder
+    // distinguir "nada se creó" de "se creó pero algo después falló" — en
+    // el segundo caso NO hay que reintentar creando un doc nuevo.
+    let created: { documentId: string; title?: string } | null = null;
     try {
       const token = await requestGoogleAccessToken(false);
       const title = `${template.id === "blank" ? "Nota" : template.name} - ${session.titulo || "Sesion profesional"} - ${new Date(session.fecha_sesion).toLocaleDateString("es-AR")}`;
-      const created = await createDoc(token, title);
+      created = await createDoc(token, title);
       await insertBlocks(
         created.documentId,
         token,
@@ -135,7 +172,9 @@ export default function ProfessionalPrivateNote({
         template.accent,
       );
       // Organización en Drive (carpeta de la serie + metadata). Si la Drive
-      // API todavía no está habilitada, la nota se crea igual, suelta.
+      // API todavía no está habilitada, la nota se crea igual, suelta —
+      // pero cualquier OTRO error (cuota, permisos, etc.) se avisa: si no,
+      // "Notas de la serie" nunca la va a encontrar y nadie se entera.
       try {
         const folder = await resolveSessionFolder(token, session, patientName);
         await moveFile(token, created.documentId, folder.id);
@@ -144,19 +183,40 @@ export default function ProfessionalPrivateNote({
           created.documentId,
           noteAppProperties(session, template.id),
         );
-      } catch {
-        // sin Drive API: se omite carpeta/metadata
+      } catch (organizeError) {
+        if (!isDriveApiDisabled(organizeError)) {
+          toast({
+            title: "La nota se creó pero no se pudo organizar en una carpeta",
+            description:
+              organizeError instanceof Error ? organizeError.message : undefined,
+            variant: "destructive",
+          });
+        }
       }
       await persistDocument({
         id: created.documentId,
         name: created.title || title,
       });
     } catch (error) {
-      toast({
-        title: "No se pudo crear el Google Docs",
-        description: error instanceof Error ? error.message : undefined,
-        variant: "destructive",
-      });
+      if (created) {
+        setUnlinkedDoc({
+          id: created.documentId,
+          name: created.title || `Nota - ${session.titulo}`,
+        });
+        toast({
+          title: "El documento se creó en Drive pero no se pudo vincular",
+          description:
+            "No hace falta crear otro: usá 'Reintentar vínculo' abajo." +
+            (error instanceof Error ? ` (${error.message})` : ""),
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "No se pudo crear el Google Docs",
+          description: error instanceof Error ? error.message : undefined,
+          variant: "destructive",
+        });
+      }
     } finally {
       setWorking(null);
     }
@@ -271,6 +331,40 @@ export default function ProfessionalPrivateNote({
   if (!document) {
     return (
       <div className="space-y-5 rounded-xl border border-dashed bg-card p-5">
+        {unlinkedDoc && (
+          <div className="flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-medium">
+                “{unlinkedDoc.name}” se creó en Drive pero no quedó vinculado a
+                esta sesión.
+              </p>
+              <p className="text-xs text-amber-800">
+                No crees otra nota: reintentá el vínculo o abrí el documento
+                para revisarlo.
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <Button size="sm" variant="outline" asChild>
+                <a
+                  href={buildDocsUrl(unlinkedDoc.id)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <ExternalLink size={14} />
+                  Abrir
+                </a>
+              </Button>
+              <Button size="sm" onClick={retryLinkDocument} disabled={Boolean(working)}>
+                {working === "link" ? (
+                  <Loader2 className="animate-spin" size={14} />
+                ) : (
+                  <Link2 size={14} />
+                )}
+                Reintentar vínculo
+              </Button>
+            </div>
+          </div>
+        )}
         <div className="text-center">
           <FileText className="mx-auto mb-3 text-primary" size={34} />
           <h3 className="font-semibold">Crear nota en Google Docs</h3>
@@ -399,14 +493,7 @@ export default function ProfessionalPrivateNote({
             <CalendarPlus size={14} />
             Nueva sesion
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              loadLinkedDocument();
-              setIframeNonce((nonce) => nonce + 1);
-            }}
-          >
+          <Button size="sm" variant="outline" onClick={loadLinkedDocument}>
             <RefreshCw size={14} />
             Refrescar
           </Button>
@@ -449,18 +536,19 @@ export default function ProfessionalPrivateNote({
         </div>
       </div>
 
-      <div className="rounded-xl border bg-card">
+      <div className="rounded-xl border border-primary/30 bg-primary/5">
         <button
           type="button"
-          className="flex w-full items-center justify-between px-4 py-2.5 text-sm font-medium"
+          className="flex w-full items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-primary"
           onClick={() => {
             const next = !seriesOpen;
             setSeriesOpen(next);
             if (next && seriesDocs === null) loadSeriesDocs();
           }}
         >
-          <span>
-            Notas de la serie
+          <span className="flex items-center gap-2">
+            <FileText size={15} />
+            Ver notas anteriores de esta serie
             {seriesDocs ? ` (${seriesDocs.length})` : ""}
           </span>
           {seriesOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
@@ -488,10 +576,7 @@ export default function ProfessionalPrivateNote({
                     <button
                       key={doc.id}
                       type="button"
-                      onClick={() => {
-                        setViewingDoc({ id: doc.id, name: doc.name });
-                        setIframeNonce((nonce) => nonce + 1);
-                      }}
+                      onClick={() => setViewingDoc({ id: doc.id, name: doc.name })}
                       className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors ${
                         isActive
                           ? "border-primary bg-primary/10 font-semibold text-primary"
@@ -514,12 +599,49 @@ export default function ProfessionalPrivateNote({
         )}
       </div>
 
-      <iframe
-        key={`${activeDoc.id}-${iframeNonce}`}
-        title={activeDoc.name}
-        src={docsUrl}
-        className="h-[720px] w-full rounded-xl border bg-white"
-      />
+      {isMobile ? (
+        // En el celular el Doc embebido suele quedar en blanco por cookies
+        // de terceros bloqueadas (Safari, incognito, Chrome cada vez mas
+        // estricto) — ahí es mas confiable abrir siempre en pestaña nueva.
+        <div className="flex flex-col items-center gap-4 rounded-xl border bg-card p-10 text-center">
+          <FileText size={40} className="text-primary" />
+          <div>
+            <p className="font-medium">{activeDoc.name}</p>
+            <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+              Se abre en una pestaña nueva de Google Docs para que puedas
+              escribir sin problemas desde el celular.
+            </p>
+          </div>
+          <Button size="lg" asChild>
+            <a href={docsUrl} target="_blank" rel="noreferrer">
+              <ExternalLink size={16} />
+              Abrir el documento
+            </a>
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <iframe
+            key={activeDoc.id}
+            title={activeDoc.name}
+            src={docsUrl}
+            className="h-[720px] w-full rounded-xl border bg-white"
+          />
+          <p className="text-center text-xs text-muted-foreground">
+            ¿No ves el documento? Puede ser por cookies de terceros bloqueadas
+            en el navegador —{" "}
+            <a
+              href={docsUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-primary underline"
+            >
+              abrilo en una pestaña nueva
+            </a>
+            .
+          </p>
+        </div>
+      )}
 
       <NewSessionDialog
         session={session}
@@ -528,12 +650,10 @@ export default function ProfessionalPrivateNote({
         open={newSessionOpen}
         onOpenChange={setNewSessionOpen}
         onAppended={() => {
-          setIframeNonce((nonce) => nonce + 1);
           setSeriesDocs(null);
         }}
         onCreatedDoc={(file) => {
           setViewingDoc(file);
-          setIframeNonce((nonce) => nonce + 1);
           setSeriesDocs(null);
           setSeriesOpen(false);
         }}

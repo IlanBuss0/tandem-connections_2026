@@ -273,7 +273,7 @@ export default function DriveExplorer() {
       {visibleItems.length === 0 && !loading && (
         <div className="rounded-xl border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">
           {currentFolderId
-            ? "Esta carpeta está vacía. Arrastrá archivos hasta acá para moverlos."
+            ? "Esta carpeta está vacía. Arrastrá archivos hasta acá para moverlos (o usá “Mover a...” desde el menú “⋮” en el celular)."
             : "Todavía no hay documentos creados con Tándem."}
         </div>
       )}
@@ -293,12 +293,25 @@ export default function DriveExplorer() {
                 event.dataTransfer.effectAllowed = "move";
               }}
               {...(folder ? dropTargetProps(file.id) : {})}
-              className={`flex items-center gap-3 rounded-xl border bg-card p-3 transition-colors ${
+              className={`flex items-center gap-3 rounded-xl border bg-card p-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                 folder ? "cursor-pointer" : "cursor-grab"
               } ${dragOverId === file.id ? "border-primary bg-primary/10" : "hover:border-primary/40"}`}
               onClick={() => {
                 if (folder) setPath([...path, { id: file.id, name: file.name }]);
               }}
+              {...(folder
+                ? {
+                    role: "button",
+                    tabIndex: 0,
+                    "aria-label": `Abrir carpeta ${file.name}`,
+                    onKeyDown: (event: React.KeyboardEvent) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setPath([...path, { id: file.id, name: file.name }]);
+                      }
+                    },
+                  }
+                : { "aria-label": file.name })}
             >
               {folder ? (
                 <Folder size={22} className="shrink-0 text-amber-500" fill="currentColor" fillOpacity={0.25} />
@@ -360,7 +373,9 @@ export default function DriveExplorer() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Arrastrá un archivo sobre una carpeta (o sobre “Mi unidad”) para moverlo.
+        En computadora: arrastrá un archivo sobre una carpeta (o sobre “Mi
+        unidad”) para moverlo. Desde el celular, usá el menú “⋮” de cada
+        archivo → “Mover a...”.
       </p>
 
       {/* Nueva carpeta */}
