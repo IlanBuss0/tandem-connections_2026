@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+  CalendarPlus,
+  ChevronDown,
+  ChevronUp,
   ExternalLink,
   FileText,
   LayoutTemplate,
@@ -18,406 +21,27 @@ import {
   type PrivateProfessionalNote,
   type ProfessionalSession,
 } from "@/data/api";
-
-declare global {
-  interface Window {
-    google?: any;
-    gapi?: any;
-  }
-}
+import {
+  GOOGLE_DOCS_MIME_TYPE,
+  ensureGoogleScripts,
+  requestGoogleAccessToken,
+  withGoogleToken,
+} from "@/lib/googleAuth";
+import { createDoc, insertBlocks } from "@/lib/googleDocs";
+import {
+  findSessionFolder,
+  isGoogleDoc,
+  listChildren,
+  moveFile,
+  noteAppProperties,
+  resolveSessionFolder,
+  setAppProperties,
+  type DriveFile,
+} from "@/lib/googleDrive";
+import { noteTemplates, type NoteTemplate } from "@/data/noteTemplates";
+import NewSessionDialog from "@/components/NewSessionDialog";
 
 type DriveDocument = NonNullable<PrivateProfessionalNote["documento_drive"]>;
-
-const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
-const GOOGLE_DOCS_SCOPE = "https://www.googleapis.com/auth/documents";
-const GOOGLE_DOCS_MIME_TYPE = "application/vnd.google-apps.document";
-const GOOGLE_CONSENT_STORAGE_KEY = "tandem.googleDriveConsentGranted";
-
-type NoteTemplate = {
-  id: string;
-  name: string;
-  description: string;
-  accent: string;
-  preview: string[];
-  table?: string[][];
-  build: (session: ProfessionalSession) => string;
-};
-
-const noteTemplates: NoteTemplate[] = [
-  {
-    id: "blank",
-    name: "Pagina en blanco",
-    description: "Crea un Google Docs vacio para escribir libremente.",
-    accent: "#64748b",
-    preview: [
-      "Pagina libre",
-      "Sin estructura previa",
-      "Ideal para notas abiertas",
-    ],
-    build: () => "",
-  },
-  {
-    id: "therapy-session",
-    name: "Nota de sesion",
-    description: "Estructura general para registro clinico breve.",
-    accent: "#7c3aed",
-    preview: [
-      "Motivo y objetivo",
-      "Observaciones clinicas",
-      "Plan para proxima sesion",
-    ],
-    table: [
-      ["Campo", "Registro"],
-      ["Estado general", ""],
-      ["Riesgo / alertas", ""],
-      ["Tarea acordada", ""],
-    ],
-    build: (session) => `NOTA DE SESION
-
-Sesion: ${session.titulo || "Sesion profesional"}
-Fecha: ${new Date(session.fecha_sesion).toLocaleDateString("es-AR")}
-Hora: ${new Date(session.fecha_sesion).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
-Duracion: ${session.duracion_minutos} minutos
-
-RESUMEN RAPIDO
-
-
-MOTIVO / OBJETIVO DE LA SESION
-
-
-TEMAS PRINCIPALES TRABAJADOS
-- 
-- 
-- 
-
-OBSERVACIONES CLINICAS
-
-
-INTERVENCIONES REALIZADAS
-
-
-RESPUESTA DEL PACIENTE
-
-
-ACUERDOS / TAREAS PARA CASA
-- 
-- 
-
-PLAN PARA PROXIMA SESION
-
-
-NOTAS ADMINISTRATIVAS
-
-TABLA DE SEGUIMIENTO
-
-`,
-  },
-  {
-    id: "cbt",
-    name: "TCC / conducta",
-    description: "Pensamientos, emociones, conductas e intervenciones.",
-    accent: "#0f766e",
-    preview: [
-      "Situacion trabajada",
-      "Pensamientos y emociones",
-      "Estrategias practicadas",
-    ],
-    table: [
-      ["Situacion", "Pensamiento", "Emocion", "Respuesta alternativa"],
-      ["", "", "", ""],
-      ["", "", "", ""],
-      ["", "", "", ""],
-    ],
-    build: (session) => `REGISTRO TCC / CONDUCTUAL
-
-Sesion: ${session.titulo || "Sesion profesional"}
-Fecha: ${new Date(session.fecha_sesion).toLocaleDateString("es-AR")}
-
-SITUACION TRABAJADA
-
-
-PENSAMIENTOS / CREENCIAS IDENTIFICADAS
-- 
-- 
-
-EMOCIONES ASOCIADAS
-- Emocion:
-- Intensidad:
-- Contexto:
-
-CONDUCTAS OBSERVADAS
-
-
-ESTRATEGIAS PRACTICADAS
-- Reestructuracion cognitiva:
-- Respiracion / regulacion:
-- Exposicion / practica:
-- Otra:
-
-TAREA PARA CASA
-
-
-SEGUIMIENTO PARA PROXIMA SESION
-
-TABLA TCC
-
-`,
-  },
-  {
-    id: "family",
-    name: "Entrevista familiar",
-    description: "Para reuniones con tutor, familia o red de apoyo.",
-    accent: "#db2777",
-    preview: ["Participantes", "Acuerdos familiares", "Recomendaciones"],
-    table: [
-      ["Participante", "Rol", "Acuerdo / compromiso"],
-      ["", "", ""],
-      ["", "", ""],
-      ["", "", ""],
-    ],
-    build: (session) => `ENTREVISTA FAMILIAR / RED DE APOYO
-
-Sesion: ${session.titulo || "Sesion profesional"}
-Fecha: ${new Date(session.fecha_sesion).toLocaleDateString("es-AR")}
-
-PARTICIPANTES
-- 
-- 
-
-CAMBIOS RELEVANTES DESDE LA ULTIMA SESION
-
-
-FORTALEZAS OBSERVADAS
-
-
-DIFICULTADES ACTUALES
-
-
-ACUERDOS CON LA FAMILIA / TUTOR
-- 
-- 
-- 
-
-RECOMENDACIONES
-
-
-PLAN DE SEGUIMIENTO
-
-TABLA DE ACUERDOS
-
-`,
-  },
-  {
-    id: "school-support",
-    name: "Apoyo escolar / funcional",
-    description: "Rutina, autonomia, adaptaciones y objetivos.",
-    accent: "#2563eb",
-    preview: ["Area trabajada", "Nivel de apoyo", "Adaptaciones"],
-    table: [
-      ["Area", "Apoyo utilizado", "Respuesta", "Proximo paso"],
-      ["Organizacion", "", "", ""],
-      ["Autonomia", "", "", ""],
-      ["Regulacion", "", "", ""],
-    ],
-    build: (session) => `APOYO ESCOLAR / FUNCIONAL
-
-Sesion: ${session.titulo || "Sesion profesional"}
-Fecha: ${new Date(session.fecha_sesion).toLocaleDateString("es-AR")}
-
-AREA TRABAJADA
-☐ Organizacion
-☐ Comunicacion
-☐ Autonomia
-☐ Regulacion emocional
-☐ Actividades escolares
-☐ Otra:
-
-OBJETIVO DE LA SESION
-
-
-ACTIVIDADES REALIZADAS
-- 
-- 
-
-NIVEL DE APOYO NECESARIO
-☐ Bajo
-☐ Medio
-☐ Alto
-
-ADAPTACIONES / APOYOS UTILIZADOS
-
-
-AVANCES OBSERVADOS
-
-
-PROXIMOS PASOS
-
-TABLA FUNCIONAL
-
-`,
-  },
-  {
-    id: "progress-plan",
-    name: "Progreso y plan",
-    description: "Resumen de avances, barreras y objetivos proximos.",
-    accent: "#ea580c",
-    preview: ["Avances", "Barreras", "Objetivos proximos"],
-    table: [
-      ["Objetivo", "Estado", "Evidencia", "Proximo ajuste"],
-      ["", "En progreso", "", ""],
-      ["", "Logrado", "", ""],
-      ["", "Pendiente", "", ""],
-    ],
-    build: (session) => `PROGRESO Y PLAN DE INTERVENCION
-
-Sesion: ${session.titulo || "Sesion profesional"}
-Fecha: ${new Date(session.fecha_sesion).toLocaleDateString("es-AR")}
-
-AVANCES OBSERVADOS
-
-
-BARRERAS / DIFICULTADES
-
-
-RECURSOS QUE FUNCIONARON
-
-
-OBJETIVOS PARA EL PROXIMO PERIODO
-- 
-- 
-- 
-
-INDICADORES A MONITOREAR
-
-
-TABLA DE OBJETIVOS
-
-`,
-  },
-];
-
-function hexToRgbColor(hex: string) {
-  const clean = hex.replace("#", "");
-  const value = Number.parseInt(clean, 16);
-  return {
-    color: {
-      rgbColor: {
-        red: ((value >> 16) & 255) / 255,
-        green: ((value >> 8) & 255) / 255,
-        blue: (value & 255) / 255,
-      },
-    },
-  };
-}
-
-function buildFormatRequests(text: string, template: NoteTemplate) {
-  const requests: any[] = [];
-  const firstLineEnd = text.indexOf("\n");
-  if (firstLineEnd > 0) {
-    requests.push({
-      updateTextStyle: {
-        range: { startIndex: 1, endIndex: firstLineEnd + 1 },
-        textStyle: {
-          bold: true,
-          fontSize: { magnitude: 18, unit: "PT" },
-          foregroundColor: hexToRgbColor(template.accent),
-        },
-        fields: "bold,fontSize,foregroundColor",
-      },
-    });
-    requests.push({
-      updateParagraphStyle: {
-        range: { startIndex: 1, endIndex: firstLineEnd + 1 },
-        paragraphStyle: { namedStyleType: "TITLE" },
-        fields: "namedStyleType",
-      },
-    });
-  }
-
-  const sectionPattern = /^[A-ZÁÉÍÓÚÑ0-9 /]+$/gm;
-  let match: RegExpExecArray | null;
-  while ((match = sectionPattern.exec(text)) !== null) {
-    if (match.index === 0) continue;
-    const start = match.index + 1;
-    const end = start + match[0].length;
-    requests.push({
-      updateTextStyle: {
-        range: { startIndex: start, endIndex: end },
-        textStyle: {
-          bold: true,
-          foregroundColor: hexToRgbColor(template.accent),
-        },
-        fields: "bold,foregroundColor",
-      },
-    });
-  }
-
-  return requests;
-}
-
-function loadScript(src: string) {
-  return new Promise<void>((resolve, reject) => {
-    const existing = document.querySelector(
-      `script[src="${src}"]`,
-    ) as HTMLScriptElement | null;
-    if (existing?.dataset.loaded === "true") return resolve();
-    const script = existing || document.createElement("script");
-    script.src = src;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      script.dataset.loaded = "true";
-      resolve();
-    };
-    script.onerror = () => reject(new Error("No se pudo cargar Google Drive."));
-    if (!existing) document.head.appendChild(script);
-  });
-}
-
-async function ensureGoogleScripts() {
-  await Promise.all([
-    loadScript("https://apis.google.com/js/api.js"),
-    loadScript("https://accounts.google.com/gsi/client"),
-  ]);
-}
-
-async function requestGoogleAccessToken(forceConsent = false) {
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-  if (!clientId) throw new Error("Falta VITE_GOOGLE_CLIENT_ID.");
-
-  await ensureGoogleScripts();
-
-  return await new Promise<string>((resolve, reject) => {
-    const tokenClient = window.google.accounts.oauth2.initTokenClient({
-      client_id: clientId,
-      scope: `${GOOGLE_DRIVE_SCOPE} ${GOOGLE_DOCS_SCOPE}`,
-      callback: (tokenResponse: {
-        access_token?: string;
-        error?: string;
-        error_description?: string;
-      }) => {
-        if (tokenResponse?.access_token) {
-          localStorage.setItem(GOOGLE_CONSENT_STORAGE_KEY, "1");
-          resolve(tokenResponse.access_token);
-          return;
-        }
-        reject(
-          new Error(
-            tokenResponse?.error_description ||
-              tokenResponse?.error ||
-              "Google no devolvio un token.",
-          ),
-        );
-      },
-    });
-
-    const alreadyGranted =
-      localStorage.getItem(GOOGLE_CONSENT_STORAGE_KEY) === "1";
-    tokenClient.requestAccessToken({
-      prompt: forceConsent || !alreadyGranted ? "consent" : "",
-    });
-  });
-}
 
 function buildDocsUrl(fileId: string) {
   return `https://docs.google.com/document/d/${fileId}/edit`;
@@ -425,21 +49,31 @@ function buildDocsUrl(fileId: string) {
 
 export default function ProfessionalPrivateNote({
   session,
+  patientName,
 }: {
   session: ProfessionalSession;
+  patientName?: string;
 }) {
   const { toast } = useToast();
   const [document, setDocument] = useState<DriveDocument | null>(null);
   const [loading, setLoading] = useState(true);
-  const [working, setWorking] = useState<"create" | "pick" | "unlink" | null>(
-    null,
-  );
+  const [working, setWorking] = useState<"create" | "pick" | "unlink" | "link" | null>(null);
+  const [viewingDoc, setViewingDoc] = useState<{ id: string; name: string } | null>(null);
+  const [iframeNonce, setIframeNonce] = useState(0);
+  const [newSessionOpen, setNewSessionOpen] = useState(false);
+  const [seriesDocs, setSeriesDocs] = useState<DriveFile[] | null>(null);
+  const [seriesOpen, setSeriesOpen] = useState(false);
+  const [seriesLoading, setSeriesLoading] = useState(false);
 
   const loadLinkedDocument = useCallback(async () => {
     setLoading(true);
     try {
       const note = await fetchPrivateProfessionalNote(session.id);
-      setDocument(note?.documento_drive || null);
+      const linked = note?.documento_drive || null;
+      setDocument(linked);
+      setViewingDoc(
+        linked ? { id: linked.google_file_id, name: linked.nombre } : null,
+      );
     } catch {
       toast({
         title: "No se pudo cargar el documento vinculado",
@@ -460,131 +94,59 @@ export default function ProfessionalPrivateNote({
       nombre: file.name || `Nota - ${session.titulo}`,
     });
     setDocument(linked);
+    setViewingDoc({ id: linked.google_file_id, name: linked.nombre });
     toast({
       title: "Documento vinculado",
       description: "Tandem guardo solo el acceso al Google Docs.",
     });
   };
 
-  const fillLastTable = async (
-    documentId: string,
-    token: string,
-    rows: string[][],
-  ) => {
-    if (!rows.length) return;
-    const documentResponse = await fetch(
-      `https://docs.googleapis.com/v1/documents/${encodeURIComponent(documentId)}?fields=body/content/table`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
-    if (!documentResponse.ok) return;
-    const googleDocument = await documentResponse.json();
-    const tables = (googleDocument.body?.content || []).filter(
-      (item: any) => item.table,
-    );
-    const table = tables[tables.length - 1]?.table;
-    if (!table) return;
-
-    const insertRequests: any[] = [];
-    table.tableRows?.forEach((row: any, rowIndex: number) => {
-      row.tableCells?.forEach((cell: any, columnIndex: number) => {
-        const text = rows[rowIndex]?.[columnIndex];
-        if (!text) return;
-        insertRequests.push({
-          insertText: {
-            location: { index: Number(cell.startIndex) + 1 },
-            text,
-          },
-        });
+  const loadSeriesDocs = useCallback(async () => {
+    setSeriesLoading(true);
+    try {
+      const docs = await withGoogleToken(async (token) => {
+        const folder = await findSessionFolder(token, session);
+        if (!folder) return [];
+        return (await listChildren(token, folder.id)).filter(isGoogleDoc);
       });
-    });
-
-    if (!insertRequests.length) return;
-    const response = await fetch(
-      `https://docs.googleapis.com/v1/documents/${encodeURIComponent(documentId)}:batchUpdate`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ requests: insertRequests.reverse() }),
-      },
-    );
-    if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(
-        detail || "Google Docs rechazo el contenido de la tabla.",
-      );
-    }
-  };
-
-  const applyTemplateToDocument = async (
-    documentId: string,
-    token: string,
-    template: NoteTemplate,
-  ) => {
-    const templateText = template.build(session);
-    if (!templateText.trim()) return;
-    const requests: any[] = [
-      {
-        insertText: {
-          location: { index: 1 },
-          text: templateText,
-        },
-      },
-      ...buildFormatRequests(templateText, template),
-    ];
-    if (template.table?.length) {
-      requests.push({
-        insertTable: {
-          rows: template.table.length,
-          columns: template.table[0]?.length || 2,
-          location: { index: templateText.length + 1 },
-        },
+      setSeriesDocs(docs);
+    } catch (error) {
+      setSeriesDocs([]);
+      toast({
+        title: "No se pudieron listar las notas de la serie",
+        description: error instanceof Error ? error.message : undefined,
+        variant: "destructive",
       });
+    } finally {
+      setSeriesLoading(false);
     }
-
-    const response = await fetch(
-      `https://docs.googleapis.com/v1/documents/${encodeURIComponent(documentId)}:batchUpdate`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ requests }),
-      },
-    );
-    if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(detail || "Google Docs rechazo la plantilla.");
-    }
-    if (template.table?.length) {
-      await fillLastTable(documentId, token, template.table);
-    }
-  };
+  }, [session, toast]);
 
   const createDriveDocument = async (template: NoteTemplate) => {
     setWorking("create");
     try {
       const token = await requestGoogleAccessToken(false);
       const title = `${template.id === "blank" ? "Nota" : template.name} - ${session.titulo || "Sesion profesional"} - ${new Date(session.fecha_sesion).toLocaleDateString("es-AR")}`;
-      const response = await fetch("https://docs.googleapis.com/v1/documents", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ title }),
-      });
-      if (!response.ok) {
-        const detail = await response.text();
-        throw new Error(
-          detail || "Google Docs rechazo la creacion del documento.",
+      const created = await createDoc(token, title);
+      await insertBlocks(
+        created.documentId,
+        token,
+        template.blocks(session, patientName),
+        template.accent,
+      );
+      // Organización en Drive (carpeta de la serie + metadata). Si la Drive
+      // API todavía no está habilitada, la nota se crea igual, suelta.
+      try {
+        const folder = await resolveSessionFolder(token, session, patientName);
+        await moveFile(token, created.documentId, folder.id);
+        await setAppProperties(
+          token,
+          created.documentId,
+          noteAppProperties(session, template.id),
         );
+      } catch {
+        // sin Drive API: se omite carpeta/metadata
       }
-      const created = await response.json();
-      await applyTemplateToDocument(created.documentId, token, template);
       await persistDocument({
         id: created.documentId,
         name: created.title || title,
@@ -614,6 +176,7 @@ export default function ProfessionalPrivateNote({
 
     setWorking("pick");
     try {
+      await ensureGoogleScripts();
       const token = await requestGoogleAccessToken(false);
       await new Promise<void>((resolve) => window.gapi.load("picker", resolve));
       const view = new window.google.picker.DocsView(
@@ -664,6 +227,9 @@ export default function ProfessionalPrivateNote({
     try {
       await unlinkPrivateNoteDriveDocument(session.id);
       setDocument(null);
+      setViewingDoc(null);
+      setSeriesDocs(null);
+      setSeriesOpen(false);
       toast({
         title: "Documento desvinculado",
         description: "El archivo original sigue en Google Drive.",
@@ -671,6 +237,21 @@ export default function ProfessionalPrivateNote({
     } catch {
       toast({
         title: "No se pudo desvincular el documento",
+        variant: "destructive",
+      });
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  const linkViewingDoc = async () => {
+    if (!viewingDoc) return;
+    setWorking("link");
+    try {
+      await persistDocument({ id: viewingDoc.id, name: viewingDoc.name });
+    } catch {
+      toast({
+        title: "No se pudo vincular el documento",
         variant: "destructive",
       });
     } finally {
@@ -733,7 +314,7 @@ export default function ProfessionalPrivateNote({
                       </div>
                     ))}
                   </div>
-                  {template.table && (
+                  {template.previewTable && (
                     <div className="mt-3 grid grid-cols-2 overflow-hidden rounded border border-slate-200">
                       {Array.from({ length: 6 }, (_, index) => (
                         <div
@@ -792,20 +373,40 @@ export default function ProfessionalPrivateNote({
     );
   }
 
+  const activeDoc = viewingDoc || {
+    id: document.google_file_id,
+    name: document.nombre,
+  };
   const docsUrl =
-    document.web_view_url || buildDocsUrl(document.google_file_id);
+    activeDoc.id === document.google_file_id && document.web_view_url
+      ? document.web_view_url
+      : buildDocsUrl(activeDoc.id);
+  const viewingLinkedDoc = activeDoc.id === document.google_file_id;
 
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1">
-          <h3 className="truncate font-semibold">{document.nombre}</h3>
+          <h3 className="truncate font-semibold">{activeDoc.name}</h3>
           <p className="text-xs text-muted-foreground">
-            Google Docs vinculado a esta sesion
+            {viewingLinkedDoc
+              ? "Google Docs vinculado a esta sesion"
+              : "Nota de la serie (sin vincular a esta sesion)"}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" onClick={loadLinkedDocument}>
+          <Button size="sm" onClick={() => setNewSessionOpen(true)}>
+            <CalendarPlus size={14} />
+            Nueva sesion
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              loadLinkedDocument();
+              setIframeNonce((nonce) => nonce + 1);
+            }}
+          >
             <RefreshCw size={14} />
             Refrescar
           </Button>
@@ -815,26 +416,127 @@ export default function ProfessionalPrivateNote({
               Abrir
             </a>
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-destructive"
-            onClick={unlinkDrive}
-            disabled={working === "unlink"}
-          >
-            {working === "unlink" ? (
-              <Loader2 className="animate-spin" size={14} />
-            ) : (
-              <Unlink size={14} />
-            )}
-            Desvincular
-          </Button>
+          {viewingLinkedDoc ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-destructive"
+              onClick={unlinkDrive}
+              disabled={working === "unlink"}
+            >
+              {working === "unlink" ? (
+                <Loader2 className="animate-spin" size={14} />
+              ) : (
+                <Unlink size={14} />
+              )}
+              Desvincular
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={linkViewingDoc}
+              disabled={working === "link"}
+            >
+              {working === "link" ? (
+                <Loader2 className="animate-spin" size={14} />
+              ) : (
+                <Link2 size={14} />
+              )}
+              Vincular a esta sesion
+            </Button>
+          )}
         </div>
       </div>
+
+      <div className="rounded-xl border bg-card">
+        <button
+          type="button"
+          className="flex w-full items-center justify-between px-4 py-2.5 text-sm font-medium"
+          onClick={() => {
+            const next = !seriesOpen;
+            setSeriesOpen(next);
+            if (next && seriesDocs === null) loadSeriesDocs();
+          }}
+        >
+          <span>
+            Notas de la serie
+            {seriesDocs ? ` (${seriesDocs.length})` : ""}
+          </span>
+          {seriesOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+        </button>
+        {seriesOpen && (
+          <div className="border-t px-4 py-3">
+            {seriesLoading && (
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="animate-spin" size={14} />
+                Buscando notas en la carpeta de la serie...
+              </p>
+            )}
+            {!seriesLoading && seriesDocs && seriesDocs.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                Esta serie todavia no tiene una carpeta con otras notas. Crea una
+                con el boton “Nueva sesion”.
+              </p>
+            )}
+            {!seriesLoading && seriesDocs && seriesDocs.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {seriesDocs.map((doc) => {
+                  const isActive = doc.id === activeDoc.id;
+                  const isLinked = doc.id === document.google_file_id;
+                  return (
+                    <button
+                      key={doc.id}
+                      type="button"
+                      onClick={() => {
+                        setViewingDoc({ id: doc.id, name: doc.name });
+                        setIframeNonce((nonce) => nonce + 1);
+                      }}
+                      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                        isActive
+                          ? "border-primary bg-primary/10 font-semibold text-primary"
+                          : "hover:border-primary/50"
+                      }`}
+                    >
+                      <FileText size={12} />
+                      {doc.name}
+                      {isLinked && (
+                        <span className="rounded-full bg-primary/15 px-1.5 text-[10px] font-medium text-primary">
+                          Vinculada
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       <iframe
-        title={document.nombre}
+        key={`${activeDoc.id}-${iframeNonce}`}
+        title={activeDoc.name}
         src={docsUrl}
         className="h-[720px] w-full rounded-xl border bg-white"
+      />
+
+      <NewSessionDialog
+        session={session}
+        patientName={patientName}
+        currentDocId={activeDoc.id}
+        open={newSessionOpen}
+        onOpenChange={setNewSessionOpen}
+        onAppended={() => {
+          setIframeNonce((nonce) => nonce + 1);
+          setSeriesDocs(null);
+        }}
+        onCreatedDoc={(file) => {
+          setViewingDoc(file);
+          setIframeNonce((nonce) => nonce + 1);
+          setSeriesDocs(null);
+          setSeriesOpen(false);
+        }}
       />
     </div>
   );

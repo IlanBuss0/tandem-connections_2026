@@ -184,7 +184,10 @@ export default function ProfessionalAgenda({
             vos podés leer esta nota.
           </p>
         </div>
-        <ProfessionalPrivateNote session={noteSession} />
+        <ProfessionalPrivateNote
+          session={noteSession}
+          patientName={patientById.get(Number(noteSession.id_perteneciente))?.name}
+        />
       </div>
     );
 

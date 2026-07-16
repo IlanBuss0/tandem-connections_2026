@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchActivitiesForUser, fetchEmotionRecordsForUser, fetchLinkedPertenecientesForSupportUser, joinProfessionalInviteByCode, type Activity, type CalendarEvent, type EmotionalRecord, type User } from '@/data/api';
-import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, MessageSquare, Sparkles, MessageCircle, Bell, X, KeyRound, Loader2 } from 'lucide-react';
+import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, MessageSquare, Sparkles, MessageCircle, Bell, X, KeyRound, Loader2, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -13,6 +13,7 @@ import AppHeader from '@/components/AppHeader';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
 import ProfessionalAgenda from '@/components/ProfessionalAgenda';
+import DriveExplorer from '@/components/DriveExplorer';
 import ProfessionalCalendar from '@/components/ProfessionalCalendar';
 import ProfessionalProfileSettings from '@/components/ProfessionalProfileSettings';
 import UserNotifications from '@/pages/user/UserNotifications';
@@ -150,6 +151,7 @@ export default function ProfessionalDashboard() {
     { id: 'patients', label: 'Pacientes', icon: Users },
     ...(canScheduleSessions ? [{ id: 'agenda', label: 'Agenda', icon: Calendar }] : []),
     ...(canScheduleSessions ? [{ id: 'calendar', label: 'Calendario', icon: Calendar }] : []),
+    { id: 'documents', label: 'Documentos', icon: FolderOpen },
     ...(canAssignActivities || canCreateCustomActivities ? [{ id: 'create', label: 'Crear actividad', icon: Sparkles }] : []),
     ...(canSendMessages ? [{ id: 'chat', label: 'Chat', icon: MessageCircle }] : []),
     { id: 'notifications', label: 'Notificaciones', icon: Bell },
@@ -412,6 +414,7 @@ export default function ProfessionalDashboard() {
         {tab === 'calendar' && canScheduleSessions && (
           <ProfessionalCalendar patients={agendaPatients} onOpenAgenda={() => setTab('agenda')} />
         )}
+        {tab === 'documents' && <DriveExplorer />}
         {tab === 'pictograms' && <AiPictogramStudio />}
         {tab === 'profile' && <ProfessionalProfileSettings />}
 
