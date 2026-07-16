@@ -2573,6 +2573,18 @@ export async function deleteProfessionalSession(id: number): Promise<void> {
   await apiRequest(`/api/sesiones-profesionales/${id}`, { method: 'DELETE', token: getStoredAuthToken() });
 }
 
+export interface ResizeSessionSeriesResult {
+  sessions: ProfessionalSession[];
+  deletedSessionIds: number[];
+  deletedNotesCount: number;
+}
+
+export async function resizeSessionSeries(groupId: string, payload: { titulo?: string; count?: number }): Promise<ResizeSessionSeriesResult> {
+  return apiRequest(`/api/sesiones-profesionales/series/${encodeURIComponent(groupId)}`, {
+    method: 'PUT', token: getStoredAuthToken(), body: payload,
+  });
+}
+
 export async function fetchPrivateProfessionalNote(idSession: number): Promise<PrivateProfessionalNote | null> {
   try {
     return await apiRequest(`/api/sesiones-profesionales/${idSession}/private-note`, { token: getStoredAuthToken() });
@@ -2600,6 +2612,22 @@ export async function unlinkPrivateNoteDriveDocument(idSession: number): Promise
 
 export async function fetchProfessionalOwnProfile(): Promise<ProfessionalOwnProfile> {
   return apiRequest('/api/perfiles-profesionales/mine', { token: getStoredAuthToken() });
+}
+
+export async function fetchNoteTemplateFavorites(): Promise<string[]> {
+  return apiRequest('/api/note-template-favorites', { token: getStoredAuthToken() });
+}
+
+export async function saveNoteTemplateFavorite(templateId: string): Promise<void> {
+  await apiRequest(`/api/note-template-favorites/${encodeURIComponent(templateId)}`, {
+    method: 'POST', token: getStoredAuthToken(),
+  });
+}
+
+export async function deleteNoteTemplateFavorite(templateId: string): Promise<void> {
+  await apiRequest(`/api/note-template-favorites/${encodeURIComponent(templateId)}`, {
+    method: 'DELETE', token: getStoredAuthToken(),
+  });
 }
 
 export async function saveProfessionalOwnProfile(payload: Record<string, unknown>): Promise<ProfessionalOwnProfile> {

@@ -5,10 +5,8 @@ import {
   ChevronUp,
   ExternalLink,
   FileText,
-  LayoutTemplate,
   Link2,
   Loader2,
-  Plus,
   RefreshCw,
   Unlink,
 } from "lucide-react";
@@ -40,8 +38,9 @@ import {
   setAppProperties,
   type DriveFile,
 } from "@/lib/googleDrive";
-import { noteTemplates, type NoteTemplate } from "@/data/noteTemplates";
+import type { NoteTemplate } from "@/data/noteTemplates";
 import NewSessionDialog from "@/components/NewSessionDialog";
+import NoteTemplateGallery from "@/components/NoteTemplateGallery";
 
 type DriveDocument = NonNullable<PrivateProfessionalNote["documento_drive"]>;
 
@@ -374,80 +373,12 @@ export default function ProfessionalPrivateNote({
           </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {noteTemplates.map((template) => (
-            <button
-              key={template.id}
-              type="button"
-              onClick={() => createDriveDocument(template)}
-              disabled={Boolean(working)}
-              className="group overflow-hidden rounded-lg border bg-background text-left transition hover:-translate-y-0.5 hover:border-primary hover:shadow-md disabled:pointer-events-none disabled:opacity-60"
-            >
-              <div className="bg-muted/30 p-4">
-                <div className="mx-auto aspect-[4/5] max-w-[180px] rounded border bg-white p-3 shadow-sm">
-                  <div
-                    className="mb-2 h-3 w-3/4 rounded"
-                    style={{ backgroundColor: template.accent }}
-                  />
-                  <div className="mb-3 h-1.5 w-1/2 rounded bg-slate-200" />
-                  <div className="space-y-1.5">
-                    {template.preview.map((line, index) => (
-                      <div key={line} className="space-y-1">
-                        <div
-                          className="h-1.5 rounded"
-                          style={{
-                            width: `${92 - index * 13}%`,
-                            backgroundColor:
-                              index === 0 ? `${template.accent}33` : "#e5e7eb",
-                          }}
-                        />
-                        <div
-                          className="h-1 rounded bg-slate-100"
-                          style={{ width: `${76 - index * 8}%` }}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  {template.previewTable && (
-                    <div className="mt-3 grid grid-cols-2 overflow-hidden rounded border border-slate-200">
-                      {Array.from({ length: 6 }, (_, index) => (
-                        <div
-                          key={index}
-                          className="h-5 border-b border-r border-slate-100"
-                          style={{
-                            backgroundColor:
-                              index < 2 ? `${template.accent}24` : "#ffffff",
-                          }}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-start gap-3 p-4">
-                <div
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md"
-                  style={{
-                    backgroundColor: `${template.accent}1f`,
-                    color: template.accent,
-                  }}
-                >
-                  {template.id === "blank" ? (
-                    <Plus size={17} />
-                  ) : (
-                    <LayoutTemplate size={17} />
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <p className="font-medium">{template.name}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {template.description}
-                  </p>
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
+        <NoteTemplateGallery
+          session={session}
+          patientName={patientName}
+          onSelect={createDriveDocument}
+          disabled={Boolean(working)}
+        />
 
         <div className="flex justify-center border-t pt-4">
           <Button

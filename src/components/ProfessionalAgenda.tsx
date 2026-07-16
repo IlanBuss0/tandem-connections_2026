@@ -1,15 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
-  Clock,
-  FileText,
   Loader2,
-  Pencil,
   Plus,
   Save,
-  Trash2,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -29,7 +24,9 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import ProfessionalPrivateNote from "@/components/ProfessionalPrivateNote";
-import { sessionStatusBadgeClass } from "@/lib/sessionStatus";
+import SessionCard from "@/components/SessionCard";
+import SessionSeriesFolder from "@/components/SessionSeriesFolder";
+import { recurrenceLabels } from "@/lib/sessionRecurrence";
 import {
   createProfessionalSession,
   deleteProfessionalSession,
@@ -69,13 +66,9 @@ const emptyForm = (): SessionForm => ({
   recurrence_count: "8",
 });
 
-const recurrenceLabels: Record<SessionForm["recurrence_frequency"], string> = {
-  none: "No se repite",
-  weekly: "Una vez por semana",
-  twice_weekly: "Dos veces por semana",
-  biweekly: "Una vez cada 2 semanas",
-  monthly: "Una vez por mes",
-};
+type AgendaItem =
+  | { type: "series"; groupId: string; sessions: ProfessionalSession[]; sortDate: string }
+  | { type: "single"; session: ProfessionalSession; sortDate: string };
 
 export default function ProfessionalAgenda({
   patients,
@@ -115,6 +108,45 @@ export default function ProfessionalAgenda({
   const visibleSessions = sessions.filter((session) =>
     patientById.has(Number(session.id_perteneciente)),
   );
+
+  const agendaItems = useMemo<AgendaItem[]>(() => {
+    const seriesMap = new Map<string, ProfessionalSession[]>();
+    const standalone: ProfessionalSession[] = [];
+    for (const session of visibleSessions) {
+      if (session.recurrence_group_id) {
+        const list = seriesMap.get(session.recurrence_group_id) || [];
+        list.push(session);
+        seriesMap.set(session.recurrence_group_id, list);
+      } else {
+        standalone.push(session);
+      }
+    }
+    const items: AgendaItem[] = [];
+    for (const [groupId, list] of seriesMap) {
+      const sorted = [...list].sort((a, b) =>
+        a.fecha_sesion.localeCompare(b.fecha_sesion),
+      );
+      items.push({ type: "series", groupId, sessions: sorted, sortDate: sorted[0].fecha_sesion });
+    }
+    for (const session of standalone) {
+      items.push({ type: "single", session, sortDate: session.fecha_sesion });
+    }
+    return items.sort((a, b) => a.sortDate.localeCompare(b.sortDate));
+  }, [visibleSessions]);
+
+  const handleDelete = async (session: ProfessionalSession) => {
+    if (!window.confirm("¿Eliminar esta sesion?")) return;
+    try {
+      await deleteProfessionalSession(session.id);
+      await load();
+    } catch (error) {
+      toast({
+        title: "No se pudo eliminar la sesion",
+        description: error instanceof Error ? error.message : undefined,
+        variant: "destructive",
+      });
+    }
+  };
 
   const openCreate = () =>
     setForm({
@@ -415,7 +447,7 @@ export default function ProfessionalAgenda({
           <Loader2 className="mr-2 animate-spin" size={18} />
           Cargando sesiones...
         </div>
-      ) : visibleSessions.length === 0 ? (
+      ) : agendaItems.length === 0 ? (
         <div className="rounded-xl border border-dashed p-8 text-center">
           <CalendarDays className="mx-auto mb-2 text-primary" />
           <p className="font-medium">Todavia no hay sesiones programadas</p>
@@ -425,74 +457,29 @@ export default function ProfessionalAgenda({
         </div>
       ) : (
         <div className="space-y-3">
-          {visibleSessions.map((session) => {
-            const patient = patientById.get(Number(session.id_perteneciente));
-            const date = new Date(session.fecha_sesion);
-            const recurrenceLabel =
-              session.recurrence_group_id && session.recurrence_rule?.frequency
-                ? recurrenceLabels[session.recurrence_rule.frequency]
-                : null;
-            return (
-              <div key={session.id} className="rounded-xl border bg-card p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <Clock size={20} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold">{session.titulo}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {patient?.name} ·{" "}
-                      {date.toLocaleString("es-AR", {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })}{" "}
-                      · {session.duracion_minutos} min
-                    </p>
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      <Badge className={`capitalize ${sessionStatusBadgeClass(session.estado)}`}>
-                        {session.estado}
-                      </Badge>
-                      {recurrenceLabel && (
-                        <Badge className="bg-primary/10 text-primary">
-                          {recurrenceLabel} · #
-                          {Number(session.recurrence_index || 0) + 1}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setNoteSession(session)}
-                    >
-                      <FileText size={14} className="mr-2" />
-                      Nota privada
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => openEdit(session)}
-                    >
-                      <Pencil size={14} />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-destructive"
-                      onClick={async () => {
-                        if (!window.confirm("¿Eliminar esta sesion?")) return;
-                        await deleteProfessionalSession(session.id);
-                        await load();
-                      }}
-                    >
-                      <Trash2 size={14} />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {agendaItems.map((item) =>
+            item.type === "series" ? (
+              <SessionSeriesFolder
+                key={item.groupId}
+                groupId={item.groupId}
+                sessions={item.sessions}
+                patientName={patientById.get(Number(item.sessions[0].id_perteneciente))?.name}
+                onOpenNote={setNoteSession}
+                onEditSession={openEdit}
+                onDeleteSession={handleDelete}
+                onSeriesChanged={load}
+              />
+            ) : (
+              <SessionCard
+                key={item.session.id}
+                session={item.session}
+                patientName={patientById.get(Number(item.session.id_perteneciente))?.name}
+                onOpenNote={() => setNoteSession(item.session)}
+                onEdit={() => openEdit(item.session)}
+                onDelete={() => handleDelete(item.session)}
+              />
+            ),
+          )}
         </div>
       )}
     </div>
