@@ -2577,9 +2577,10 @@ export interface ResizeSessionSeriesResult {
   sessions: ProfessionalSession[];
   deletedSessionIds: number[];
   deletedNotesCount: number;
+  completedSessionIds: number[];
 }
 
-export async function resizeSessionSeries(groupId: string, payload: { titulo?: string; count?: number }): Promise<ResizeSessionSeriesResult> {
+export async function resizeSessionSeries(groupId: string, payload: { titulo?: string; count?: number; markPastAsCompleted?: boolean }): Promise<ResizeSessionSeriesResult> {
   return apiRequest(`/api/sesiones-profesionales/series/${encodeURIComponent(groupId)}`, {
     method: 'PUT', token: getStoredAuthToken(), body: payload,
   });

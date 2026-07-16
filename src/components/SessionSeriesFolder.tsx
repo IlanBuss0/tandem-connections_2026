@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ChevronDown, ChevronUp, Loader2, Pencil, Repeat, Save } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CheckCheck, ChevronDown, ChevronUp, Loader2, Pencil, Repeat, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -39,11 +39,38 @@ export default function SessionSeriesFolder({
   const [titulo, setTitulo] = useState("");
   const [count, setCount] = useState("");
   const [saving, setSaving] = useState(false);
+  const [completing, setCompleting] = useState(false);
 
   const first = sessions[0];
   const last = sessions[sessions.length - 1];
   const frequency = (first.recurrence_rule?.frequency || "none") as RecurrenceFrequency;
   const frequencyLabel = recurrenceLabels[frequency] || recurrenceLabels.none;
+
+  const pendingCompletionCount = useMemo(() => {
+    const now = Date.now();
+    return sessions.filter(
+      (session) => session.estado === "programada" && new Date(session.fecha_sesion).getTime() <= now,
+    ).length;
+  }, [sessions]);
+
+  const markPastAsCompleted = async () => {
+    setCompleting(true);
+    try {
+      const result = await resizeSessionSeries(groupId, { markPastAsCompleted: true });
+      toast({
+        title: `${result.completedSessionIds.length} sesion${result.completedSessionIds.length === 1 ? "" : "es"} marcada${result.completedSessionIds.length === 1 ? "" : "s"} como completadas`,
+      });
+      onSeriesChanged();
+    } catch (error) {
+      toast({
+        title: "No se pudo actualizar el estado",
+        description: error instanceof Error ? error.message : undefined,
+        variant: "destructive",
+      });
+    } finally {
+      setCompleting(false);
+    }
+  };
 
   const openEditDialog = () => {
     setTitulo(first.titulo);
@@ -94,6 +121,8 @@ export default function SessionSeriesFolder({
           type="button"
           className="flex flex-1 items-center gap-3 text-left"
           onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+          aria-controls={`series-${groupId}`}
         >
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <Repeat size={20} />
@@ -117,13 +146,27 @@ export default function SessionSeriesFolder({
           onClick={() => setOpen((value) => !value)}
           className="p-1 text-muted-foreground"
           aria-label={open ? "Colapsar serie" : "Expandir serie"}
+          aria-expanded={open}
+          aria-controls={`series-${groupId}`}
         >
           {open ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
       </div>
 
       {open && (
-        <div className="space-y-2 border-t p-3">
+        <div id={`series-${groupId}`} className="space-y-2 border-t p-3">
+          {pendingCompletionCount > 0 && (
+            <div className="flex flex-col gap-2 rounded-lg border border-dashed bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">
+                {pendingCompletionCount} sesion{pendingCompletionCount === 1 ? "" : "es"} ya pasó
+                {pendingCompletionCount === 1 ? "" : "aron"} y siguen como "programada".
+              </p>
+              <Button size="sm" variant="outline" onClick={markPastAsCompleted} disabled={completing}>
+                {completing ? <Loader2 size={14} className="animate-spin" /> : <CheckCheck size={14} />}
+                Marcar como completadas
+              </Button>
+            </div>
+          )}
           {sessions.map((session) => (
             <SessionCard
               key={session.id}
