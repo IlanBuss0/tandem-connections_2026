@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   CalendarDays,
   Loader2,
   Plus,
   Save,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +29,7 @@ import ProfessionalPrivateNote from "@/components/ProfessionalPrivateNote";
 import SessionCard from "@/components/SessionCard";
 import SessionSeriesFolder from "@/components/SessionSeriesFolder";
 import { recurrenceLabels } from "@/lib/sessionRecurrence";
+import { findOverlappingSession } from "@/lib/sessionOverlap";
 import {
   createProfessionalSession,
   deleteProfessionalSession,
@@ -46,6 +49,7 @@ type SessionForm = {
   hora: string;
   duracion_minutos: string;
   estado: ProfessionalSession["estado"];
+  motivo_cancelacion: string;
   recurrence_frequency:
     | "none"
     | "weekly"
@@ -62,6 +66,7 @@ const emptyForm = (): SessionForm => ({
   hora: "09:00",
   duracion_minutos: "60",
   estado: "programada",
+  motivo_cancelacion: "",
   recurrence_frequency: "none",
   recurrence_count: "8",
 });
@@ -69,6 +74,8 @@ const emptyForm = (): SessionForm => ({
 type AgendaItem =
   | { type: "series"; groupId: string; sessions: ProfessionalSession[]; sortDate: string }
   | { type: "single"; session: ProfessionalSession; sortDate: string };
+
+type TimeFilter = "upcoming" | "past" | "all";
 
 export default function ProfessionalAgenda({
   patients,
@@ -85,6 +92,10 @@ export default function ProfessionalAgenda({
   const [noteSession, setNoteSession] = useState<ProfessionalSession | null>(
     null,
   );
+  const [patientFilter, setPatientFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("upcoming");
+  const [search, setSearch] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -99,6 +110,15 @@ export default function ProfessionalAgenda({
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    if (initialPatientId) {
+      setForm({ ...emptyForm(), id_perteneciente: String(initialPatientId) });
+    }
+    // Solo se dispara cuando llega un paciente preseleccionado (p.ej. desde
+    // "Proponer sesion" en el detalle del paciente) — no en cada render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialPatientId]);
 
   const patientById = useMemo(
     () =>
@@ -134,6 +154,45 @@ export default function ProfessionalAgenda({
     return items.sort((a, b) => a.sortDate.localeCompare(b.sortDate));
   }, [visibleSessions]);
 
+  const sessionMatchesFilters = (session: ProfessionalSession, now: number) => {
+    if (patientFilter !== "all" && String(session.id_perteneciente) !== patientFilter) return false;
+    if (statusFilter !== "all" && session.estado !== statusFilter) return false;
+    if (timeFilter === "upcoming" && new Date(session.fecha_sesion).getTime() < now) return false;
+    if (timeFilter === "past" && new Date(session.fecha_sesion).getTime() >= now) return false;
+    if (search.trim()) {
+      const patientName = patientById.get(Number(session.id_perteneciente))?.name || "";
+      const haystack = `${session.titulo} ${patientName}`.toLowerCase();
+      if (!haystack.includes(search.trim().toLowerCase())) return false;
+    }
+    return true;
+  };
+
+  const filteredAgendaItems = useMemo(() => {
+    const now = Date.now();
+    return agendaItems.filter((item) =>
+      item.type === "single"
+        ? sessionMatchesFilters(item.session, now)
+        : item.sessions.some((session) => sessionMatchesFilters(session, now)),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agendaItems, patientFilter, statusFilter, timeFilter, search, patientById]);
+
+  const summary = useMemo(() => {
+    const now = Date.now();
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const weekAhead = now + 7 * 24 * 60 * 60 * 1000;
+    const active = visibleSessions.filter((session) => session.estado !== "cancelada");
+    const today = active.filter((session) => session.fecha_sesion.slice(0, 10) === todayStr).length;
+    const week = active.filter((session) => {
+      const time = new Date(session.fecha_sesion).getTime();
+      return time >= now && time <= weekAhead;
+    }).length;
+    const next = active
+      .filter((session) => session.estado === "programada" && new Date(session.fecha_sesion).getTime() >= now)
+      .sort((a, b) => a.fecha_sesion.localeCompare(b.fecha_sesion))[0];
+    return { today, week, next };
+  }, [visibleSessions]);
+
   const handleDelete = async (session: ProfessionalSession) => {
     if (!window.confirm("¿Eliminar esta sesion?")) return;
     try {
@@ -163,6 +222,7 @@ export default function ProfessionalAgenda({
       hora: date.toTimeString().slice(0, 5),
       duracion_minutos: String(session.duracion_minutos),
       estado: session.estado,
+      motivo_cancelacion: session.motivo_cancelacion || "",
       recurrence_frequency: "none",
       recurrence_count: "1",
     });
@@ -178,6 +238,7 @@ export default function ProfessionalAgenda({
         fecha_sesion: new Date(`${form.fecha}T${form.hora}:00`).toISOString(),
         duracion_minutos: Number(form.duracion_minutos),
         estado: form.estado,
+        motivo_cancelacion: form.estado === "cancelada" ? form.motivo_cancelacion.trim() || null : null,
         recordatorios: [],
       };
       if (form.id) {
@@ -241,6 +302,14 @@ export default function ProfessionalAgenda({
       </div>
     );
 
+  const overlapSession = form && form.fecha && form.hora
+    ? findOverlappingSession(sessions, {
+        id: form.id,
+        fecha_sesion: new Date(`${form.fecha}T${form.hora}:00`).toISOString(),
+        duracion_minutos: Number(form.duracion_minutos) || 0,
+      })
+    : undefined;
+
   return (
     <div className="space-y-5">
       <div className="flex items-end justify-between gap-3">
@@ -265,6 +334,16 @@ export default function ProfessionalAgenda({
           </DialogHeader>
           {form && (
           <div className="grid gap-4 sm:grid-cols-2">
+            {overlapSession && (
+              <Alert className="sm:col-span-2 border-amber-300 bg-amber-50 text-amber-900">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <AlertDescription>
+                  Se superpone con "{overlapSession.titulo}" de{" "}
+                  {patientById.get(Number(overlapSession.id_perteneciente))?.name || "otro paciente"} a las{" "}
+                  {new Date(overlapSession.fecha_sesion).toTimeString().slice(0, 5)}.
+                </AlertDescription>
+              </Alert>
+            )}
             <div className="space-y-2 sm:col-span-2">
               <Label>Paciente</Label>
               <Select
@@ -369,9 +448,25 @@ export default function ProfessionalAgenda({
                   <SelectItem value="programada">Programada</SelectItem>
                   <SelectItem value="completada">Completada</SelectItem>
                   <SelectItem value="cancelada">Cancelada</SelectItem>
+                  <SelectItem value="ausente">Ausente (no se presento)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {form.estado === "cancelada" && (
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Motivo de la cancelacion (opcional)</Label>
+                <Input
+                  value={form.motivo_cancelacion}
+                  maxLength={240}
+                  onChange={(event) =>
+                    setForm(
+                      (prev) => prev && { ...prev, motivo_cancelacion: event.target.value },
+                    )
+                  }
+                  placeholder="Ej: el paciente reprogramo por enfermedad"
+                />
+              </div>
+            )}
             {!form.id && (
               <>
                 <div className="space-y-2">
@@ -442,6 +537,73 @@ export default function ProfessionalAgenda({
         </DialogContent>
       </Dialog>
 
+      {!loading && visibleSessions.length > 0 && (
+        <div className="grid grid-cols-3 gap-2 rounded-xl border bg-muted/30 p-3 text-center sm:grid-cols-3">
+          <div>
+            <p className="text-lg font-bold">{summary.today}</p>
+            <p className="text-xs text-muted-foreground">Hoy</p>
+          </div>
+          <div>
+            <p className="text-lg font-bold">{summary.week}</p>
+            <p className="text-xs text-muted-foreground">Esta semana</p>
+          </div>
+          <div>
+            <p className="text-sm font-semibold">
+              {summary.next
+                ? `${new Date(summary.next.fecha_sesion).toTimeString().slice(0, 5)} · ${patientById.get(Number(summary.next.id_perteneciente))?.name || "Paciente"}`
+                : "-"}
+            </p>
+            <p className="text-xs text-muted-foreground">Próxima sesion</p>
+          </div>
+        </div>
+      )}
+
+      {!loading && visibleSessions.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <Select value={patientFilter} onValueChange={setPatientFilter}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Paciente" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los pacientes</SelectItem>
+              {patients.map((patient) => (
+                <SelectItem key={patient.pertenecienteId} value={String(patient.pertenecienteId)}>
+                  {patient.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Estado" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los estados</SelectItem>
+              <SelectItem value="programada">Programada</SelectItem>
+              <SelectItem value="completada">Completada</SelectItem>
+              <SelectItem value="cancelada">Cancelada</SelectItem>
+              <SelectItem value="ausente">Ausente</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={timeFilter} onValueChange={(value) => setTimeFilter(value as TimeFilter)}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Periodo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="upcoming">Próximas</SelectItem>
+              <SelectItem value="past">Pasadas</SelectItem>
+              <SelectItem value="all">Todas</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Buscar por titulo o paciente"
+            className="flex-1 min-w-[180px]"
+          />
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center rounded-xl border p-8 text-muted-foreground">
           <Loader2 className="mr-2 animate-spin" size={18} />
@@ -455,9 +617,17 @@ export default function ProfessionalAgenda({
             Crea una sesion para un paciente con permiso de agenda.
           </p>
         </div>
+      ) : filteredAgendaItems.length === 0 ? (
+        <div className="rounded-xl border border-dashed p-8 text-center">
+          <CalendarDays className="mx-auto mb-2 text-primary" />
+          <p className="font-medium">Ninguna sesion coincide con los filtros</p>
+          <p className="text-sm text-muted-foreground">
+            Probá cambiar el periodo o limpiar la busqueda.
+          </p>
+        </div>
       ) : (
         <div className="space-y-3">
-          {agendaItems.map((item) =>
+          {filteredAgendaItems.map((item) =>
             item.type === "series" ? (
               <SessionSeriesFolder
                 key={item.groupId}

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchActivitiesForUser, fetchEmotionRecordsForUser, fetchLinkedPertenecientesForSupportUser, joinProfessionalInviteByCode, type Activity, type CalendarEvent, type EmotionalRecord, type User } from '@/data/api';
-import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, MessageSquare, Sparkles, MessageCircle, Bell, X, KeyRound, Loader2, FolderOpen } from 'lucide-react';
+import { deleteProfessionalSession, fetchActivitiesForUser, fetchEmotionRecordsForUser, fetchLinkedPertenecientesForSupportUser, fetchProfessionalSessions, joinProfessionalInviteByCode, updateProfessionalSession, type Activity, type EmotionalRecord, type ProfessionalSession, type User } from '@/data/api';
+import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, Sparkles, MessageCircle, Bell, X, KeyRound, Loader2, FolderOpen, CalendarClock, Download } from 'lucide-react';
+import { buildSessionHistoryCsv } from '@/lib/sessionCsv';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -13,6 +14,8 @@ import AppHeader from '@/components/AppHeader';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
 import ProfessionalAgenda from '@/components/ProfessionalAgenda';
+import ProfessionalPrivateNote from '@/components/ProfessionalPrivateNote';
+import SessionCard from '@/components/SessionCard';
 import DriveExplorer from '@/components/DriveExplorer';
 import ProfessionalCalendar from '@/components/ProfessionalCalendar';
 import ProfessionalProfileSettings from '@/components/ProfessionalProfileSettings';
@@ -21,42 +24,40 @@ import { isPermissionEnabled, PROFESIONAL_PERMISSIONS, usePermissionContext } fr
 import PermissionBlocked from '@/components/PermissionBlocked';
 import AiPictogramStudio from '@/components/AiPictogramStudio';
 import { useToast } from '@/components/ui/use-toast';
-import { useCalendar } from '@/contexts/CalendarContext';
 import { useSyncMobileMenuOpen } from '@/contexts/MobileMenuState';
 
-function professionalEventPatientId(description?: string) {
-  return description?.match(/\[paciente:([^\]]+)\]/)?.[1] || '';
-}
-
-function nextTherapySessionForPatient(events: CalendarEvent[], patientId: string) {
-  const now = new Date().toISOString().split('T')[0];
-  return events
-    .filter(event =>
-      event.type === 'terapia'
-      && event.date >= now
-      && professionalEventPatientId(event.description) === patientId,
+function nextSessionForPatient(sessions: ProfessionalSession[], pertenecienteId: number | undefined) {
+  if (!pertenecienteId) return undefined;
+  const now = Date.now();
+  return sessions
+    .filter(session =>
+      Number(session.id_perteneciente) === pertenecienteId
+      && session.estado === 'programada'
+      && new Date(session.fecha_sesion).getTime() >= now,
     )
-    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))[0];
+    .sort((a, b) => a.fecha_sesion.localeCompare(b.fecha_sesion))[0];
 }
 
 export default function ProfessionalDashboard() {
   const { user, logout } = useAuth();
   const { context: permissionContext, refetch: refetchPermissionContext } = usePermissionContext();
-  const { events: professionalCalendarEvents } = useCalendar();
   const { toast } = useToast();
   const [tab, setTab] = useState('patients');
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
-  const [patientTab, setPatientTab] = useState<'overview' | 'stats'>('overview');
+  const [patientTab, setPatientTab] = useState<'overview' | 'stats' | 'sessions'>('overview');
+  const [patientNoteSession, setPatientNoteSession] = useState<ProfessionalSession | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   useSyncMobileMenuOpen(menuOpen);
   const [linkedUsers, setLinkedUsers] = useState<User[]>([]);
   const [activitiesByUser, setActivitiesByUser] = useState<Record<string, Activity[]>>({});
   const [emotionsByUser, setEmotionsByUser] = useState<Record<string, EmotionalRecord[]>>({});
+  const [sessions, setSessions] = useState<ProfessionalSession[]>([]);
   const [patientsError, setPatientsError] = useState<string | null>(null);
   const [loadingPatients, setLoadingPatients] = useState(true);
   const [professionalInviteCode, setProfessionalInviteCode] = useState('');
   const [joiningProfessionalInvite, setJoiningProfessionalInvite] = useState(false);
   const [selectedNotificationChatId, setSelectedNotificationChatId] = useState<string | undefined>();
+  const [agendaInitialPatientId, setAgendaInitialPatientId] = useState<number | undefined>();
   const { unreadCount, setUnreadCount } = useUnreadNotifications(
     user && user.role === 'professional' ? { id: String(user.id) } : null
   );
@@ -65,6 +66,7 @@ export default function ProfessionalDashboard() {
     if (!user || user.role !== 'professional') return;
     let cancelled = false;
     setLoadingPatients(true);
+    fetchProfessionalSessions().then(rows => { if (!cancelled) setSessions(rows); }).catch(() => {});
     Promise.all([
       fetchLinkedPertenecientesForSupportUser(user.id, 'professional'),
     ])
@@ -95,6 +97,7 @@ export default function ProfessionalDashboard() {
     setLoadingPatients(true);
     setPatientsError(null);
     try {
+      fetchProfessionalSessions().then(setSessions).catch(() => {});
       const patients = await fetchLinkedPertenecientesForSupportUser(user.id, 'professional');
       setLinkedUsers(patients);
       const entries = await Promise.all(
@@ -109,6 +112,36 @@ export default function ProfessionalDashboard() {
       setEmotionsByUser(Object.fromEntries(emotions));
     } finally {
       setLoadingPatients(false);
+    }
+  };
+
+  const reloadSessions = () => fetchProfessionalSessions().then(setSessions).catch(() => {});
+
+  const markSessionCompleted = async (session: ProfessionalSession) => {
+    try {
+      await updateProfessionalSession(session.id, {
+        id_perteneciente: session.id_perteneciente,
+        titulo: session.titulo,
+        fecha_sesion: session.fecha_sesion,
+        duracion_minutos: session.duracion_minutos,
+        estado: 'completada',
+        motivo_cancelacion: null,
+        recordatorios: session.recordatorios,
+      });
+      await reloadSessions();
+      toast({ title: 'Sesion marcada como completada' });
+    } catch (err) {
+      toast({ title: 'No se pudo actualizar la sesion', description: err instanceof Error ? err.message : undefined, variant: 'destructive' });
+    }
+  };
+
+  const deletePatientSession = async (session: ProfessionalSession) => {
+    if (!window.confirm('¿Eliminar esta sesion?')) return;
+    try {
+      await deleteProfessionalSession(session.id);
+      await reloadSessions();
+    } catch (err) {
+      toast({ title: 'No se pudo eliminar la sesion', description: err instanceof Error ? err.message : undefined, variant: 'destructive' });
     }
   };
 
@@ -171,6 +204,26 @@ export default function ProfessionalDashboard() {
     .filter(patient => patientHasPermission(patient.id, PROFESIONAL_PERMISSIONS.AGENDAR_SESIONES, true))
     .map(patient => ({ ...patient, pertenecienteId: Number(linkForUser(patient.id)?.perteneciente.id) }));
   const activityPatients = linkedUsers.filter(patient => patientHasPermission(patient.id, PROFESIONAL_PERMISSIONS.ASIGNAR_ACTIVIDADES, true));
+
+  const now = Date.now();
+  const weekAhead = now + 7 * 24 * 60 * 60 * 1000;
+  const sessionsThisWeek = sessions.filter(session => {
+    if (session.estado === 'cancelada') return false;
+    const time = new Date(session.fecha_sesion).getTime();
+    return time >= now && time <= weekAhead;
+  }).length;
+  const globalCompletadas = sessions.filter(s => s.estado === 'completada').length;
+  const globalAusentes = sessions.filter(s => s.estado === 'ausente').length;
+  const globalAsistencia = globalCompletadas + globalAusentes > 0
+    ? Math.round((globalCompletadas / (globalCompletadas + globalAusentes)) * 100)
+    : null;
+  const patientsWithoutNextSession = agendaPatients.filter(
+    patient => !nextSessionForPatient(sessions, patient.pertenecienteId),
+  );
+  const pendingCompletionSessions = sessions
+    .filter(session => session.estado === 'programada' && new Date(session.fecha_sesion).getTime() < now)
+    .sort((a, b) => a.fecha_sesion.localeCompare(b.fecha_sesion));
+  const patientByPertenecienteId = new Map(agendaPatients.map(p => [p.pertenecienteId, p]));
 
   const navigateFromNotification = (nextTab: string, params?: Record<string, any>) => {
     const sourceUserId = params?.sourceUserId ? String(params.sourceUserId) : null;
@@ -302,7 +355,7 @@ export default function ProfessionalDashboard() {
               const completed = acts.filter(a => a.status === 'completada').length;
               const adherence = acts.length > 0 ? Math.round((completed / acts.length) * 100) : 0;
               const emotions = emotionsByUser[u.id] || [];
-              const nextSession = nextTherapySessionForPatient(professionalCalendarEvents, u.id);
+              const nextSession = nextSessionForPatient(sessions, Number(linkForUser(u.id)?.perteneciente.id));
               const linkPermissions = vinculosByUsuarioPerteneciente.get(String(u.id))?.permisos_efectivos;
               const canViewPatientHistory = Boolean(permissionContext) && isPermissionEnabled(linkPermissions?.permisos, PROFESIONAL_PERMISSIONS.VER_HISTORIAL, false);
 
@@ -323,7 +376,7 @@ export default function ProfessionalDashboard() {
                     <div className="bg-muted/50 rounded-lg p-2 text-center"><p className="text-xs text-muted-foreground">Actividades</p><p className="font-bold text-foreground">{canViewPatientHistory ? `${completed}/${acts.length}` : '-'}</p></div>
                     <div className="bg-muted/50 rounded-lg p-2 text-center"><p className="text-xs text-muted-foreground">Emociones</p><p className="font-bold text-foreground">{canViewPatientHistory ? emotions.length : '-'}</p></div>
                     <div className="bg-muted/50 rounded-lg p-2 text-center"><p className="text-xs text-muted-foreground">Historial</p><p className="font-bold text-foreground text-xs">{canViewPatientHistory ? 'Habilitado' : 'Privado'}</p></div>
-                    <div className="bg-muted/50 rounded-lg p-2 text-center"><p className="text-xs text-muted-foreground">Próx. sesión</p><p className="font-bold text-foreground text-xs">{nextSession ? nextSession.date.slice(5) : '-'}</p></div>
+                    <div className="bg-muted/50 rounded-lg p-2 text-center"><p className="text-xs text-muted-foreground">Próx. sesión</p><p className="font-bold text-foreground text-xs">{nextSession ? nextSession.fecha_sesion.slice(5, 10) : '-'}</p></div>
                   </div>
                   <div className="px-4 pb-3 flex gap-1">
                     {emotions.slice(0, 5).map(em => <span key={em.id} className="text-lg">{em.emoji}</span>)}
@@ -341,11 +394,19 @@ export default function ProfessionalDashboard() {
           const emotions = emotionsByUser[patientDetail.id] || [];
           const patientPermissions = vinculosByUsuarioPerteneciente.get(String(patientDetail.id))?.permisos_efectivos?.permisos;
           const canViewPatientHistory = Boolean(permissionContext) && isPermissionEnabled(patientPermissions, PROFESIONAL_PERMISSIONS.VER_HISTORIAL, false);
-          const canMessagePatient = isPermissionEnabled(patientPermissions, PROFESIONAL_PERMISSIONS.ENVIAR_MENSAJES, false);
           const canSchedulePatient = isPermissionEnabled(patientPermissions, PROFESIONAL_PERMISSIONS.AGENDAR_SESIONES, true);
+          const pertenecienteId = Number(linkForUser(patientDetail.id)?.perteneciente.id);
+          const patientSessions = sessions
+            .filter(session => Number(session.id_perteneciente) === pertenecienteId)
+            .sort((a, b) => b.fecha_sesion.localeCompare(a.fecha_sesion));
+          const patientCompletadas = patientSessions.filter(s => s.estado === 'completada').length;
+          const patientAusentes = patientSessions.filter(s => s.estado === 'ausente').length;
+          const patientAsistencia = patientCompletadas + patientAusentes > 0
+            ? Math.round((patientCompletadas / (patientCompletadas + patientAusentes)) * 100)
+            : null;
           return (
             <div className="space-y-4">
-              <button onClick={() => { setSelectedPatient(null); setPatientTab('overview'); }} className="text-sm text-primary font-medium">← Volver a pacientes</button>
+              <button onClick={() => { setSelectedPatient(null); setPatientTab('overview'); setPatientNoteSession(null); }} className="text-sm text-primary font-medium">← Volver a pacientes</button>
               {!canViewPatientHistory && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
                   El tutor deshabilito ver historial para este perteneciente.
@@ -355,12 +416,69 @@ export default function ProfessionalDashboard() {
                 {([
                   { id: 'overview', label: 'Resumen', icon: BarChart3 },
                   { id: 'stats', label: 'Estadísticas', icon: TrendingUp },
+                  { id: 'sessions', label: 'Sesiones', icon: CalendarClock },
                 ] as const).map(t => (
-                  <button key={t.id} onClick={() => setPatientTab(t.id)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm whitespace-nowrap ${patientTab === t.id ? 'gradient-primary text-primary-foreground' : 'bg-card border border-border text-muted-foreground'}`}>
+                  <button key={t.id} onClick={() => { setPatientTab(t.id); setPatientNoteSession(null); }} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm whitespace-nowrap ${patientTab === t.id ? 'gradient-primary text-primary-foreground' : 'bg-card border border-border text-muted-foreground'}`}>
                     <t.icon size={14} /> {t.label}
                   </button>
                 ))}
               </div>
+
+              {patientTab === 'sessions' && (
+                patientNoteSession ? (
+                  <div className="space-y-4">
+                    <Button variant="ghost" onClick={() => setPatientNoteSession(null)}>← Volver a sesiones</Button>
+                    <ProfessionalPrivateNote session={patientNoteSession} patientName={patientDetail.name} />
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {patientSessions.length > 0 && (
+                      <div className="flex justify-end">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const blob = new Blob([buildSessionHistoryCsv(patientSessions)], { type: 'text/csv;charset=utf-8;' });
+                            const url = URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = `sesiones-${patientDetail.name.replace(/\s+/g, '-').toLowerCase()}.csv`;
+                            link.click();
+                            URL.revokeObjectURL(url);
+                          }}
+                        >
+                          <Download size={13} className="mr-1" /> Exportar CSV
+                        </Button>
+                      </div>
+                    )}
+                    {patientAsistencia !== null && (
+                      <div className="rounded-xl border bg-muted/30 p-3 text-center">
+                        <p className="text-lg font-bold">{patientAsistencia}%</p>
+                        <p className="text-xs text-muted-foreground">Asistencia ({patientCompletadas} completadas / {patientAusentes} ausencias)</p>
+                      </div>
+                    )}
+                    {patientSessions.length === 0 && (
+                      <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+                        Todavia no hay sesiones agendadas con este paciente.
+                      </div>
+                    )}
+                    {patientSessions.map(session => (
+                      <SessionCard
+                        key={session.id}
+                        session={session}
+                        patientName={patientDetail.name}
+                        onOpenNote={() => setPatientNoteSession(session)}
+                        onEdit={() => {
+                          setAgendaInitialPatientId(pertenecienteId || undefined);
+                          setSelectedPatient(null);
+                          setTab('agenda');
+                        }}
+                        onDelete={() => deletePatientSession(session)}
+                      />
+                    ))}
+                  </div>
+                )
+              )}
 
               {patientTab === 'stats' && canViewPatientHistory && <AdvancedStats user={patientDetail} activities={acts} emotions={emotions} />}
               {patientTab === 'overview' && canViewPatientHistory && (<>
@@ -394,8 +512,19 @@ export default function ProfessionalDashboard() {
               </div>
 
               <div className="flex gap-2">
-                {canMessagePatient && <Button className="flex-1 gradient-primary text-primary-foreground"><MessageSquare size={14} className="mr-1" /> Enviar mensaje</Button>}
-                {canSchedulePatient && <Button variant="outline" className="flex-1" onClick={() => { setSelectedPatient(null); setTab('agenda'); }}><Calendar size={14} className="mr-1" /> Proponer sesión</Button>}
+                {canSchedulePatient && (
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setAgendaInitialPatientId(Number(linkForUser(patientDetail.id)?.perteneciente.id) || undefined);
+                      setSelectedPatient(null);
+                      setTab('agenda');
+                    }}
+                  >
+                    <Calendar size={14} className="mr-1" /> Proponer sesión
+                  </Button>
+                )}
               </div>
               </>)}
             </div>
@@ -410,7 +539,9 @@ export default function ProfessionalDashboard() {
           />
         )}
 
-        {tab === 'agenda' && canScheduleSessions && <ProfessionalAgenda patients={agendaPatients} />}
+        {tab === 'agenda' && canScheduleSessions && (
+          <ProfessionalAgenda patients={agendaPatients} initialPatientId={agendaInitialPatientId} />
+        )}
         {tab === 'calendar' && canScheduleSessions && (
           <ProfessionalCalendar patients={agendaPatients} onOpenAgenda={() => setTab('agenda')} />
         )}
@@ -446,8 +577,55 @@ export default function ProfessionalDashboard() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="text-center p-3 bg-muted/50 rounded-lg"><p className="text-xl font-bold text-foreground">{linkedUsers.length}</p><p className="text-xs text-muted-foreground">Pacientes activos</p></div>
                 <div className="text-center p-3 bg-muted/50 rounded-lg"><p className="text-xl font-bold text-foreground">{linkedUsers.length ? Math.round(linkedUsers.reduce((sum,u) => { const a=activitiesByUser[u.id] || []; return sum + (a.length>0?a.filter(x=>x.status==='completada').length/a.length:0); },0)/linkedUsers.length*100) : 0}%</p><p className="text-xs text-muted-foreground">Adherencia promedio</p></div>
+                <div className="text-center p-3 bg-muted/50 rounded-lg"><p className="text-xl font-bold text-foreground">{sessionsThisWeek}</p><p className="text-xs text-muted-foreground">Sesiones esta semana</p></div>
+                <div className="text-center p-3 bg-muted/50 rounded-lg"><p className="text-xl font-bold text-foreground">{globalAsistencia !== null ? `${globalAsistencia}%` : '-'}</p><p className="text-xs text-muted-foreground">Asistencia global</p></div>
               </div>
             </div>
+
+            {patientsWithoutNextSession.length > 0 && (
+              <div className="bg-card rounded-xl p-4 border border-border">
+                <h3 className="font-heading font-semibold text-foreground mb-3">📅 Pacientes sin próxima sesión ({patientsWithoutNextSession.length})</h3>
+                <div className="space-y-2">
+                  {patientsWithoutNextSession.map(patient => (
+                    <div key={patient.id} className="flex items-center justify-between gap-2 rounded-lg bg-muted/50 p-2">
+                      <span className="text-sm font-medium truncate">{patient.name}</span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setAgendaInitialPatientId(patient.pertenecienteId);
+                          setTab('agenda');
+                        }}
+                      >
+                        <Calendar size={13} className="mr-1" /> Proponer sesión
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {pendingCompletionSessions.length > 0 && (
+              <div className="bg-card rounded-xl p-4 border border-border">
+                <h3 className="font-heading font-semibold text-foreground mb-3">⏳ Sesiones pasadas sin marcar ({pendingCompletionSessions.length})</h3>
+                <div className="space-y-2">
+                  {pendingCompletionSessions.map(session => (
+                    <div key={session.id} className="flex items-center justify-between gap-2 rounded-lg bg-muted/50 p-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {patientByPertenecienteId.get(Number(session.id_perteneciente))?.name || 'Paciente'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{session.titulo} · {session.fecha_sesion.slice(0, 10)}</p>
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => markSessionCompleted(session)}>
+                        <CheckCircle2 size={13} className="mr-1" /> Marcar completada
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="bg-card rounded-xl p-4 border border-border">
               <h3 className="font-heading font-semibold text-foreground mb-3">🛠️ Acciones rápidas</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -468,9 +646,6 @@ export default function ProfessionalDashboard() {
                 >
                   <ClipboardPlus size={14} className="mr-2" /> Crear actividad personalizada
                 </Button>
-                <Button variant="outline" className="justify-start"><Calendar size={14} className="mr-2" /> Planificación semanal</Button>
-                <Button variant="outline" className="justify-start"><FileText size={14} className="mr-2" /> Notas internas</Button>
-                <Button variant="outline" className="justify-start"><BarChart3 size={14} className="mr-2" /> Registro de intervenciones</Button>
               </div>
             </div>
           </div>

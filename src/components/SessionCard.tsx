@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Clock, FileText, Pencil, Trash2 } from "lucide-react";
+import { CheckCircle2, Clock, FileText, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { sessionStatusBadgeClass } from "@/lib/sessionStatus";
@@ -44,11 +44,20 @@ export default function SessionCard({
             </Badge>
             {badges}
           </div>
+          {session.estado === "cancelada" && session.motivo_cancelacion && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Motivo: {session.motivo_cancelacion}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={onOpenNote}>
-            <FileText size={14} className="mr-2" />
-            Nota privada
+            {session.has_note ? (
+              <CheckCircle2 size={14} className="mr-2 text-success" />
+            ) : (
+              <FileText size={14} className="mr-2" />
+            )}
+            {session.has_note ? "Ver nota" : "Nota privada"}
           </Button>
           <Button size="sm" variant="ghost" onClick={onEdit}>
             <Pencil size={14} />

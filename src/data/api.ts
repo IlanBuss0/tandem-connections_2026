@@ -54,18 +54,18 @@ export interface ProfessionalSession {
   fecha_sesion: string;
   titulo: string;
   duracion_minutos: number;
-  estado: 'programada' | 'completada' | 'cancelada';
+  estado: 'programada' | 'completada' | 'cancelada' | 'ausente';
   recordatorios: number[];
   recurrence_group_id?: string | null;
   recurrence_rule?: { frequency: 'none' | 'weekly' | 'twice_weekly' | 'biweekly' | 'monthly'; count?: number } | null;
   recurrence_index?: number;
+  motivo_cancelacion?: string | null;
+  has_note?: boolean;
 }
 
 export interface PrivateProfessionalNote {
   id: number;
   id_sesion_profesional: number;
-  contenido: { type: 'doc'; content: unknown[] };
-  version: number;
   fecha_actualizacion: string;
   documento_drive?: {
     id: number;
@@ -2593,12 +2593,6 @@ export async function fetchPrivateProfessionalNote(idSession: number): Promise<P
     if (error instanceof ApiError && error.status === 404) return null;
     throw error;
   }
-}
-
-export async function savePrivateProfessionalNote(idSession: number, contenido: PrivateProfessionalNote['contenido']): Promise<PrivateProfessionalNote> {
-  return apiRequest(`/api/sesiones-profesionales/${idSession}/private-note`, {
-    method: 'PUT', token: getStoredAuthToken(), body: { contenido },
-  });
 }
 
 export async function linkPrivateNoteDriveDocument(idSession: number, document: { google_file_id: string; nombre: string }): Promise<NonNullable<PrivateProfessionalNote['documento_drive']>> {
