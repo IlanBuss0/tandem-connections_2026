@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CheckCircle2, Clock, FileText, Pencil, Trash2 } from "lucide-react";
+import { CheckCircle2, Clock, FileText, Pencil, Sparkles, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { sessionStatusBadgeClass } from "@/lib/sessionStatus";
@@ -12,6 +12,7 @@ export default function SessionCard({
   onOpenNote,
   onEdit,
   onDelete,
+  onPrepare,
 }: {
   session: ProfessionalSession;
   patientName?: string;
@@ -20,6 +21,7 @@ export default function SessionCard({
   onOpenNote: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onPrepare?: () => void;
 }) {
   const date = new Date(session.fecha_sesion);
   return (
@@ -59,6 +61,11 @@ export default function SessionCard({
             )}
             {session.has_note ? "Ver nota" : "Nota privada"}
           </Button>
+          {session.estado === "programada" && onPrepare && (
+            <Button size="sm" variant="outline" onClick={onPrepare}>
+              <Sparkles size={14} className="mr-2" /> Preparar sesión
+            </Button>
+          )}
           <Button size="sm" variant="ghost" onClick={onEdit}>
             <Pencil size={14} />
           </Button>

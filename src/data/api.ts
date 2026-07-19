@@ -2677,6 +2677,34 @@ export async function deactivateScheduledReportTask(taskId: number): Promise<{ r
   return apiRequest(`/api/reportes-profesionales/tareas-programadas/${taskId}`, { method: 'DELETE', token: getStoredAuthToken() });
 }
 
+export interface SessionPrepSummary {
+  titulo: string;
+  contenido: string;
+}
+
+export async function prepareSessionSummary(payload: {
+  id_perteneciente: number;
+  sesion_objetivo: { titulo: string; fecha_sesion: string };
+  sesiones_pasadas: { id: number; fecha_sesion: string; titulo: string; estado?: string; notas_texto?: string }[];
+}): Promise<SessionPrepSummary> {
+  return apiRequest('/api/reportes-profesionales/preparar-sesion', { method: 'POST', token: getStoredAuthToken(), body: payload });
+}
+
+export async function askAboutPatient(payload: {
+  id_perteneciente: number;
+  pregunta: string;
+  sesiones: { id: number; fecha_sesion: string; titulo: string; estado?: string; notas_texto?: string }[];
+}): Promise<{ respuesta: string }> {
+  return apiRequest('/api/reportes-profesionales/preguntar', { method: 'POST', token: getStoredAuthToken(), body: payload });
+}
+
+export async function downloadPatientHistoryPdf(idPerteneciente: number): Promise<Blob> {
+  const url = `${API_BASE_URL.replace(/\/$/, '')}/api/reportes-profesionales/pdf-paciente/${idPerteneciente}`;
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) throw new Error('No se pudo generar el PDF.');
+  return res.blob();
+}
+
 export async function fetchNoteTemplateFavorites(): Promise<string[]> {
   return apiRequest('/api/note-template-favorites', { token: getStoredAuthToken() });
 }
