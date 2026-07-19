@@ -2609,6 +2609,74 @@ export async function fetchProfessionalOwnProfile(): Promise<ProfessionalOwnProf
   return apiRequest('/api/perfiles-profesionales/mine', { token: getStoredAuthToken() });
 }
 
+export interface GeneratedReport {
+  id: number;
+  id_profesional: number;
+  id_perteneciente: number;
+  titulo: string;
+  contenido: string;
+  id_tipo: 'manual' | 'programado';
+  fecha_generacion: string;
+  enviado_al_tutor: boolean;
+  fecha_envio: string | null;
+  profesional_nombre?: string;
+  paciente_nombre?: string;
+}
+
+export async function generatePatientReport(payload: {
+  id_perteneciente: number;
+  sesiones: { id: number; fecha_sesion: string; titulo: string; estado?: string; notas_texto?: string }[];
+}): Promise<GeneratedReport> {
+  return apiRequest('/api/reportes-profesionales', { method: 'POST', token: getStoredAuthToken(), body: payload });
+}
+
+export async function sendReportToTutor(reportId: number): Promise<GeneratedReport> {
+  return apiRequest(`/api/reportes-profesionales/${reportId}/send`, { method: 'POST', token: getStoredAuthToken() });
+}
+
+export async function fetchProfessionalReports(idPerteneciente?: number): Promise<GeneratedReport[]> {
+  const query = idPerteneciente ? `?id_perteneciente=${idPerteneciente}` : '';
+  return apiRequest(`/api/reportes-profesionales${query}`, { token: getStoredAuthToken() });
+}
+
+export async function fetchTutorReports(): Promise<GeneratedReport[]> {
+  return apiRequest('/api/reportes-profesionales/tutor', { token: getStoredAuthToken() });
+}
+
+export async function downloadMonthlyReportPdf(anio: number, mes: number): Promise<Blob> {
+  const url = `${API_BASE_URL.replace(/\/$/, '')}/api/reportes-profesionales/pdf-mensual?anio=${anio}&mes=${mes}`;
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) throw new Error('No se pudo generar el PDF.');
+  return res.blob();
+}
+
+export interface ScheduledReportTask {
+  id: number;
+  id_profesional: number;
+  id_perteneciente: number;
+  frecuencia: 'diario' | 'semanal' | 'mensual';
+  proxima_ejecucion: string;
+  enviar_automatico: boolean;
+  activo: boolean;
+}
+
+export async function fetchScheduledReportTasks(): Promise<ScheduledReportTask[]> {
+  return apiRequest('/api/reportes-profesionales/tareas-programadas', { token: getStoredAuthToken() });
+}
+
+export async function upsertScheduledReportTask(payload: {
+  id_perteneciente: number;
+  frecuencia: 'diario' | 'semanal' | 'mensual';
+  enviar_automatico: boolean;
+  activo?: boolean;
+}): Promise<ScheduledReportTask> {
+  return apiRequest('/api/reportes-profesionales/tareas-programadas', { method: 'PUT', token: getStoredAuthToken(), body: payload });
+}
+
+export async function deactivateScheduledReportTask(taskId: number): Promise<{ rowsAffected: number }> {
+  return apiRequest(`/api/reportes-profesionales/tareas-programadas/${taskId}`, { method: 'DELETE', token: getStoredAuthToken() });
+}
+
 export async function fetchNoteTemplateFavorites(): Promise<string[]> {
   return apiRequest('/api/note-template-favorites', { token: getStoredAuthToken() });
 }

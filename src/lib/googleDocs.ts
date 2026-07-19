@@ -352,6 +352,19 @@ export async function getDocEndIndex(token: string, documentId: string) {
   return Number(last?.endIndex || 1);
 }
 
+/** Lee el texto plano de un Google Doc (para mandarlo a un resumen de IA — nunca se persiste). */
+export async function getDocPlainText(token: string, documentId: string): Promise<string> {
+  const doc = await docsGet(token, documentId, "body(content(paragraph(elements(textRun(content)))))");
+  const content = doc.body?.content || [];
+  const lines: string[] = [];
+  for (const element of content) {
+    const paragraphElements = element.paragraph?.elements || [];
+    const text = paragraphElements.map((item: any) => item.textRun?.content || "").join("");
+    if (text) lines.push(text);
+  }
+  return lines.join("").trim();
+}
+
 // --- Pass 2 y 3: tablas --------------------------------------------------------
 
 type MarkerLocation = { specIndex: number; start: number; end: number };

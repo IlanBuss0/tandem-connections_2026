@@ -11,6 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  FileText,
   Heart,
   Loader2,
   LogOut,
@@ -30,6 +31,7 @@ import {
   X,
 } from 'lucide-react';
 import TutorAdvancedStats from '@/components/TutorAdvancedStats';
+import TutorReportsPanel from '@/components/TutorReportsPanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -83,7 +85,8 @@ type TabId =
   | 'profile'
   | 'settings'
   | 'pictograms'
-  | 'directory';
+  | 'directory'
+  | 'reportes';
 
 const tabs: { id: TabId; label: string; icon: typeof BarChart3 }[] = [
   { id: 'overview', label: 'Inicio', icon: BarChart3 },
@@ -101,9 +104,10 @@ const tabs: { id: TabId; label: string; icon: typeof BarChart3 }[] = [
   { id: 'profile', label: 'Perfil', icon: UserRound },
   { id: 'settings', label: 'Config', icon: Settings },
   { id: 'directory', label: 'Profesionales', icon: Users },
+  { id: 'reportes', label: 'Reportes', icon: FileText },
 ];
 
-const tutorTabs = tabs.filter(item => ['agenda', 'chat', 'notifications', 'pictograms', 'directory'].includes(item.id));
+const tutorTabs = tabs.filter(item => ['agenda', 'chat', 'notifications', 'pictograms', 'directory', 'reportes'].includes(item.id));
 const belongingTabs = tabs.filter(item => ['overview', 'stats', 'activities', 'location', 'emotions', 'calendar', 'insights', 'profile', 'settings', 'connections'].includes(item.id));
 
 function todayKey() {
@@ -545,6 +549,7 @@ export default function TutorDashboard({ initialUserId, initialTab, onBack }: Tu
 
         {!loading && !error && tab === 'pictograms' && <AiPictogramStudio />}
         {!loading && !error && tab === 'directory' && <ProfessionalDirectory />}
+        {!loading && !error && tab === 'reportes' && <TutorReportsPanel />}
 
         {!loading && !error && tab === 'connections' && (
           <TutorConnections initialPertenecienteId={mainUser?.pertenecienteId} />

@@ -14,6 +14,7 @@ import AppHeader from '@/components/AppHeader';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
 import ProfessionalAgenda from '@/components/ProfessionalAgenda';
+import ProfessionalReportsPanel from '@/components/ProfessionalReportsPanel';
 import ProfessionalPrivateNote from '@/components/ProfessionalPrivateNote';
 import SessionCard from '@/components/SessionCard';
 import DriveExplorer from '@/components/DriveExplorer';
@@ -647,6 +648,11 @@ export default function ProfessionalDashboard() {
                   <ClipboardPlus size={14} className="mr-2" /> Crear actividad personalizada
                 </Button>
               </div>
+            </div>
+
+            <div className="bg-card rounded-xl p-4 border border-border">
+              <h3 className="font-heading font-semibold text-foreground mb-3">📄 Reportes</h3>
+              <ProfessionalReportsPanel patients={agendaPatients} />
             </div>
           </div>
         )}
