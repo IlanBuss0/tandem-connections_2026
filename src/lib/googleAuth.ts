@@ -54,10 +54,35 @@ export async function ensureGoogleScripts() {
   ]);
 }
 
-let cachedToken: { token: string; expiresAt: number } | null = null;
+// Se persiste en localStorage (no solo en memoria) para que sobreviva a un
+// refresh de pagina o cierre de pestaña — mientras el access token de Google
+// siga vigente (hasta ~1h), no hace falta volver a autenticar. Google no da
+// refresh tokens en este flujo 100% client-side (Token Client de GIS), asi
+// que pasado ese ~1h igual hace falta un pedido nuevo — pero al tener
+// consentimiento ya otorgado (ver GOOGLE_CONSENT_STORAGE_KEY) ese pedido es
+// silencioso (prompt vacio), sin mostrarle nada al profesional.
+const GOOGLE_TOKEN_STORAGE_KEY = "tandem.googleDriveAccessToken";
+
+type StoredToken = { token: string; expiresAt: number };
+
+function readStoredToken(): StoredToken | null {
+  try {
+    const raw = localStorage.getItem(GOOGLE_TOKEN_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredToken;
+    if (!parsed?.token || !parsed?.expiresAt) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredToken(value: StoredToken) {
+  localStorage.setItem(GOOGLE_TOKEN_STORAGE_KEY, JSON.stringify(value));
+}
 
 export function invalidateGoogleToken() {
-  cachedToken = null;
+  localStorage.removeItem(GOOGLE_TOKEN_STORAGE_KEY);
 }
 
 function requestTokenOnce(clientId: string, prompt: string) {
@@ -74,10 +99,10 @@ function requestTokenOnce(clientId: string, prompt: string) {
         if (tokenResponse?.access_token) {
           localStorage.setItem(GOOGLE_CONSENT_STORAGE_KEY, "1");
           const expiresIn = Number(tokenResponse.expires_in) || 3600;
-          cachedToken = {
+          writeStoredToken({
             token: tokenResponse.access_token,
             expiresAt: Date.now() + (expiresIn - 60) * 1000,
-          };
+          });
           resolve(tokenResponse.access_token);
           return;
         }
@@ -119,8 +144,9 @@ export async function requestGoogleAccessToken(forceConsent = false) {
 }
 
 async function getGoogleAccessToken() {
-  if (cachedToken && cachedToken.expiresAt > Date.now()) {
-    return cachedToken.token;
+  const stored = readStoredToken();
+  if (stored && stored.expiresAt > Date.now()) {
+    return stored.token;
   }
   return requestGoogleAccessToken(false);
 }

@@ -9,7 +9,6 @@ import {
 import { withGoogleToken } from '@/lib/googleAuth';
 import { getDocPlainText } from '@/lib/googleDocs';
 import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, Sparkles, MessageCircle, Bell, X, KeyRound, Loader2, FolderOpen, CalendarClock, Download, Send } from 'lucide-react';
-import { buildSessionHistoryCsv } from '@/lib/sessionCsv';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -548,21 +547,6 @@ export default function ProfessionalDashboard() {
                   <div className="space-y-3">
                     {patientSessions.length > 0 && (
                       <div className="flex flex-wrap justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            const blob = new Blob([buildSessionHistoryCsv(patientSessions)], { type: 'text/csv;charset=utf-8;' });
-                            const url = URL.createObjectURL(blob);
-                            const link = document.createElement('a');
-                            link.href = url;
-                            link.download = `sesiones-${patientDetail.name.replace(/\s+/g, '-').toLowerCase()}.csv`;
-                            link.click();
-                            URL.revokeObjectURL(url);
-                          }}
-                        >
-                          <Download size={13} className="mr-1" /> Exportar CSV
-                        </Button>
                         <Button size="sm" variant="outline" onClick={downloadPatientPdf} disabled={downloadingPatientPdf}>
                           {downloadingPatientPdf ? <Loader2 size={13} className="mr-1 animate-spin" /> : <Download size={13} className="mr-1" />}
                           Historial (PDF)
