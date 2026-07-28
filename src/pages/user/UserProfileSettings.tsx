@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { toast } from '@/hooks/ui/use-toast';
+import LicensesAndAttributions from '@/pages/LicensesAndAttributions';
 
 type FormState = UserProfileSettingsPayload & {
   telefonoText: string;
@@ -176,6 +177,7 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isPersonalMode = mode === 'personal';
+  const [showLicenses, setShowLicenses] = useState(false);
 
   const canSave = useMemo(() => {
     if (isPersonalMode) {
@@ -359,6 +361,10 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
 
   if (!user || user.role !== 'user') return null;
 
+  if (showLicenses) {
+    return <LicensesAndAttributions onBack={() => setShowLicenses(false)} />;
+  }
+
   return (
     <form className="pb-24 lg:pb-6 space-y-6" onSubmit={handleSubmit}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -533,6 +539,23 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
             <div className="mt-3 rounded-2xl border border-[#f0e8f8] bg-[#faf8ff] p-3 text-xs text-[#8b7aa0]">
               Para cambiar estos ajustes usa la burbuja flotante de accesibilidad. La configuración se guarda y se carga automáticamente después del login.
             </div>
+          </section>
+          )}
+
+          {!isPersonalMode && (
+          <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 sm:p-5 shadow-lg">
+            <SectionHeader
+              icon={Shield}
+              title="Acerca de Tándem"
+              description="De dónde vienen los pictogramas e íconos que usa la app."
+            />
+            <button
+              type="button"
+              onClick={() => setShowLicenses(true)}
+              className="w-full rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-4 py-3 text-left text-sm font-semibold text-[#6b4c9a] hover:bg-[#f5f0ff]"
+            >
+              Licencias y atribuciones
+            </button>
           </section>
           )}
         </>

@@ -611,6 +611,19 @@ export interface Pictogram {
   favorite?: boolean;
 }
 
+// Migracion de pictogramas a librerias con licencia comercial: un pictograma
+// puede venir de varias fuentes (ARASAAC, Global Symbols, generados con IA),
+// cada una con su propia licencia y obligacion de atribucion.
+export interface PictogramAttribution {
+  source: string;
+  licenseCode: string | null;
+  licenseVersion: string | null;
+  licenseUrl: string | null;
+  attributionText: string | null;
+  sourceUrl: string | null;
+  total: number;
+}
+
 export const pictograms: Pictogram[] = [
   { id: 'pic1', name: 'Contento', emoji: '😊', category: 'emociones', tags: ['feliz','alegre','bien'] },
   { id: 'pic2', name: 'Triste', emoji: '😢', category: 'emociones', tags: ['llorar','pena','mal'] },

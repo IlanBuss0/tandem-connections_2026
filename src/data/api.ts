@@ -132,6 +132,7 @@ export type Objective = legacy.Objective;
 export type Location = legacy.Location;
 export type Recommendation = legacy.Recommendation;
 export type Pictogram = legacy.Pictogram;
+export type PictogramAttribution = legacy.PictogramAttribution;
 export type Resource = legacy.Resource;
 export type PricingPlan = legacy.PricingPlan;
 
@@ -2552,6 +2553,14 @@ export async function fetchPictograms(query?: { category?: string; search?: stri
 
 export async function fetchPictogramCategories(): Promise<PictogramCategory[]> {
   return apiFetchWithFallback<PictogramCategory[]>(['/api/pictograms/categories', '/pictograms/categories']);
+}
+
+// Migracion de pictogramas a librerias con licencia comercial: agrupa por
+// licencia/atribucion lo que la app esta mostrando ahora mismo (respeta
+// PICTOGRAM_COMMERCIAL_MODE del lado del backend), para la pantalla de
+// "Licencias y atribuciones".
+export async function fetchPictogramAttributions(): Promise<PictogramAttribution[]> {
+  return apiFetchWithFallback<PictogramAttribution[]>(['/api/pictograms/attributions', '/pictograms/attributions']);
 }
 
 export async function fetchFavoritePictograms(userId: string): Promise<Pictogram[]> {
