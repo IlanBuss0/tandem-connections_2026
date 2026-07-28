@@ -257,6 +257,7 @@ interface AccessibilityContextValue {
   settings: AccessibilitySettings;
   update: <K extends keyof AccessibilitySettings>(key: K, value: AccessibilitySettings[K]) => void;
   applyProfile: (profileId: string) => void;
+  applyPatch: (patch: Partial<AccessibilitySettings>) => void;
   reset: () => void;
   toggle: (key: keyof AccessibilitySettings) => void;
 }
@@ -359,8 +360,17 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
 
   const reset = useCallback(() => setSettings(DEFAULT_SETTINGS), []);
 
+  // A diferencia de applyProfile (que resetea todo a DEFAULT_SETTINGS y le
+  // aplica el patch), esto combina el patch sobre lo que ya esta configurado
+  // — pensado para el cuestionario de onboarding, que va sumando respuestas
+  // una por una sin pisar ajustes previos del usuario.
+  const applyPatch = useCallback((patch: Partial<AccessibilitySettings>) => {
+    if (!patch || Object.keys(patch).length === 0) return;
+    setSettings(prev => ({ ...prev, ...patch, activeProfile: null }));
+  }, []);
+
   return (
-    <AccessibilityContext.Provider value={{ settings, update, applyProfile, reset, toggle }}>
+    <AccessibilityContext.Provider value={{ settings, update, applyProfile, applyPatch, reset, toggle }}>
       {children}
     </AccessibilityContext.Provider>
   );

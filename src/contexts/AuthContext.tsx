@@ -1,12 +1,16 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { clearStoredAuthToken, fetchStoredAuthUser, findUser, logoutStoredAuthSession, User, Tutor, Professional, Admin } from '@/data/api';
+import { clearStoredAuthToken, fetchStoredAuthUser, findUser, loginWithGoogle, logoutStoredAuthSession, registerUser, User, Tutor, Professional, Admin } from '@/data/api';
+import type { RegisterRequest } from '@/services/api';
 import { AUTH_EXPIRED_EVENT } from '@/services/api/client';
+import { resetActiveTabToHome } from '@/lib/activeTab';
 
 type AuthUser = User | Tutor | Professional | Admin;
 
 interface AuthContextType {
   user: AuthUser | null;
   login: (username: string, password: string) => Promise<boolean>;
+  register: (payload: RegisterRequest) => Promise<AuthUser>;
+  googleAuth: (payload: { accessToken: string } & Partial<RegisterRequest>) => Promise<AuthUser>;
   loginAs: (user: AuthUser) => void;
   refreshUser: () => Promise<AuthUser | null>;
   logout: () => void;
@@ -58,10 +62,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (username: string, password: string): Promise<boolean> => {
     const found = await findUser(username, password);
     if (found) {
+      resetActiveTabToHome();
       setUser(found);
       return true;
     }
     return false;
+  };
+
+  const register = async (payload: RegisterRequest): Promise<AuthUser> => {
+    const created = await registerUser(payload);
+    resetActiveTabToHome();
+    setUser(created);
+    return created;
+  };
+
+  const googleAuth = async (
+    payload: { accessToken: string } & Partial<RegisterRequest>,
+  ): Promise<AuthUser> => {
+    const found = await loginWithGoogle(payload);
+    resetActiveTabToHome();
+    setUser(found);
+    return found;
   };
 
   const loginAs = (u: AuthUser) => {
@@ -84,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, loginAs, refreshUser, logout, isAuthenticated: !!user, isLoading }}>
+    <AuthContext.Provider value={{ user, login, register, googleAuth, loginAs, refreshUser, logout, isAuthenticated: !!user, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

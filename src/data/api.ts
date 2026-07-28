@@ -329,6 +329,7 @@ function toLegacyUser(user: Partial<Usuario>, avatarUrl?: string | null): User |
     name: [user.nombre, user.apellido].filter(Boolean).join(' ') || user.nombre_usuario || user.correo || 'Usuario',
     email: user.correo ?? '',
     avatar: avatarUrl || '🙂',
+    emailVerified: user.email_verificado ?? undefined,
   };
 
   if (role === 'admin') {
@@ -563,7 +564,7 @@ export function clearStoredAuthToken(): void {
   clearDefaultAuthToken();
 }
 
-async function fetchPertenecienteByUsuarioId(userId: string | number): Promise<DbPerteneciente | null> {
+export async function fetchPertenecienteByUsuarioId(userId: string | number): Promise<DbPerteneciente | null> {
   try {
     return await apiRequest<DbPerteneciente>(`/api/pertenecientes/usuario/${encodeURIComponent(String(userId))}`);
   } catch (error) {
@@ -1131,6 +1132,32 @@ async function fetchUserAvatarUrl(userId: number): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+export async function registerUser(
+  payload: import('@/services/api').RegisterRequest,
+): Promise<User | Tutor | Professional | Admin> {
+  const auth = await tandemApi.auth.register(payload);
+  storeAuthToken();
+  const avatarUrl = auth.user?.id ? await fetchUserAvatarUrl(auth.user.id) : null;
+  return toLegacyUser(auth.user, avatarUrl);
+}
+
+export async function loginWithGoogle(
+  payload: { idToken: string } & Partial<import('@/services/api').RegisterRequest>,
+): Promise<User | Tutor | Professional | Admin> {
+  const auth = await tandemApi.auth.google(payload);
+  storeAuthToken();
+  const avatarUrl = auth.user?.id ? await fetchUserAvatarUrl(auth.user.id) : null;
+  return toLegacyUser(auth.user, avatarUrl);
+}
+
+export async function verifyEmailToken(token: string): Promise<{ verified: boolean }> {
+  return tandemApi.auth.verifyEmail(token);
+}
+
+export async function resendVerificationEmail(): Promise<{ sent: boolean }> {
+  return tandemApi.auth.resendVerification();
 }
 
 export async function findUser(username: string, password: string): Promise<User | Tutor | Professional | Admin | null> {
@@ -2925,6 +2952,47 @@ export async function fetchAccessibilitySettings<T extends object>(userId: strin
 export async function saveAccessibilitySettings(userId: string, settings: object): Promise<void> {
   if (!isBackendUserId(userId)) return;
   await upsertAccessibilityConfig(Number(userId), ACCESSIBILITY_SETTINGS_KEY, settings);
+}
+
+// --- Onboarding del perteneciente (Fase 6) ----------------------------------
+// Cuestionario que se muestra una sola vez despues del registro: sugiere un
+// nivel de apoyo y adapta la interfaz, pero nunca bloquea ninguna funcion.
+// El estado "ya lo completo / lo salteo" se guarda con el mismo sistema
+// generico de configuraciones_usuarios que usan las preferencias de perfil.
+const ONBOARDING_STATUS_KEY = 'onboarding.autonomia';
+
+export interface OnboardingStatus {
+  done: boolean;
+  skipped: boolean;
+}
+
+const defaultOnboardingStatus: OnboardingStatus = { done: false, skipped: false };
+
+export async function fetchOnboardingStatus(userId: string): Promise<OnboardingStatus> {
+  if (!isBackendUserId(userId)) return defaultOnboardingStatus;
+  const config = await getUserConfig(Number(userId), ONBOARDING_STATUS_KEY);
+  return parseJsonConfig(config?.valor, defaultOnboardingStatus);
+}
+
+export async function markOnboardingStatus(userId: string, status: OnboardingStatus): Promise<void> {
+  if (!isBackendUserId(userId)) return;
+  await upsertUserConfig(Number(userId), ONBOARDING_STATUS_KEY, status);
+}
+
+/**
+ * Guarda la sugerencia del cuestionario de onboarding. A diferencia de
+ * saveUserProfileSettings (pensado para que un tutor/profesional edite el
+ * perfil), este endpoint solo lo puede llamar el propio perteneciente sobre
+ * si mismo — el backend lo valida independientemente del front.
+ */
+export async function submitOnboardingSuggestion(
+  pertenecienteId: number,
+  payload: { id_nivel_apoyo?: number; id_autonomia_operativa?: number },
+): Promise<void> {
+  await apiRequest(`/api/pertenecientes/${encodeURIComponent(String(pertenecienteId))}/onboarding`, {
+    method: 'PUT',
+    body: payload,
+  });
 }
 
 export async function fetchLegacyPricingPlans(): Promise<PricingPlan[]> {

@@ -483,6 +483,11 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
                 label="Autonomía operativa"
                 value={(settings?.autonomies ?? []).find(autonomy => autonomy.id === form.perteneciente.id_autonomia_operativa)?.nombre || 'Sin registrar'}
               />
+              {settings?.perteneciente?.nivel_apoyo_sugerido && (
+                <p className="md:col-span-2 rounded-2xl border border-[#6b4c9a]/20 bg-[#f5f0ff] px-3 py-2 text-xs font-medium text-[#6b4c9a]">
+                  Sugerido por el cuestionario que respondiste — todavía lo tiene que confirmar tu profesional o tutor.
+                </p>
+              )}
               <ReadOnlyInfo
                 label="Autogestión"
                 value={form.perteneciente.puede_autogestionarse ? 'Habilitada' : 'Asistida'}

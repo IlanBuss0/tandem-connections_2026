@@ -92,9 +92,23 @@ export type LoginRequest = {
   contrasena: string;
 };
 
-export type RegisterRequest = Partial<Usuario> & {
-  contrasena?: string;
-};
+export type RegisterRole = "perteneciente" | "tutor" | "profesional";
+
+export type RegisterRequest = Pick<
+  Usuario,
+  "nombre_usuario" | "nombre" | "apellido" | "correo"
+> &
+  Partial<Pick<Usuario, "telefono" | "fecha_nacimiento">> & {
+    contrasena: string;
+    rol: RegisterRole;
+    // Solo para rol "tutor"
+    parentesco?: string;
+    // Solo para rol "profesional"
+    profesion?: string;
+    matricula?: string;
+    especialidad?: string;
+    institucion?: string;
+  };
 
 export const authApi = {
   async login(payload: LoginRequest): Promise<AuthPayload> {
@@ -138,6 +152,31 @@ export const authApi = {
       "/api/auth/me",
       token ? { token } : {}
     );
+
+    return unwrapApiData(response);
+  },
+
+  async google(payload: { idToken: string; rol?: RegisterRole } & Partial<RegisterRequest>): Promise<AuthPayload> {
+    const response = await apiRequest<ApiEnvelope<AuthPayload>>("/api/auth/google", {
+      method: "POST",
+      body: payload,
+    });
+
+    return unwrapApiData(response);
+  },
+
+  async verifyEmail(token: string): Promise<{ verified: boolean }> {
+    const response = await apiRequest<ApiEnvelope<{ verified: boolean }>>(
+      `/api/auth/verify-email?token=${encodeURIComponent(token)}`,
+    );
+
+    return unwrapApiData(response);
+  },
+
+  async resendVerification(): Promise<{ sent: boolean }> {
+    const response = await apiRequest<ApiEnvelope<{ sent: boolean }>>("/api/auth/resend-verification", {
+      method: "POST",
+    });
 
     return unwrapApiData(response);
   },

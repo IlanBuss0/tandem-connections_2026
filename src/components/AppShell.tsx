@@ -29,6 +29,7 @@ import NotificationBellButton, {
 } from "@/components/NotificationBellButton";
 import UserHome from "@/pages/user/UserHome";
 import { useSyncMobileMenuOpen } from "@/contexts/MobileMenuState";
+import { ACTIVE_TAB_KEY } from "@/lib/activeTab";
 
 const UserRoutines = lazy(() => import("@/pages/user/UserRoutines"));
 const UserCalendar = lazy(() => import("@/pages/user/UserCalendar"));
@@ -73,7 +74,6 @@ const userNav = [
   { id: "profile-settings", label: "Configuración", icon: Settings },
 ];
 
-const ACTIVE_TAB_KEY = "tandem_active_tab";
 const validUserTabs = new Set(userNav.map((item) => item.id));
 
 function ScreenFallback() {

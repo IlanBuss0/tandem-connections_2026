@@ -187,6 +187,7 @@ export interface Usuario {
   fecha_nacimiento: string | null;   // ISO date
   fecha_ingreso: string;             // ISO date
   activo: boolean;
+  email_verificado: boolean;
 }
 
 export interface Perteneciente {
@@ -196,6 +197,10 @@ export interface Perteneciente {
   id_autonomia_operativa: number;
   puede_autogestionarse: boolean;
   observacion_general: string | null;
+  // true cuando el nivel/autonomia lo puso el cuestionario de onboarding y
+  // todavia nadie con permiso de edicion sensible lo confirmo. Es solo
+  // informativo: nunca condiciona permisos ni bloquea funciones.
+  nivel_apoyo_sugerido: boolean;
 }
 
 export interface Tutor {

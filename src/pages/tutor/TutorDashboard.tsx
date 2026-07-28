@@ -1384,6 +1384,12 @@ function TutorLinkedSettings({ userId, onSaved }: { userId: string; onSaved: () 
 
           <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
             <SectionHeader icon={Shield} title="Perfil perteneciente" description="Configuración de apoyo, autonomía y observaciones." />
+            {settings?.perteneciente?.nivel_apoyo_sugerido && (
+              <p className="mb-4 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-medium text-primary">
+                Este nivel y esta autonomía los sugirió el cuestionario que respondió {form.usuario.nombre || 'la persona'} sobre sí misma.
+                Guardá los cambios (aunque no los toques) para confirmarlos.
+              </p>
+            )}
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Nivel de apoyo</Label>

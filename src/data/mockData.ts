@@ -11,6 +11,7 @@ export interface Admin {
   email: string;
   avatar: string;
   clearance: 'developer' | 'superadmin';
+  emailVerified?: boolean;
 }
 
 export const admins: Admin[] = [
@@ -39,6 +40,7 @@ export interface User {
   onboarded?: boolean;
   supportLevel?: 'bajo' | 'medio' | 'alto';
   goals?: string[];
+  emailVerified?: boolean;
 }
 
 const emojiAvatars = ['😊','🧑','👩','👨','🧒','👧','👦','🧔','👩‍🦰','👨‍🦱','👩‍🔬','👨‍⚕️','👩‍💼','🧑‍🏫','👩‍⚕️','🧑‍💻','👨‍🎨','👩‍🎓','🧑‍🔧','👨‍🍳','👩‍🚀','🧑‍🎤'];
@@ -78,6 +80,7 @@ export interface Tutor {
   relation: string;
   linkedUserIds: string[];
   phone: string;
+  emailVerified?: boolean;
 }
 
 export const tutors: Tutor[] = [
@@ -118,6 +121,7 @@ export interface Professional {
   availability: string;
   linkedUserIds: string[];
   phone: string;
+  emailVerified?: boolean;
 }
 
 export const professionals: Professional[] = [

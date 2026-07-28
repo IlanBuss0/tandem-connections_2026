@@ -15,6 +15,9 @@ export const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 export const GOOGLE_DOCS_MIME_TYPE = "application/vnd.google-apps.document";
 export const GOOGLE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
 export const GOOGLE_CONSENT_STORAGE_KEY = "tandem.googleDriveConsentGranted";
+// Scope minimo para login (sin Drive): el backend valida este access token
+// contra el endpoint oficial de Google (userinfo) para obtener el mail.
+const GOOGLE_LOGIN_SCOPE = "email profile";
 
 export class GoogleApiError extends Error {
   status: number;
@@ -208,4 +211,44 @@ export async function googleFetch(
     }
     throw new GoogleApiError(message, response.status, reason);
   }
+}
+
+/**
+ * Access token de un solo uso para login/registro con Google — NO usa el
+ * scope ni el cache de Drive (son cosas distintas): esto solo pide permiso
+ * de leer mail/perfil, para que el backend confirme la identidad contra el
+ * endpoint oficial de Google. Siempre abre el selector de cuenta real (mismo
+ * mecanismo de popup que ya funciona para Drive), nunca el iframe silencioso
+ * de "Sign in with Google", que no se puede disparar por click desde JS.
+ */
+export async function requestGoogleLoginAccessToken(): Promise<string> {
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  if (!clientId) throw new Error("Falta VITE_GOOGLE_CLIENT_ID.");
+
+  await ensureGoogleScripts();
+
+  return new Promise<string>((resolve, reject) => {
+    const tokenClient = window.google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: GOOGLE_LOGIN_SCOPE,
+      callback: (tokenResponse: {
+        access_token?: string;
+        error?: string;
+        error_description?: string;
+      }) => {
+        if (tokenResponse?.access_token) {
+          resolve(tokenResponse.access_token);
+          return;
+        }
+        reject(
+          new Error(
+            tokenResponse?.error_description ||
+              tokenResponse?.error ||
+              "Google no devolvio un token.",
+          ),
+        );
+      },
+    });
+    tokenClient.requestAccessToken({ prompt: "select_account" });
+  });
 }
