@@ -19,6 +19,7 @@ import {
   ShoppingBag,
   Settings,
   Stethoscope,
+  Info,
 } from "lucide-react";
 import AvatarPreview from "@/components/AvatarPreview";
 import AppHeader from "@/components/AppHeader";
@@ -45,6 +46,7 @@ const UserPictograms = lazy(() => import("@/pages/user/UserPictograms"));
 const UserNotifications = lazy(() => import("@/pages/user/UserNotifications"));
 const UserResources = lazy(() => import("@/pages/user/UserResources"));
 const UserShop = lazy(() => import("@/pages/user/UserShop"));
+const AboutTandem = lazy(() => import("@/pages/AboutTandem"));
 const ProfessionalDirectory = lazy(
   () => import("@/components/ProfessionalDirectory"),
 );
@@ -72,6 +74,7 @@ const userNav = [
   { id: "professional-directory", label: "Profesionales", icon: Stethoscope },
   { id: "profile", label: "Perfil", icon: User },
   { id: "profile-settings", label: "Configuración", icon: Settings },
+  { id: "about", label: "Acerca de", icon: Info },
 ];
 
 const validUserTabs = new Set(userNav.map((item) => item.id));
@@ -234,6 +237,8 @@ export default function AppShell() {
         );
       case "profile-settings":
         return <UserProfileSettings onBack={() => goToTab("profile")} />;
+      case "about":
+        return <AboutTandem />;
       default:
         return <UserHome onNavigate={goToTab} />;
     }

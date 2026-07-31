@@ -161,14 +161,13 @@ export const GAME_TEMPLATES: GameTemplate[] = [
     gameData: { wheel: {
       settings: { segments: 6, initialSpeed: 3, speedIncrease: true },
       rounds: [
-        // Migracion de pictogramas a librerias con licencia comercial: estas
-        // imagenes ya no vienen de ARASAAC (CC BY-NC-SA, incompatible con
-        // freemium). Ahora son pictogramas de Blissymbolics (CC BY-SA 4.0,
-        // via Global Symbols) auto-hosteados en Supabase Storage — ver
-        // scripts/import-pictogram-catalog.mjs.
-        { targetWord: 'MANZANA', image: 'https://nnfrfebcphocxfbxbpoh.supabase.co/storage/v1/object/public/files/pictogramas/global-symbols/blissymbolics/blissymbolics-8415.png', options: ['https://nnfrfebcphocxfbxbpoh.supabase.co/storage/v1/object/public/files/pictogramas/global-symbols/blissymbolics/blissymbolics-8415.png','https://nnfrfebcphocxfbxbpoh.supabase.co/storage/v1/object/public/files/pictogramas/global-symbols/blissymbolics/blissymbolics-8471.png','https://nnfrfebcphocxfbxbpoh.supabase.co/storage/v1/object/public/files/pictogramas/global-symbols/blissymbolics/blissymbolics-9668.png','https://nnfrfebcphocxfbxbpoh.supabase.co/storage/v1/object/public/files/pictogramas/global-symbols/blissymbolics/blissymbolics-9183.png','https://nnfrfebcphocxfbxbpoh.supabase.co/storage/v1/object/public/files/pictogramas/global-symbols/blissymbolics/blissymbolics-10094.png','https://nnfrfebcphocxfbxbpoh.supabase.co/storage/v1/object/public/files/pictogramas/global-symbols/blissymbolics/blissymbolics-10110.png'], correct: 0 },
-        { targetWord: 'BANANA', image: 'https://nnfrfebcphocxfbxbpoh.supabase.co/storage/v1/object/public/files/pictogramas/global-symbols/blissymbolics/blissymbolics-8471.png', options: ['https://nnfrfebcphocxfbxbpoh.supabase.co/storage/v1/object/public/files/pictogramas/global-symbols/blissymbolics/blissymbolics-9183.png','https://nnfrfebcphocxfbxbpoh.supabase.co/storage/v1/object/public/files/pictogramas/global-symbols/blissymbolics/blissymbolics-8471.png','https://nnfrfebcphocxfbxbpoh.supabase.co/storage/v1/object/public/files/pictogramas/global-symbols/blissymbolics/blissymbolics-10094.png','https://nnfrfebcphocxfbxbpoh.supabase.co/storage/v1/object/public/files/pictogramas/global-symbols/blissymbolics/blissymbolics-8415.png','https://nnfrfebcphocxfbxbpoh.supabase.co/storage/v1/object/public/files/pictogramas/global-symbols/blissymbolics/blissymbolics-10110.png','https://nnfrfebcphocxfbxbpoh.supabase.co/storage/v1/object/public/files/pictogramas/global-symbols/blissymbolics/blissymbolics-9668.png'], correct: 1 },
-        { targetWord: 'NARANJA', image: 'https://nnfrfebcphocxfbxbpoh.supabase.co/storage/v1/object/public/files/pictogramas/global-symbols/blissymbolics/blissymbolics-9668.png', options: ['https://nnfrfebcphocxfbxbpoh.supabase.co/storage/v1/object/public/files/pictogramas/global-symbols/blissymbolics/blissymbolics-10110.png','https://nnfrfebcphocxfbxbpoh.supabase.co/storage/v1/object/public/files/pictogramas/global-symbols/blissymbolics/blissymbolics-10094.png','https://nnfrfebcphocxfbxbpoh.supabase.co/storage/v1/object/public/files/pictogramas/global-symbols/blissymbolics/blissymbolics-9668.png','https://nnfrfebcphocxfbxbpoh.supabase.co/storage/v1/object/public/files/pictogramas/global-symbols/blissymbolics/blissymbolics-8471.png','https://nnfrfebcphocxfbxbpoh.supabase.co/storage/v1/object/public/files/pictogramas/global-symbols/blissymbolics/blissymbolics-9183.png','https://nnfrfebcphocxfbxbpoh.supabase.co/storage/v1/object/public/files/pictogramas/global-symbols/blissymbolics/blissymbolics-8415.png'], correct: 2 },
+        // Antes usaba pictogramas de Blissymbolics (simbolos abstractos que se
+        // sacaron del catalogo por ilegibles para CAA, ver
+        // license-whitelist.js GLOBAL_SYMBOLS_BLOCKED_SETS). Se reemplaza por
+        // emoji, igual que el resto de los juegos de este archivo.
+        { targetWord: 'MANZANA', image: '🍎', options: ['🍎','🍌','🍊','🍇','🍉','🍓'], correct: 0 },
+        { targetWord: 'BANANA', image: '🍌', options: ['🍇','🍌','🍉','🍎','🍓','🍊'], correct: 1 },
+        { targetWord: 'NARANJA', image: '🍊', options: ['🍓','🍉','🍊','🍌','🍇','🍎'], correct: 2 },
       ],
     } },
   },

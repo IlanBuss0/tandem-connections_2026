@@ -13,6 +13,8 @@ import {
   Clock,
   FileText,
   Heart,
+  Image,
+  Info,
   Loader2,
   LogOut,
   MapPin,
@@ -51,6 +53,8 @@ import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
 import UserNotifications from '@/pages/user/UserNotifications';
 import TutorConnections from '@/pages/tutor/TutorConnections';
 import ProfessionalDirectory from '@/components/ProfessionalDirectory';
+import AboutTandem from '@/pages/AboutTandem';
+import UserPictograms from '@/pages/user/UserPictograms';
 import {
   createCalendarEvent,
   deleteCalendarEvent,
@@ -86,7 +90,9 @@ type TabId =
   | 'settings'
   | 'pictograms'
   | 'directory'
-  | 'reportes';
+  | 'reportes'
+  | 'pictogramCatalog'
+  | 'about';
 
 const tabs: { id: TabId; label: string; icon: typeof BarChart3 }[] = [
   { id: 'overview', label: 'Inicio', icon: BarChart3 },
@@ -101,13 +107,15 @@ const tabs: { id: TabId; label: string; icon: typeof BarChart3 }[] = [
   { id: 'insights', label: 'Tranquilidad', icon: Shield },
   { id: 'notifications', label: 'Notificaciones', icon: Bell },
   { id: 'pictograms', label: 'Pictogramas IA', icon: Sparkles },
+  { id: 'pictogramCatalog', label: 'Pictogramas', icon: Image },
   { id: 'profile', label: 'Perfil', icon: UserRound },
   { id: 'settings', label: 'Config', icon: Settings },
   { id: 'directory', label: 'Profesionales', icon: Users },
   { id: 'reportes', label: 'Reportes', icon: FileText },
+  { id: 'about', label: 'Acerca de', icon: Info },
 ];
 
-const tutorTabs = tabs.filter(item => ['agenda', 'chat', 'notifications', 'pictograms', 'directory', 'reportes'].includes(item.id));
+const tutorTabs = tabs.filter(item => ['agenda', 'chat', 'notifications', 'pictograms', 'pictogramCatalog', 'directory', 'reportes', 'about'].includes(item.id));
 const belongingTabs = tabs.filter(item => ['overview', 'stats', 'activities', 'location', 'emotions', 'calendar', 'insights', 'profile', 'settings', 'connections'].includes(item.id));
 
 function todayKey() {
@@ -518,7 +526,7 @@ export default function TutorDashboard({ initialUserId, initialTab, onBack }: Tu
           </div>
         )}
 
-        {!loading && !error && !mainUser && tab !== 'notifications' && tab !== 'connections' && tab !== 'chat' && tab !== 'agenda' && tab !== 'pictograms' && tab !== 'directory' && (
+        {!loading && !error && !mainUser && tab !== 'notifications' && tab !== 'connections' && tab !== 'chat' && tab !== 'agenda' && tab !== 'pictograms' && tab !== 'pictogramCatalog' && tab !== 'directory' && tab !== 'about' && (
           <div className="bg-card rounded-xl border border-border p-8 text-center">
             <Shield size={30} className="mx-auto text-muted-foreground mb-3" />
             <p className="font-semibold text-foreground">No hay pertenecientes vinculados</p>
@@ -548,14 +556,16 @@ export default function TutorDashboard({ initialUserId, initialTab, onBack }: Tu
         )}
 
         {!loading && !error && tab === 'pictograms' && <AiPictogramStudio />}
+        {!loading && !error && tab === 'pictogramCatalog' && <UserPictograms />}
         {!loading && !error && tab === 'directory' && <ProfessionalDirectory />}
         {!loading && !error && tab === 'reportes' && <TutorReportsPanel />}
+        {!loading && !error && tab === 'about' && <AboutTandem />}
 
         {!loading && !error && tab === 'connections' && (
           <TutorConnections initialPertenecienteId={mainUser?.pertenecienteId} />
         )}
 
-        {!loading && !error && mainUser && tab !== 'notifications' && tab !== 'chat' && tab !== 'agenda' && tab !== 'connections' && tab !== 'pictograms' && tab !== 'directory' && (
+        {!loading && !error && mainUser && tab !== 'notifications' && tab !== 'chat' && tab !== 'agenda' && tab !== 'connections' && tab !== 'pictograms' && tab !== 'pictogramCatalog' && tab !== 'directory' && tab !== 'about' && (
           <>
             <div className="hidden">
               <span className="text-4xl">{mainUser.avatar}</span>

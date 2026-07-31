@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { deleteFavoritePictogram, fetchFavoritePictograms, fetchPictogramCategories, fetchPictograms, getPictogramDownloadUrl, savePictogram, Pictogram } from '@/data/api';
-import { Search, Heart, Download, X } from 'lucide-react';
+import { deleteFavoritePictogram, fetchFavoritePictograms, fetchPictogramCategories, fetchPictogramsPage, getPictogramDownloadUrl, savePictogram, Pictogram } from '@/data/api';
+import { Search, Heart, Download, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
+
+const PAGE_SIZE = 48;
 
 export default function UserPictograms() {
   const { user } = useAuth();
@@ -17,6 +19,9 @@ export default function UserPictograms() {
   const [favoritePictograms, setFavoritePictograms] = useState<Pictogram[]>([]);
   const [selected, setSelected] = useState<Pictogram | null>(null);
   const [pictograms, setPictograms] = useState<Pictogram[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loadingPage, setLoadingPage] = useState(false);
   const targetPertenecienteId = permissionContext?.perteneciente?.id
     ? String(permissionContext.perteneciente.id)
     : undefined;
@@ -65,25 +70,39 @@ export default function UserPictograms() {
     return () => { mounted = false; };
   }, [canUsePictograms, user?.id]);
 
+  // Volver a la pagina 1 cada vez que cambia el filtro: una pagina 5 con el
+  // filtro viejo no tiene sentido con una busqueda o categoria nueva.
   useEffect(() => {
-    if (!canUsePictograms) {
-      setPictograms([]);
+    setPage(1);
+  }, [selectedCats, search, showFavorites]);
+
+  useEffect(() => {
+    if (!canUsePictograms || showFavorites) {
+      if (!canUsePictograms) setPictograms([]);
       return;
     }
     let mounted = true;
+    setLoadingPage(true);
     const category = selectedCats.size > 0 ? Array.from(selectedCats).join(',') : 'todas';
-    fetchPictograms({ category, search, targetPertenecienteId })
-      .then(r => mounted && setPictograms(r))
-      .catch(() => mounted && setPictograms([]));
+    fetchPictogramsPage({ category, search, page, limit: PAGE_SIZE, targetPertenecienteId })
+      .then(r => {
+        if (!mounted) return;
+        setPictograms(r.items);
+        setTotalPages(Math.max(1, r.totalPages || 1));
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setPictograms([]);
+        setTotalPages(1);
+      })
+      .finally(() => { if (mounted) setLoadingPage(false); });
     return () => { mounted = false; };
-  }, [canUsePictograms, selectedCats, search, targetPertenecienteId]);
+  }, [canUsePictograms, selectedCats, search, targetPertenecienteId, page, showFavorites]);
 
-  const mergedPictograms = pictograms.filter((item, index, all) => all.findIndex(other => other.id === item.id) === index)
-    .filter(pic => (!search.trim() || `${pic.name} ${pic.category}`.toLowerCase().includes(search.toLowerCase())) && (selectedCats.size === 0 || selectedCats.has(pic.category)));
   const visiblePictograms = showFavorites
     ? favoritePictograms.filter(pic => !search.trim() || `${pic.name} ${pic.category} ${pic.tags.join(' ')}`.toLowerCase().includes(search.toLowerCase()))
-    : mergedPictograms;
-  const visibleCategories = Array.from(new Set([...categories, ...pictograms.map(p => p.category)])).filter(Boolean);
+    : pictograms;
+  const visibleCategories = categories;
   const toggleCategory = (cat: string) => {
     if (cat === 'todas') {
       setSelectedCats(new Set());
@@ -145,6 +164,29 @@ export default function UserPictograms() {
     </div>
     <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-6 gap-2">{visiblePictograms.map((pic, i) => <motion.button key={pic.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.02 }} onClick={() => setSelected(pic)} className="flex flex-col items-center p-3 rounded-2xl bg-white border border-[#f0e8f8] hover:border-[#d8c7ef] hover:shadow-md transition-all relative">{renderPicto(pic, 'w-12 h-12 text-3xl')}<span className="text-[10px] text-[#8b7aa0] mt-1 leading-tight text-center">{pic.name}</span>{favorites.has(pic.id) && <Heart size={10} className="absolute top-1 right-1 text-red-400 fill-red-400" />}</motion.button>)}</div>
     {showFavorites && visiblePictograms.length === 0 && <p className="py-8 text-center text-sm text-[#8b7aa0]">Todavía no guardaste pictogramas.</p>}
+    {!showFavorites && totalPages > 1 && (
+      <div className="flex items-center justify-center gap-4 pt-2">
+        <button
+          type="button"
+          onClick={() => setPage(p => Math.max(1, p - 1))}
+          disabled={page <= 1 || loadingPage}
+          className="flex items-center justify-center w-9 h-9 rounded-full border border-[#ede4f8] bg-[#faf8ff] text-[#6b4c9a] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#f5f0ff]"
+          aria-label="Página anterior"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <span className="text-xs font-medium text-[#8b7aa0]">Página {page} de {totalPages}</span>
+        <button
+          type="button"
+          onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+          disabled={page >= totalPages || loadingPage}
+          className="flex items-center justify-center w-9 h-9 rounded-full border border-[#ede4f8] bg-[#faf8ff] text-[#6b4c9a] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#f5f0ff]"
+          aria-label="Página siguiente"
+        >
+          <ChevronRight size={16} />
+        </button>
+      </div>
+    )}
     {selected && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4" onClick={() => setSelected(null)}><motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={e => e.stopPropagation()} className="bg-white rounded-3xl p-6 max-w-xs w-full shadow-xl border border-[#f0e8f8] text-center"><button onClick={() => setSelected(null)} className="absolute top-3 right-3 text-[#8b7aa0]"><X size={18} /></button><div className="flex justify-center mb-4">{renderPicto(selected, 'w-32 h-32 text-7xl')}</div><h3 className="text-xl font-bold text-[#6b4c9a]">{selected.name}</h3><div className="flex gap-2 mt-4"><button onClick={() => toggleFav(selected)} className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all ${favorites.has(selected.id) ? 'border border-[#ede4f8] bg-[#faf8ff] text-[#6b4c9a] hover:bg-[#f5f0ff]' : 'bg-[#6b4c9a] text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95'}`}>{favorites.has(selected.id) ? 'Quitar' : 'Guardar'}</button><a href={getDownloadHref(selected)} download className="flex-1 flex items-center justify-center gap-1 py-2.5 rounded-2xl border border-[#ede4f8] text-sm text-[#6b4c9a] font-semibold bg-[#faf8ff] hover:bg-[#f5f0ff]"><Download size={14} /> Descargar</a></div></motion.div></div>}
   </div>;
 }

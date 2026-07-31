@@ -8,7 +8,7 @@ import {
 } from '@/data/api';
 import { withGoogleToken } from '@/lib/googleAuth';
 import { getDocPlainText } from '@/lib/googleDocs';
-import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, Sparkles, MessageCircle, Bell, X, KeyRound, Loader2, FolderOpen, CalendarClock, Download, Send } from 'lucide-react';
+import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, Sparkles, MessageCircle, Bell, X, KeyRound, Loader2, FolderOpen, CalendarClock, Download, Send, Info, Image } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -32,6 +32,8 @@ import UserNotifications from '@/pages/user/UserNotifications';
 import { isPermissionEnabled, PROFESIONAL_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 import PermissionBlocked from '@/components/PermissionBlocked';
 import AiPictogramStudio from '@/components/AiPictogramStudio';
+import AboutTandem from '@/pages/AboutTandem';
+import UserPictograms from '@/pages/user/UserPictograms';
 import { useToast } from '@/components/ui/use-toast';
 import { useSyncMobileMenuOpen } from '@/contexts/MobileMenuState';
 
@@ -207,8 +209,10 @@ export default function ProfessionalDashboard() {
     ...(canSendMessages ? [{ id: 'chat', label: 'Chat', icon: MessageCircle }] : []),
     { id: 'notifications', label: 'Notificaciones', icon: Bell },
     { id: 'pictograms', label: 'Pictogramas IA', icon: Sparkles },
+    { id: 'pictogramCatalog', label: 'Pictogramas', icon: Image },
     { id: 'tools', label: 'Herramientas', icon: ClipboardPlus },
     { id: 'profile', label: 'Mi perfil', icon: FileText },
+    { id: 'about', label: 'Acerca de', icon: Info },
   ];
 
   const patientDetail = selectedPatient ? linkedUsers.find(u => u.id === selectedPatient) : null;
@@ -690,7 +694,9 @@ export default function ProfessionalDashboard() {
         )}
         {tab === 'documents' && <DriveExplorer />}
         {tab === 'pictograms' && <AiPictogramStudio />}
+        {tab === 'pictogramCatalog' && <UserPictograms />}
         {tab === 'profile' && <ProfessionalProfileSettings />}
+        {tab === 'about' && <AboutTandem />}
 
         {tab === 'tools' && (
           <div className="space-y-4">

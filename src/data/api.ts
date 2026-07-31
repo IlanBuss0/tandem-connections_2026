@@ -2551,6 +2551,36 @@ export async function fetchPictograms(query?: { category?: string; search?: stri
   return apiFetchWithFallback<Pictogram[]>([q ? `/api/pictograms?${q}` : '/api/pictograms', q ? `/pictograms?${q}` : '/pictograms']);
 }
 
+export interface PictogramPage {
+  items: Pictogram[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+// Mismo endpoint que fetchPictograms, pero mandando `page` el backend
+// devuelve el objeto con el total (GET /api/pictograms?page=N) en vez del
+// array pelado, para poder mostrar "pagina X de Y" y botones de avanzar.
+export async function fetchPictogramsPage(query: {
+  category?: string;
+  search?: string;
+  language?: string;
+  limit?: number;
+  page?: number;
+  targetPertenecienteId?: string;
+}): Promise<PictogramPage> {
+  const params = new URLSearchParams();
+  if (query.category && query.category !== 'todas') params.set('category', query.category);
+  if (query.search) params.set('search', query.search);
+  if (query.language) params.set('language', query.language);
+  if (query.limit) params.set('limit', String(query.limit));
+  params.set('page', String(query.page || 1));
+  if (query.targetPertenecienteId) params.set('targetPertenecienteId', query.targetPertenecienteId);
+  const q = params.toString();
+  return apiFetchWithFallback<PictogramPage>([`/api/pictograms?${q}`, `/pictograms?${q}`]);
+}
+
 export async function fetchPictogramCategories(): Promise<PictogramCategory[]> {
   return apiFetchWithFallback<PictogramCategory[]>(['/api/pictograms/categories', '/pictograms/categories']);
 }
