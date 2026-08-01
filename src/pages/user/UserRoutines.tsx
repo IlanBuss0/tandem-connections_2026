@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useRoutines, DayKey, predefinedCategories, predefinedLabels, iconChoices } from '@/contexts/RoutinesContext';
 import { CheckCircle2, Circle, Clock, Plus, Pencil, Trash2, Copy, X, Save } from 'lucide-react';
-import { RoutineItem, CustomCategory } from '@/data/api';
+import { RoutineItem, CustomCategory, rememberPictogramChoice } from '@/data/api';
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 import SectionSelector from '@/components/SectionSelector';
@@ -135,6 +135,11 @@ export default function UserRoutines({ initialRoutineId, initialItemId }: { init
     };
     if (editingItem) updateItem(active.id, editingItem.id, payload);
     else addItem(active.id, payload);
+    if (manualPictogram) {
+      // No bloquea el guardado del paso: si falla, el paso ya quedo bien
+      // guardado, solo se pierde el acelerador de la proxima vez.
+      void rememberPictogramChoice(title, manualPictogram.id);
+    }
     setShowAddItem(false);
   };
 

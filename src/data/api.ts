@@ -2640,6 +2640,17 @@ export async function pictogramizePhrases(
   }
 }
 
+// Recuerda a mano un pictograma elegido para un texto de paso exacto.
+// La proxima vez que /pictogramize vea ese mismo texto lo devuelve directo,
+// sin gastar Groq. Nunca propaga la excepcion: es un extra, no bloquea el guardado.
+export async function rememberPictogramChoice(text: string, pictogramId: string): Promise<void> {
+  try {
+    await apiRequest('/api/pictograms/vocabulary', { method: 'POST', body: { text, pictogramId } });
+  } catch {
+    // silencioso: el paso ya se guardo igual, esto es solo para acelerar la proxima vez
+  }
+}
+
 export async function fetchPictogramCategories(): Promise<PictogramCategory[]> {
   return apiFetchWithFallback<PictogramCategory[]>(['/api/pictograms/categories', '/pictograms/categories']);
 }
