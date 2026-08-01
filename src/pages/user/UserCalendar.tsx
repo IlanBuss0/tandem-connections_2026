@@ -8,6 +8,8 @@ import SectionSelector from '@/components/SectionSelector';
 import { CalendarEvent } from '@/data/api';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 import ReminderPicker from '@/components/ReminderPicker';
+import EventPictogram from '@/components/EventPictogram';
+import { useCalendarPictograms } from '@/hooks/useCalendarPictograms';
 
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -115,6 +117,11 @@ export default function UserCalendar() {
     () => [...(eventsByDate[selectedDate] || [])].sort((a, b) => a.time.localeCompare(b.time)),
     [eventsByDate, selectedDate],
   );
+
+  // Solo se pictogramiza el dia que se esta mirando, no todo el calendario
+  // (mismo criterio que "Mi dia" en Sesion 1: no gastar cuota en lo que
+  // nadie esta viendo).
+  useCalendarPictograms(selectedDayEvents);
 
   if (!canUseCalendar) {
     return (
@@ -433,7 +440,7 @@ export default function UserCalendar() {
               >
                 <div className="flex min-w-0 max-w-full items-start gap-3">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/70 text-xl">
-                    {getSectionEmoji(event.type)}
+                    <EventPictogram event={event} fallbackEmoji={getSectionEmoji(event.type)} />
                   </span>
                   <div className="min-w-0 max-w-full flex-1">
                     <p className="max-w-full whitespace-normal [overflow-wrap:anywhere] text-sm font-bold">{event.title}</p>

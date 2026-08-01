@@ -1822,6 +1822,11 @@ function normalizeCalendarEventsPayload(payload: unknown, userId: string): Calen
         description: String(event.description || ''),
         color: String(event.color || calendarTypeColor(type)),
         reminders: Array.isArray(event.reminders) ? event.reminders.map(Number).filter(Number.isFinite) : [],
+        pictogramId: typeof event.pictogramId === 'string' ? event.pictogramId : undefined,
+        pictogramImageUrl: typeof event.pictogramImageUrl === 'string' ? event.pictogramImageUrl : undefined,
+        pictogramName: typeof event.pictogramName === 'string' ? event.pictogramName : undefined,
+        pictogramConfidence: event.pictogramConfidence === 'alta' || event.pictogramConfidence === 'media' ? event.pictogramConfidence : undefined,
+        pictogramResolvedFor: typeof event.pictogramResolvedFor === 'string' ? event.pictogramResolvedFor : undefined,
       } as CalendarEvent;
     })
     .filter((event): event is CalendarEvent => Boolean(event));

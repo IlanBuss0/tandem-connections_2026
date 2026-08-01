@@ -270,6 +270,15 @@ export interface CalendarEvent {
   userId: string;
   color: string;
   reminders?: number[];
+  // Resueltos por el motor de pictogramizacion (Sesion 3), mismo patron que
+  // RoutineItem. pictogramResolvedFor es el titulo con el que se resolvio:
+  // mientras coincida con `title`, no se vuelve a pedir (evita quemar cuota
+  // de Groq en cada recarga).
+  pictogramId?: string;
+  pictogramImageUrl?: string;
+  pictogramName?: string;
+  pictogramConfidence?: 'alta' | 'media';
+  pictogramResolvedFor?: string;
 }
 
 const today = new Date();
