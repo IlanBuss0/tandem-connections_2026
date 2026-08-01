@@ -10,6 +10,7 @@ import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } 
 import ReminderPicker from '@/components/ReminderPicker';
 import EventPictogram from '@/components/EventPictogram';
 import { useCalendarPictograms } from '@/hooks/useCalendarPictograms';
+import SpeakButton from '@/components/SpeakButton';
 
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -451,6 +452,7 @@ export default function UserCalendar() {
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                    <SpeakButton text={event.title} size={14} className="p-1.5" />
                     <button onClick={() => openEdit(event)} className="p-1.5 rounded-full hover:bg-white/50" title="Editar">
                       <Pencil size={14} />
                     </button>

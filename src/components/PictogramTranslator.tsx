@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Wand2, Loader2, FileDown } from 'lucide-react';
 import { pictogramizePhrases, type PictogramizedPhrase, MAX_TRANSLATOR_PHRASES } from '@/data/api';
 import { exportPictogramStripToPdf } from '@/lib/pictogramPdf';
+import SpeakButton from '@/components/SpeakButton';
 
 // Unica responsabilidad: traductor manual de texto libre a pictogramas
 // (Sesion 4). A diferencia del motor automatico de "Mi dia"/Calendario
@@ -103,10 +104,11 @@ export default function PictogramTranslator() {
           {results.map((result) => (
             <div
               key={result.id}
-              className={`flex flex-col items-center gap-2 rounded-2xl border p-3 text-center ${
+              className={`relative flex flex-col items-center gap-2 rounded-2xl border p-3 text-center ${
                 result.pictogram ? 'border-[#ede4f8] bg-white' : 'border-dashed border-[#d8c7ef] bg-[#faf8ff]'
               }`}
             >
+              <SpeakButton text={result.text} size={12} className="absolute right-1.5 top-1.5" />
               {result.pictogram ? (
                 <img
                   src={result.pictogram.imageUrl}

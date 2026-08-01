@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useRoutines, DayKey, predefinedCategories, predefinedLabels, iconChoices } from '@/contexts/RoutinesContext';
 import { CheckCircle2, Circle, Clock, Plus, Pencil, Trash2, Copy, X, Save } from 'lucide-react';
 import { RoutineItem, CustomCategory, rememberPictogramChoice } from '@/data/api';
+import SpeakButton from '@/components/SpeakButton';
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 import SectionSelector from '@/components/SectionSelector';
@@ -360,6 +361,7 @@ export default function UserRoutines({ initialRoutineId, initialItemId }: { init
                           {item.completed ? <CheckCircle2 size={18} className="text-green-500" /> : <Circle size={18} className="text-[#8b7aa0]" />}
                         </div>
                         <div className="absolute top-2 left-2 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <SpeakButton text={item.pictogramLabel || item.title} size={10} className="p-1" />
                           <button onClick={(e) => { e.stopPropagation(); openEdit(item); }} className="p-1 rounded-lg hover:bg-[#f5f0ff] text-[#8b7aa0]"><Pencil size={10} /></button>
                           <button onClick={(e) => { e.stopPropagation(); deleteItem(active.id, item.id); }} className="p-1 rounded-lg hover:bg-red-50 text-red-400"><Trash2 size={10} /></button>
                         </div>
