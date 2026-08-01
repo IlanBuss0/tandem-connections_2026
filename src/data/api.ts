@@ -2559,11 +2559,33 @@ export interface PictogramPage {
   totalPages: number;
 }
 
+export interface PictogramFilterOption {
+  id: string;
+  name: string;
+  total: number;
+}
+
+// Los 3 ejes del panel de filtros, con el conteo real de cada opcion. Vienen
+// del backend (no hardcodeados) para que no se desactualicen con cada sync del
+// catalogo y para que nunca se ofrezca un filtro que da cero resultados.
+export interface PictogramFilters {
+  categories: PictogramFilterOption[];
+  styles: PictogramFilterOption[];
+  collections: PictogramFilterOption[];
+}
+
+export async function fetchPictogramFilters(): Promise<PictogramFilters> {
+  return apiFetchWithFallback<PictogramFilters>(['/api/pictograms/filters', '/pictograms/filters']);
+}
+
 // Mismo endpoint que fetchPictograms, pero mandando `page` el backend
 // devuelve el objeto con el total (GET /api/pictograms?page=N) en vez del
 // array pelado, para poder mostrar "pagina X de Y" y botones de avanzar.
+// `style` y `collection` aceptan varios valores separados por coma.
 export async function fetchPictogramsPage(query: {
   category?: string;
+  style?: string;
+  collection?: string;
   search?: string;
   language?: string;
   limit?: number;
@@ -2572,6 +2594,8 @@ export async function fetchPictogramsPage(query: {
 }): Promise<PictogramPage> {
   const params = new URLSearchParams();
   if (query.category && query.category !== 'todas') params.set('category', query.category);
+  if (query.style) params.set('style', query.style);
+  if (query.collection) params.set('collection', query.collection);
   if (query.search) params.set('search', query.search);
   if (query.language) params.set('language', query.language);
   if (query.limit) params.set('limit', String(query.limit));

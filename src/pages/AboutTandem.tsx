@@ -18,6 +18,24 @@ const SOURCE_LABELS: Record<string, string> = {
   TABLER: 'Tabler Icons',
 };
 
+// Los codigos de licencia son identificadores tecnicos: al usuario se le
+// muestra el nombre real de la licencia, no la constante interna.
+const LICENSE_LABELS: Record<string, string> = {
+  'CC-BY-SA-4.0': 'Creative Commons BY-SA 4.0',
+  'CC-BY-SA-2.0-UK': 'Creative Commons BY-SA 2.0 (Reino Unido)',
+  'CC-BY-4.0': 'Creative Commons BY 4.0',
+  'CC-BY-3.0': 'Creative Commons BY 3.0',
+  'CC0-1.0': 'Creative Commons Zero (dominio público)',
+  PUBLIC_DOMAIN: 'Dominio público',
+  MIT: 'Licencia MIT',
+  TANDEM_PROPIETARIO: 'Creados por Tándem',
+};
+
+function licenseLabel(code?: string | null) {
+  if (!code) return null;
+  return LICENSE_LABELS[code] || code;
+}
+
 function groupBySource(attributions: PictogramAttribution[]) {
   const groups = new Map<string, PictogramAttribution[]>();
   for (const item of attributions) {
@@ -82,14 +100,18 @@ export default function AboutTandem() {
               <div className="space-y-3">
                 {items.map((item, index) => (
                   <div key={`${item.licenseCode}-${index}`} className="rounded-xl border border-[#ede4f8] bg-white p-3">
-                    {item.attributionText && (
+                    {item.attributionText ? (
                       <p className="text-sm text-[#4a4a5a]">{item.attributionText}</p>
+                    ) : (
+                      <p className="text-sm text-[#4a4a5a]">
+                        Pictogramas propios de Tándem: no requieren atribución a terceros.
+                      </p>
                     )}
                     <p className="mt-1 text-xs text-[#8b7aa0]">
                       Las imágenes originales se convirtieron de SVG a PNG para mostrarlas en la app.
                     </p>
                     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#8b7aa0]">
-                      {item.licenseCode && <span>Licencia: {item.licenseCode}</span>}
+                      {item.licenseCode && <span>Licencia: {licenseLabel(item.licenseCode)}</span>}
                       <span>{item.total} pictograma{item.total === 1 ? '' : 's'}</span>
                       {item.licenseUrl && (
                         <a
