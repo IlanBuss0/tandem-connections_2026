@@ -1935,6 +1935,12 @@ function normalizeRoutinesPayload(payload: unknown): DayRoutine[] {
               completed: Boolean(it.completed),
               reminders: Array.isArray(it.reminders) ? it.reminders.map(Number).filter(Number.isFinite) : [],
               category: String(it.category || 'maÃ±ana'),
+              pictogramLabel: typeof it.pictogramLabel === 'string' ? it.pictogramLabel : undefined,
+              pictogramId: typeof it.pictogramId === 'string' ? it.pictogramId : undefined,
+              pictogramImageUrl: typeof it.pictogramImageUrl === 'string' ? it.pictogramImageUrl : undefined,
+              pictogramName: typeof it.pictogramName === 'string' ? it.pictogramName : undefined,
+              pictogramConfidence: it.pictogramConfidence === 'alta' || it.pictogramConfidence === 'media' ? it.pictogramConfidence : undefined,
+              pictogramResolvedFor: typeof it.pictogramResolvedFor === 'string' ? it.pictogramResolvedFor : undefined,
             };
           })
         : [],
@@ -2603,6 +2609,35 @@ export async function fetchPictogramsPage(query: {
   if (query.targetPertenecienteId) params.set('targetPertenecienteId', query.targetPertenecienteId);
   const q = params.toString();
   return apiFetchWithFallback<PictogramPage>([`/api/pictograms?${q}`, `/pictograms?${q}`]);
+}
+
+export interface PictogramizedPhrase {
+  id: string;
+  text: string;
+  concepts: string[];
+  pictogram: { id: string; name: string; imageUrl: string; source: string } | null;
+  confidence: 'alta' | 'media' | 'ninguna';
+  matchedOn: string | null;
+}
+
+// Motor de pictogramizacion (Sesion 1): frase -> pictograma, sin que nadie
+// tenga que escribir ni elegir nada a mano. Devuelve [] si falla (nunca
+// propaga la excepcion): el llamador siempre puede caer al emoji que el
+// paso ya tenia, no hay caso en que este fetch deba bloquear la pantalla.
+export async function pictogramizePhrases(
+  phrases: { id: string; text: string }[],
+  options?: { minConfidence?: 'alta' | 'media'; language?: string; targetPertenecienteId?: string },
+): Promise<PictogramizedPhrase[]> {
+  if (phrases.length === 0) return [];
+  try {
+    const result = await apiRequest<{ results: PictogramizedPhrase[] }>('/api/pictograms/pictogramize', {
+      method: 'POST',
+      body: { phrases, ...options },
+    });
+    return result.results;
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchPictogramCategories(): Promise<PictogramCategory[]> {

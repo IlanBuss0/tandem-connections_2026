@@ -6,6 +6,10 @@ import { RoutineItem, CustomCategory } from '@/data/api';
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 import SectionSelector from '@/components/SectionSelector';
+import RoutinePictogram from '@/components/RoutinePictogram';
+import RoutinePictogramPicker from '@/components/RoutinePictogramPicker';
+import { useRoutinePictograms } from '@/hooks/useRoutinePictograms';
+import type { Pictogram } from '@/data/api';
 const reminderChoices = [
   { value: -60, label: '1 hora antes' }, { value: -30, label: '30 min antes' },
   { value: -15, label: '15 min antes' }, { value: -10, label: '10 min antes' },
@@ -46,12 +50,18 @@ export default function UserRoutines({ initialRoutineId, initialItemId }: { init
   const [form, setForm] = useState<{ time: string; title: string; icon: string; category: string; pictogramLabel: string; reminders: number[] }>({
     time: '08:00', title: '', icon: '⭐', category: 'mañana', pictogramLabel: '', reminders: [],
   });
+  // Pictograma elegido a mano en ESTA sesion del formulario. null = no se
+  // toco nada, el motor de pictogramizacion sigue a cargo (o el paso
+  // conserva el que ya tenia). Se limpia al abrir el formulario: editar no
+  // obliga a re-elegir, solo se usa si el usuario activamente busca uno.
+  const [manualPictogram, setManualPictogram] = useState<Pictogram | null>(null);
 
   useEffect(() => {
     if (initialRoutineId && routines.some(routine => routine.id === initialRoutineId)) setActiveId(initialRoutineId);
   }, [initialRoutineId, routines]);
 
   const [pictogramView, setPictogramView] = useState(false);
+  useRoutinePictograms(active);
 
 
 
@@ -96,18 +106,33 @@ export default function UserRoutines({ initialRoutineId, initialItemId }: { init
   const openCreate = () => {
     setEditingItem(null);
     setForm({ time: '08:00', title: '', icon: '⭐', category: 'mañana', pictogramLabel: '', reminders: [] });
+    setManualPictogram(null);
     setShowAddItem(true);
   };
   const openEdit = (it: RoutineItem) => {
     setEditingItem(it);
     setForm({ time: it.time, title: it.title, icon: it.icon, category: it.category, pictogramLabel: it.pictogramLabel || '', reminders: it.reminders || [] });
+    setManualPictogram(null);
     setShowAddItem(true);
   };
   const submitItem = () => {
     const title = form.title.trim();
     if (!title) return;
     const pictogramLabel = form.pictogramLabel.trim() || autoPictogramLabel(title);
-    const payload = { ...form, title, pictogramLabel };
+    const payload = {
+      ...form, title, pictogramLabel,
+      // Si se eligio uno a mano, se guarda como resuelto para ESTE titulo:
+      // el motor de pictogramizacion no lo vuelve a tocar salvo que el
+      // titulo cambie despues. Si no se eligio nada, no se pisan los campos
+      // de pictograma existentes (updateItem los conserva via merge).
+      ...(manualPictogram ? {
+        pictogramId: manualPictogram.id,
+        pictogramImageUrl: manualPictogram.imageUrl,
+        pictogramName: manualPictogram.name,
+        pictogramConfidence: 'alta' as const,
+        pictogramResolvedFor: title,
+      } : {}),
+    };
     if (editingItem) updateItem(active.id, editingItem.id, payload);
     else addItem(active.id, payload);
     setShowAddItem(false);
@@ -220,6 +245,20 @@ export default function UserRoutines({ initialRoutineId, initialItemId }: { init
           <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="¿Qué tenés que hacer?" className="w-full p-2.5 rounded-xl border border-[#ede4f8] bg-[#faf8ff] text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20" />
           <input value={form.pictogramLabel} onChange={e => setForm(f => ({ ...f, pictogramLabel: e.target.value }))} placeholder="Etiqueta para pictograma (opcional)" className="w-full p-2.5 rounded-xl border border-[#ede4f8] bg-[#faf8ff] text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20" />
           <div>
+            <p className="text-xs text-[#8b7aa0] mb-1 flex items-center gap-2">
+              Pictograma
+              {manualPictogram && (
+                <span className="inline-flex items-center gap-1 text-[#6b4c9a] font-medium">
+                  <img src={manualPictogram.imageUrl} alt="" className="h-4 w-4 object-contain" />
+                  {manualPictogram.name}
+                  <button type="button" onClick={() => setManualPictogram(null)} className="text-[#8b7aa0] hover:text-red-500">✕</button>
+                </span>
+              )}
+            </p>
+            <RoutinePictogramPicker onSelect={setManualPictogram} />
+            <p className="text-[10px] text-[#b8b0c8] mt-1">Si no elegís uno, la app va a buscar el pictograma sola.</p>
+          </div>
+          <div>
             <p className="text-xs text-[#8b7aa0] mb-2">Avisarme</p>
             <div className="flex flex-wrap gap-2">
               {reminderChoices.map(choice => {
@@ -305,7 +344,7 @@ export default function UserRoutines({ initialRoutineId, initialItemId }: { init
                         className={`group relative flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all cursor-pointer ${item.completed ? 'bg-green-50 border-green-300' : 'bg-white border-[#d8c7ef] hover:border-[#6b4c9a] hover:shadow-lg'}`}
                         onClick={() => toggleItem(active.id, item.id)}
                       >
-                        <span className="text-4xl">{item.icon}</span>
+                        <RoutinePictogram item={item} size="lg" />
                         <span className="text-sm font-semibold text-[#4a4a5a] text-center leading-tight">
                           {item.pictogramLabel || item.title}
                         </span>

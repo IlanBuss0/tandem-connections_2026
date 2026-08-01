@@ -224,6 +224,16 @@ export interface RoutineItem {
   category: string;
   pictogramLabel?: string;
   reminders?: number[];
+  // Resueltos por el motor de pictogramizacion (o elegidos a mano). Ver
+  // useRoutinePictograms.ts. pictogramResolvedFor es el titulo con el que
+  // se resolvio: mientras coincida con `title`, no se vuelve a pedir, ni
+  // aunque el resultado haya sido "sin pictograma" (evita quemar cuota de
+  // Groq en cada recarga).
+  pictogramId?: string;
+  pictogramImageUrl?: string;
+  pictogramName?: string;
+  pictogramConfidence?: 'alta' | 'media';
+  pictogramResolvedFor?: string;
 }
 
 export const juanDailyRoutine: RoutineItem[] = [
