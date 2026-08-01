@@ -11,10 +11,11 @@ import {
   type PictogramFilterOption,
   type PictogramFilters,
 } from '@/data/api';
-import { Search, Heart, Download, X, ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react';
+import { Search, Heart, Download, X, ChevronLeft, ChevronRight, SlidersHorizontal, Wand2, Grid3x3 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
+import PictogramTranslator from '@/components/PictogramTranslator';
 
 const PAGE_SIZE = 48;
 
@@ -82,6 +83,12 @@ export default function UserPictograms() {
   const [pictograms, setPictograms] = useState<Pictogram[]>([]);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [favoritePictograms, setFavoritePictograms] = useState<Pictogram[]>([]);
+  // Traductor (Sesion 4): texto libre -> pictogramas + exportar PDF. Vive en
+  // esta misma pantalla como un segundo modo, en vez de una pagina nueva en
+  // la navegacion, porque es el mismo publico (quien busca pictogramas) con
+  // otra forma de llegar a ellos (escribiendolo en vez de buscarlo).
+  const [mode, setMode] = useState<'catalogo' | 'traductor'>('catalogo');
+
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -244,6 +251,31 @@ export default function UserPictograms() {
         <p className="text-sm sm:text-base text-[#8b7aa0] mt-1 font-medium">Apoyos visuales para comunicarte</p>
       </div>
 
+      <div className="flex gap-2 rounded-full border border-[#ede4f8] bg-[#faf8ff] p-1">
+        <button
+          type="button"
+          onClick={() => setMode('catalogo')}
+          className={`flex flex-1 items-center justify-center gap-1.5 rounded-full py-2 text-sm font-semibold transition-all ${
+            mode === 'catalogo' ? 'bg-[#6b4c9a] text-white shadow-sm' : 'text-[#8b7aa0] hover:text-[#6b4c9a]'
+          }`}
+        >
+          <Grid3x3 size={15} /> Catálogo
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('traductor')}
+          className={`flex flex-1 items-center justify-center gap-1.5 rounded-full py-2 text-sm font-semibold transition-all ${
+            mode === 'traductor' ? 'bg-[#6b4c9a] text-white shadow-sm' : 'text-[#8b7aa0] hover:text-[#6b4c9a]'
+          }`}
+        >
+          <Wand2 size={15} /> Traductor
+        </button>
+      </div>
+
+      {mode === 'traductor' && <PictogramTranslator />}
+
+      {mode === 'catalogo' && (
+        <>
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8b7aa0]" />
         <input
@@ -440,6 +472,8 @@ export default function UserPictograms() {
             </div>
           </motion.div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

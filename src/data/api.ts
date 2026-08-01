@@ -2625,6 +2625,11 @@ export interface PictogramizedPhrase {
   matchedOn: string | null;
 }
 
+// Espeja el limite del backend (MAX_PHRASES_PER_REQUEST en
+// concept-extraction.js): se corta ANTES de mandar la request, para que el
+// traductor manual (Sesion 4) avise en la UI en vez de recibir un 400.
+export const MAX_TRANSLATOR_PHRASES = 60;
+
 // Motor de pictogramizacion (Sesion 1): frase -> pictograma, sin que nadie
 // tenga que escribir ni elegir nada a mano. Devuelve [] si falla (nunca
 // propaga la excepcion): el llamador siempre puede caer al emoji que el
