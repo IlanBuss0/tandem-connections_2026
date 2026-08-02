@@ -9,6 +9,7 @@ import {
 } from '@/data/api';
 import { Bell, Check, MessageCircle, Calendar, Target, Trophy, ShieldAlert, Sparkles } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import { useNotificationPictograms } from '@/hooks/useNotificationPictograms';
 
 type UserNotificationsProps = {
   onUnreadCountChange?: (count: number) => void;
@@ -119,6 +120,7 @@ export default function UserNotifications({ onUnreadCountChange, onNavigate }: U
 
   const unreadCount = notifs.filter(n => !n.read).length;
   const displayed = showAll ? notifs : notifs.filter(n => !n.read);
+  const pictogramsByTitle = useNotificationPictograms(displayed);
 
   useEffect(() => {
     onUnreadCountChange?.(unreadCount);
@@ -228,8 +230,14 @@ export default function UserNotifications({ onUnreadCountChange, onNavigate }: U
                 className={`w-full text-left p-4 rounded-2xl border border-l-4 transition-all ${style.border} ${n.read ? `${style.bg} opacity-70 border-[#e8e0f0]` : 'bg-white border-[#e8e0f0] shadow-md hover:shadow-lg'}`}
               >
                 <div className="flex items-start gap-3">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg ${n.read ? 'bg-[#f0ecf5]' : 'bg-[#f5f0fa]'}`}>
-                    <span>{style.icon}</span>
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center overflow-hidden text-lg ${n.read ? 'bg-[#f0ecf5]' : 'bg-[#f5f0fa]'}`}>
+                    {(() => {
+                      const resolved = pictogramsByTitle.get(n.title?.trim());
+                      if (resolved?.pictogram && (resolved.confidence === 'alta' || resolved.confidence === 'media')) {
+                        return <img src={resolved.pictogram.imageUrl} alt={resolved.pictogram.name} className="h-7 w-7 object-contain" loading="lazy" />;
+                      }
+                      return <span>{style.icon}</span>;
+                    })()}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">

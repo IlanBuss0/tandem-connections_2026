@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import { isPermissionEnabled, PROFESIONAL_PERMISSIONS } from '@/hooks/usePermissions';
+import ChatMessagePictograms from '@/components/ChatMessagePictograms';
 
 const quickReplies = [
   '👍 ¡Dale!', '✅ Llegué bien', '🙋 Necesito ayuda', '⏰ Ya salgo', '😊 Estoy bien', '🔄 Hubo un cambio'
@@ -651,6 +652,9 @@ export default function ChatScreen({
                         </div>
                       )}
                       {msg.text && <p className="whitespace-pre-wrap break-words">{visibleText}</p>}
+                      {!isMine && msg.text && (!msg.type || msg.type === 'text') && (
+                        <ChatMessagePictograms text={msg.text} />
+                      )}
                     </>
                   )}
                   {!isEditing && isLong && (
