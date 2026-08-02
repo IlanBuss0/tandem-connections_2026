@@ -21,6 +21,7 @@ import {
   Settings,
   Stethoscope,
   Info,
+  Sparkles,
 } from "lucide-react";
 import AvatarPreview from "@/components/AvatarPreview";
 import AppHeader from "@/components/AppHeader";
@@ -46,6 +47,7 @@ const UserProfileSettings = lazy(
 const UserPictograms = lazy(() => import("@/pages/user/UserPictograms"));
 const UserCommunicator = lazy(() => import("@/pages/user/UserCommunicator"));
 import CantSpeakMode from "@/components/CantSpeakMode";
+const UserExplainThis = lazy(() => import("@/pages/user/UserExplainThis"));
 const UserNotifications = lazy(() => import("@/pages/user/UserNotifications"));
 const UserResources = lazy(() => import("@/pages/user/UserResources"));
 const UserShop = lazy(() => import("@/pages/user/UserShop"));
@@ -79,6 +81,7 @@ const userNav = [
   { id: "profile-settings", label: "Configuración", icon: Settings },
   { id: "about", label: "Acerca de", icon: Info },
   { id: "communicator", label: "Comunicador", icon: Mic },
+  { id: "explainThis", label: "Explicame esto", icon: Sparkles },
 ];
 
 const validUserTabs = new Set(userNav.map((item) => item.id));
@@ -208,6 +211,8 @@ export default function AppShell() {
         return <UserPictograms />;
       case "communicator":
         return <UserCommunicator />;
+      case "explainThis":
+        return <UserExplainThis />;
       case "chat":
         return (
           <UserChat

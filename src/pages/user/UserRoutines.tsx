@@ -8,6 +8,7 @@ import AutonomyCards from '@/components/AutonomyCards';
 import NextStepBanner from '@/components/NextStepBanner';
 import StartTaskHint from '@/components/StartTaskHint';
 import RequestForDayCard from '@/components/RequestForDayCard';
+import GuidedRoutineMode from '@/components/GuidedRoutineMode';
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 import SectionSelector from '@/components/SectionSelector';
@@ -305,7 +306,8 @@ export default function UserRoutines({ initialRoutineId, initialItemId }: { init
 
       {active.items.length > 0 && (
         <div className="space-y-4">
-          <div className="flex items-center justify-end">
+          <div className="flex items-center justify-end gap-2">
+            <GuidedRoutineMode routineId={active.id} items={active.items} />
             <button
               onClick={() => setPictogramView(v => !v)}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border text-sm font-semibold transition-all bg-[#6b4c9a] text-white border-transparent shadow-sm hover:bg-[#5a3c8a] active:scale-95"
