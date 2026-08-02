@@ -18,6 +18,7 @@ export const PERTENECIENTE_PERMISSIONS = {
   USAR_CALENDARIO: 'UsarCalendario',
   REGISTRAR_EMOCIONES: 'RegistrarEmociones',
   USAR_PICTOGRAMAS: 'UsarPictogramas',
+  USAR_CHAT: 'UsarChat',
 } as const;
 
 export const PROFESIONAL_PERMISSIONS = {

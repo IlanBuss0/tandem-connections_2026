@@ -1,3 +1,5 @@
+import { getSpanishVoiceAsync } from './voices';
+
 // Unica responsabilidad: leer un texto en voz alta (Sesion 5 — TTS). Usa la
 // Web Speech API del navegador, misma tecnologia que ya usa el lector de
 // pagina de accesibilidad (AccessibilityWidget.tsx), pero como utilidad
@@ -6,14 +8,18 @@
 //
 // Nunca lanza: si el navegador no soporta speechSynthesis, el boton que la
 // use simplemente no hace nada en vez de romper la pantalla.
-export function speakText(text: string): void {
+export async function speakText(text: string): Promise<void> {
   const trimmed = text.trim();
   if (!trimmed || !window.speechSynthesis) return;
 
   try {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(trimmed);
-    utterance.lang = 'es-ES';
+    // Rioplatense si el sistema tiene esa voz instalada; si no, cualquier
+    // es-* es mejor que el default de espanol de Espana que quedaba antes.
+    const voice = await getSpanishVoiceAsync();
+    utterance.lang = voice?.lang || 'es-AR';
+    if (voice) utterance.voice = voice;
     utterance.rate = 0.95;
     window.speechSynthesis.speak(utterance);
   } catch {
