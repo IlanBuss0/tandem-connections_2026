@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Wand2, Loader2, FileDown } from 'lucide-react';
 import { pictogramizePhrases, type PictogramizedPhrase, MAX_TRANSLATOR_PHRASES } from '@/data/api';
 import { exportPictogramStripToPdf } from '@/lib/pictogramPdf';
+import { splitIntoPhrases } from '@/lib/sentenceSplit';
 import SpeakButton from '@/components/SpeakButton';
 
 // Unica responsabilidad: traductor manual de texto libre a pictogramas
@@ -23,10 +24,7 @@ export default function PictogramTranslator() {
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
-  const phrases = text
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
+  const phrases = splitIntoPhrases(text);
 
   const tooMany = phrases.length > MAX_TRANSLATOR_PHRASES;
 
@@ -62,7 +60,7 @@ export default function PictogramTranslator() {
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder={'Escribí una frase por línea, por ejemplo:\nLavarse los dientes\nDesayunar\nIr a la escuela'}
+          placeholder={'Escribí una frase por línea, o pegá un texto (un mensaje, un párrafo) y se separa solo por punto, coma alta o signos:\nLavarse los dientes. Desayunar. Ir a la escuela.'}
           rows={5}
           className="w-full resize-none rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]"
         />
