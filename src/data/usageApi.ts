@@ -44,6 +44,22 @@ export interface UsageEventRecord {
   ocurrido_en: string;
 }
 
+export interface VocabularyReport {
+  used: { word: string; count: number }[];
+  neverUsed: string[];
+  totalUtterances: number;
+}
+
+// Item 42 "informe de vocabulario": que palabras del nucleo usa esta
+// persona y cuales nunca uso, calculado sobre sus enunciados hablados.
+export async function fetchVocabularyReport(userId: string): Promise<VocabularyReport | null> {
+  try {
+    return await apiRequest<VocabularyReport>(`/api/eventos-uso/usuario/${encodeURIComponent(userId)}/informe-vocabulario`);
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchUsageEvents(userId: string, options?: { tipoEvento?: UsageEventType; limit?: number }): Promise<UsageEventRecord[]> {
   try {
     const params = new URLSearchParams();
