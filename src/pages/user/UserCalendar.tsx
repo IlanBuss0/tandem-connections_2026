@@ -13,6 +13,7 @@ import { useCalendarPictograms } from '@/hooks/useCalendarPictograms';
 import SpeakButton from '@/components/SpeakButton';
 import { formatConcreteDays } from '@/lib/concreteTime';
 import SocialStoryView from '@/components/SocialStoryView';
+import ReassuranceCard from '@/components/ReassuranceCard';
 
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -162,7 +163,7 @@ export default function UserCalendar() {
 
   const openCreate = (date = selectedDate) => {
     setEditing(null);
-    setForm({ title: '', date, time: '09:00', type: 'mañana', description: '', reminders: [], afterNote: '', planB: '' });
+    setForm({ title: '', date, time: '09:00', type: 'mañana', description: '', reminders: [], afterNote: '', planB: '', sensoryNote: '' });
     setShowForm(true);
   };
 
@@ -177,6 +178,7 @@ export default function UserCalendar() {
       reminders: event.reminders || [],
       afterNote: event.afterNote || '',
       planB: event.planB || '',
+      sensoryNote: event.sensoryNote || '',
     });
     setShowForm(true);
   };
@@ -406,6 +408,12 @@ export default function UserCalendar() {
                 placeholder="Plan B (opcional) Ej: si hay mucha gente, salimos afuera un rato"
                 className="h-16 w-full resize-none rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
               />
+              <textarea
+                value={form.sensoryNote || ''}
+                onChange={event => setForm(current => ({ ...current, sensoryNote: event.target.value }))}
+                placeholder="Preparación sensorial (opcional) Ej: va a haber ruido, llevá auriculares"
+                className="h-16 w-full resize-none rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
+              />
               <button
                 onClick={submit}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-3 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] transition"
@@ -477,6 +485,12 @@ export default function UserCalendar() {
                         <span className="font-semibold">Plan B: </span>{event.planB}
                       </p>
                     )}
+                    {event.sensoryNote && (
+                      <p className="mt-1.5 max-w-full whitespace-normal [overflow-wrap:anywhere] rounded-lg bg-blue-50 p-2 text-xs text-[#4a4a5a]">
+                        <span className="font-semibold">Preparate: </span>{event.sensoryNote}
+                      </p>
+                    )}
+                    <ReassuranceCard event={event} />
                     <div className="mt-2">
                       <SocialStoryView event={event} />
                     </div>

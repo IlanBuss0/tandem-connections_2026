@@ -22,6 +22,10 @@ export function buildSocialStoryPhrases(event: CalendarEvent, now: Date): string
     phrases.push(event.description.trim());
   }
 
+  if (event.sensoryNote?.trim()) {
+    phrases.push(event.sensoryNote.trim());
+  }
+
   phrases.push('Puedo estar tranquilo, ya sé lo que va a pasar');
 
   if (event.afterNote?.trim()) {

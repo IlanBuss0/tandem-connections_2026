@@ -289,6 +289,10 @@ export interface CalendarEvent {
   // necesitan, pero uno con mucha incertidumbre (un viaje, una salida
   // nueva) si se beneficia de tenerlo escrito de antemano.
   planB?: string;
+  // Sesion 16, item 21 "preparacion sensorial": avisos concretos de lo que
+  // va a sentir/necesitar ("va a haber ruido, llevá auriculares"). Mismo
+  // patron que afterNote/planB.
+  sensoryNote?: string;
 }
 
 const today = new Date();
