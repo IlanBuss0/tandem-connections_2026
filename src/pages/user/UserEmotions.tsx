@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { AlertCircle, BarChart3, CalendarDays, Loader2, Save, Sparkles, Trash2 } from 'lucide-react';
 import { useEmotions, emotionOptions } from '@/contexts/EmotionsContext';
+import EmotionCauseQuickPicker from '@/components/EmotionCauseQuickPicker';
 
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
@@ -211,11 +212,20 @@ export default function UserEmotions() {
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
                 <span className="text-sm font-medium text-[#4a4a5a]">Que paso</span>
+                <div className="mt-1 mb-2">
+                  <EmotionCauseQuickPicker
+                    onPick={(cause) => setContext((prev) => {
+                      const trimmed = prev.trim();
+                      if (!trimmed) return cause;
+                      return trimmed.toLowerCase().includes(cause) ? trimmed : `${trimmed}, ${cause}`;
+                    })}
+                  />
+                </div>
                 <textarea
                   value={context}
                   onChange={(event) => setContext(event.target.value)}
                   placeholder="Ej: hubo un cambio de plan, complete una actividad, tuve una conversacion..."
-                  className="mt-1 h-24 w-full resize-none rounded-xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]"
+                  className="h-24 w-full resize-none rounded-xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]"
                 />
               </label>
               <label className="block">

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { createEmotionRecord, deleteEmotionRecord, EmotionalRecord, fetchEmotionRecordsForUser } from '@/data/api';
+import { logUsageEvent } from '@/data/usageApi';
 
 export const emotionOptions = [
   { emoji: '😊', label: 'Contento' },
@@ -78,6 +79,12 @@ export function EmotionsProvider({ children }: { children: ReactNode }) {
         date: rec.date || new Date().toISOString().split('T')[0],
       });
       setRecords(prev => [created, ...prev]);
+      void logUsageEvent({
+        tipoEvento: 'emocion_registrada',
+        entidadTipo: 'emocion',
+        entidadId: created.id,
+        valor: { emotion: created.emotion, intensity: created.intensity, context: created.context, whatHelped: created.whatHelped },
+      });
     } catch {
       setError('No se pudo registrar la emocion.');
       throw new Error('No se pudo registrar la emocion.');

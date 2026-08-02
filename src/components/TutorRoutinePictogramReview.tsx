@@ -10,6 +10,7 @@ import {
 } from '@/data/api';
 import RoutinePictogram from '@/components/RoutinePictogram';
 import RoutinePictogramPicker from '@/components/RoutinePictogramPicker';
+import TutorUsageTimeline from '@/components/TutorUsageTimeline';
 
 // Unica responsabilidad: que un tutor vea "Mi dia" de un perteneciente
 // exactamente como lo ve esa persona (item 11 del roadmap, "vista previa"),
@@ -70,6 +71,11 @@ export default function TutorRoutinePictogramReview({ targetUsuarioId, targetNam
       <div className="flex items-center gap-2 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-xs text-[#6b4c9a]">
         <Eye size={14} className="shrink-0" />
         Así ve {targetName || 'esta persona'} sus pasos en modo pictograma. Tocá "Corregir" para cambiar uno.
+      </div>
+
+      <div>
+        <h3 className="mb-2 text-sm font-bold text-[#4a4a5a]">Actividad reciente</h3>
+        <TutorUsageTimeline targetUsuarioId={targetUsuarioId} />
       </div>
 
       {routines.map((routine) => (
