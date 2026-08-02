@@ -7,6 +7,7 @@ import {
   Calendar,
   CheckSquare,
   MessageCircle,
+  Mic,
   Heart,
   Trophy,
   User,
@@ -43,6 +44,7 @@ const UserProfileSettings = lazy(
   () => import("@/pages/user/UserProfileSettings"),
 );
 const UserPictograms = lazy(() => import("@/pages/user/UserPictograms"));
+const UserCommunicator = lazy(() => import("@/pages/user/UserCommunicator"));
 const UserNotifications = lazy(() => import("@/pages/user/UserNotifications"));
 const UserResources = lazy(() => import("@/pages/user/UserResources"));
 const UserShop = lazy(() => import("@/pages/user/UserShop"));
@@ -66,6 +68,7 @@ const userNav = [
   { id: "activities", label: "Actividades", icon: CheckSquare },
   { id: "shop", label: "Tienda y avatar", icon: ShoppingBag },
   { id: "pictograms", label: "Pictogramas", icon: Image },
+  { id: "communicator", label: "Comunicador", icon: Mic },
   { id: "chat", label: "Chat", icon: MessageCircle },
   { id: "emotions", label: "Emociones", icon: Heart },
   { id: "achievements", label: "Logros", icon: Trophy },
@@ -202,6 +205,8 @@ export default function AppShell() {
         return <UserShop />;
       case "pictograms":
         return <UserPictograms />;
+      case "communicator":
+        return <UserCommunicator />;
       case "chat":
         return (
           <UserChat

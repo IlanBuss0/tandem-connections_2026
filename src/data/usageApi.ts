@@ -11,7 +11,8 @@ export type UsageEventType =
   | 'emocion_registrada'
   | 'pictograma_elegido'
   | 'pictograma_corregido'
-  | 'tarjeta_autonomia_usada';
+  | 'tarjeta_autonomia_usada'
+  | 'enunciado_hablado';
 
 export interface UsageEvent {
   tipoEvento: UsageEventType;
