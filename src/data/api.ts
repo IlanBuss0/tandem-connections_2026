@@ -1828,6 +1828,7 @@ function normalizeCalendarEventsPayload(payload: unknown, userId: string): Calen
         pictogramConfidence: event.pictogramConfidence === 'alta' || event.pictogramConfidence === 'media' ? event.pictogramConfidence : undefined,
         pictogramResolvedFor: typeof event.pictogramResolvedFor === 'string' ? event.pictogramResolvedFor : undefined,
         afterNote: typeof event.afterNote === 'string' ? event.afterNote : undefined,
+        planB: typeof event.planB === 'string' ? event.planB : undefined,
       } as CalendarEvent;
     })
     .filter((event): event is CalendarEvent => Boolean(event));

@@ -12,6 +12,7 @@ import EventPictogram from '@/components/EventPictogram';
 import { useCalendarPictograms } from '@/hooks/useCalendarPictograms';
 import SpeakButton from '@/components/SpeakButton';
 import { formatConcreteDays } from '@/lib/concreteTime';
+import SocialStoryView from '@/components/SocialStoryView';
 
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -161,7 +162,7 @@ export default function UserCalendar() {
 
   const openCreate = (date = selectedDate) => {
     setEditing(null);
-    setForm({ title: '', date, time: '09:00', type: 'mañana', description: '', reminders: [], afterNote: '' });
+    setForm({ title: '', date, time: '09:00', type: 'mañana', description: '', reminders: [], afterNote: '', planB: '' });
     setShowForm(true);
   };
 
@@ -175,6 +176,7 @@ export default function UserCalendar() {
       description: event.description,
       reminders: event.reminders || [],
       afterNote: event.afterNote || '',
+      planB: event.planB || '',
     });
     setShowForm(true);
   };
@@ -398,6 +400,12 @@ export default function UserCalendar() {
                 placeholder="¿Qué pasa después? (opcional) Ej: volvemos a casa y descansamos"
                 className="h-16 w-full resize-none rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
               />
+              <textarea
+                value={form.planB || ''}
+                onChange={event => setForm(current => ({ ...current, planB: event.target.value }))}
+                placeholder="Plan B (opcional) Ej: si hay mucha gente, salimos afuera un rato"
+                className="h-16 w-full resize-none rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
+              />
               <button
                 onClick={submit}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-3 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] transition"
@@ -464,6 +472,14 @@ export default function UserCalendar() {
                         <span className="font-semibold">Después: </span>{event.afterNote}
                       </p>
                     )}
+                    {event.planB && (
+                      <p className="mt-1.5 max-w-full whitespace-normal [overflow-wrap:anywhere] rounded-lg bg-amber-50 p-2 text-xs text-[#4a4a5a]">
+                        <span className="font-semibold">Plan B: </span>{event.planB}
+                      </p>
+                    )}
+                    <div className="mt-2">
+                      <SocialStoryView event={event} />
+                    </div>
                   </div>
                   <div className="flex shrink-0 gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <SpeakButton text={event.title} size={14} className="p-1.5" />

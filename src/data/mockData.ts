@@ -284,6 +284,11 @@ export interface CalendarEvent {
   // los eventos necesitan esta anticipacion (una clase de rutina no, una
   // salida al medico si).
   afterNote?: string;
+  // Sesion 15, item 20 "plan B visual": que hacer si algo sale distinto a
+  // lo planeado. Opcional, texto libre — no todos los eventos lo
+  // necesitan, pero uno con mucha incertidumbre (un viaje, una salida
+  // nueva) si se beneficia de tenerlo escrito de antemano.
+  planB?: string;
 }
 
 const today = new Date();
