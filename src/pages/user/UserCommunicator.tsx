@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Volume2, X, Search } from 'lucide-react';
+import { Volume2, X, Search, History } from 'lucide-react';
 import { fetchNucleoVocabulario, type NucleoVocabulario, type NucleoWord } from '@/data/communicationApi';
 import { fetchPictograms, type Pictogram } from '@/data/api';
-import { logUsageEvent } from '@/data/usageApi';
+import { logUsageEvent, fetchUsageEvents, type UsageEventRecord } from '@/data/usageApi';
+import { useAuth } from '@/contexts/AuthContext';
 import { speakText } from '@/lib/speech';
 import { utteranceToText, type UtteranceToken } from '@/lib/utterance';
 import PictogramTile from '@/components/PictogramTile';
@@ -54,12 +55,16 @@ function saveFrequent(phrase: string) {
 }
 
 export default function UserCommunicator() {
+  const { user } = useAuth();
   const [nucleo, setNucleo] = useState<NucleoVocabulario>({});
   const [loading, setLoading] = useState(true);
   const [tokens, setTokens] = useState<UtteranceToken[]>([]);
   const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState<Pictogram[]>([]);
   const [frequent, setFrequent] = useState<string[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<UsageEventRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   useEffect(() => {
     fetchNucleoVocabulario().then(setNucleo).finally(() => setLoading(false));
@@ -107,12 +112,48 @@ export default function UserCommunicator() {
     setFrequent(loadFrequent());
   };
 
+  const toggleHistory = () => {
+    const next = !showHistory;
+    setShowHistory(next);
+    if (next && user?.id && history.length === 0) {
+      setHistoryLoading(true);
+      fetchUsageEvents(user.id, { tipoEvento: 'enunciado_hablado', limit: 30 })
+        .then(setHistory)
+        .finally(() => setHistoryLoading(false));
+    }
+  };
+
   return (
     <div className="space-y-5 pb-24 lg:pb-6">
-      <div>
-        <h2 className="text-3xl font-bold text-[#6b4c9a] sm:text-4xl">Comunicador</h2>
-        <p className="mt-1 text-sm font-medium text-[#8b7aa0] sm:text-base">Armá una frase tocando pictogramas</p>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h2 className="text-3xl font-bold text-[#6b4c9a] sm:text-4xl">Comunicador</h2>
+          <p className="mt-1 text-sm font-medium text-[#8b7aa0] sm:text-base">Armá una frase tocando pictogramas</p>
+        </div>
+        <button
+          type="button"
+          onClick={toggleHistory}
+          className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-semibold ${showHistory ? 'border-transparent bg-[#6b4c9a] text-white' : 'border-[#ede4f8] text-[#6b4c9a] hover:bg-[#f5f0ff]'}`}
+        >
+          <History size={14} /> Historial
+        </button>
       </div>
+
+      {showHistory && (
+        <div className="space-y-1.5 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3">
+          {historyLoading && <p className="py-2 text-center text-xs text-[#8b7aa0]">Cargando…</p>}
+          {!historyLoading && history.length === 0 && <p className="py-2 text-center text-xs text-[#8b7aa0]">Todavía no dijiste nada con el comunicador.</p>}
+          {history.map((event) => {
+            const text = (event.valor?.text as string) || '';
+            return (
+              <div key={event.id} className="flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2">
+                <span className="truncate text-sm text-[#4a4a5a]">{text}</span>
+                <button type="button" onClick={() => speakText(text)} className="shrink-0 text-[#6b4c9a] hover:text-[#5a3c8a]"><Volume2 size={14} /></button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Frase actual */}
       <div className="rounded-2xl border-2 border-[#6b4c9a]/30 bg-[#faf8ff] p-3">

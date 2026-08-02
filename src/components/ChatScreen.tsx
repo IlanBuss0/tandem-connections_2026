@@ -10,6 +10,7 @@ import { useToast } from '@/components/ui/use-toast';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import { isPermissionEnabled, PROFESIONAL_PERMISSIONS } from '@/hooks/usePermissions';
 import ChatMessagePictograms from '@/components/ChatMessagePictograms';
+import ChatPictogramComposer from '@/components/ChatPictogramComposer';
 
 const quickReplies = [
   '👍 ¡Dale!', '✅ Llegué bien', '🙋 Necesito ayuda', '⏰ Ya salgo', '😊 Estoy bien', '🔄 Hubo un cambio'
@@ -735,6 +736,7 @@ export default function ChatScreen({
             <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="w-9 h-9 rounded-full hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground shrink-0 transition-colors" aria-label="Adjuntar archivo">
               {uploading ? <Loader2 size={15} className="animate-spin" /> : <ImageIcon size={15} />}
             </button>
+            <ChatPictogramComposer onAppend={(word) => handleDraftChange(draft ? `${draft} ${word}` : word)} />
             <Input value={draft} onChange={e => handleDraftChange(e.target.value)} onKeyDown={e => e.key === 'Enter' && !uploading && sendNow(undefined, pendingFileId)} placeholder="Escribí un mensaje..." className="flex-1" />
             <button onClick={() => sendNow(undefined, pendingFileId)} disabled={uploading} className="w-10 h-10 rounded-full gradient-primary text-primary-foreground flex items-center justify-center shrink-0 disabled:opacity-50" aria-label="Enviar"><Send size={16} /></button>
           </div>
