@@ -60,6 +60,37 @@ export async function fetchVocabularyReport(userId: string): Promise<VocabularyR
   }
 }
 
+export interface EventTypePattern {
+  type: string;
+  negativeRatio: number;
+  sampleSize: number;
+}
+
+export interface AnticipationSupport {
+  viewedPositiveRatio: number;
+  notViewedPositiveRatio: number;
+  difference: number;
+  helps: boolean;
+}
+
+export interface PatternsReport {
+  eventTypePatterns: EventTypePattern[];
+  anticipationSupport: AnticipationSupport | null;
+}
+
+// Item 41 "deteccion de patrones" ⭐ + item 43 "que apoyos funcionan": cruza
+// calendario, emociones y vistas de historia social. Piso minimo de datos
+// aplicado en el backend (modules/usage/pattern-detection.js) — si no hay
+// suficiente, esta funcion simplemente devuelve arrays/null vacios, y esa
+// es la respuesta correcta (no "error").
+export async function fetchPatternsReport(userId: string): Promise<PatternsReport | null> {
+  try {
+    return await apiRequest<PatternsReport>(`/api/eventos-uso/usuario/${encodeURIComponent(userId)}/patrones`);
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchUsageEvents(userId: string, options?: { tipoEvento?: UsageEventType; limit?: number }): Promise<UsageEventRecord[]> {
   try {
     const params = new URLSearchParams();

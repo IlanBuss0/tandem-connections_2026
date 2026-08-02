@@ -12,6 +12,7 @@ import RoutinePictogram from '@/components/RoutinePictogram';
 import RoutinePictogramPicker from '@/components/RoutinePictogramPicker';
 import TutorUsageTimeline from '@/components/TutorUsageTimeline';
 import VocabularyReportView from '@/components/VocabularyReportView';
+import PatternsReportView from '@/components/PatternsReportView';
 
 // Unica responsabilidad: que un tutor vea "Mi dia" de un perteneciente
 // exactamente como lo ve esa persona (item 11 del roadmap, "vista previa"),
@@ -79,7 +80,10 @@ export default function TutorRoutinePictogramReview({ targetUsuarioId, targetNam
         <TutorUsageTimeline targetUsuarioId={targetUsuarioId} />
       </div>
 
-      <VocabularyReportView targetUsuarioId={targetUsuarioId} />
+      <div className="flex flex-wrap gap-2">
+        <VocabularyReportView targetUsuarioId={targetUsuarioId} />
+        <PatternsReportView targetUsuarioId={targetUsuarioId} />
+      </div>
 
       {routines.map((routine) => (
         <div key={routine.id} className="space-y-2">
