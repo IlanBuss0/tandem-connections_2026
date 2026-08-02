@@ -279,6 +279,11 @@ export interface CalendarEvent {
   pictogramName?: string;
   pictogramConfidence?: 'alta' | 'media';
   pictogramResolvedFor?: string;
+  // Sesion 14, item 22 "anticipar la vuelta": que pasa DESPUES de este
+  // evento, no solo la ida. Texto libre y opcional a proposito — no todos
+  // los eventos necesitan esta anticipacion (una clase de rutina no, una
+  // salida al medico si).
+  afterNote?: string;
 }
 
 const today = new Date();

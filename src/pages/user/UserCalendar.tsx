@@ -11,6 +11,7 @@ import ReminderPicker from '@/components/ReminderPicker';
 import EventPictogram from '@/components/EventPictogram';
 import { useCalendarPictograms } from '@/hooks/useCalendarPictograms';
 import SpeakButton from '@/components/SpeakButton';
+import { formatConcreteDays } from '@/lib/concreteTime';
 
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -160,7 +161,7 @@ export default function UserCalendar() {
 
   const openCreate = (date = selectedDate) => {
     setEditing(null);
-    setForm({ title: '', date, time: '09:00', type: 'mañana', description: '', reminders: [] });
+    setForm({ title: '', date, time: '09:00', type: 'mañana', description: '', reminders: [], afterNote: '' });
     setShowForm(true);
   };
 
@@ -173,6 +174,7 @@ export default function UserCalendar() {
       type: event.type,
       description: event.description,
       reminders: event.reminders || [],
+      afterNote: event.afterNote || '',
     });
     setShowForm(true);
   };
@@ -390,6 +392,12 @@ export default function UserCalendar() {
                 className="h-20 w-full resize-none rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
               />
               <ReminderPicker value={form.reminders} onChange={reminders => setForm(current => ({ ...current, reminders }))} />
+              <textarea
+                value={form.afterNote || ''}
+                onChange={event => setForm(current => ({ ...current, afterNote: event.target.value }))}
+                placeholder="¿Qué pasa después? (opcional) Ej: volvemos a casa y descansamos"
+                className="h-16 w-full resize-none rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
+              />
               <button
                 onClick={submit}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-3 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] transition"
@@ -412,6 +420,7 @@ export default function UserCalendar() {
           <div>
             <p className="text-xs font-semibold text-[#8b7aa0] uppercase tracking-wide">
               {selectedDate === todayKey ? 'Hoy' : labelDate(selectedDate)}
+              {selectedDate !== todayKey && ` · ${formatConcreteDays(selectedDate, new Date())}`}
             </p>
             <h2 className="text-xl sm:text-2xl font-bold text-[#6b4c9a]">Actividades del día</h2>
           </div>
@@ -450,6 +459,11 @@ export default function UserCalendar() {
                       <span className="inline-flex items-center gap-1"><Clock size={12} /> {event.time}</span>
                       <span className="capitalize">{getSectionName(event.type)}</span>
                     </div>
+                    {event.afterNote && (
+                      <p className="mt-2 max-w-full whitespace-normal [overflow-wrap:anywhere] rounded-lg bg-white/60 p-2 text-xs text-[#4a4a5a]">
+                        <span className="font-semibold">Después: </span>{event.afterNote}
+                      </p>
+                    )}
                   </div>
                   <div className="flex shrink-0 gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <SpeakButton text={event.title} size={14} className="p-1.5" />
