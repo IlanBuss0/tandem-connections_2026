@@ -14,6 +14,8 @@ import SpeakButton from '@/components/SpeakButton';
 import { formatConcreteDays } from '@/lib/concreteTime';
 import SocialStoryView from '@/components/SocialStoryView';
 import ReassuranceCard from '@/components/ReassuranceCard';
+import { isDayOverloaded } from '@/lib/weekLoad';
+import { AlertTriangle } from 'lucide-react';
 
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -439,6 +441,11 @@ export default function UserCalendar() {
               {selectedDate !== todayKey && ` · ${formatConcreteDays(selectedDate, new Date())}`}
             </p>
             <h2 className="text-xl sm:text-2xl font-bold text-[#6b4c9a]">Actividades del día</h2>
+            {isDayOverloaded(events, selectedDate) && (
+              <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-amber-700">
+                <AlertTriangle size={12} /> Día con muchas actividades — puede ser mucho para un solo día
+              </p>
+            )}
           </div>
           <button
             onClick={() => openCreate(selectedDate)}
@@ -501,7 +508,17 @@ export default function UserCalendar() {
                       <Pencil size={14} />
                     </button>
                     <button
-                      onClick={() => { if (confirm('¿Eliminar evento?')) deleteEvent(event.id); }}
+                      onClick={() => {
+                        // item 24 "avisar cambios con cuidado": borrar un
+                        // evento de HOY o MAÑANA es cambiar un plan que la
+                        // persona ya tenia armado, no un simple borrado de
+                        // lista — el mensaje lo dice distinto.
+                        const isNearTerm = event.date === todayKey || formatConcreteDays(event.date, new Date()) === 'mañana';
+                        const message = isNearTerm
+                          ? `Esto va a cambiar un plan que ya estaba armado para ${event.date === todayKey ? 'hoy' : 'mañana'}: "${event.title}". ¿Seguro que lo querés sacar?`
+                          : '¿Eliminar evento?';
+                        if (confirm(message)) deleteEvent(event.id);
+                      }}
                       className="p-1.5 rounded-full hover:bg-white/50"
                       title="Eliminar"
                     >

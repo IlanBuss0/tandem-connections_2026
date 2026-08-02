@@ -7,6 +7,7 @@ import SpeakButton from '@/components/SpeakButton';
 import AutonomyCards from '@/components/AutonomyCards';
 import NextStepBanner from '@/components/NextStepBanner';
 import StartTaskHint from '@/components/StartTaskHint';
+import RequestForDayCard from '@/components/RequestForDayCard';
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 import SectionSelector from '@/components/SectionSelector';
@@ -174,6 +175,7 @@ export default function UserRoutines({ initialRoutineId, initialItemId }: { init
 
       <AutonomyCards />
       <NextStepBanner items={active.items} />
+      <RequestForDayCard />
 
       {/* Routines selector */}
       <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">

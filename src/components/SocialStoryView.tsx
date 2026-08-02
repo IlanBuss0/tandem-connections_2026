@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpen, Volume2, X } from 'lucide-react';
+import { BookOpen, Volume2, X, HelpCircle } from 'lucide-react';
 import type { CalendarEvent } from '@/data/api';
 import { pictogramizePhrases, type PictogramizedPhrase } from '@/data/api';
 import { buildSocialStoryPhrases } from '@/lib/socialStory';
@@ -16,6 +16,7 @@ export default function SocialStoryView({ event }: { event: CalendarEvent }) {
   const [open, setOpen] = useState(false);
   const [phrases, setPhrases] = useState<PictogramizedPhrase[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showAnswer, setShowAnswer] = useState(false);
 
   const openStory = async () => {
     setOpen(true);
@@ -69,6 +70,28 @@ export default function SocialStoryView({ event }: { event: CalendarEvent }) {
                     <p className="text-sm font-medium text-[#4a4a5a]">{p.text}</p>
                   </div>
                 ))}
+              </div>
+            )}
+            {/* item 25 "ensayo previo": practicar la situacion con una
+                opcion concreta, reusando el plan B (Sesion 16) si existe —
+                no se inventa una pregunta generica sin una respuesta real
+                detras. */}
+            {!loading && event.planB?.trim() && (
+              <div className="mt-4 rounded-2xl border-2 border-dashed border-[#d8c7ef] bg-[#faf8ff] p-4">
+                <p className="flex items-center gap-2 text-sm font-bold text-[#6b4c9a]">
+                  <HelpCircle size={16} /> ¿Qué hacés si algo sale distinto a lo planeado?
+                </p>
+                {!showAnswer ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowAnswer(true)}
+                    className="mt-2 rounded-full bg-white px-4 py-2 text-xs font-semibold text-[#6b4c9a] shadow-sm hover:bg-[#f5f0ff]"
+                  >
+                    Pensé mi respuesta, mostrame la idea
+                  </button>
+                ) : (
+                  <p className="mt-2 rounded-xl bg-white p-3 text-sm text-[#4a4a5a]">{event.planB}</p>
+                )}
               </div>
             )}
           </div>
