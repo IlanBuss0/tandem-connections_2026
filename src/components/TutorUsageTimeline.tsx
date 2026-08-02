@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Activity, CheckCircle2, Heart, Wand2 } from 'lucide-react';
+import { Activity, CheckCircle2, Heart, HelpingHand, Wand2 } from 'lucide-react';
 import { fetchUsageEvents, type UsageEventRecord, type UsageEventType } from '@/data/usageApi';
 
 // Unica responsabilidad: mostrarle al tutor un timeline chico de lo ultimo
@@ -13,6 +13,7 @@ const TYPE_LABEL: Record<UsageEventType, string> = {
   emocion_registrada: 'Registró una emoción',
   pictograma_elegido: 'Eligió un pictograma a mano',
   pictograma_corregido: 'Le corrigieron un pictograma',
+  tarjeta_autonomia_usada: 'Usó una tarjeta de autonomía',
 };
 
 const TYPE_ICON: Record<UsageEventType, typeof Activity> = {
@@ -20,13 +21,16 @@ const TYPE_ICON: Record<UsageEventType, typeof Activity> = {
   emocion_registrada: Heart,
   pictograma_elegido: Wand2,
   pictograma_corregido: Wand2,
+  tarjeta_autonomia_usada: HelpingHand,
 };
 
 function describe(event: UsageEventRecord): string {
   const title = event.valor?.title as string | undefined;
   const emotion = event.valor?.emotion as string | undefined;
+  const cardLabel = event.valor?.label as string | undefined;
   if (event.tipo_evento === 'rutina_paso_completado' && title) return title;
   if (event.tipo_evento === 'emocion_registrada' && emotion) return emotion;
+  if (event.tipo_evento === 'tarjeta_autonomia_usada' && cardLabel) return `"${cardLabel}"`;
   return TYPE_LABEL[event.tipo_evento];
 }
 

@@ -40,6 +40,13 @@ export interface AccessibilitySettings {
   simplifiedNavigation: boolean;
   contentSpacing: number;
   activeProfile: string | null;
+  // Sesion 10, item 47: tamaño de los pictogramas en toda la app (no del
+  // texto general, eso ya lo cubre fontScale). item 48: cuando es true, se
+  // le pide al motor pictogramas de estilo "alto contraste" en vez del
+  // aprendido por uso — es una necesidad de accesibilidad, no una
+  // preferencia que se pueda ignorar.
+  pictogramSize: 'sm' | 'md' | 'lg';
+  highContrastPictograms: boolean;
 }
 
 export const DEFAULT_SETTINGS: AccessibilitySettings = {
@@ -75,6 +82,8 @@ export const DEFAULT_SETTINGS: AccessibilitySettings = {
   simplifiedNavigation: false,
   contentSpacing: 1,
   activeProfile: null,
+  pictogramSize: 'md',
+  highContrastPictograms: false,
 };
 
 export interface AccessibilityProfile {

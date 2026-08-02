@@ -2636,7 +2636,7 @@ export const MAX_TRANSLATOR_PHRASES = 60;
 // paso ya tenia, no hay caso en que este fetch deba bloquear la pantalla.
 export async function pictogramizePhrases(
   phrases: { id: string; text: string }[],
-  options?: { minConfidence?: 'alta' | 'media'; language?: string; targetPertenecienteId?: string },
+  options?: { minConfidence?: 'alta' | 'media'; language?: string; targetPertenecienteId?: string; preferredStyleOverride?: string },
 ): Promise<PictogramizedPhrase[]> {
   if (phrases.length === 0) return [];
   try {

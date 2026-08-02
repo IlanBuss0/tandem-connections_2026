@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { pictogramizePhrases } from '@/data/api';
 import { useCalendar } from '@/contexts/CalendarContext';
+import { useAccessibility } from '@/contexts/AccessibilityContext';
 
 // Unica responsabilidad de este hook: para los eventos de calendario que
 // todavia no tienen pictograma resuelto, resolverlos en UNA sola llamada al
@@ -23,6 +24,8 @@ import { useCalendar } from '@/contexts/CalendarContext';
 // el desmonte del componente, no en cada cambio de props.
 export function useCalendarPictograms(events: { id: string; title: string; pictogramResolvedFor?: string }[]) {
   const { updateEvent } = useCalendar();
+  const { settings } = useAccessibility();
+  const preferredStyleOverride = settings.highContrastPictograms ? 'alto-contraste' : undefined;
   const [resolving, setResolving] = useState(false);
   const inFlightRef = useRef<Set<string>>(new Set());
   const mountedRef = useRef(true);
@@ -37,7 +40,7 @@ export function useCalendarPictograms(events: { id: string; title: string; picto
     for (const event of pending) inFlightRef.current.add(event.id);
     setResolving(true);
 
-    pictogramizePhrases(pending.map((event) => ({ id: event.id, text: event.title })))
+    pictogramizePhrases(pending.map((event) => ({ id: event.id, text: event.title })), { preferredStyleOverride })
       .then((results) => {
         if (!mountedRef.current) return;
         for (const result of results) {

@@ -10,7 +10,8 @@ export type UsageEventType =
   | 'rutina_paso_completado'
   | 'emocion_registrada'
   | 'pictograma_elegido'
-  | 'pictograma_corregido';
+  | 'pictograma_corregido'
+  | 'tarjeta_autonomia_usada';
 
 export interface UsageEvent {
   tipoEvento: UsageEventType;

@@ -464,6 +464,26 @@ export default function AccessibilityWidget() {
           onClick: () => toggle('simplifiedNavigation'),
         },
         {
+          id: 'high-contrast-pictograms',
+          label: 'Pictogramas de alto contraste',
+          description: 'Prioriza pictogramas de alto contraste en vez de los aprendidos por uso.',
+          icon: Contrast,
+          active: settings.highContrastPictograms,
+          onClick: () => toggle('highContrastPictograms'),
+        },
+        {
+          id: 'pictogram-size',
+          label: 'Tamaño de pictogramas',
+          description: 'Chico, mediano o grande en toda la app.',
+          icon: ImageIcon,
+          active: settings.pictogramSize !== 'md',
+          value: settings.pictogramSize === 'sm' ? 'Chico' : settings.pictogramSize === 'lg' ? 'Grande' : 'Mediano',
+          onClick: () => {
+            const next = settings.pictogramSize === 'sm' ? 'md' : settings.pictogramSize === 'md' ? 'lg' : 'sm';
+            update('pictogramSize', next);
+          },
+        },
+        {
           id: 'page-reader',
           label: 'Lectura de página',
           description: 'Lee el contenido principal de la pantalla actual.',

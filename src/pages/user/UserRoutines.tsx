@@ -4,6 +4,7 @@ import { useRoutines, DayKey, predefinedCategories, predefinedLabels, iconChoice
 import { CheckCircle2, Circle, Clock, Plus, Pencil, Trash2, Copy, X, Save } from 'lucide-react';
 import { RoutineItem, CustomCategory, rememberPictogramChoice } from '@/data/api';
 import SpeakButton from '@/components/SpeakButton';
+import AutonomyCards from '@/components/AutonomyCards';
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 import SectionSelector from '@/components/SectionSelector';
@@ -168,6 +169,8 @@ export default function UserRoutines({ initialRoutineId, initialItemId }: { init
           <Plus size={16} /> Nueva
         </button>
       </div>
+
+      <AutonomyCards />
 
       {/* Routines selector */}
       <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { pictogramizePhrases } from '@/data/api';
 import { useRoutines, type DayRoutine } from '@/contexts/RoutinesContext';
+import { useAccessibility } from '@/contexts/AccessibilityContext';
 
 // Unica responsabilidad de este hook: para la rutina que se esta mirando,
 // resolver el pictograma de cada paso que todavia no lo tiene, en UNA sola
@@ -17,8 +18,15 @@ import { useRoutines, type DayRoutine } from '@/contexts/RoutinesContext';
 // a pedir.
 export function useRoutinePictograms(routine: DayRoutine | null) {
   const { updateItem } = useRoutines();
+  const { settings } = useAccessibility();
   const [resolving, setResolving] = useState(false);
   const inFlightRef = useRef<Set<string>>(new Set());
+  // Item 48: si la persona pide alto contraste, se lo pasamos al motor para
+  // que priorice ese estilo. Nota: solo aplica a pasos que TODAVIA no se
+  // resolvieron (pictogramResolvedFor vacio) — prender el toggle no
+  // recalcula lo ya resuelto, para no volver a gastar Groq en cada cambio
+  // de setting.
+  const preferredStyleOverride = settings.highContrastPictograms ? 'alto-contraste' : undefined;
 
   useEffect(() => {
     if (!routine) return;
@@ -32,7 +40,7 @@ export function useRoutinePictograms(routine: DayRoutine | null) {
     setResolving(true);
 
     let cancelled = false;
-    pictogramizePhrases(pending.map((item) => ({ id: item.id, text: item.title })))
+    pictogramizePhrases(pending.map((item) => ({ id: item.id, text: item.title })), { preferredStyleOverride })
       .then((results) => {
         if (cancelled) return;
         for (const result of results) {
