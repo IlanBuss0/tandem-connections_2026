@@ -14,6 +14,7 @@ import {
   FileText,
   Heart,
   Image,
+  Eye,
   Info,
   Loader2,
   LogOut,
@@ -55,6 +56,7 @@ import TutorConnections from '@/pages/tutor/TutorConnections';
 import ProfessionalDirectory from '@/components/ProfessionalDirectory';
 import AboutTandem from '@/pages/AboutTandem';
 import UserPictograms from '@/pages/user/UserPictograms';
+import TutorRoutinePictogramReview from '@/components/TutorRoutinePictogramReview';
 import {
   createCalendarEvent,
   deleteCalendarEvent,
@@ -84,6 +86,7 @@ type TabId =
   | 'location'
   | 'emotions'
   | 'calendar'
+  | 'routinePictograms'
   | 'insights'
   | 'notifications'
   | 'profile'
@@ -104,6 +107,7 @@ const tabs: { id: TabId; label: string; icon: typeof BarChart3 }[] = [
   { id: 'location', label: 'Ubicacion', icon: MapPin },
   { id: 'emotions', label: 'Emociones', icon: Heart },
   { id: 'calendar', label: 'Calendario', icon: Calendar },
+  { id: 'routinePictograms', label: 'Mi día (pictogramas)', icon: Eye },
   { id: 'insights', label: 'Tranquilidad', icon: Shield },
   { id: 'notifications', label: 'Notificaciones', icon: Bell },
   { id: 'pictograms', label: 'Pictogramas IA', icon: Sparkles },
@@ -116,7 +120,7 @@ const tabs: { id: TabId; label: string; icon: typeof BarChart3 }[] = [
 ];
 
 const tutorTabs = tabs.filter(item => ['agenda', 'chat', 'notifications', 'pictograms', 'pictogramCatalog', 'directory', 'reportes', 'about'].includes(item.id));
-const belongingTabs = tabs.filter(item => ['overview', 'stats', 'activities', 'location', 'emotions', 'calendar', 'insights', 'profile', 'settings', 'connections'].includes(item.id));
+const belongingTabs = tabs.filter(item => ['overview', 'stats', 'activities', 'location', 'emotions', 'calendar', 'routinePictograms', 'insights', 'profile', 'settings', 'connections'].includes(item.id));
 
 function todayKey() {
   return new Date().toISOString().split('T')[0];
@@ -611,6 +615,7 @@ export default function TutorDashboard({ initialUserId, initialTab, onBack }: Tu
             {tab === 'location' && <Locations locations={locations} />}
             {tab === 'emotions' && <Emotions emotions={emotions} />}
             {tab === 'calendar' && <TutorCalendar userId={mainUser.id} events={events} onChanged={() => load(mainUser.id)} />}
+            {tab === 'routinePictograms' && <TutorRoutinePictogramReview targetUsuarioId={mainUser.id} targetName={mainUser.name} />}
             {tab === 'profile' && <TutorLinkedProfile userId={mainUser.id} fallback={mainUser} onConfigure={() => setTab('settings')} />}
             {tab === 'settings' && <TutorLinkedSettings userId={mainUser.id} onSaved={() => load(mainUser.id)} />}
           </>

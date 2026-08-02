@@ -2653,9 +2653,14 @@ export async function pictogramizePhrases(
 // Recuerda a mano un pictograma elegido para un texto de paso exacto.
 // La proxima vez que /pictogramize vea ese mismo texto lo devuelve directo,
 // sin gastar Groq. Nunca propaga la excepcion: es un extra, no bloquea el guardado.
-export async function rememberPictogramChoice(text: string, pictogramId: string): Promise<void> {
+//
+// `targetUsuarioId` (Sesion 8): un tutor puede corregir el pictograma de un
+// perteneciente que tutela en vez del suyo propio — el backend autoriza y
+// avisa al perteneciente. Sin este parametro, el comportamiento es igual
+// que antes (corrige el vocabulario de quien esta logueado).
+export async function rememberPictogramChoice(text: string, pictogramId: string, targetUsuarioId?: string): Promise<void> {
   try {
-    await apiRequest('/api/pictograms/vocabulary', { method: 'POST', body: { text, pictogramId } });
+    await apiRequest('/api/pictograms/vocabulary', { method: 'POST', body: { text, pictogramId, targetUsuarioId } });
   } catch {
     // silencioso: el paso ya se guardo igual, esto es solo para acelerar la proxima vez
   }
