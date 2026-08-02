@@ -45,6 +45,7 @@ const UserProfileSettings = lazy(
 );
 const UserPictograms = lazy(() => import("@/pages/user/UserPictograms"));
 const UserCommunicator = lazy(() => import("@/pages/user/UserCommunicator"));
+import CantSpeakMode from "@/components/CantSpeakMode";
 const UserNotifications = lazy(() => import("@/pages/user/UserNotifications"));
 const UserResources = lazy(() => import("@/pages/user/UserResources"));
 const UserShop = lazy(() => import("@/pages/user/UserShop"));
@@ -68,7 +69,6 @@ const userNav = [
   { id: "activities", label: "Actividades", icon: CheckSquare },
   { id: "shop", label: "Tienda y avatar", icon: ShoppingBag },
   { id: "pictograms", label: "Pictogramas", icon: Image },
-  { id: "communicator", label: "Comunicador", icon: Mic },
   { id: "chat", label: "Chat", icon: MessageCircle },
   { id: "emotions", label: "Emociones", icon: Heart },
   { id: "achievements", label: "Logros", icon: Trophy },
@@ -78,6 +78,7 @@ const userNav = [
   { id: "profile", label: "Perfil", icon: User },
   { id: "profile-settings", label: "Configuración", icon: Settings },
   { id: "about", label: "Acerca de", icon: Info },
+  { id: "communicator", label: "Comunicador", icon: Mic },
 ];
 
 const validUserTabs = new Set(userNav.map((item) => item.id));
@@ -373,6 +374,7 @@ export default function AppShell() {
           )}
         </nav>
       </div>
+      <CantSpeakMode />
     </div>
   );
 }

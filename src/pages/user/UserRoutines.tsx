@@ -5,6 +5,8 @@ import { CheckCircle2, Circle, Clock, Plus, Pencil, Trash2, Copy, X, Save } from
 import { RoutineItem, CustomCategory, rememberPictogramChoice } from '@/data/api';
 import SpeakButton from '@/components/SpeakButton';
 import AutonomyCards from '@/components/AutonomyCards';
+import NextStepBanner from '@/components/NextStepBanner';
+import StartTaskHint from '@/components/StartTaskHint';
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 import SectionSelector from '@/components/SectionSelector';
@@ -171,6 +173,7 @@ export default function UserRoutines({ initialRoutineId, initialItemId }: { init
       </div>
 
       <AutonomyCards />
+      <NextStepBanner items={active.items} />
 
       {/* Routines selector */}
       <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
@@ -368,6 +371,11 @@ export default function UserRoutines({ initialRoutineId, initialItemId }: { init
                           <button onClick={(e) => { e.stopPropagation(); openEdit(item); }} className="p-1 rounded-lg hover:bg-[#f5f0ff] text-[#8b7aa0]"><Pencil size={10} /></button>
                           <button onClick={(e) => { e.stopPropagation(); deleteItem(active.id, item.id); }} className="p-1 rounded-lg hover:bg-red-50 text-red-400"><Trash2 size={10} /></button>
                         </div>
+                        {!item.completed && (
+                          <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+                            <StartTaskHint stepTitle={item.pictogramLabel || item.title} />
+                          </div>
+                        )}
                       </motion.div>
                     ))}
                   </div>
