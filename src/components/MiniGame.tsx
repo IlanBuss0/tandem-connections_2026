@@ -5,6 +5,7 @@ import { Check, X, RotateCcw, Trophy } from 'lucide-react';
 import type { GameType, GameData } from '@/data/miniGames';
 import { normalizeWheel, selectedWheelSegment, wheelMotion, wheelScore, wheelSegmentAngles } from '@/data/wheelPrecision';
 import { memoryScore, normalizeMemory } from '@/data/memoryGame';
+import { dragAnswerLetters, dragAnswerWords } from '@/data/dragWord';
 
 interface Props {
   gameType: GameType;
@@ -111,7 +112,14 @@ function shuffleArray<T>(arr: T[]): T[] {
 }
 
 function autoLetters(word: string): string[] {
-  return word.toLowerCase().replace(/[^a-záéíóúñü]/g, '').split('');
+  return dragAnswerLetters(word);
+}
+
+function availableLetterTiles(correct: string, configured: string[]): string[] {
+  const tiles = configured
+    .map((value) => dragAnswerLetters(value)[0])
+    .filter(Boolean);
+  return tiles.length ? tiles : autoLetters(correct);
 }
 
 function DragWord({ data, onFinish }: { data: GameData; onFinish: (n: number) => void }) {
@@ -122,7 +130,7 @@ function DragWord({ data, onFinish }: { data: GameData; onFinish: (n: number) =>
   const [letters, setLetters] = useState<string[]>(() => {
     const r = (data.dragRounds || [])[0];
     if (!r) return [];
-    const src = r.letters.length ? r.letters : autoLetters(r.correct);
+    const src = availableLetterTiles(r.correct, r.letters);
     return shuffleArray(src);
   });
   const [usedIndices, setUsedIndices] = useState<Set<number>>(new Set());
@@ -132,6 +140,7 @@ function DragWord({ data, onFinish }: { data: GameData; onFinish: (n: number) =>
   if (!r) return null;
 
   const correctLetters = autoLetters(r.correct);
+  const correctWords = dragAnswerWords(r.correct);
 
   const tryLetter = (letterIdx: number) => {
     if (flash !== null) return;
@@ -153,7 +162,7 @@ function DragWord({ data, onFinish }: { data: GameData; onFinish: (n: number) =>
             setPlaced(0);
             setUsedIndices(new Set());
             const next = rounds[i + 1];
-            const src = next.letters.length ? next.letters : autoLetters(next.correct);
+            const src = availableLetterTiles(next.correct, next.letters);
             setLetters(shuffleArray(src));
           }
         }
@@ -180,25 +189,36 @@ function DragWord({ data, onFinish }: { data: GameData; onFinish: (n: number) =>
         </div>
       </div>
 
-      {/* Slots de letras */}
-      <div className="flex flex-wrap justify-center gap-2">
-        {correctLetters.map((ch, idx) => {
-          const isFilled = idx < placed;
-          const isActive = idx === placed;
+      {/* Los espacios separan grupos; nunca son fichas arrastrables. */}
+      <p className="text-center text-xs text-muted-foreground" aria-live="polite">
+        {correctWords.length > 1 ? `Frase de ${correctWords.length} palabras` : 'Una palabra'}
+      </p>
+      <div className="flex flex-wrap justify-center gap-x-6 gap-y-3" aria-label={`${correctWords.length} ${correctWords.length === 1 ? 'palabra' : 'palabras'}`}>
+        {correctWords.map((word, wordIndex) => {
+          const offset = correctWords.slice(0, wordIndex).reduce((total, item) => total + item.length, 0);
           return (
-            <div
-              key={idx}
-              className={`flex h-14 w-14 items-center justify-center rounded-xl border-2 text-xl font-bold transition-all ${
-                isFilled
-                  ? 'border-green-500 bg-green-50 text-green-700'
-                  : isActive
-                    ? flash === 'incorrect'
-                      ? 'border-red-500 bg-red-50'
-                      : 'border-primary bg-primary/10 text-muted-foreground ring-2 ring-primary/30'
-                    : 'border-dashed border-muted-foreground/40 bg-muted/30 text-muted-foreground/50'
-              }`}
-            >
-              {isFilled ? ch : isActive ? '_' : idx + 1}
+            <div key={`${wordIndex}-${word}`} className="flex gap-2" data-testid="drag-word-group">
+              {word.split('').map((ch, charIndex) => {
+                const idx = offset + charIndex;
+                const isFilled = idx < placed;
+                const isActive = idx === placed;
+                return (
+                  <div
+                    key={idx}
+                    className={`flex h-14 w-14 items-center justify-center rounded-xl border-2 text-xl font-bold transition-all ${
+                      isFilled
+                        ? 'border-green-500 bg-green-50 text-green-700'
+                        : isActive
+                          ? flash === 'incorrect'
+                            ? 'border-red-500 bg-red-50'
+                            : 'border-primary bg-primary/10 text-muted-foreground ring-2 ring-primary/30'
+                          : 'border-dashed border-muted-foreground/40 bg-muted/30 text-muted-foreground/50'
+                    }`}
+                  >
+                    {isFilled ? ch : isActive ? '_' : idx + 1}
+                  </div>
+                );
+              })}
             </div>
           );
         })}

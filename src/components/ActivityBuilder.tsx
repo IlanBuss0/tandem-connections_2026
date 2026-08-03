@@ -48,6 +48,12 @@ import {
 } from "@/data/memoryGame";
 import { useToast } from "@/components/ui/use-toast";
 import { aiPictogramsApi } from "@/services/ai-pictograms";
+import {
+  dragAnswerLetters,
+  dragAnswerWords,
+  normalizeDragAnswer,
+  normalizeDragAnswerInput,
+} from "@/data/dragWord";
 
 const CATEGORIES: ActivityCategory[] = [
   "autonomía personal",
@@ -1338,7 +1344,7 @@ function DragWordSandbox({
   };
 
   const previewLetters = useMemo(() => {
-    const chars = (current.correct || "").split("");
+    const chars = dragAnswerLetters(current.correct);
     return shuffleArray(chars);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current.correct]);
@@ -1416,17 +1422,16 @@ function DragWordSandbox({
           {/* Palabra correcta */}
           <div>
             <label className="text-xs font-semibold text-muted-foreground">
-              Palabra correcta
+              Palabra o frase correcta
             </label>
             <Input
               value={current.correct}
               onChange={(e) => {
-                const next = e.target.value
-                  .toLowerCase()
-                  .replace(/[^a-záéíóúñü]/g, "");
+                const next = normalizeDragAnswerInput(e.target.value);
                 updateRound({ correct: next, letters: [] });
               }}
-              placeholder="ej: manzana"
+              onBlur={() => updateRound({ correct: normalizeDragAnswer(current.correct), letters: [] })}
+              placeholder="ej: manzana roja"
             />
             <p className="mt-1 text-[10px] text-muted-foreground">
               Las fichas se auto-generan de esta palabra. Editalas abajo si
@@ -1454,39 +1459,40 @@ function DragWordSandbox({
               </Button>
             </div>
             {current.correct.trim() ? (
-              <div className="flex flex-wrap gap-2">
-                {current.correct.split("").map((ch, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1"
-                  >
-                    <Input
-                      value={ch}
-                      onChange={(e) => {
-                        const next = current.correct.split("");
-                        next[idx] =
-                          e.target.value
-                            .toLowerCase()
-                            .replace(/[^a-záéíóúñü]/g, "") || "a";
-                        updateRound({ correct: next.join(""), letters: [] });
-                      }}
-                      className="h-7 w-10 min-w-0 px-1 text-center text-sm font-bold"
-                      maxLength={1}
-                    />
-                    <button
-                      onClick={() => {
-                        if (current.correct.length <= 1) return;
-                        const next = current.correct.split("");
-                        next.splice(idx, 1);
-                        updateRound({ correct: next.join(""), letters: [] });
-                      }}
-                      className="text-destructive hover:bg-destructive/10 rounded p-0.5"
-                      disabled={current.correct.length <= 1}
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                ))}
+              <div className="flex flex-wrap items-center gap-2">
+                {current.correct.split("").map((ch, idx) =>
+                  ch === " " ? (
+                    <div key={idx} className="mx-1 flex h-9 w-5 items-center justify-center border-x border-dashed border-primary/30" aria-label="Espacio entre palabras" title="Espacio entre palabras">
+                      <span aria-hidden="true" className="text-[9px] text-muted-foreground">·</span>
+                    </div>
+                  ) : (
+                    <div key={idx} className="flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1">
+                      <Input
+                        value={ch}
+                        onChange={(e) => {
+                          const next = current.correct.split("");
+                          next[idx] = normalizeDragAnswer(e.target.value).slice(0, 1) || "a";
+                          updateRound({ correct: next.join(""), letters: [] });
+                        }}
+                        className="h-7 w-10 min-w-0 px-1 text-center text-sm font-bold"
+                        maxLength={1}
+                      />
+                      <button
+                        onClick={() => {
+                          if (dragAnswerLetters(current.correct).length <= 1) return;
+                          const next = current.correct.split("");
+                          next.splice(idx, 1);
+                          updateRound({ correct: normalizeDragAnswer(next.join("")), letters: [] });
+                        }}
+                        className="text-destructive hover:bg-destructive/10 rounded p-0.5"
+                        disabled={dragAnswerLetters(current.correct).length <= 1}
+                        aria-label="Eliminar letra"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ),
+                )}
                 <Button
                   size="sm"
                   variant="ghost"
@@ -1506,8 +1512,9 @@ function DragWordSandbox({
             <div className="text-[10px] text-muted-foreground">
               {current.correct.trim() && (
                 <span>
-                  {current.correct.length} letra
-                  {current.correct.length !== 1 ? "s" : ""} — los slots se
+                  {dragAnswerLetters(current.correct).length} letra
+                  {dragAnswerLetters(current.correct).length !== 1 ? "s" : ""}
+                  {` · ${dragAnswerWords(current.correct).length} ${dragAnswerWords(current.correct).length === 1 ? "palabra" : "palabras"}`} — los slots se
                   sincronizan automáticamente
                 </span>
               )}
@@ -1526,15 +1533,19 @@ function DragWordSandbox({
                   className={isImageValue(current.image) ? "h-20 w-20" : ""}
                 />
               </div>
-              <div className="mb-3 flex flex-wrap justify-center gap-1">
-                {(current.correct || "?????").split("").map((_, idx) => (
-                  <div
-                    key={idx}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/40 bg-muted/30 text-xs text-muted-foreground"
-                  >
-                    {idx + 1}
-                  </div>
-                ))}
+              <div className="mb-3 flex flex-wrap justify-center gap-x-5 gap-y-2">
+                {(dragAnswerWords(current.correct).length ? dragAnswerWords(current.correct) : ["?????"]).map((word, wordIndex, words) => {
+                  const offset = words.slice(0, wordIndex).reduce((total, item) => total + item.length, 0);
+                  return (
+                    <div key={`${wordIndex}-${word}`} className="flex gap-1" data-testid="drag-word-preview-group">
+                      {word.split("").map((_, charIndex) => (
+                        <div key={charIndex} className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/40 bg-muted/30 text-xs text-muted-foreground">
+                          {offset + charIndex + 1}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
               <div className="flex flex-wrap justify-center gap-1.5">
                 {(previewLetters.length ? previewLetters : ["?", "?", "?"]).map(
