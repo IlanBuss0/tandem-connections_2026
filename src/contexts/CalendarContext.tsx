@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { CalendarEvent, createCalendarEvent, deleteCalendarEvent, fetchCalendarEventsForUser, updateCalendarEvent } from '@/data/api';
+import { fetchPatternsReport, type EventTypePattern } from '@/data/usageApi';
 
 export const eventTypes = ['mañana', 'escuela', 'mediodía', 'tarde', 'noche'];
 export const typeColor: Record<string, string> = {
@@ -18,6 +19,12 @@ interface Ctx {
   updateEvent: (id: string, patch: Partial<Omit<CalendarEvent, 'id' | 'userId'>>) => Promise<void>;
   deleteEvent: (id: string) => Promise<void>;
   eventsOn: (date: string) => CalendarEvent[];
+  // Sesion 25 (perfil de memoria): tipos de evento que historicamente se
+  // asocian con animo dificil para esta persona (mismo dato que "Patrones
+  // detectados" en el panel del tutor, S20) — lo usa UserCalendar.tsx para
+  // sugerir (nunca forzar) preparar una historia social al crear un evento
+  // de un tipo asi.
+  eventTypePatterns: EventTypePattern[];
 }
 
 const CalendarContext = createContext<Ctx | null>(null);
@@ -26,6 +33,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const userId = user?.id;
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [eventTypePatterns, setEventTypePatterns] = useState<EventTypePattern[]>([]);
 
   const fetchEvents = useCallback(async () => {
     if (!userId) return;
@@ -40,6 +48,11 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     fetchEvents();
   }, [fetchEvents]);
+
+  useEffect(() => {
+    if (!userId) return;
+    fetchPatternsReport(userId).then((report) => setEventTypePatterns(report?.eventTypePatterns || []));
+  }, [userId]);
 
   const addEvent: Ctx['addEvent'] = useCallback(async (data) => {
     if (!userId) return;
@@ -65,7 +78,10 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 
   const eventsOn = useCallback((date: string) => events.filter(e => e.date === date), [events]);
 
-  const value = useMemo(() => ({ events, addEvent, updateEvent: updateEventFn, deleteEvent: deleteEventFn, eventsOn }), [events, addEvent, updateEventFn, deleteEventFn, eventsOn]);
+  const value = useMemo(
+    () => ({ events, addEvent, updateEvent: updateEventFn, deleteEvent: deleteEventFn, eventsOn, eventTypePatterns }),
+    [events, addEvent, updateEventFn, deleteEventFn, eventsOn, eventTypePatterns],
+  );
   return <CalendarContext.Provider value={value}>{children}</CalendarContext.Provider>;
 }
 

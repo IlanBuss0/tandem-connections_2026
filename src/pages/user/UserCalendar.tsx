@@ -51,7 +51,7 @@ function labelDate(date: string) {
 
 export default function UserCalendar() {
   const { context: permissionContext } = usePermissionContext();
-  const { events, addEvent, updateEvent, deleteEvent } = useCalendar();
+  const { events, addEvent, updateEvent, deleteEvent, eventTypePatterns } = useCalendar();
   const { customCategories } = useRoutines();
 
   const getSectionEmoji = (catId: string) => {
@@ -80,6 +80,10 @@ export default function UserCalendar() {
 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<CalendarEvent | null>(null);
+  // Sesion 25 (perfil de memoria), item "anticipacion al crear un evento":
+  // sugerencia descartable, NUNCA se abre la historia social sola — mismo
+  // espiritu que el aviso de sobrecarga del dia (S17), avisar no imponer.
+  const [anticipationSuggestion, setAnticipationSuggestion] = useState<string | null>(null);
   const [form, setForm] = useState<Omit<CalendarEvent, 'id' | 'userId' | 'color'>>({
     title: '',
     date: todayKey,
@@ -189,8 +193,16 @@ export default function UserCalendar() {
     const payload = { ...form, title: form.title.trim() };
     if (!payload.title) return;
 
-    if (editing) updateEvent(editing.id, payload);
-    else addEvent(payload);
+    if (editing) {
+      updateEvent(editing.id, payload);
+    } else {
+      addEvent(payload);
+      // Solo al CREAR (no al editar): si este tipo de evento historicamente
+      // se asocia con animo dificil para esta persona, se sugiere preparar
+      // una historia social — nunca se abre sola, la persona decide.
+      const hasPattern = eventTypePatterns.some((p) => p.type === payload.type);
+      setAnticipationSuggestion(hasPattern ? payload.type : null);
+    }
 
     setShowForm(false);
     setSelectedDate(form.date);
@@ -455,6 +467,23 @@ export default function UserCalendar() {
             Agregar
           </button>
         </div>
+
+        {anticipationSuggestion && (
+          <div className="mt-4 flex items-start gap-2 rounded-2xl border border-[#d8c7ef] bg-[#faf8ff] p-3 text-xs text-[#6b4c9a]">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            <p className="flex-1">
+              Este tipo de evento a veces te resulta difícil. Podés tocar <strong>"Historia social"</strong> en el evento para prepararlo con tiempo.
+            </p>
+            <button
+              type="button"
+              onClick={() => setAnticipationSuggestion(null)}
+              aria-label="Descartar aviso"
+              className="shrink-0 rounded-full p-1 hover:bg-white"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
 
         {selectedDayEvents.length === 0 ? (
           <div className="mt-5 flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#e0d8f0] bg-[#faf8ff] px-4 py-10 text-center">
