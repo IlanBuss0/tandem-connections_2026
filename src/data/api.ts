@@ -1632,20 +1632,54 @@ export async function fetchObjectivesForUser(userId: string): Promise<Objective[
   return apiFetchWithFallback<Objective[]>([`/objectives?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/objectives`]);
 }
 
+// Fila cruda que devuelve /api/eventos-calendario (Sesion 24 — migracion
+// de configuraciones_usuarios/JSON a tabla real). Columnas en español,
+// igual que el resto de las tablas del backend.
+interface BackendCalendarEventRow {
+  id: string; id_usuario: number; titulo: string; fecha: string; hora: string; tipo: string;
+  descripcion?: string | null; color?: string | null; reminders?: number[] | null;
+  id_pictograma?: string | null; pictograma_url?: string | null; pictograma_nombre?: string | null;
+  pictograma_confianza?: 'alta' | 'media' | null; pictograma_resuelto_para?: string | null;
+  after_note?: string | null; plan_b?: string | null; sensory_note?: string | null;
+}
+
+function mapBackendCalendarEvent(row: BackendCalendarEventRow, userId: string): CalendarEvent {
+  return {
+    id: row.id,
+    userId,
+    title: row.titulo,
+    date: row.fecha,
+    time: row.hora,
+    type: row.tipo,
+    description: row.descripcion || '',
+    color: row.color || calendarTypeColor(row.tipo),
+    reminders: Array.isArray(row.reminders) ? row.reminders : [],
+    pictogramId: row.id_pictograma || undefined,
+    pictogramImageUrl: row.pictograma_url || undefined,
+    pictogramName: row.pictograma_nombre || undefined,
+    pictogramConfidence: row.pictograma_confianza || undefined,
+    pictogramResolvedFor: row.pictograma_resuelto_para || undefined,
+    afterNote: row.after_note || undefined,
+    planB: row.plan_b || undefined,
+    sensoryNote: row.sensory_note || undefined,
+  };
+}
+
+function toBackendCalendarPayload(data: Partial<CalendarEvent>) {
+  return {
+    titulo: data.title, fecha: data.date, hora: data.time, tipo: data.type,
+    descripcion: data.description, color: data.color,
+    reminders: data.reminders, idPictograma: data.pictogramId, pictogramaUrl: data.pictogramImageUrl,
+    pictogramaNombre: data.pictogramName, pictogramaConfianza: data.pictogramConfidence,
+    pictogramaResueltoPara: data.pictogramResolvedFor, afterNote: data.afterNote,
+    planB: data.planB, sensoryNote: data.sensoryNote,
+  };
+}
+
 export async function fetchCalendarEventsForUser(userId: string): Promise<CalendarEvent[]> {
   if (isBackendUserId(userId)) {
-    const configs = await getUserCalendarConfigs(Number(userId));
-    const events = configs.flatMap(config => {
-      if (!config.valor) return [];
-      try {
-        const parsed = JSON.parse(config.valor);
-        return config.clave === CALENDAR_CONFIG_KEY
-          ? normalizeCalendarEventsPayload(parsed, userId)
-          : normalizeCalendarEventsPayload([parsed], userId);
-      } catch {
-        return [];
-      }
-    });
+    const rows = await apiRequest<BackendCalendarEventRow[]>(`/api/eventos-calendario/usuario/${encodeURIComponent(String(Number(userId)))}`);
+    const events = rows.map(row => mapBackendCalendarEvent(row, userId));
 
     let professionalSessionEvents: CalendarEvent[] = [];
     try {
@@ -1666,13 +1700,11 @@ export async function fetchCalendarEventsForUser(userId: string): Promise<Calend
 
 export async function createCalendarEvent(userId: string, data: Omit<CalendarEvent, 'id' | 'userId'>): Promise<CalendarEvent> {
   if (isBackendUserId(userId)) {
-    const created: CalendarEvent = {
-      ...data,
-      color: data.color || calendarTypeColor(data.type),
-      id: `ce-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      userId,
-    };
-    await saveCalendarEventForUser(userId, created);
+    const row = await apiRequest<BackendCalendarEventRow>('/api/eventos-calendario', {
+      method: 'POST',
+      body: { idUsuario: Number(userId), ...toBackendCalendarPayload({ ...data, color: data.color || calendarTypeColor(data.type) }) },
+    });
+    const created = mapBackendCalendarEvent(row, userId);
     syncCalendarReminders(userId);
     return created;
   }
@@ -1680,28 +1712,31 @@ export async function createCalendarEvent(userId: string, data: Omit<CalendarEve
   return apiFetchWithFallback<CalendarEvent>([`/calendar/events`, `/users/${encodeURIComponent(userId)}/calendar/events`], { method: 'POST', body: JSON.stringify({ ...data, userId }) });
 }
 
+// CalendarContext.tsx llama a updateEvent(id, patch)/deleteEvent(id) sin
+// pasar el userId dueño del evento — se resuelve con un GET puntual antes
+// de escribir, en vez del scan de TODAS las configs de TODOS los usuarios
+// que hacia findCalendarConfigByEventId contra el blob viejo.
+async function fetchBackendCalendarEventById(eventId: string): Promise<BackendCalendarEventRow | null> {
+  try {
+    return await apiRequest<BackendCalendarEventRow>(`/api/eventos-calendario/${encodeURIComponent(eventId)}`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
 export async function updateCalendarEvent(eventId: string, patch: Partial<CalendarEvent>): Promise<CalendarEvent> {
-  const config = await findCalendarConfigByEventId(eventId);
-  if (config) {
-    const userId = String(config.id_usuario);
-    const parsed = JSON.parse(config.valor || (config.clave === CALENDAR_CONFIG_KEY ? '[]' : '{}'));
-    const events = config.clave === CALENDAR_CONFIG_KEY
-      ? normalizeCalendarEventsPayload(parsed, userId)
-      : normalizeCalendarEventsPayload([parsed], userId);
-    const previous = events.find(event => event.id === eventId);
-    if (!previous) throw new Error(`No se encontro el evento ${eventId}.`);
-    const updated = {
-      ...previous,
-      ...patch,
-      color: patch.color || (patch.type ? calendarTypeColor(patch.type) : previous.color),
-      id: previous.id,
-      userId: previous.userId,
-    };
-    if (config.clave === CALENDAR_CONFIG_KEY) {
-      await saveCalendarEventsForUser(userId, events.map(event => event.id === eventId ? updated : event));
-    } else {
-      await saveCalendarEventForUser(userId, updated, config);
-    }
+  const existing = await fetchBackendCalendarEventById(eventId);
+  if (existing) {
+    const userId = String(existing.id_usuario);
+    const row = await apiRequest<BackendCalendarEventRow>(`/api/eventos-calendario/${encodeURIComponent(eventId)}`, {
+      method: 'PUT',
+      body: {
+        idUsuario: existing.id_usuario,
+        ...toBackendCalendarPayload({ ...patch, color: patch.color || (patch.type ? calendarTypeColor(patch.type) : undefined) }),
+      },
+    });
+    const updated = mapBackendCalendarEvent(row, userId);
     syncCalendarReminders(userId);
     return updated;
   }
@@ -1710,15 +1745,10 @@ export async function updateCalendarEvent(eventId: string, patch: Partial<Calend
 }
 
 export async function deleteCalendarEvent(eventId: string): Promise<void> {
-  const config = await findCalendarConfigByEventId(eventId);
-  if (config) {
-    const userId = String(config.id_usuario);
-    if (config.clave === CALENDAR_CONFIG_KEY) {
-      const events = normalizeCalendarEventsPayload(JSON.parse(config.valor || '[]'), userId);
-      await saveCalendarEventsForUser(userId, events.filter(event => event.id !== eventId));
-    } else {
-      await tandemApi.configuracionesUsuarios.delete(config.id);
-    }
+  const existing = await fetchBackendCalendarEventById(eventId);
+  if (existing) {
+    const userId = String(existing.id_usuario);
+    await apiRequest(`/api/eventos-calendario/${encodeURIComponent(eventId)}?idUsuario=${existing.id_usuario}`, { method: 'DELETE' });
     syncCalendarReminders(userId);
     return;
   }
@@ -1779,9 +1809,6 @@ export async function deleteEmotionRecord(recordId: string): Promise<void> {
   await apiFetchWithFallback<unknown>([`/emotions/${encodeURIComponent(recordId)}`], { method: 'DELETE' });
 }
 
-const CALENDAR_CONFIG_KEY = 'calendar.events';
-const CALENDAR_EVENT_KEY_PREFIX = 'calendar.event:';
-
 async function getUserConfig(userId: number, key: string): Promise<ConfiguracionUsuario | undefined> {
   try {
     return await apiRequest<ConfiguracionUsuario>(
@@ -1791,48 +1818,6 @@ async function getUserConfig(userId: number, key: string): Promise<Configuracion
     if (error instanceof ApiError && error.status === 404) return undefined;
     throw error;
   }
-}
-
-async function getUserCalendarConfigs(userId: number): Promise<ConfiguracionUsuario[]> {
-  const rows = await apiRequest<ConfiguracionUsuario[]>(
-    `/api/configuraciones-usuarios/usuario/${encodeURIComponent(String(userId))}`,
-  );
-  return rows.filter(row => row.clave === CALENDAR_CONFIG_KEY || row.clave.startsWith(CALENDAR_EVENT_KEY_PREFIX));
-}
-
-function normalizeCalendarEventsPayload(payload: unknown, userId: string): CalendarEvent[] {
-  if (!Array.isArray(payload)) return [];
-  return payload
-    .map((item, index) => {
-      const event = item as Partial<CalendarEvent>;
-      const type = event.type || 'personal';
-      const date = event.date || '';
-      const time = event.time || '09:00';
-      const title = event.title || '';
-
-      if (!date || !title) return null;
-
-      return {
-        id: String(event.id || `ce-${Date.now()}-${index}`),
-        userId: String(event.userId || userId),
-        title: String(title),
-        date: String(date),
-        time: String(time),
-        type,
-        description: String(event.description || ''),
-        color: String(event.color || calendarTypeColor(type)),
-        reminders: Array.isArray(event.reminders) ? event.reminders.map(Number).filter(Number.isFinite) : [],
-        pictogramId: typeof event.pictogramId === 'string' ? event.pictogramId : undefined,
-        pictogramImageUrl: typeof event.pictogramImageUrl === 'string' ? event.pictogramImageUrl : undefined,
-        pictogramName: typeof event.pictogramName === 'string' ? event.pictogramName : undefined,
-        pictogramConfidence: event.pictogramConfidence === 'alta' || event.pictogramConfidence === 'media' ? event.pictogramConfidence : undefined,
-        pictogramResolvedFor: typeof event.pictogramResolvedFor === 'string' ? event.pictogramResolvedFor : undefined,
-        afterNote: typeof event.afterNote === 'string' ? event.afterNote : undefined,
-        planB: typeof event.planB === 'string' ? event.planB : undefined,
-        sensoryNote: typeof event.sensoryNote === 'string' ? event.sensoryNote : undefined,
-      } as CalendarEvent;
-    })
-    .filter((event): event is CalendarEvent => Boolean(event));
 }
 
 function calendarTypeColor(type: CalendarEvent['type']): string {
@@ -1847,61 +1832,6 @@ function calendarTypeColor(type: CalendarEvent['type']): string {
     actividad: 'hsl(45 90% 55%)',
   };
   return colors[type] || colors.personal;
-}
-
-async function saveCalendarEventsForUser(userId: string, events: CalendarEvent[]): Promise<void> {
-  const numericUserId = Number(userId);
-  const payload = {
-    id_usuario: numericUserId,
-    clave: CALENDAR_CONFIG_KEY,
-    valor: JSON.stringify(events),
-    fecha_modificacion: new Date().toISOString(),
-  };
-  const config = await getUserConfig(numericUserId, CALENDAR_CONFIG_KEY);
-  if (config?.id) {
-    await tandemApi.configuracionesUsuarios.update(config.id, payload);
-    return;
-  }
-
-  try {
-    await tandemApi.configuracionesUsuarios.create(payload);
-  } catch (error) {
-    const latestConfig = await getUserConfig(numericUserId, CALENDAR_CONFIG_KEY);
-    if (!latestConfig?.id) throw error;
-    await tandemApi.configuracionesUsuarios.update(latestConfig.id, payload);
-  }
-}
-
-async function findCalendarConfigByEventId(eventId: string): Promise<ConfiguracionUsuario | undefined> {
-  const rows = await tandemApi.configuracionesUsuarios.getAll();
-  return rows.find(row => {
-    if ((!row.clave.startsWith(CALENDAR_EVENT_KEY_PREFIX) && row.clave !== CALENDAR_CONFIG_KEY) || !row.valor) return false;
-    try {
-      const parsed = JSON.parse(row.valor);
-      const payload = row.clave === CALENDAR_CONFIG_KEY ? parsed : [parsed];
-      return normalizeCalendarEventsPayload(payload, String(row.id_usuario))
-        .some(event => event.id === eventId);
-    } catch {
-      return false;
-    }
-  });
-}
-
-async function saveCalendarEventForUser(userId: string, event: CalendarEvent, existingConfig?: ConfiguracionUsuario): Promise<void> {
-  const numericUserId = Number(userId);
-  const payload = {
-    id_usuario: numericUserId,
-    clave: `${CALENDAR_EVENT_KEY_PREFIX}${event.id}`,
-    valor: JSON.stringify(event),
-    fecha_modificacion: new Date().toISOString(),
-  };
-
-  if (existingConfig?.id) {
-    await tandemApi.configuracionesUsuarios.update(existingConfig.id, payload);
-    return;
-  }
-
-  await tandemApi.configuracionesUsuarios.create(payload);
 }
 
 async function syncCalendarReminders(userId: string): Promise<void> {
@@ -1921,49 +1851,17 @@ async function syncCalendarReminders(userId: string): Promise<void> {
 }
 
 export interface DayRoutine { id: string; name: string; dayOfWeek: number | null; items: RoutineItem[]; date?: string }
-const ROUTINES_CONFIG_KEY = 'routines.mi-dia';
 
-function normalizeRoutinesPayload(payload: unknown): DayRoutine[] {
-  if (!Array.isArray(payload)) return [];
-  return payload.map((routine, index) => {
-    const r = routine as Partial<DayRoutine>;
-    return {
-      id: String(r.id || `dr-${Date.now()}-${index}`),
-      name: String(r.name || 'Mi dÃ­a'),
-      dayOfWeek: typeof r.dayOfWeek === 'number' ? r.dayOfWeek : null,
-      date: typeof r.date === 'string' ? r.date : undefined,
-      items: Array.isArray(r.items)
-        ? r.items.map((item, itemIndex) => {
-            const it = item as Partial<RoutineItem>;
-            return {
-              id: String(it.id || `i-${Date.now()}-${index}-${itemIndex}`),
-              time: String(it.time || '08:00'),
-              title: String(it.title || ''),
-              icon: String(it.icon || 'â­'),
-              completed: Boolean(it.completed),
-              reminders: Array.isArray(it.reminders) ? it.reminders.map(Number).filter(Number.isFinite) : [],
-              category: String(it.category || 'maÃ±ana'),
-              pictogramLabel: typeof it.pictogramLabel === 'string' ? it.pictogramLabel : undefined,
-              pictogramId: typeof it.pictogramId === 'string' ? it.pictogramId : undefined,
-              pictogramImageUrl: typeof it.pictogramImageUrl === 'string' ? it.pictogramImageUrl : undefined,
-              pictogramName: typeof it.pictogramName === 'string' ? it.pictogramName : undefined,
-              pictogramConfidence: it.pictogramConfidence === 'alta' || it.pictogramConfidence === 'media' ? it.pictogramConfidence : undefined,
-              pictogramResolvedFor: typeof it.pictogramResolvedFor === 'string' ? it.pictogramResolvedFor : undefined,
-            };
-          })
-        : [],
-    };
-  });
-}
-
+// /api/rutinas (Sesion 24 -- migracion de configuraciones_usuarios/JSON a
+// tablas reales rutinas + rutina_items) ya devuelve el shape tipado
+// completo, con los mismos defaults que antes aplicaba normalizeRoutinesPayload
+// (ver RoutineService.js del backend) -- no hace falta normalizar de nuevo
+// del lado del cliente.
 export async function fetchRoutinesForUser(userId: string): Promise<DayRoutine[]> {
   if (!isBackendUserId(userId)) return [];
 
   try {
-    const numericUserId = Number(userId);
-    const config = await getUserConfig(numericUserId, ROUTINES_CONFIG_KEY);
-    if (!config?.valor) return [];
-    return normalizeRoutinesPayload(JSON.parse(config.valor));
+    return await apiRequest<DayRoutine[]>(`/api/rutinas/usuario/${encodeURIComponent(String(Number(userId)))}`);
   } catch {
     return [];
   }
@@ -1973,21 +1871,15 @@ export async function saveRoutinesForUser(userId: string, routines: DayRoutine[]
   if (!isBackendUserId(userId)) return routines;
 
   try {
-    const numericUserId = Number(userId);
-    const payload = {
-      id_usuario: numericUserId,
-      clave: ROUTINES_CONFIG_KEY,
-      valor: JSON.stringify(routines),
-      fecha_modificacion: new Date().toISOString(),
-    };
-    const config = await getUserConfig(numericUserId, ROUTINES_CONFIG_KEY);
-    if (config?.id) await tandemApi.configuracionesUsuarios.update(config.id, payload);
-    else await tandemApi.configuracionesUsuarios.create(payload);
+    const saved = await apiRequest<DayRoutine[]>(`/api/rutinas/usuario/${encodeURIComponent(String(Number(userId)))}`, {
+      method: 'PUT',
+      body: { routines },
+    });
     await apiRequest('/api/routine-reminders/sync', {
       method: 'PUT',
       body: { routines, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
     });
-    return routines;
+    return saved;
   } catch (error) {
     throw error instanceof Error ? error : new Error('No se pudieron guardar las rutinas.');
   }
