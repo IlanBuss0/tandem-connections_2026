@@ -91,6 +91,24 @@ export async function fetchPatternsReport(userId: string): Promise<PatternsRepor
   }
 }
 
+export interface EvolutionWeek {
+  week: string;
+  routineCompletions: number;
+  positiveEmotionRatio: number | null;
+  emotionSampleSize: number;
+}
+
+// Item 44 "evolucion en el tiempo": pasos completados y animo semana a
+// semana (ultimas 8 semanas con datos). Sin piso minimo — es descriptivo,
+// no una conclusion causal (esa es /patrones, ver PatternsReportView).
+export async function fetchEvolutionReport(userId: string): Promise<EvolutionWeek[]> {
+  try {
+    return await apiRequest<EvolutionWeek[]>(`/api/eventos-uso/usuario/${encodeURIComponent(userId)}/evolucion`);
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchUsageEvents(userId: string, options?: { tipoEvento?: UsageEventType; limit?: number }): Promise<UsageEventRecord[]> {
   try {
     const params = new URLSearchParams();
