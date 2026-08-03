@@ -7,6 +7,7 @@ import { RoutinesProvider } from '@/contexts/RoutinesContext';
 import { CalendarProvider } from '@/contexts/CalendarContext';
 import MobileMenuProvider from '@/contexts/MobileMenuProvider';
 import AccessibilityWidget from '@/components/AccessibilityWidget';
+import SwitchScanningOverlay from '@/components/SwitchScanningOverlay';
 import Landing from '@/pages/Landing';
 import Login from '@/pages/Login';
 import InviteLinkHandler from '@/pages/InviteLinkHandler';
@@ -153,6 +154,7 @@ function AuthGate() {
     <>
       <div className="accessibility-content-root">{content}</div>
       <AccessibilityWidget />
+      <SwitchScanningOverlay />
     </>
   );
 }

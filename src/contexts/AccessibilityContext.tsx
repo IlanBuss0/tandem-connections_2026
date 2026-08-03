@@ -54,6 +54,12 @@ export interface AccessibilitySettings {
   // necesitan, y agregar una demora minima a CADA toque no deberia ser la
   // experiencia por defecto de nadie.
   accidentalTouchProtection: boolean;
+  // Sesion 22, item 45: barrido de switch access. Recorre automaticamente
+  // los `[role="group"]` de la pantalla (contrato fijado en PictogramGrid,
+  // Sesion 10) y sus items, resaltando de a uno; activar con espacio o el
+  // boton flotante selecciona. Apagado por defecto — activarlo cambia
+  // como se interactua con TODA la app, no es un ajuste menor.
+  switchScanningEnabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: AccessibilitySettings = {
@@ -92,6 +98,7 @@ export const DEFAULT_SETTINGS: AccessibilitySettings = {
   pictogramSize: 'md',
   highContrastPictograms: false,
   accidentalTouchProtection: false,
+  switchScanningEnabled: false,
 };
 
 export interface AccessibilityProfile {

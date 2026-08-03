@@ -22,6 +22,7 @@ import {
   Pause,
   Play,
   Plus,
+  Radio,
   RotateCcw,
   ShieldCheck,
   SlidersHorizontal,
@@ -483,6 +484,14 @@ export default function AccessibilityWidget() {
             const next = settings.pictogramSize === 'sm' ? 'md' : settings.pictogramSize === 'md' ? 'lg' : 'sm';
             update('pictogramSize', next);
           },
+        },
+        {
+          id: 'switch-scanning',
+          label: 'Barrido de switch access',
+          description: 'Recorre las opciones de a una; activar con espacio o el botón flotante selecciona.',
+          icon: Radio,
+          active: settings.switchScanningEnabled,
+          onClick: () => toggle('switchScanningEnabled'),
         },
         {
           id: 'accidental-touch-protection',
