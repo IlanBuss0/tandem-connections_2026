@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useAccessibility } from '@/contexts/AccessibilityContext';
+import { shouldAcceptTouch } from '@/lib/touchGuard';
 import SpeakButton from '@/components/SpeakButton';
 
 // Unica responsabilidad: el atomo visual de UN pictograma (Sesion 10) —
@@ -33,6 +34,22 @@ export default function PictogramTile({ imageUrl, name, fallback, label, onClick
   const [imageFailed, setImageFailed] = useState(false);
   const size = SIZE_CLASSES[settings.pictogramSize] || SIZE_CLASSES.md;
   const isInteractive = Boolean(onClick);
+  const lastAcceptedTouchRef = useRef<number | null>(null);
+
+  // Item 46 "anti-toque accidental": si esta activo, un toque que llega
+  // demasiado rapido despues del anterior EN ESTE MISMO tile se descarta.
+  // Deliberadamente por-tile (no global): no queremos que tocar dos
+  // pictogramas distintos y rapido se sienta trabado.
+  const handleClick = onClick
+    ? () => {
+        if (settings.accidentalTouchProtection) {
+          const now = Date.now();
+          if (!shouldAcceptTouch(lastAcceptedTouchRef.current, now)) return;
+          lastAcceptedTouchRef.current = now;
+        }
+        onClick();
+      }
+    : undefined;
 
   const Wrapper = isInteractive ? 'button' : 'div';
 
@@ -40,7 +57,7 @@ export default function PictogramTile({ imageUrl, name, fallback, label, onClick
     <div className={`flex flex-col items-center gap-1 ${className}`}>
       <Wrapper
         type={isInteractive ? 'button' : undefined}
-        onClick={onClick}
+        onClick={handleClick}
         // Contrato de scan (para el barrido/switch access de la Sesion 22):
         // todo tile interactivo es un boton real, recorrible por teclado
         // sin trucos, con foco visible nativo.

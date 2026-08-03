@@ -23,6 +23,7 @@ import {
   Play,
   Plus,
   RotateCcw,
+  ShieldCheck,
   SlidersHorizontal,
   Sun,
   Target,
@@ -482,6 +483,14 @@ export default function AccessibilityWidget() {
             const next = settings.pictogramSize === 'sm' ? 'md' : settings.pictogramSize === 'md' ? 'lg' : 'sm';
             update('pictogramSize', next);
           },
+        },
+        {
+          id: 'accidental-touch-protection',
+          label: 'Proteger de toques accidentales',
+          description: 'Ignora un segundo toque en el mismo botón si llega demasiado rápido.',
+          icon: ShieldCheck,
+          active: settings.accidentalTouchProtection,
+          onClick: () => toggle('accidentalTouchProtection'),
         },
         {
           id: 'page-reader',

@@ -47,6 +47,13 @@ export interface AccessibilitySettings {
   // preferencia que se pueda ignorar.
   pictogramSize: 'sm' | 'md' | 'lg';
   highContrastPictograms: boolean;
+  // Sesion 21, item 46: cuando esta activo, un segundo toque en el mismo
+  // boton que llega demasiado rapido (temblor, espasticidad, apoyar la mano
+  // sin querer) se ignora en vez de disparar la accion dos veces. Logica
+  // pura en src/lib/touchGuard.ts. Apagado por defecto: no todos lo
+  // necesitan, y agregar una demora minima a CADA toque no deberia ser la
+  // experiencia por defecto de nadie.
+  accidentalTouchProtection: boolean;
 }
 
 export const DEFAULT_SETTINGS: AccessibilitySettings = {
@@ -84,6 +91,7 @@ export const DEFAULT_SETTINGS: AccessibilitySettings = {
   activeProfile: null,
   pictogramSize: 'md',
   highContrastPictograms: false,
+  accidentalTouchProtection: false,
 };
 
 export interface AccessibilityProfile {
