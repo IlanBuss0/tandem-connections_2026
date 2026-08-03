@@ -16,6 +16,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 import PictogramTranslator from '@/components/PictogramTranslator';
+import VoiceSearchButton from '@/components/VoiceSearchButton';
 
 const PAGE_SIZE = 48;
 
@@ -282,8 +283,9 @@ export default function UserPictograms() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Buscar pictograma..."
-          className="w-full rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3 pl-9 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]"
+          className="w-full rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3 pl-9 pr-11 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]"
         />
+        <VoiceSearchButton onResult={setSearch} className="absolute right-1.5 top-1/2 -translate-y-1/2" />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

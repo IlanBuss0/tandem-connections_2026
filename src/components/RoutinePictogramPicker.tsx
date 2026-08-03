@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Search } from 'lucide-react';
 import { fetchPictograms, type Pictogram } from '@/data/api';
+import VoiceSearchButton from '@/components/VoiceSearchButton';
 
 // Buscador de pictogramas para elegir uno a mano en el formulario de paso de
 // rutina. Copiado del patron de usePictogramSearch/PictogramSearchPanel en
@@ -42,8 +43,9 @@ export default function RoutinePictogramPicker({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar pictograma para este paso..."
-          className="w-full rounded-xl border border-[#ede4f8] bg-[#faf8ff] p-2 pl-8 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
+          className="w-full rounded-xl border border-[#ede4f8] bg-[#faf8ff] p-2 pl-8 pr-9 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
         />
+        <VoiceSearchButton onResult={setSearch} className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6" />
       </div>
       {search.trim() && (
         <div className="grid grid-cols-4 gap-1.5 max-h-40 overflow-y-auto rounded-xl border border-[#ede4f8] bg-white p-2" aria-busy={loading}>
