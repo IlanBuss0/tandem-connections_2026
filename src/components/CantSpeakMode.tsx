@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MessageSquareOff, X, Volume2 } from 'lucide-react';
 import { speakText } from '@/lib/speech';
-import { logUsageEvent } from '@/data/usageApi';
+import { logUsageEvent, fetchAutonomyCardUsage, type AutonomyCardUsage } from '@/data/usageApi';
+import { sortByAutonomyUsage } from '@/lib/autonomyCardOrder';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Unica responsabilidad: el modo "no puedo hablar" (Sesion 13, item 26 ⭐⭐
 // — el diferenciador emocional mas fuerte del roadmap). Es un modo de
@@ -25,7 +27,20 @@ const CRISIS_PHRASES = [
 ] as const;
 
 export default function CantSpeakMode() {
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
+  const [usage, setUsage] = useState<AutonomyCardUsage[]>([]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    fetchAutonomyCardUsage(user.id).then((result) => { if (!cancelled) setUsage(result); });
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  // Sesion 25 (perfil de memoria): en el momento de mas necesidad, las
+  // frases que mas le sirvieron antes van primero.
+  const orderedPhrases = sortByAutonomyUsage(CRISIS_PHRASES, usage, 'modo_no_puedo_hablar');
 
   const say = (phrase: typeof CRISIS_PHRASES[number]) => {
     speakText(phrase.label);
@@ -53,7 +68,7 @@ export default function CantSpeakMode() {
             </button>
           </div>
           <div className="grid flex-1 grid-cols-2 gap-3 overflow-y-auto p-4 sm:grid-cols-3">
-            {CRISIS_PHRASES.map((phrase) => (
+            {orderedPhrases.map((phrase) => (
               <button
                 key={phrase.id}
                 type="button"

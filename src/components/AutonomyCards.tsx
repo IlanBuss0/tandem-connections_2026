@@ -1,5 +1,8 @@
-import { logUsageEvent } from '@/data/usageApi';
+import { useEffect, useState } from 'react';
+import { logUsageEvent, fetchAutonomyCardUsage, type AutonomyCardUsage } from '@/data/usageApi';
+import { sortByAutonomyUsage } from '@/lib/autonomyCardOrder';
 import { speakText } from '@/lib/speech';
+import { useAuth } from '@/contexts/AuthContext';
 import PictogramTile from '@/components/PictogramTile';
 import PictogramGrid from '@/components/PictogramGrid';
 
@@ -20,6 +23,20 @@ const CARDS = [
 ] as const;
 
 export default function AutonomyCards() {
+  const { user } = useAuth();
+  const [usage, setUsage] = useState<AutonomyCardUsage[]>([]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    fetchAutonomyCardUsage(user.id).then((result) => { if (!cancelled) setUsage(result); });
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  // Sesion 25 (perfil de memoria): las que mas le sirvieron a ESTA persona
+  // van primero — invisible, sin ninguna marca, solo el orden cambia.
+  const orderedCards = sortByAutonomyUsage(CARDS, usage, 'tarjeta_autonomia');
+
   const handleTap = (card: typeof CARDS[number]) => {
     speakText(card.label);
     void logUsageEvent({ tipoEvento: 'tarjeta_autonomia_usada', entidadTipo: 'tarjeta_autonomia', entidadId: card.id, valor: { label: card.label } });
@@ -27,7 +44,7 @@ export default function AutonomyCards() {
 
   return (
     <PictogramGrid label="Tarjetas de autonomía" className="!grid-cols-3 sm:!grid-cols-3 md:!grid-cols-3">
-      {CARDS.map((card) => (
+      {orderedCards.map((card) => (
         <PictogramTile key={card.id} fallback={card.emoji} label={card.label} onClick={() => handleTap(card)} />
       ))}
     </PictogramGrid>

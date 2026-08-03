@@ -109,6 +109,27 @@ export async function fetchEvolutionReport(userId: string): Promise<EvolutionWee
   }
 }
 
+export interface AutonomyCardUsage {
+  entidadTipo: string;
+  entidadId: string;
+  label: string;
+  count: number;
+}
+
+// Sesion 25 (perfil de memoria): cuales tarjetas de autonomia / frases de
+// "no puedo hablar" usa mas esta persona de verdad, para reordenar las
+// tarjetas estaticas de AutonomyCards.tsx y CantSpeakMode.tsx. Solo trae
+// el campo que estas pantallas necesitan del perfil completo — no vale
+// la pena tipar todo /memoria aca para usar un pedacito.
+export async function fetchAutonomyCardUsage(userId: string): Promise<AutonomyCardUsage[]> {
+  try {
+    const profile = await apiRequest<{ autonomyCardUsage: AutonomyCardUsage[] }>(`/api/eventos-uso/usuario/${encodeURIComponent(userId)}/memoria`);
+    return profile.autonomyCardUsage || [];
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchUsageEvents(userId: string, options?: { tipoEvento?: UsageEventType; limit?: number }): Promise<UsageEventRecord[]> {
   try {
     const params = new URLSearchParams();
