@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Search } from 'lucide-react';
 import { fetchPictograms, type Pictogram } from '@/data/api';
 import VoiceSearchButton from '@/components/VoiceSearchButton';
+import PhotoToPictogramButton from '@/components/PhotoToPictogramButton';
 
 // Buscador de pictogramas para elegir uno a mano en el formulario de paso de
 // rutina. Copiado del patron de usePictogramSearch/PictogramSearchPanel en
@@ -12,8 +13,12 @@ const RESULTS_LIMIT = 24;
 
 export default function RoutinePictogramPicker({
   onSelect,
+  targetUsuarioId,
 }: {
   onSelect: (picto: Pictogram) => void;
+  // Sesion 23, item 16: si se pasa, habilita "Generar desde foto" para
+  // quien tiene permiso de IA sobre ese usuario (ver PhotoToPictogramButton).
+  targetUsuarioId?: string;
 }) {
   const [search, setSearch] = useState('');
   const [pictograms, setPictograms] = useState<Pictogram[]>([]);
@@ -68,6 +73,13 @@ export default function RoutinePictogramPicker({
             <p className="col-span-4 py-2 text-center text-xs text-[#8b7aa0]">Sin resultados.</p>
           )}
         </div>
+      )}
+      {targetUsuarioId && (
+        <PhotoToPictogramButton
+          targetUsuarioId={targetUsuarioId}
+          label={search.trim() || 'Pictograma'}
+          onSelect={onSelect}
+        />
       )}
     </div>
   );

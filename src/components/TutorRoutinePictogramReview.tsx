@@ -106,7 +106,10 @@ export default function TutorRoutinePictogramReview({ targetUsuarioId, targetNam
                 </button>
                 {correctingItemId === item.id && (
                   <div className="absolute left-0 right-0 top-full z-10 mt-1 rounded-2xl border border-[#ede4f8] bg-white p-2 shadow-lg">
-                    <RoutinePictogramPicker onSelect={(picto) => applyCorrection(routine.id, item, picto)} />
+                    <RoutinePictogramPicker
+                      targetUsuarioId={targetUsuarioId}
+                      onSelect={(picto) => applyCorrection(routine.id, item, picto)}
+                    />
                   </div>
                 )}
               </div>
