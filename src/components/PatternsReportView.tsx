@@ -1,18 +1,23 @@
 import { useEffect, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { fetchPatternsReport, type PatternsReport } from '@/data/usageApi';
+import { predefinedLabels } from '@/contexts/RoutinesContext';
 
-const EVENT_TYPE_LABEL: Record<string, string> = {
-  medico: 'eventos médicos',
-  terapia: 'terapia',
-  escuela: 'la escuela',
-  personal: 'eventos personales',
-  social: 'eventos sociales',
-  familiar: 'eventos familiares',
-};
-
+// El "tipo" de un evento de calendario es en realidad la seccion elegida
+// con SectionSelector (mañana/escuela/mediodía/tarde/noche, mas
+// categorias custom por usuario) — NO un dominio fijo tipo "medico" o
+// "social". Un mapa hardcodeado de esos dominios queda desactualizado
+// apenas alguien usa una seccion real o crea una propia; reusar
+// predefinedLabels evita mantener dos listas de "que categorias existen".
 function labelForType(type: string): string {
-  return EVENT_TYPE_LABEL[type] || `eventos de "${type}"`;
+  const predefined = predefinedLabels[type];
+  if (predefined) {
+    // predefinedLabels guarda "emoji Nombre" (ej "🌅 Mañana"); nos quedamos
+    // solo con el nombre, sin depender de regex de propiedades unicode.
+    const name = predefined.split(' ').slice(1).join(' ') || predefined;
+    return `eventos de ${name.toLowerCase()}`;
+  }
+  return `eventos de "${type}"`;
 }
 
 // Unica responsabilidad: mostrar deteccion de patrones (Sesion 20, item 41
