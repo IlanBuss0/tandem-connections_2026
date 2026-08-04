@@ -2,7 +2,8 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useRoutines, DayKey, predefinedCategories, predefinedLabels, iconChoices } from '@/contexts/RoutinesContext';
 import { CheckCircle2, Circle, Clock, Plus, Pencil, Trash2, Copy, X, Save } from 'lucide-react';
-import { RoutineItem, CustomCategory, rememberPictogramChoice } from '@/data/api';
+import { RoutineItem, CustomCategory, rememberPictogramChoice, fetchPictograms } from '@/data/api';
+import { useAuth } from '@/contexts/AuthContext';
 import SpeakButton from '@/components/SpeakButton';
 import AutonomyCards from '@/components/AutonomyCards';
 import NextStepBanner from '@/components/NextStepBanner';
@@ -33,6 +34,7 @@ function autoPictogramLabel(title: string): string {
 }
 
 export default function UserRoutines({ initialRoutineId, initialItemId }: { initialRoutineId?: string; initialItemId?: string } = {}) {
+  const { user } = useAuth();
   const { context: permissionContext } = usePermissionContext();
   const {
     routines, addRoutine, renameRoutine, deleteRoutine, duplicateRoutine,
@@ -61,6 +63,27 @@ export default function UserRoutines({ initialRoutineId, initialItemId }: { init
   // conserva el que ya tenia). Se limpia al abrir el formulario: editar no
   // obliga a re-elegir, solo se usa si el usuario activamente busca uno.
   const [manualPictogram, setManualPictogram] = useState<Pictogram | null>(null);
+
+  // Sugerencias en vivo mientras se escribe el titulo del paso: busqueda SQL
+  // pura (mismo endpoint que RoutinePictogramPicker, ya boostea por lo que
+  // esa persona mas usa), nunca pasa por el motor de Groq. Se limpian si ya
+  // se eligio un pictograma a mano para este mismo titulo.
+  const [liveSuggestions, setLiveSuggestions] = useState<Pictogram[]>([]);
+  const suggestionRequestRef = useRef(0);
+  useEffect(() => {
+    const title = form.title.trim();
+    if (title.length < 3 || manualPictogram) {
+      setLiveSuggestions([]);
+      return;
+    }
+    const requestId = ++suggestionRequestRef.current;
+    const timer = window.setTimeout(() => {
+      fetchPictograms({ search: title, language: 'es', limit: 5, boostForUsuarioId: user?.id })
+        .then(items => { if (suggestionRequestRef.current === requestId) setLiveSuggestions(items); })
+        .catch(() => { if (suggestionRequestRef.current === requestId) setLiveSuggestions([]); });
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [form.title, manualPictogram, user?.id]);
 
   useEffect(() => {
     if (initialRoutineId && routines.some(routine => routine.id === initialRoutineId)) setActiveId(initialRoutineId);
@@ -113,12 +136,14 @@ export default function UserRoutines({ initialRoutineId, initialItemId }: { init
     setEditingItem(null);
     setForm({ time: '08:00', title: '', icon: '⭐', category: 'mañana', pictogramLabel: '', reminders: [] });
     setManualPictogram(null);
+    setLiveSuggestions([]);
     setShowAddItem(true);
   };
   const openEdit = (it: RoutineItem) => {
     setEditingItem(it);
     setForm({ time: it.time, title: it.title, icon: it.icon, category: it.category, pictogramLabel: it.pictogramLabel || '', reminders: it.reminders || [] });
     setManualPictogram(null);
+    setLiveSuggestions([]);
     setShowAddItem(true);
   };
   const submitItem = () => {
@@ -258,6 +283,26 @@ export default function UserRoutines({ initialRoutineId, initialItemId }: { init
             />
           </div>
           <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="¿Qué tenés que hacer?" className="w-full p-2.5 rounded-xl border border-[#ede4f8] bg-[#faf8ff] text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20" />
+          {liveSuggestions.length > 0 && (
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+              {liveSuggestions.map(picto => (
+                <button
+                  key={picto.id}
+                  type="button"
+                  onClick={() => { setManualPictogram(picto); setLiveSuggestions([]); }}
+                  title={picto.name}
+                  className="shrink-0 flex flex-col items-center gap-0.5 rounded-xl border border-[#ede4f8] bg-white p-1.5 hover:border-[#6b4c9a] hover:bg-[#faf8ff]"
+                >
+                  {picto.imageUrl ? (
+                    <img src={picto.imageUrl} alt={picto.name} className="h-8 w-8 object-contain" loading="lazy" />
+                  ) : (
+                    <span className="text-lg">{picto.emoji}</span>
+                  )}
+                  <span className="text-[9px] text-[#8b7aa0] max-w-[3.5rem] truncate">{picto.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <input value={form.pictogramLabel} onChange={e => setForm(f => ({ ...f, pictogramLabel: e.target.value }))} placeholder="Etiqueta para pictograma (opcional)" className="w-full p-2.5 rounded-xl border border-[#ede4f8] bg-[#faf8ff] text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20" />
           <div>
             <p className="text-xs text-[#8b7aa0] mb-1 flex items-center gap-2">
@@ -270,7 +315,7 @@ export default function UserRoutines({ initialRoutineId, initialItemId }: { init
                 </span>
               )}
             </p>
-            <RoutinePictogramPicker onSelect={setManualPictogram} />
+            <RoutinePictogramPicker onSelect={setManualPictogram} targetUsuarioId={user?.id} />
             <p className="text-[10px] text-[#b8b0c8] mt-1">Si no elegís uno, la app va a buscar el pictograma sola.</p>
           </div>
           <div>
