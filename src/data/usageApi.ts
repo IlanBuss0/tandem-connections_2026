@@ -13,7 +13,8 @@ export type UsageEventType =
   | 'pictograma_corregido'
   | 'tarjeta_autonomia_usada'
   | 'enunciado_hablado'
-  | 'pedido_dia';
+  | 'pedido_dia'
+  | 'rutina_secuencia_completada';
 
 export interface UsageEvent {
   tipoEvento: UsageEventType;

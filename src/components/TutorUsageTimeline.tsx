@@ -16,6 +16,7 @@ const TYPE_LABEL: Record<UsageEventType, string> = {
   tarjeta_autonomia_usada: 'Usó una tarjeta de autonomía',
   enunciado_hablado: 'Dijo una frase con el comunicador',
   pedido_dia: 'Pidió algo para su día',
+  rutina_secuencia_completada: 'Completó una actividad de secuencias y rutinas',
 };
 
 const TYPE_ICON: Record<UsageEventType, typeof Activity> = {
@@ -26,6 +27,7 @@ const TYPE_ICON: Record<UsageEventType, typeof Activity> = {
   tarjeta_autonomia_usada: HelpingHand,
   enunciado_hablado: Mic,
   pedido_dia: MessageSquarePlus,
+  rutina_secuencia_completada: CheckCircle2,
 };
 
 function describe(event: UsageEventRecord): string {

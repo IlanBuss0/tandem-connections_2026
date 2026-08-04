@@ -48,6 +48,8 @@ import {
 } from "@/data/memoryGame";
 import { useToast } from "@/components/ui/use-toast";
 import { aiPictogramsApi } from "@/services/ai-pictograms";
+import RoutineSequenceEditor from "@/components/RoutineSequenceEditor";
+import { emptyRoutineSequence, validateRoutineSequence } from "@/data/routineSequence";
 import {
   dragAnswerLetters,
   dragAnswerWords,
@@ -1799,6 +1801,20 @@ export default function ActivityBuilder({
   const canNext = !errors[step];
 
   const persist = async (publishNow: boolean) => {
+    if (publishNow && form.gameType === "routine-sequence") {
+      const routineError = validateRoutineSequence(form.gameData?.routineSequence);
+      if (routineError) {
+        toast({ title: "La actividad de rutina está incompleta", description: routineError, variant: "destructive" });
+        setStep(2);
+        return;
+      }
+      const sourceUserId = form.gameData?.routineSequence?.sourceRoutine?.sourceUserId;
+      if (sourceUserId && (form.assignedToIds.length !== 1 || form.assignedToIds[0] !== sourceUserId)) {
+        toast({ title: "Esta instantánea es privada", description: "Sólo puede asignarse al perteneciente cuya rutina fue copiada.", variant: "destructive" });
+        setStep(3);
+        return;
+      }
+    }
     if (publishNow && form.gameType === "wheel") {
       const wheelError = wheelValidationError(form.gameData?.wheel);
       if (wheelError) {
@@ -2324,11 +2340,22 @@ export default function ActivityBuilder({
                     }}
                   />
                 )}
+                {form.gameType === "routine-sequence" && (
+                  <RoutineSequenceEditor
+                    value={form.gameData?.routineSequence || emptyRoutineSequence()}
+                    assignableUsers={assignableUsers}
+                    onSourceUserChange={(sourceUserId) => {
+                      if (sourceUserId) setForm((prev) => ({ ...prev, assignedToIds: [sourceUserId] }));
+                    }}
+                    onChange={(routineSequence) => setForm((prev) => ({ ...prev, gameData: { ...(prev.gameData || {}), routineSequence } }))}
+                  />
+                )}
                 {form.gameType &&
                   form.gameType !== "multiple-choice" &&
                   form.gameType !== "drag-word" &&
                   form.gameType !== "wheel" &&
-                  form.gameType !== "memory" && (
+                  form.gameType !== "memory" &&
+                  form.gameType !== "routine-sequence" && (
                     <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <div>
@@ -2464,11 +2491,15 @@ export default function ActivityBuilder({
                       .filter((u) => linkedUserIds.includes(u.id))
                       .map((u) => {
                         const checked = form.assignedToIds.includes(u.id);
+                        const sourceUserId = form.gameData?.routineSequence?.sourceRoutine?.sourceUserId;
+                        const sourceLocked = Boolean(sourceUserId && sourceUserId !== u.id);
                         return (
                           <button
                             key={u.id}
+                            type="button"
+                            disabled={sourceLocked}
                             onClick={() => toggleAssign(u.id)}
-                            className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${checked ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"}`}
+                            className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left disabled:cursor-not-allowed disabled:opacity-40 ${checked ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"}`}
                           >
                             <span className="text-2xl">{u.avatar}</span>
                             <div className="flex-1 min-w-0">

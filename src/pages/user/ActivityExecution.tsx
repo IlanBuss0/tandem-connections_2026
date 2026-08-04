@@ -4,6 +4,9 @@ import { Activity } from '@/data/api';
 import { ArrowLeft, CheckCircle2, Pause, Play, HelpCircle, Volume2, PartyPopper, Coins } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import MiniGame from '@/components/MiniGame';
+import type { MiniGameResult } from '@/data/miniGames';
+import type { RoutineSequenceResult } from '@/data/routineSequence';
+import { logUsageEvent } from '@/data/usageApi';
 
 interface Props {
   activity: Activity;
@@ -30,6 +33,7 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
   const [finished, setFinished] = useState(false);
   const [completionReported, setCompletionReported] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [gameResult, setGameResult] = useState<MiniGameResult | null>(null);
 
   const progress = (completedSteps.filter(Boolean).length / activity.steps.length) * 100;
   const pointsPerStep = Math.floor(activity.points / activity.steps.length);
@@ -57,9 +61,28 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
   useEffect(() => {
     if (finished && !completionReported) {
       onComplete(activity.id);
+      if (gameResult?.gameType === 'routine-sequence') {
+        const result = gameResult as RoutineSequenceResult;
+        const assignedActivity = activity as Activity & { assignedActivityId?: string | number };
+        void logUsageEvent({
+          tipoEvento: 'rutina_secuencia_completada',
+          entidadTipo: 'actividad_asignada',
+          entidadId: String(assignedActivity.assignedActivityId || activity.id),
+          origen: 'routine-sequence',
+          valor: {
+            executionId: result.executionId,
+            mode: result.mode,
+            score: result.score,
+            attempts: result.attempts,
+            hintsUsed: result.hintsUsed,
+            durationMs: result.durationMs,
+            conflictStepIds: result.conflictStepIds,
+          },
+        });
+      }
       setCompletionReported(true);
     }
-  }, [finished, completionReported, activity.id, onComplete]);
+  }, [finished, completionReported, activity, gameResult, onComplete]);
 
   if (finished) {
     const reward = Math.max(10, Math.round(activity.points / 2));
@@ -72,6 +95,11 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
           <h2 className="text-2xl font-heading font-bold text-[#6b4c9a]">¡Actividad completada!</h2>
           <p className="text-[#8b7aa0] mt-2 max-w-sm">{activity.completionMessage || '¡Excelente trabajo! Seguí así.'}</p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
+            {gameResult?.gameType === 'routine-sequence' && (
+              <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-100 text-purple-700 font-bold">
+                Resultado: {gameResult.score}/100 · ¡Seguí practicando a tu ritmo!
+              </span>
+            )}
             <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-100 text-amber-700 font-bold">
               <PartyPopper size={18} /> +{activity.points} puntos
             </span>
@@ -103,7 +131,10 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
           <MiniGame
             gameType={activity.gameType}
             gameData={activity.gameData}
-            onFinish={() => setFinished(true)}
+            onFinish={(score, details) => {
+              setGameResult(details || { gameType: activity.gameType!, score });
+              setFinished(true);
+            }}
           />
         </div>
       </div>

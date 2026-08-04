@@ -13,7 +13,11 @@ export type GameType =
   | 'matching-pairs'    // unir A↔B (palabra ↔ pictograma)
   | 'category-sort'     // arrastrar a la categoría correcta
   | 'sound-match'       // ¿qué emoji hace este sonido? (texto onomatopéyico)
-  | 'tap-correct';      // tocar todas las opciones correctas (selección múltiple)
+  | 'tap-correct'       // tocar todas las opciones correctas (selección múltiple)
+  | 'routine-sequence'; // familia compartida de secuencias y rutinas
+
+import type { RoutineSequenceData, RoutineSequenceResult } from './routineSequence';
+export type MiniGameResult = RoutineSequenceResult | { gameType: GameType; score: number };
 
 // Una "ronda" o ítem dentro del juego
 export interface MCItem { prompt: string; image: string; options: string[]; correct: number; }
@@ -53,6 +57,7 @@ export interface GameData {
   category?: CategorySortItem;
   sound?: SoundMatchItem[];
   tap?: TapCorrectItem[];
+  routineSequence?: RoutineSequenceData;
 }
 
 // ===== Plantillas de mini-juegos =====
@@ -407,4 +412,20 @@ export const GAME_TEMPLATES: GameTemplate[] = [
       ],
     },
   },
+  ...buildRoutineSequenceTemplates(),
 ];
+
+function buildRoutineSequenceTemplates(): GameTemplate[] {
+  const make = (id: string, name: string, emoji: string, mode: RoutineSequenceData['mode'], texts: string[], extras: Partial<RoutineSequenceData> = {}): GameTemplate => {
+    const cards = texts.map((text, index) => ({ id: `${id}-step-${index + 1}`, text, emoji: ['⏰','🚿','👕','🥣','🎒','✅','🌧️','🤝'][index] || '📌', accessibleLabel: text }));
+    const stepIds = cards.slice(0, Math.min(8, Math.max(3, cards.length))).map(card => card.id);
+    const data: RoutineSequenceData = { schemaVersion: 1, mode, prompt: name, supportLevel: mode === 'order' ? 'initial' : 'intermediate', cards, stepIds, acceptedOrders: [stepIds], hintsEnabled: true, ...extras };
+    return { id, name, emoji, category: mode === 'plan-b' ? 'anticipación de cambios' : 'autonomía personal', type: 'juego', difficulty: mode === 'order' ? 'fácil' : 'medio', duration: '5 min', objective: name, description: 'Actividad visual de secuencias y rutinas.', steps: ['Resolver la secuencia'], stepIcons: [emoji], points: 60, completionMessage: '¡Muy bien! Practicaste esta rutina.', tags: ['rutina', mode], gameType: 'routine-sequence', gameData: { routineSequence: data } };
+  };
+  const morning = make('gtpl-routine-morning', 'Armá tu rutina de la mañana', '🌅', 'order', ['Despertarse','Lavarse la cara','Vestirse','Desayunar']);
+  const dental = make('gtpl-routine-dental', '¿Qué viene después al lavarse los dientes?', '🪥', 'next', ['Buscar el cepillo','Poner pasta dental','Cepillarse','Enjuagarse'], { rounds: [{ id: 'dental-round-1', sequenceIds: ['gtpl-routine-dental-step-1'], optionIds: ['gtpl-routine-dental-step-2','gtpl-routine-dental-step-4'], acceptedIds: ['gtpl-routine-dental-step-2'] }] });
+  const backpack = make('gtpl-routine-backpack', 'Encontrá el paso que falta', '🎒', 'missing', ['Mirar el horario','Buscar los útiles','Guardarlos en la mochila','Cerrar la mochila'], { rounds: [{ id: 'backpack-round-1', sequenceIds: ['gtpl-routine-backpack-step-1','gtpl-routine-backpack-step-3','gtpl-routine-backpack-step-4'], optionIds: ['gtpl-routine-backpack-step-2','gtpl-routine-backpack-step-4'], acceptedIds: ['gtpl-routine-backpack-step-2'] }] });
+  const detective = make('gtpl-routine-detective', 'Detective de rutinas', '🕵️', 'detective', ['Abrir la canilla','Mojarse las manos','Tocar el enchufe con las manos mojadas','Secarse las manos','Pedir ayuda a una persona de confianza'], { rounds: [{ id: 'detective-round-1', sequenceIds: ['gtpl-routine-detective-step-1','gtpl-routine-detective-step-2','gtpl-routine-detective-step-3','gtpl-routine-detective-step-4'], conflictId: 'gtpl-routine-detective-step-3', optionIds: ['gtpl-routine-detective-step-4','gtpl-routine-detective-step-5'], acceptedIds: ['gtpl-routine-detective-step-5'], explanation: 'Con las manos mojadas es más seguro alejarse del enchufe y pedir ayuda.' }] });
+  const planB = make('gtpl-routine-plan-b', 'Plan B para un día de lluvia', '🌧️', 'plan-b', ['Preparar la salida','Revisar el clima','Llevar paraguas','Esperar bajo techo','Pedir ayuda'], { rounds: [{ id: 'rain-round-1', prompt: 'Hoy llueve antes de salir. ¿Qué puede ayudar?', optionIds: ['gtpl-routine-plan-b-step-3','gtpl-routine-plan-b-step-4','gtpl-routine-plan-b-step-5'], acceptedIds: ['gtpl-routine-plan-b-step-3','gtpl-routine-plan-b-step-4','gtpl-routine-plan-b-step-5'], explanation: 'Hay varias alternativas posibles: protegerse de la lluvia, esperar o pedir ayuda.' }] });
+  return [morning, dental, backpack, detective, planB];
+}

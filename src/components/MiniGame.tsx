@@ -2,7 +2,9 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Check, X, RotateCcw, Trophy } from 'lucide-react';
-import type { GameType, GameData } from '@/data/miniGames';
+import type { GameType, GameData, MiniGameResult } from '@/data/miniGames';
+import RoutineSequenceGame from '@/components/RoutineSequenceGame';
+import { normalizeLegacySequence } from '@/data/routineSequence';
 import { normalizeWheel, selectedWheelSegment, wheelMotion, wheelScore, wheelSegmentAngles } from '@/data/wheelPrecision';
 import { memoryScore, normalizeMemory } from '@/data/memoryGame';
 import { dragAnswerLetters, dragAnswerWords } from '@/data/dragWord';
@@ -10,7 +12,7 @@ import { dragAnswerLetters, dragAnswerWords } from '@/data/dragWord';
 interface Props {
   gameType: GameType;
   gameData: GameData;
-  onFinish: (scorePct: number) => void;
+  onFinish: (scorePct: number, details?: MiniGameResult) => void;
 }
 
 // Helper UI
@@ -1026,7 +1028,11 @@ export default function MiniGame({ gameType, gameData, onFinish }: Props) {
     case 'drag-word': return <DragWord key={'dw-' + (gameData.dragRounds || []).map(r => r.correct).join(',')} data={gameData} onFinish={onFinish} />;
     case 'wheel': return <Wheel data={gameData} onFinish={onFinish} />;
     case 'memory': return <Memory data={gameData} onFinish={onFinish} />;
-    case 'sequence-order': return <SequenceOrder data={gameData} onFinish={onFinish} />;
+    case 'sequence-order': {
+      const legacy = normalizeLegacySequence(gameData.sequence);
+      return legacy ? <RoutineSequenceGame data={legacy} onFinish={onFinish} /> : <p className="text-sm text-destructive">Secuencia incompleta</p>;
+    }
+    case 'routine-sequence': return <RoutineSequenceGame data={gameData.routineSequence!} onFinish={onFinish} />;
     case 'true-false': return <TrueFalse data={gameData} onFinish={onFinish} />;
     case 'count-objects': return <CountObjects data={gameData} onFinish={onFinish} />;
     case 'fill-blank': return <FillBlank data={gameData} onFinish={onFinish} />;
