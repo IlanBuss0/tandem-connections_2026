@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import PersonalEventCalendar, { type ReadOnlyDayItem } from '@/components/PersonalEventCalendar';
 import { useCalendar } from '@/contexts/CalendarContext';
 import {
+  fetchPictograms,
   fetchProfessionalSessions,
+  type Pictogram,
   type ProfessionalSession,
 } from '@/data/api';
 import type { AgendaPatient } from '@/components/ProfessionalAgenda';
@@ -24,6 +26,7 @@ export default function ProfessionalCalendar({ patients, onOpenAgenda }: { patie
   const { toast } = useToast();
   const { events, addEvent, updateEvent, deleteEvent } = useCalendar();
   const [sessions, setSessions] = useState<ProfessionalSession[]>([]);
+  const [sessionPictogram, setSessionPictogram] = useState<Pictogram | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,6 +38,12 @@ export default function ProfessionalCalendar({ patients, onOpenAgenda }: { patie
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [toast]);
+
+  useEffect(() => {
+    fetchPictograms({ search: 'terapia profesional', language: 'es', limit: 1 })
+      .then((items) => setSessionPictogram(items[0] || null))
+      .catch(() => setSessionPictogram(null));
+  }, []);
 
   const patientById = useMemo(() => new Map(patients.map(patient => [patient.pertenecienteId, patient])), [patients]);
   const visibleSessions = useMemo(
@@ -65,6 +74,8 @@ export default function ProfessionalCalendar({ patients, onOpenAgenda }: { patie
         time,
         badgeLabel: session.estado,
         badgeClassName: sessionStatusBadgeClass(session.estado),
+        pictogramImageUrl: sessionPictogram?.imageUrl,
+        pictogramName: sessionPictogram?.name,
       };
     });
   };

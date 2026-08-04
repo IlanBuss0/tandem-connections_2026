@@ -3,7 +3,7 @@ import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCalendar, typeEmoji } from '@/contexts/CalendarContext';
+import { useCalendar } from '@/contexts/CalendarContext';
 import {
   MessageCircle,
   Calendar,
@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { fetchPertenecienteHome, PertenecienteHomeData, PertenecienteHomeActivity } from '@/data/api';
+import EventPictogram from '@/components/EventPictogram';
+import { useCalendarPictograms } from '@/hooks/useCalendarPictograms';
 
 interface Props {
   onNavigate?: (tab: string) => void;
@@ -51,27 +53,6 @@ function fmt(d: Date) {
 const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
-function activityEmoji(title: string): string {
-  const t = title.toLowerCase();
-  if (t.includes('mochila') || t.includes('bolso')) return '🎒';
-  if (t.includes('diente') || t.includes('duchar') || t.includes('higiene')) return '🧼';
-  if (t.includes('dormir') || t.includes('cama')) return '🛏️';
-  if (t.includes('escritorio') || t.includes('orden') || t.includes('clasif')) return '📋';
-  if (t.includes('cocina') || t.includes('merienda') || t.includes('desayuno') || t.includes('comida')) return '🍳';
-  if (t.includes('compra') || t.includes('dinero') || t.includes('vuelto')) return '🛒';
-  if (t.includes('respirac') || t.includes('calmar') || t.includes('relaj')) return '🧘';
-  if (t.includes('emocion') || t.includes('sentir') || t.includes('reconocer')) return '💭';
-  if (t.includes('saludar') || t.includes('presentarse') || t.includes('invitar')) return '👥';
-  if (t.includes('transporte') || t.includes('viaje') || t.includes('salir')) return '🚌';
-  if (t.includes('escuela') || t.includes('estudio') || t.includes('tarea')) return '📚';
-  if (t.includes('ropa') || t.includes('vestir')) return '👕';
-  if (t.includes('seguridad') || t.includes('peligro') || t.includes('avisa')) return '🛡️';
-  if (t.includes('cambio') || t.includes('plan') || t.includes('anticip')) return '🔄';
-  if (t.includes('ayuda') || t.includes('pedir')) return '🤝';
-  if (t.includes('microondas')) return '🔥';
-  return '📋';
-}
-
 function statusStyle(status: string): string {
   const s = status.toLowerCase();
   if (s.includes('complet')) return 'bg-emerald-100 text-emerald-700';
@@ -91,6 +72,8 @@ export default function UserHome({ onNavigate }: Props) {
   const [error, setError] = useState('');
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [selectedDay, setSelectedDay] = useState(() => fmt(new Date()));
+  const selectedDayEvents = useMemo(() => events.filter(event => event.date === selectedDay), [events, selectedDay]);
+  useCalendarPictograms(selectedDayEvents);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
@@ -340,16 +323,18 @@ export default function UserHome({ onNavigate }: Props) {
             })}
           </div>
 
-          {selectedDay && eventsOn(selectedDay).length > 0 && (
+          {selectedDay && selectedDayEvents.length > 0 && (
             <div className="mt-5 space-y-2 rounded-[20px] border border-[#efe8f8] bg-[#fcf9ff] p-3">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#7b5fa6]">
                 {selectedDay === todayKey
                   ? 'Hoy'
                   : new Date(selectedDay + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric' })}
               </p>
-              {eventsOn(selectedDay).slice(0, 3).map(e => (
+              {selectedDayEvents.slice(0, 3).map(e => (
                 <div key={e.id} className="flex items-center gap-2.5 border-b border-[#f1e8fb] px-1 py-2 last:border-b-0">
-                  <span className="text-lg">{typeEmoji[e.type]}</span>
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center">
+                    <EventPictogram event={e} size="sm" />
+                  </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-[#4a4a5a]">{e.title}</p>
                   </div>

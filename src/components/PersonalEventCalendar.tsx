@@ -12,8 +12,10 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { eventTypes, typeColor, typeEmoji } from "@/contexts/CalendarContext";
+import { eventTypes, typeColor } from "@/contexts/CalendarContext";
 import ReminderPicker from "@/components/ReminderPicker";
+import EventPictogram from "@/components/EventPictogram";
+import { useCalendarPictograms } from "@/hooks/useCalendarPictograms";
 import { useToast } from "@/components/ui/use-toast";
 import type { CalendarEvent } from "@/data/api";
 
@@ -59,6 +61,8 @@ export type ReadOnlyDayItem = {
   time: string;
   badgeLabel: string;
   badgeClassName: string;
+  pictogramImageUrl?: string;
+  pictogramName?: string;
 };
 
 export default function PersonalEventCalendar({
@@ -139,6 +143,7 @@ export default function PersonalEventCalendar({
     () => [...(eventsByDate[selectedDate] || [])].sort((a, b) => a.time.localeCompare(b.time)),
     [eventsByDate, selectedDate],
   );
+  useCalendarPictograms(selectedDayEvents);
   const selectedDayReadOnly = readOnlyItemsForDate?.(selectedDate) || [];
   const monthLabel = `${monthNames[cursor.getMonth()]} ${cursor.getFullYear()}`;
 
@@ -323,7 +328,7 @@ export default function PersonalEventCalendar({
 
         <div className="grid grid-cols-7 gap-1 sm:gap-2">
           {monthDays.leadingBlanks.map((blank) => (
-            <div key={`blank-${blank}`} aria-hidden className="min-h-[54px] sm:min-h-[86px]" />
+            <div key={`blank-${blank}`} aria-hidden className="min-h-[68px] sm:min-h-[86px]" />
           ))}
 
           {monthDays.days.map(({ day, key }) => {
@@ -338,7 +343,7 @@ export default function PersonalEventCalendar({
                 key={key}
                 onClick={() => setSelectedDate(key)}
                 onDoubleClick={() => openCreate(key)}
-                className={`relative flex min-h-[54px] flex-col rounded-2xl border p-1.5 text-left transition-all duration-200 sm:min-h-[86px] sm:p-2 ${
+                className={`relative flex min-h-[68px] flex-col rounded-2xl border p-1.5 text-left transition-all duration-200 sm:min-h-[86px] sm:p-2 ${
                   isToday
                     ? "border-primary bg-primary text-primary-foreground shadow-sm"
                     : isSelected
@@ -366,6 +371,7 @@ export default function PersonalEventCalendar({
                             isToday ? "bg-white/20 text-primary-foreground" : item.badgeClassName
                           }`}
                         >
+                          {item.pictogramImageUrl && <img src={item.pictogramImageUrl} alt="" className="mr-1 inline-block h-4 w-4 object-contain" loading="lazy" />}
                           {item.badgeLabel} {item.title}
                         </span>
                       ))}
@@ -376,17 +382,30 @@ export default function PersonalEventCalendar({
                             isToday ? "bg-white/20 text-primary-foreground" : "bg-background text-foreground"
                           }`}
                         >
-                          {typeEmoji[event.type] || "📅"} {event.title}
+                          <EventPictogram event={event} size="sm" /> {event.title}
                         </span>
                       ))}
                     </div>
-                    <div className="flex gap-0.5 sm:hidden">
-                      {Array.from({ length: Math.min(3, dayEvents.length + dayReadOnly.length) }).map((_, i) => (
-                        <span
-                          key={i}
-                          className={`h-1.5 w-1.5 rounded-full ${isToday ? "bg-white" : "bg-primary"}`}
-                        />
+                    <div className="flex min-h-6 items-center gap-0.5 overflow-hidden sm:hidden">
+                      {dayEvents.slice(0, 1).map(event => (
+                        <span key={event.id} className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${isToday ? "bg-white/25 text-white" : "bg-background text-primary"}`}>
+                          <EventPictogram event={event} size="sm" />
+                        </span>
                       ))}
+                      {dayEvents.length < 1 && dayReadOnly.slice(0, 1).map(item => (
+                        <span key={item.id} className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${isToday ? "bg-white/25 text-white" : "bg-background text-primary"}`}>
+                          {item.pictogramImageUrl ? (
+                            <img src={item.pictogramImageUrl} alt="" className="h-5 w-5 object-contain" loading="lazy" />
+                          ) : (
+                            <CalendarDays size={16} aria-hidden />
+                          )}
+                        </span>
+                      ))}
+                      {dayEvents.length + dayReadOnly.length > 1 && (
+                        <span className={`text-[9px] font-bold leading-none ${isToday ? "text-white" : "text-primary"}`}>
+                          +{dayEvents.length + dayReadOnly.length - 1}
+                        </span>
+                      )}
                     </div>
                   </div>
                 )}
@@ -442,7 +461,7 @@ export default function PersonalEventCalendar({
                 className="w-full rounded-2xl border border-border bg-background p-3 text-sm text-foreground outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/20"
               >
                 {eventTypes.map((type) => (
-                  <option key={type} value={type}>{typeEmoji[type]} {type}</option>
+                  <option key={type} value={type}>{type}</option>
                 ))}
               </select>
               {patients && (
@@ -508,7 +527,11 @@ export default function PersonalEventCalendar({
               <div key={item.id} className="rounded-2xl border border-dashed border-border bg-muted/30 p-3">
                 <div className="flex items-start gap-3">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <Clock size={16} />
+                    {item.pictogramImageUrl ? (
+                      <img src={item.pictogramImageUrl} alt={item.pictogramName || item.title} className="h-7 w-7 object-contain" loading="lazy" />
+                    ) : (
+                      <Clock size={16} />
+                    )}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold">{item.title}</p>
@@ -545,7 +568,7 @@ export default function PersonalEventCalendar({
                       className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl"
                       style={{ backgroundColor: `${typeColor[event.type] || "hsl(var(--primary))"}22` }}
                     >
-                      {typeEmoji[event.type] || "📅"}
+                      <EventPictogram event={event} />
                     </span>
                     <div className="min-w-0 max-w-full flex-1">
                       <p className="max-w-full whitespace-normal text-sm font-bold [overflow-wrap:anywhere]">{event.title}</p>

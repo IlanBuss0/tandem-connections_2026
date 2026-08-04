@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 import PermissionBlocked from '@/components/PermissionBlocked';
-import { useCalendar, eventTypes, typeEmoji } from '@/contexts/CalendarContext';
+import { useCalendar, eventTypes } from '@/contexts/CalendarContext';
 import { useRoutines } from '@/contexts/RoutinesContext';
 import SectionSelector from '@/components/SectionSelector';
 import { CalendarEvent } from '@/data/api';
@@ -53,12 +53,6 @@ export default function UserCalendar() {
   const { context: permissionContext } = usePermissionContext();
   const { events, addEvent, updateEvent, deleteEvent, eventTypePatterns } = useCalendar();
   const { customCategories } = useRoutines();
-
-  const getSectionEmoji = (catId: string) => {
-    const custom = customCategories.find(c => c.id === catId);
-    if (custom) return custom.icon;
-    return typeEmoji[catId] || '📅';
-  };
 
   const getSectionName = (catId: string) => {
     const custom = customCategories.find(c => c.id === catId);
@@ -295,7 +289,7 @@ export default function UserCalendar() {
 
         <div className="grid grid-cols-7 gap-1 sm:gap-2">
           {monthDays.leadingBlanks.map(blank => (
-            <div key={`blank-${blank}`} aria-hidden className="min-h-[54px] sm:min-h-[86px]" />
+            <div key={`blank-${blank}`} aria-hidden className="min-h-[68px] sm:min-h-[86px]" />
           ))}
 
           {monthDays.days.map(({ day, key }) => {
@@ -310,7 +304,7 @@ export default function UserCalendar() {
                 key={key}
                 onClick={() => setSelectedDate(key)}
                 onDoubleClick={() => openCreate(key)}
-                className={`relative flex min-h-[54px] sm:min-h-[86px] flex-col rounded-2xl border p-1.5 sm:p-2 text-left transition-all duration-200 ${
+                className={`relative flex min-h-[68px] sm:min-h-[86px] flex-col rounded-2xl border p-1.5 sm:p-2 text-left transition-all duration-200 ${
                   isToday
                     ? 'border-[#6b4c9a] bg-[#6b4c9a] text-white shadow-md shadow-purple-200'
                     : isPastEventDay && isSelected
@@ -336,7 +330,7 @@ export default function UserCalendar() {
                   {day}
                 </span>
 
-                {hasEvents && !isPastEventDay && (
+                {hasEvents && (
                   <div className="mt-auto min-w-0 pt-2">
                     <div className="hidden sm:flex flex-col gap-1 overflow-hidden">
                       {dayEvents.slice(0, 2).map(event => (
@@ -346,9 +340,21 @@ export default function UserCalendar() {
                             isToday ? 'bg-white/20 text-white' : 'bg-white text-[#6b4c9a]'
                           }`}
                         >
-                          {getSectionEmoji(event.type)} {event.title}
+                          <EventPictogram event={event} size="sm" /> {event.title}
                         </span>
                       ))}
+                    </div>
+                    <div className="flex min-h-6 items-center gap-0.5 overflow-hidden sm:hidden">
+                      {dayEvents.slice(0, 1).map(event => (
+                        <span key={event.id} className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${isToday ? 'bg-white/25 text-white' : 'bg-white text-[#6b4c9a]'}`}>
+                          <EventPictogram event={event} size="sm" />
+                        </span>
+                      ))}
+                      {dayEvents.length > 1 && (
+                        <span className={`text-[9px] font-bold leading-none ${isToday ? 'text-white' : 'text-[#6b4c9a]'}`}>
+                          +{dayEvents.length - 1}
+                        </span>
+                      )}
                     </div>
                   </div>
                 )}
@@ -502,7 +508,7 @@ export default function UserCalendar() {
               >
                 <div className="flex min-w-0 max-w-full items-start gap-3">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/70 text-xl">
-                    <EventPictogram event={event} fallbackEmoji={getSectionEmoji(event.type)} />
+                    <EventPictogram event={event} />
                   </span>
                   <div className="min-w-0 max-w-full flex-1">
                     <p className="max-w-full whitespace-normal [overflow-wrap:anywhere] text-sm font-bold">{event.title}</p>

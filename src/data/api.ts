@@ -77,7 +77,7 @@ export interface PrivateProfessionalNote {
   } | null;
 }
 
-function professionalSessionToCalendarEvent(session: ProfessionalSession, userId: string): CalendarEvent {
+function professionalSessionToCalendarEvent(session: ProfessionalSession, userId: string, pictogram?: Pictogram | null): CalendarEvent {
   const date = new Date(session.fecha_sesion);
   return {
     id: `professional-session-${session.id}`,
@@ -89,7 +89,22 @@ function professionalSessionToCalendarEvent(session: ProfessionalSession, userId
     userId,
     color: calendarTypeColor('terapia'),
     reminders: session.recordatorios || [],
+    pictogramId: pictogram?.id,
+    pictogramImageUrl: pictogram?.imageUrl,
+    pictogramName: pictogram?.name,
+    pictogramConfidence: pictogram ? 'alta' : undefined,
+    pictogramResolvedFor: session.titulo || 'Sesion profesional',
   };
+}
+
+let professionalSessionPictogramPromise: Promise<Pictogram | null> | null = null;
+function getProfessionalSessionPictogram(): Promise<Pictogram | null> {
+  if (!professionalSessionPictogramPromise) {
+    professionalSessionPictogramPromise = fetchPictograms({ search: 'terapia profesional', language: 'es', limit: 1 })
+      .then((items) => items[0] || null)
+      .catch(() => null);
+  }
+  return professionalSessionPictogramPromise;
 }
 
 export interface ProfessionalPublicProfile {
@@ -1684,9 +1699,10 @@ export async function fetchCalendarEventsForUser(userId: string): Promise<Calend
     let professionalSessionEvents: CalendarEvent[] = [];
     try {
       const sessions = await fetchProfessionalSessions();
+      const sessionPictogram = sessions.length > 0 ? await getProfessionalSessionPictogram() : null;
       professionalSessionEvents = sessions
         .filter(session => session.estado !== 'cancelada')
-        .map(session => professionalSessionToCalendarEvent(session, userId));
+        .map(session => professionalSessionToCalendarEvent(session, userId, sessionPictogram));
     } catch {
       professionalSessionEvents = [];
     }
