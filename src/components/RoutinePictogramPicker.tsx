@@ -32,13 +32,13 @@ export default function RoutinePictogramPicker({
     let cancelled = false;
     const timer = window.setTimeout(() => {
       setLoading(true);
-      fetchPictograms({ search: search.trim(), language: 'es', limit: RESULTS_LIMIT })
+      fetchPictograms({ search: search.trim(), language: 'es', limit: RESULTS_LIMIT, boostForUsuarioId: targetUsuarioId })
         .then((items) => { if (!cancelled) setPictograms(items); })
         .catch(() => { if (!cancelled) setPictograms([]); })
         .finally(() => { if (!cancelled) setLoading(false); });
     }, 250);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [search]);
+  }, [search, targetUsuarioId]);
 
   return (
     <div className="space-y-2">

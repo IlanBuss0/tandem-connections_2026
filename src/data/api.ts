@@ -2446,13 +2446,18 @@ export interface PictogramCategory {
   total: number;
 }
 
-export async function fetchPictograms(query?: { category?: string; search?: string; language?: string; limit?: number; targetPertenecienteId?: string }): Promise<Pictogram[]> {
+export async function fetchPictograms(query?: { category?: string; search?: string; language?: string; limit?: number; targetPertenecienteId?: string; boostForUsuarioId?: string }): Promise<Pictogram[]> {
   const params = new URLSearchParams();
   if (query?.category && query.category !== 'todas') params.set('category', query.category);
   if (query?.search) params.set('search', query.search);
   if (query?.language) params.set('language', query.language);
   if (query?.limit) params.set('limit', String(query.limit));
   if (query?.targetPertenecienteId) params.set('targetPertenecienteId', query.targetPertenecienteId);
+  // Sesion 25 (perfil de memoria), arreglo de consistencia: cuando quien
+  // busca ya conoce el usuario destino directo (no un id de perteneciente,
+  // ej. el picker de correccion de pasos) igual puede pedir el boost de
+  // "lo que mas usa" sin tener que resolver el id de perteneciente primero.
+  if (query?.boostForUsuarioId) params.set('boostForUsuarioId', query.boostForUsuarioId);
   const q = params.toString();
   return apiFetchWithFallback<Pictogram[]>([q ? `/api/pictograms?${q}` : '/api/pictograms', q ? `/pictograms?${q}` : '/pictograms']);
 }

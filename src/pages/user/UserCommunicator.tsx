@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Volume2, X, Search, History } from 'lucide-react';
 import { fetchNucleoVocabulario, type NucleoVocabulario, type NucleoWord } from '@/data/communicationApi';
 import { fetchPictograms, type Pictogram } from '@/data/api';
-import { logUsageEvent, fetchUsageEvents, type UsageEventRecord } from '@/data/usageApi';
+import { logUsageEvent, fetchUsageEvents, fetchVocabularyReport, type UsageEventRecord, type VocabularyReport } from '@/data/usageApi';
+import { sortWordsByUsage } from '@/lib/nucleoWordOrder';
 import { useAuth } from '@/contexts/AuthContext';
 import { speakText } from '@/lib/speech';
 import { utteranceToText, type UtteranceToken } from '@/lib/utterance';
@@ -65,11 +66,21 @@ export default function UserCommunicator() {
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<UsageEventRecord[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [vocabularyReport, setVocabularyReport] = useState<VocabularyReport | null>(null);
 
   useEffect(() => {
     fetchNucleoVocabulario().then(setNucleo).finally(() => setLoading(false));
     setFrequent(loadFrequent());
   }, []);
+
+  // Sesion 25 (perfil de memoria), arreglo de consistencia: el nucleo que
+  // llega de fetchNucleoVocabulario esta cacheado COMPARTIDO entre todos
+  // los usuarios (Sesion 11) — la personalizacion se aplica aca, del lado
+  // del cliente, sobre la copia ya traida, nunca adentro del cache.
+  useEffect(() => {
+    if (!user?.id) return;
+    fetchVocabularyReport(user.id).then(setVocabularyReport);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!search.trim()) {
@@ -228,7 +239,7 @@ export default function UserCommunicator() {
           <div key={category}>
             <h3 className="mb-2 text-sm font-bold text-[#4a4a5a]">{CATEGORY_LABELS[category] || category}</h3>
             <PictogramGrid label={CATEGORY_LABELS[category] || category}>
-              {words.map((word) => (
+              {sortWordsByUsage(words, vocabularyReport).map((word) => (
                 <PictogramTile
                   key={word.word}
                   imageUrl={word.pictogram?.imageUrl}
