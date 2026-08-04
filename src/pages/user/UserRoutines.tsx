@@ -5,10 +5,7 @@ import { CheckCircle2, Circle, Clock, Plus, Pencil, Trash2, Copy, X, Save } from
 import { RoutineItem, CustomCategory, rememberPictogramChoice, fetchPictograms } from '@/data/api';
 import { useAuth } from '@/contexts/AuthContext';
 import SpeakButton from '@/components/SpeakButton';
-import AutonomyCards from '@/components/AutonomyCards';
-import NextStepBanner from '@/components/NextStepBanner';
 import StartTaskHint from '@/components/StartTaskHint';
-import RequestForDayCard from '@/components/RequestForDayCard';
 import GuidedRoutineMode from '@/components/GuidedRoutineMode';
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
@@ -198,10 +195,6 @@ export default function UserRoutines({ initialRoutineId, initialItemId }: { init
           <Plus size={16} /> Nueva
         </button>
       </div>
-
-      <AutonomyCards />
-      <NextStepBanner items={active.items} />
-      <RequestForDayCard />
 
       {/* Routines selector */}
       <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
