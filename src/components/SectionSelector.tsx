@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronDown, Plus, Pencil, Trash2 } from 'lucide-react';
-import { useRoutines, predefinedCategories, predefinedLabels, iconChoices } from '@/contexts/RoutinesContext';
+import { useRoutines, predefinedCategories, predefinedLabels } from '@/contexts/RoutinesContext';
 import { CustomCategory } from '@/data/api';
 
 interface SectionSelectorProps {
@@ -36,10 +36,8 @@ export default function SectionSelector({ value, onChange, className }: SectionS
 
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCatName, setNewCatName] = useState('');
-  const [newCatIcon, setNewCatIcon] = useState('📋');
   const [editingCat, setEditingCat] = useState<CustomCategory | null>(null);
   const [editCatName, setEditCatName] = useState('');
-  const [editCatIcon, setEditCatIcon] = useState('');
 
   const allCategories = useMemo(() => {
     const visiblePredefined = predefinedCategories.filter(c => !hiddenPredefined.includes(c));
@@ -49,7 +47,7 @@ export default function SectionSelector({ value, onChange, className }: SectionS
   const allLabels = useMemo(() => {
     const labels = { ...predefinedLabels };
     customCategories.forEach(c => {
-      labels[c.id] = `${c.icon} ${c.name}`;
+      labels[c.id] = c.name;
     });
     return labels;
   }, [customCategories]);
@@ -57,23 +55,21 @@ export default function SectionSelector({ value, onChange, className }: SectionS
   const submitNewCategory = () => {
     const name = newCatName.trim();
     if (!name) return;
-    addCustomCategory(name, newCatIcon);
+    addCustomCategory(name, '');
     setShowNewCategory(false);
     setNewCatName('');
-    setNewCatIcon('📋');
   };
 
   const startEditCategory = (cat: CustomCategory) => {
     setEditingCat(cat);
     setEditCatName(cat.name);
-    setEditCatIcon(cat.icon);
   };
 
   const submitEditCategory = () => {
     if (!editingCat) return;
     const name = editCatName.trim();
     if (!name) return;
-    updateCustomCategory(editingCat.id, name, editCatIcon);
+    updateCustomCategory(editingCat.id, name, '');
     setEditingCat(null);
   };
 
@@ -159,7 +155,6 @@ export default function SectionSelector({ value, onChange, className }: SectionS
                 setShowCategoryDropdown(false);
                 setShowNewCategory(true);
                 setNewCatName('');
-                setNewCatIcon('📋');
               }}
             >
               <Plus size={14} />
@@ -181,25 +176,6 @@ export default function SectionSelector({ value, onChange, className }: SectionS
             placeholder="Nombre de la sección"
             className="w-full p-2 rounded-xl border border-[#ede4f8] bg-white text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
           />
-          <div>
-            <p className="text-xs text-[#8b7aa0] mb-1">Icono</p>
-            <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
-              {iconChoices.map(ic => (
-                <button
-                  key={ic}
-                  type="button"
-                  onClick={() => setNewCatIcon(ic)}
-                  className={`text-lg p-1 rounded-lg border ${
-                    newCatIcon === ic
-                      ? 'border-[#6b4c9a] bg-[#f5f0ff]'
-                      : 'border-[#ede4f8] bg-white'
-                  }`}
-                >
-                  {ic}
-                </button>
-              ))}
-            </div>
-          </div>
           <div className="flex gap-2">
             <button
               type="button"
@@ -235,23 +211,6 @@ export default function SectionSelector({ value, onChange, className }: SectionS
               placeholder="Nombre"
               className="w-full p-2.5 rounded-xl border border-[#ede4f8] bg-[#faf8ff] text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
             />
-            <div>
-              <p className="text-xs text-[#8b7aa0] mb-1">Icono</p>
-              <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
-                {iconChoices.map(ic => (
-                  <button
-                    key={ic}
-                    type="button"
-                    onClick={() => setEditCatIcon(ic)}
-                    className={`text-xl p-1.5 rounded-xl border ${
-                      editCatIcon === ic ? 'border-[#6b4c9a] bg-[#f5f0ff]' : 'border-[#ede4f8]'
-                    }`}
-                  >
-                    {ic}
-                  </button>
-                ))}
-              </div>
-            </div>
             <div className="flex gap-2">
               <button
                 type="button"

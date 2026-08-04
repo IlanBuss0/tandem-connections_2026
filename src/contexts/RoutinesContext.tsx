@@ -15,8 +15,7 @@ export interface DayRoutine {
 }
 
 export const predefinedCategories = ['mañana', 'escuela', 'mediodía', 'tarde', 'noche'];
-export const predefinedLabels: Record<string, string> = { mañana: '🌅 Mañana', escuela: '📚 Escuela', mediodía: '☀️ Mediodía', tarde: '🌤️ Tarde', noche: '🌙 Noche' };
-export const iconChoices = ['⏰','🛏️','🚿','👕','🥣','🪥','🎒','🚶','📚','🍽️','🎮','✏️','⭐','🥪','🧠','🎧','👔','🍝','💭','🌙','🏃','🎵','📖','🧘','🐶','🛁','💊','🥗','🌳','🎨'];
+export const predefinedLabels: Record<string, string> = { mañana: 'Mañana', escuela: 'Escuela', mediodía: 'Mediodía', tarde: 'Tarde', noche: 'Noche' };
 
 const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 

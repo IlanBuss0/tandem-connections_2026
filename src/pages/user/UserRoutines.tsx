@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { useRoutines, DayKey, predefinedCategories, predefinedLabels, iconChoices } from '@/contexts/RoutinesContext';
+import { useRoutines, DayKey, predefinedCategories, predefinedLabels } from '@/contexts/RoutinesContext';
 import { CheckCircle2, Circle, Clock, Plus, Pencil, Trash2, Copy, X, Save } from 'lucide-react';
 import { RoutineItem, CustomCategory, rememberPictogramChoice, fetchPictograms } from '@/data/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -52,8 +52,8 @@ export default function UserRoutines({ initialRoutineId, initialItemId }: { init
 
   const [showAddItem, setShowAddItem] = useState(false);
   const [editingItem, setEditingItem] = useState<RoutineItem | null>(null);
-  const [form, setForm] = useState<{ time: string; title: string; icon: string; category: string; pictogramLabel: string; reminders: number[] }>({
-    time: '08:00', title: '', icon: '⭐', category: 'mañana', pictogramLabel: '', reminders: [],
+  const [form, setForm] = useState<{ time: string; title: string; category: string; pictogramLabel: string; reminders: number[] }>({
+    time: '08:00', title: '', category: 'mañana', pictogramLabel: '', reminders: [],
   });
   // Pictograma elegido a mano en ESTA sesion del formulario. null = no se
   // toco nada, el motor de pictogramizacion sigue a cargo (o el paso
@@ -98,7 +98,7 @@ export default function UserRoutines({ initialRoutineId, initialItemId }: { init
 
   const allLabels = useMemo(() => {
     const labels = { ...predefinedLabels };
-    customCategories.forEach(c => { labels[c.id] = `${c.icon} ${c.name}`; });
+    customCategories.forEach(c => { labels[c.id] = c.name; });
     return labels;
   }, [customCategories]);
 
@@ -131,14 +131,14 @@ export default function UserRoutines({ initialRoutineId, initialItemId }: { init
 
   const openCreate = () => {
     setEditingItem(null);
-    setForm({ time: '08:00', title: '', icon: '⭐', category: 'mañana', pictogramLabel: '', reminders: [] });
+    setForm({ time: '08:00', title: '', category: 'mañana', pictogramLabel: '', reminders: [] });
     setManualPictogram(null);
     setLiveSuggestions([]);
     setShowAddItem(true);
   };
   const openEdit = (it: RoutineItem) => {
     setEditingItem(it);
-    setForm({ time: it.time, title: it.title, icon: it.icon, category: it.category, pictogramLabel: it.pictogramLabel || '', reminders: it.reminders || [] });
+    setForm({ time: it.time, title: it.title, category: it.category, pictogramLabel: it.pictogramLabel || '', reminders: it.reminders || [] });
     setManualPictogram(null);
     setLiveSuggestions([]);
     setShowAddItem(true);
@@ -148,7 +148,7 @@ export default function UserRoutines({ initialRoutineId, initialItemId }: { init
     if (!title) return;
     const pictogramLabel = form.pictogramLabel.trim() || autoPictogramLabel(title);
     const payload = {
-      ...form, title, pictogramLabel,
+      ...form, title, pictogramLabel, icon: '',
       // Si se eligio uno a mano, se guarda como resuelto para ESTE titulo:
       // el motor de pictogramizacion no lo vuelve a tocar salvo que el
       // titulo cambie despues. Si no se eligio nada, no se pisan los campos
@@ -318,14 +318,6 @@ export default function UserRoutines({ initialRoutineId, initialItemId }: { init
                 const selected = form.reminders.includes(choice.value);
                 return <button key={choice.value} type="button" onClick={() => setForm(current => ({ ...current, reminders: selected ? current.reminders.filter(value => value !== choice.value) : [...current.reminders, choice.value].sort((a, b) => a - b) }))} className={`rounded-xl border px-2.5 py-1.5 text-xs font-medium ${selected ? 'border-[#6b4c9a] bg-[#f5f0ff] text-[#6b4c9a]' : 'border-[#ede4f8] text-[#8b7aa0]'}`}>{choice.label}</button>;
               })}
-            </div>
-          </div>
-          <div>
-            <p className="text-xs text-[#8b7aa0] mb-1">Icono</p>
-            <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
-              {iconChoices.map(ic => (
-                <button key={ic} onClick={() => setForm(f => ({ ...f, icon: ic }))} className={`text-xl p-1.5 rounded-xl border ${form.icon === ic ? 'border-[#6b4c9a] bg-[#f5f0ff]' : 'border-[#ede4f8]'}`}>{ic}</button>
-              ))}
             </div>
           </div>
           <button onClick={submitItem} className="w-full py-2.5 rounded-2xl bg-[#6b4c9a] text-white text-sm font-semibold shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95">

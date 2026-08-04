@@ -1,14 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { CalendarDays } from 'lucide-react';
 import type { RoutineItem } from '@/data/api';
 
-// Unica responsabilidad: mostrar el pictograma de un paso de rutina, o el
-// emoji de siempre si no hay uno resuelto (o si la imagen no carga). Nunca
-// deja un hueco visual: sin pictograma, el emoji ya esta desde el primer
-// frame (no hay spinner ni placeholder que tape la pantalla).
+// Muestra el pictograma de un paso de rutina. Mientras se resuelve o si la
+// imagen falla, deja un icono neutro sin reintroducir el antiguo emoji.
 export default function RoutinePictogram({ item, size = 'lg' }: { item: RoutineItem; size?: 'sm' | 'lg' }) {
   const [imageFailed, setImageFailed] = useState(false);
   const dimension = size === 'lg' ? 'h-16 w-16' : 'h-8 w-8';
-  const emojiSize = size === 'lg' ? 'text-4xl' : 'text-xl';
+  useEffect(() => setImageFailed(false), [item.pictogramImageUrl]);
 
   if (item.pictogramImageUrl && !imageFailed) {
     return (
@@ -22,5 +21,5 @@ export default function RoutinePictogram({ item, size = 'lg' }: { item: RoutineI
     );
   }
 
-  return <span className={emojiSize}>{item.icon}</span>;
+  return <CalendarDays className={size === 'lg' ? 'h-8 w-8 text-[#6b4c9a]' : 'h-5 w-5 text-[#6b4c9a]'} aria-hidden />;
 }
