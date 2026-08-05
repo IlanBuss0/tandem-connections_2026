@@ -117,7 +117,6 @@ export default function ProfessionalAgenda({
     }
     // Solo se dispara cuando llega un paciente preseleccionado (p.ej. desde
     // "Proponer sesion" en el detalle del paciente) — no en cada render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialPatientId]);
 
   const patientById = useMemo(

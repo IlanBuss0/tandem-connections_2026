@@ -1,5 +1,6 @@
 import { useWallet } from '@/contexts/WalletContext';
 import { Coins } from 'lucide-react';
+import type { ElementType } from 'react';
 
 interface Props {
   size?: 'sm' | 'md';
@@ -10,7 +11,7 @@ interface Props {
 export default function CoinBadge({ size = 'sm', onClick, className = '' }: Props) {
   const { state } = useWallet();
   const isSm = size === 'sm';
-  const Comp: any = onClick ? 'button' : 'div';
+  const Comp: ElementType = onClick ? 'button' : 'div';
   return (
     <Comp
       onClick={onClick}

@@ -1348,7 +1348,6 @@ function DragWordSandbox({
   const previewLetters = useMemo(() => {
     const chars = dragAnswerLetters(current.correct);
     return shuffleArray(chars);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current.correct]);
 
   return (

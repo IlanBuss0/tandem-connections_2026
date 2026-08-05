@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Plus, Edit2, Copy, Trash2, Send, EyeOff, Sparkles, Users, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
+import { useCustomActivities, type CustomActivity } from '@/contexts/CustomActivitiesContext';
 import type { User } from '@/data/api';
 import ActivityBuilder from './ActivityBuilder';
 import { useToast } from '@/components/ui/use-toast';
@@ -91,7 +91,21 @@ export default function ActivityManager({ assignableUsers }: { assignableUsers?:
   );
 }
 
-function Row({ a, draft, userNameById, onEdit, onDuplicate, onRemove, onPublish, onUnpublish, publishing }: any) {
+type RowActivity = CustomActivity & { assignedNames?: Record<string, string> };
+
+interface RowProps {
+  a: RowActivity;
+  draft?: boolean;
+  userNameById: Map<string, string>;
+  onEdit: () => void;
+  onDuplicate: () => void;
+  onRemove: () => void;
+  onPublish?: () => void;
+  onUnpublish?: () => void;
+  publishing?: boolean;
+}
+
+function Row({ a, draft, userNameById, onEdit, onDuplicate, onRemove, onPublish, onUnpublish, publishing }: RowProps) {
   const assignedNames = (a.assignedToIds || []).map((id: string) => a.assignedNames?.[id] || userNameById?.get(id) || `Usuario ${id}`);
   return (
     <div className="bg-card rounded-lg border border-border p-3">

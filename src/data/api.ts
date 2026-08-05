@@ -1843,7 +1843,6 @@ function calendarTypeColor(type: CalendarEvent['type']): string {
     personal: 'hsl(30 80% 60%)',
     médico: 'hsl(0 72% 55%)',
     medico: 'hsl(0 72% 55%)',
-    'mÃ©dico': 'hsl(0 72% 55%)',
     social: 'hsl(150 60% 45%)',
     actividad: 'hsl(45 90% 55%)',
   };

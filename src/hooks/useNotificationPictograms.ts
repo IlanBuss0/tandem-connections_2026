@@ -46,7 +46,6 @@ export function useNotificationPictograms(notifications: { id: string; title: st
         inFlightRef.current.delete(title);
       }
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notifications]);
 
   return byTitle;

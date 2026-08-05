@@ -34,8 +34,8 @@ export class ApiError extends Error {
 }
 
 export const API_BASE_URL =
-  ((import.meta as any).env?.VITE_BACKEND_URL as string | undefined) ||
-  ((import.meta as any).env?.VITE_API_BASE_URL as string | undefined) ||
+  import.meta.env.VITE_BACKEND_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
   DEFAULT_BACKEND_URL;
 
 function buildUrl(path: string): string {

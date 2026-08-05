@@ -8,15 +8,16 @@ import {
   Notification,
 } from '@/data/api';
 import { Bell, Check, MessageCircle, Calendar, Target, Trophy, ShieldAlert, Sparkles } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { useNotificationPictograms } from '@/hooks/useNotificationPictograms';
 
 type UserNotificationsProps = {
   onUnreadCountChange?: (count: number) => void;
-  onNavigate?: (tab: string, params?: Record<string, any>) => void;
+  onNavigate?: (tab: string, params?: Record<string, string>) => void;
 };
 
-const TYPE_STYLES: Record<string, { bg: string; border: string; icon: string; Icon: any; label: string }> = {
+const TYPE_STYLES: Record<string, { bg: string; border: string; icon: string; Icon: LucideIcon; label: string }> = {
   chat:     { bg: 'bg-green-50', border: 'border-l-green-400', icon: '💬', Icon: MessageCircle, label: 'Mensaje' },
   message:  { bg: 'bg-green-50', border: 'border-l-green-400', icon: '💬', Icon: MessageCircle, label: 'Mensaje' },
   activity: { bg: 'bg-blue-50', border: 'border-l-blue-400', icon: '🎯', Icon: Target, label: 'Actividad' },
