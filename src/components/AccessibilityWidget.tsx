@@ -43,6 +43,7 @@ import {
   useAccessibility,
 } from '@/contexts/AccessibilityContext';
 import { useMobileMenu } from '@/contexts/MobileMenuState';
+import { useAuth } from '@/contexts/AuthContext';
 
 type IconComponent = ComponentType<{ size?: number; className?: string }>;
 
@@ -77,6 +78,7 @@ const PROFILE_ICONS: Record<string, IconComponent> = {
 export default function AccessibilityWidget() {
   const { settings, update, applyProfile, reset, toggle } = useAccessibility();
   const { isMobileMenuOpen } = useMobileMenu();
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [resetNotice, setResetNotice] = useState(false);
   const [informationTooltip, setInformationTooltip] = useState<InformationTooltip | null>(null);
@@ -543,19 +545,38 @@ export default function AccessibilityWidget() {
       )}
 
       {!isMobileMenuOpen && (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label="Abrir menu de accesibilidad"
-          className="a11y-widget fixed bottom-5 left-5 z-[9998] flex h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-[#2357ff] text-white shadow-2xl shadow-blue-900/25 transition hover:-translate-y-0.5 hover:bg-[#5b35d5] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#b9a7ff] sm:bottom-6 sm:left-6"
-        >
-          <Accessibility size={28} />
-          {activeCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full border-2 border-white bg-[#7b2ff2] px-1 text-xs font-bold text-white">
-              {activeCount}
-            </span>
+        <>
+          {user?.role === 'user' && (
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              aria-label="Abrir opciones de accesibilidad"
+              className="a11y-widget fixed bottom-[calc(14rem+env(safe-area-inset-bottom))] -right-[7.25rem] z-[9998] flex h-11 w-36 items-center gap-2 rounded-l-2xl border border-r-0 border-white/80 bg-[#6b4c9a] px-2.5 text-sm font-bold text-white opacity-90 shadow-[0_3px_10px_rgba(73,48,103,0.18)] transition-[right,opacity,box-shadow] duration-200 ease-out hover:right-2 hover:opacity-100 hover:shadow-[0_4px_12px_rgba(73,48,103,0.22)] focus:right-2 focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#b9a7ff] focus-visible:ring-offset-2 motion-reduce:transition-none lg:hidden"
+            >
+              <Accessibility size={23} className="shrink-0" aria-hidden />
+              <span className="whitespace-nowrap">Accesibilidad</span>
+              {activeCount > 0 && (
+                <span className="absolute -left-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-[#7b2ff2] px-1 text-[10px] font-bold text-white">
+                  {activeCount}
+                </span>
+              )}
+            </button>
           )}
-        </button>
+
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-label="Abrir menu de accesibilidad"
+            className={`a11y-widget fixed bottom-5 left-5 z-[9998] h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-[#2357ff] text-white shadow-2xl shadow-blue-900/25 transition hover:-translate-y-0.5 hover:bg-[#5b35d5] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#b9a7ff] sm:bottom-6 sm:left-6 ${user?.role === 'user' ? 'hidden lg:flex' : 'flex'}`}
+          >
+            <Accessibility size={28} />
+            {activeCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full border-2 border-white bg-[#7b2ff2] px-1 text-xs font-bold text-white">
+                {activeCount}
+              </span>
+            )}
+          </button>
+        </>
       )}
 
       {open && (

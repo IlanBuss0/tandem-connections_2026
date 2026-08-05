@@ -7,6 +7,8 @@ type AppHeaderProps = {
   rightSlot?: ReactNode;
   className?: string;
   position?: 'fixed' | 'sticky';
+  menuButtonClassName?: string;
+  onMobileLogoClick?: () => void;
 };
 
 export default function AppHeader({
@@ -15,6 +17,8 @@ export default function AppHeader({
   rightSlot,
   className = '',
   position = 'sticky',
+  menuButtonClassName = '',
+  onMobileLogoClick,
 }: AppHeaderProps) {
   const positionClass = position === 'fixed' ? 'fixed' : 'sticky';
 
@@ -36,15 +40,25 @@ export default function AppHeader({
           <button
             type="button"
             onClick={onMenuClick}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className={`inline-flex h-11 w-11 items-center justify-center rounded-lg text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${menuButtonClassName}`}
             aria-label="Abrir menu"
           >
             <Menu size={24} strokeWidth={2.5} />
           </button>
         )}
 
+        {onMobileLogoClick && (
+          <button
+            type="button"
+            onClick={onMobileLogoClick}
+            aria-label="Ir a Inicio"
+            className="absolute left-1/2 inline-flex h-11 -translate-x-1/2 items-center justify-center rounded-xl px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
+          >
+            <img className="h-8 max-w-[132px] object-contain" src="/tandem-logo.png" alt="Tandem" />
+          </button>
+        )}
         <img
-          className="absolute left-1/2 h-8 max-w-[132px] -translate-x-1/2 object-contain"
+          className={`absolute left-1/2 h-8 max-w-[132px] -translate-x-1/2 object-contain ${onMobileLogoClick ? 'hidden lg:block' : ''}`}
           src="/tandem-logo.png"
           alt="Tandem"
         />

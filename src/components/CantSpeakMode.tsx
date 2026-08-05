@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
 import { MessageSquareOff, X, Volume2 } from 'lucide-react';
 import { speakText } from '@/lib/speech';
 import { logUsageEvent, fetchAutonomyCardUsage, type AutonomyCardUsage } from '@/data/usageApi';
@@ -26,10 +26,16 @@ const CRISIS_PHRASES = [
   { id: 'no', label: 'No', emoji: '👎' },
 ] as const;
 
-export default function CantSpeakMode() {
+export type CantSpeakModeHandle = { open: () => void };
+
+type CantSpeakModeProps = { hideMobileTrigger?: boolean };
+
+const CantSpeakMode = forwardRef<CantSpeakModeHandle, CantSpeakModeProps>(function CantSpeakMode({ hideMobileTrigger = false }, ref) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [usage, setUsage] = useState<AutonomyCardUsage[]>([]);
+
+  useImperativeHandle(ref, () => ({ open: () => setOpen(true) }), []);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -54,7 +60,7 @@ export default function CantSpeakMode() {
         onClick={() => setOpen(true)}
         aria-label="Modo no puedo hablar"
         title="No puedo hablar"
-        className="fixed bottom-24 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#6b4c9a] text-white shadow-lg shadow-purple-300/50 hover:bg-[#5a3c8a] active:scale-95 lg:bottom-6"
+        className={`fixed bottom-24 right-4 z-40 h-14 w-14 items-center justify-center rounded-full bg-[#6b4c9a] text-white shadow-lg shadow-purple-300/50 hover:bg-[#5a3c8a] active:scale-95 lg:bottom-6 ${hideMobileTrigger ? 'hidden lg:flex' : 'flex'}`}
       >
         <MessageSquareOff size={24} />
       </button>
@@ -85,4 +91,6 @@ export default function CantSpeakMode() {
       )}
     </>
   );
-}
+});
+
+export default CantSpeakMode;

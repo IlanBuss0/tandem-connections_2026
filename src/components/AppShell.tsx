@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWallet } from "@/contexts/WalletContext";
@@ -47,6 +47,10 @@ const UserProfileSettings = lazy(
 const UserPictograms = lazy(() => import("@/pages/user/UserPictograms"));
 const UserCommunicator = lazy(() => import("@/pages/user/UserCommunicator"));
 import CantSpeakMode from "@/components/CantSpeakMode";
+import type { CantSpeakModeHandle } from "@/components/CantSpeakMode";
+import BelongingMobileBottomNav from "@/components/belonging/BelongingMobileBottomNav";
+import BelongingQuickActionsMenu from "@/components/belonging/BelongingQuickActionsMenu";
+import BelongingProfileAccountPanel from "@/components/belonging/BelongingProfileAccountPanel";
 const UserExplainThis = lazy(() => import("@/pages/user/UserExplainThis"));
 const UserNotifications = lazy(() => import("@/pages/user/UserNotifications"));
 const UserResources = lazy(() => import("@/pages/user/UserResources"));
@@ -121,6 +125,8 @@ export default function AppShell() {
   const [tutorView, setTutorView] = useState<TutorView>({ view: "landing" });
   const [navParams, setNavParams] = useState<Record<string, any> | null>(null);
   const [navKey, setNavKey] = useState(0);
+  const [profilePanelOpen, setProfilePanelOpen] = useState(false);
+  const cantSpeakRef = useRef<CantSpeakModeHandle>(null);
 
   useEffect(() => {
     try {
@@ -180,6 +186,7 @@ export default function AppShell() {
     setEditingProfilePersonalData(false);
     setActiveTab(tab);
     setSidebarOpen(false);
+    setProfilePanelOpen(false);
     setNavParams(params || null);
     if (params) setNavKey((k) => k + 1);
   };
@@ -260,14 +267,20 @@ export default function AppShell() {
       <AppHeader
         position="fixed"
         onMenuClick={() => setSidebarOpen(true)}
+        menuButtonClassName="invisible pointer-events-none lg:visible lg:pointer-events-auto"
+        onMobileLogoClick={() => goToTab("home")}
         rightSlot={
           <>
-            <HeaderUserAvatar avatar={user.avatar} name={user.name} />
-            <NotificationBellButton
-              count={unreadNotifs}
-              onClick={() => goToTab("notifications")}
-              className="h-9 w-9 border-0 bg-transparent"
-            />
+            <div className="flex items-center gap-2 lg:hidden">
+              <button type="button" onClick={() => setProfilePanelOpen(true)} aria-label="Abrir Perfil y cuenta" className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed] focus-visible:ring-offset-2">
+                <HeaderUserAvatar avatar={user.avatar} name={user.name} />
+              </button>
+              <NotificationBellButton count={unreadNotifs} onClick={() => goToTab("notifications")} className="h-9 w-9 border-0 bg-transparent" />
+            </div>
+            <div className="hidden items-center gap-3 lg:flex">
+              <HeaderUserAvatar avatar={user.avatar} name={user.name} />
+              <NotificationBellButton count={unreadNotifs} onClick={() => goToTab("notifications")} className="h-9 w-9 border-0 bg-transparent" />
+            </div>
           </>
         }
       />
@@ -355,31 +368,29 @@ export default function AppShell() {
 
         {/* Main content */}
         <main className="flex-1 min-w-0">
-          <div className="max-w-7xl mx-auto p-3 sm:p-4 lg:p-6">
+          <div className="max-w-7xl mx-auto p-3 pb-24 sm:p-4 sm:pb-24 lg:p-6">
             <Suspense fallback={<ScreenFallback />}>{renderContent()}</Suspense>
           </div>
         </main>
 
-        {/* Mobile bottom nav */}
-        <nav
-          className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-sm border-t border-border flex justify-around py-1.5 z-40 lg:hidden"
-          aria-label="Navegación principal"
-        >
-          {[userNav[0], userNav[1], userNav[3], userNav[4], userNav[6]].map(
-            (item) => (
-              <button
-                key={item.id}
-                onClick={() => goToTab(item.id)}
-                className={`flex flex-col items-center gap-0.5 px-2 py-1 text-[10px] min-w-[56px] transition-colors ${activeTab === item.id ? "text-primary" : "text-muted-foreground"}`}
-              >
-                <item.icon size={20} />
-                <span className="truncate max-w-full">{item.label}</span>
-              </button>
-            ),
-          )}
-        </nav>
+        <BelongingMobileBottomNav
+          activeTab={activeTab}
+          onNavigate={goToTab}
+          center={<BelongingQuickActionsMenu activeTab={activeTab} onNavigate={goToTab} onOpenCantSpeak={() => cantSpeakRef.current?.open()} />}
+        />
       </div>
-      <CantSpeakMode />
+      <BelongingProfileAccountPanel
+        open={profilePanelOpen}
+        name={user.name}
+        avatar={user.avatar}
+        level={"level" in user ? user.level : undefined}
+        supportLevel={"supportLevel" in user ? user.supportLevel : undefined}
+        autonomy={"autonomy" in user ? user.autonomy : undefined}
+        onClose={() => setProfilePanelOpen(false)}
+        onNavigate={goToTab}
+        onLogout={logout}
+      />
+      <CantSpeakMode ref={cantSpeakRef} hideMobileTrigger />
     </div>
   );
 }

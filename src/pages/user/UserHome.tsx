@@ -19,6 +19,7 @@ import { Progress } from '@/components/ui/progress';
 import { fetchPertenecienteHome, PertenecienteHomeData, PertenecienteHomeActivity } from '@/data/api';
 import EventPictogram from '@/components/EventPictogram';
 import { useCalendarPictograms } from '@/hooks/useCalendarPictograms';
+import BelongingHomeSecondaryAccess from '@/components/belonging/BelongingHomeSecondaryAccess';
 
 interface Props {
   onNavigate?: (tab: string) => void;
@@ -458,6 +459,13 @@ export default function UserHome({ onNavigate }: Props) {
           )}
         </section>
       </div>
+
+      <BelongingHomeSecondaryAccess
+        level={home.level}
+        points={home.points}
+        avatar={user.avatar}
+        onNavigate={onNavigate}
+      />
 
       {error && (
         <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
