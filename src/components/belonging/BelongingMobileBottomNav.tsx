@@ -108,8 +108,8 @@ function useScrollCompactProgress(forceExpanded: boolean) {
 
 export default function BelongingMobileBottomNav({ activeTab, onNavigate, center, forceExpanded = false }: Props) {
   const compactProgress = useScrollCompactProgress(forceExpanded);
-  const iconSize = lerp(22, 19, compactProgress);
-  const textSize = lerp(11, 9, compactProgress);
+  const iconSize = lerp(20, 17, compactProgress);
+  const textSize = lerp(10, 8.5, compactProgress);
   const itemGap = lerp(3, 1, compactProgress);
   const itemHorizontalPadding = lerp(4, 1, compactProgress);
 
@@ -150,7 +150,7 @@ export default function BelongingMobileBottomNav({ activeTab, onNavigate, center
       >
         {renderDestination(0)}
         {renderDestination(1)}
-        <div className="flex min-w-[52px] flex-1 items-center justify-center">{center(compactProgress)}</div>
+        <div className="flex min-w-[68px] flex-1 items-center justify-center px-1">{center(compactProgress)}</div>
         {renderDestination(2)}
         {renderDestination(3)}
       </div>
