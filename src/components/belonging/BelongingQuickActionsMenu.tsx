@@ -7,6 +7,8 @@ type Props = {
   onNavigate: (tab: string) => void;
   onOpenCantSpeak: () => void;
   centerContent?: (open: boolean) => ReactNode;
+  compactProgress?: number;
+  onOpenChange?: (open: boolean) => void;
 };
 
 const actions = [
@@ -16,12 +18,14 @@ const actions = [
   { id: 'communicate', label: 'Comunicarme', icon: MessageCircle, color: 'text-sky-600' },
 ] as const;
 
-export default function BelongingQuickActionsMenu({ activeTab, onNavigate, onOpenCantSpeak, centerContent }: Props) {
+export default function BelongingQuickActionsMenu({ activeTab, onNavigate, onOpenCantSpeak, centerContent, compactProgress = 0, onOpenChange }: Props) {
   const [open, setOpen] = useState(false);
   const [communicateOpen, setCommunicateOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
+
+  useEffect(() => { onOpenChange?.(open); }, [onOpenChange, open]);
 
   const close = (restoreFocus = false) => {
     setOpen(false);
@@ -109,9 +113,16 @@ export default function BelongingQuickActionsMenu({ activeTab, onNavigate, onOpe
         onClick={() => open ? close(true) : setOpen(true)}
         aria-label={open ? 'Cerrar accesos rápidos' : 'Abrir accesos rápidos'}
         aria-expanded={open}
-        className="relative z-[60] inline-flex h-14 w-14 -translate-y-2 items-center justify-center rounded-full border-4 border-white bg-[#7447ac] text-white shadow-[0_7px_18px_rgba(92,52,139,0.35)] transition hover:bg-[#633795] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed] focus-visible:ring-offset-2"
+        className="relative z-[60] inline-flex items-center justify-center rounded-full border-4 border-white bg-[#7447ac] text-white shadow-[0_7px_18px_rgba(92,52,139,0.35)] transition-colors hover:bg-[#633795] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed] focus-visible:ring-offset-2"
+        style={{
+          width: 60 - compactProgress * 12,
+          height: 60 - compactProgress * 12,
+          transform: `translateY(${-8 + compactProgress * 4}px)`,
+        }}
       >
-        {centerContent ? centerContent(open) : open ? <X size={26} aria-hidden /> : <span className="text-3xl font-light leading-none" aria-hidden>+</span>}
+        <span style={{ transform: `scale(${1 - compactProgress * 0.14})` }}>
+          {centerContent ? centerContent(open) : open ? <X size={26} aria-hidden /> : <span className="text-3xl font-light leading-none" aria-hidden>+</span>}
+        </span>
       </button>
     </>
   );

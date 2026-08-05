@@ -126,6 +126,7 @@ export default function AppShell() {
   const [navParams, setNavParams] = useState<Record<string, any> | null>(null);
   const [navKey, setNavKey] = useState(0);
   const [profilePanelOpen, setProfilePanelOpen] = useState(false);
+  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const cantSpeakRef = useRef<CantSpeakModeHandle>(null);
 
   useEffect(() => {
@@ -376,7 +377,8 @@ export default function AppShell() {
         <BelongingMobileBottomNav
           activeTab={activeTab}
           onNavigate={goToTab}
-          center={<BelongingQuickActionsMenu activeTab={activeTab} onNavigate={goToTab} onOpenCantSpeak={() => cantSpeakRef.current?.open()} />}
+          forceExpanded={quickActionsOpen}
+          center={(compactProgress) => <BelongingQuickActionsMenu activeTab={activeTab} onNavigate={goToTab} onOpenCantSpeak={() => cantSpeakRef.current?.open()} compactProgress={compactProgress} onOpenChange={setQuickActionsOpen} />}
         />
       </div>
       <BelongingProfileAccountPanel

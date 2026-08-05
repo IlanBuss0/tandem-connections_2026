@@ -54,7 +54,7 @@ export default function AppHeader({
             aria-label="Ir a Inicio"
             className="absolute left-1/2 inline-flex h-11 -translate-x-1/2 items-center justify-center rounded-xl px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
           >
-            <img className="h-8 max-w-[132px] object-contain" src="/tandem-logo.png" alt="Tandem" />
+            <img className="h-7 max-w-[108px] object-contain min-[360px]:h-8 min-[360px]:max-w-[132px]" src="/tandem-logo.png" alt="Tandem" />
           </button>
         )}
         <img
