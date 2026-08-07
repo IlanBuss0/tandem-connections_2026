@@ -546,7 +546,7 @@ export default function AccessibilityWidget() {
 
       {!isMobileMenuOpen && (
         <>
-          {user?.role === 'user' && (
+          {(user?.role === 'user' || user?.role === 'tutor') && (
             <button
               type="button"
               onClick={() => setOpen(true)}
@@ -567,7 +567,7 @@ export default function AccessibilityWidget() {
             type="button"
             onClick={() => setOpen(true)}
             aria-label="Abrir menu de accesibilidad"
-            className={`a11y-widget fixed bottom-5 left-5 z-[9998] h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-[#2357ff] text-white shadow-2xl shadow-blue-900/25 transition hover:-translate-y-0.5 hover:bg-[#5b35d5] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#b9a7ff] sm:bottom-6 sm:left-6 ${user?.role === 'user' ? 'hidden lg:flex' : 'flex'}`}
+            className={`a11y-widget fixed bottom-5 left-5 z-[9998] h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-[#2357ff] text-white shadow-2xl shadow-blue-900/25 transition hover:-translate-y-0.5 hover:bg-[#5b35d5] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#b9a7ff] sm:bottom-6 sm:left-6 ${user?.role === 'user' || user?.role === 'tutor' ? 'hidden lg:flex' : 'flex'}`}
           >
             <Accessibility size={28} />
             {activeCount > 0 && (
