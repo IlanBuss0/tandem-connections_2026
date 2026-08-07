@@ -75,7 +75,7 @@ const userNav = [
   { id: "shop", label: "Tienda y avatar", icon: ShoppingBag },
   { id: "pictograms", label: "Pictogramas", icon: Image },
   { id: "chat", label: "Chat", icon: MessageCircle },
-  { id: "emotions", label: "Emociones", icon: Heart },
+  { id: "emotions", label: "Registro personal", icon: Heart },
   { id: "achievements", label: "Logros", icon: Trophy },
   { id: "notifications", label: "Notificaciones", icon: Bell },
   { id: "resources", label: "Recursos", icon: BookOpen },
@@ -241,7 +241,7 @@ export default function AppShell() {
         position="fixed"
         onMenuClick={() => setSidebarOpen(true)}
         menuButtonClassName="invisible pointer-events-none lg:visible lg:pointer-events-auto"
-        onMobileLogoClick={() => goToTab("home")}
+        onLogoClick={() => goToTab("home")}
         rightSlot={
           <>
             <div className="flex items-center gap-2 lg:hidden">

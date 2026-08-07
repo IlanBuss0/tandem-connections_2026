@@ -84,11 +84,11 @@ export default function PersonalEventCalendar({
   onDelete: (id: string) => Promise<void>;
   /** Si se pasa, el formulario ofrece vincular el evento a un paciente (Profesional). */
   patients?: { id: string; name: string }[];
-  /** Elementos de solo lectura para un día (ej: sesiones de Profesional, gestionadas desde Agenda). */
+  /** Elementos de solo lectura para un día, por ejemplo sesiones profesionales. */
   readOnlyItemsForDate?: (dateKey: string) => ReadOnlyDayItem[];
   readOnlyHint?: string;
   loading?: boolean;
-  /** Acción secundaria en el header, ej. "Ir a agenda" (Profesional). */
+  /** Acción secundaria opcional en el encabezado. */
   headerAction?: { label: string; onClick: () => void };
 }) {
   const { toast } = useToast();

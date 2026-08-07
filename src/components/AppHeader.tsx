@@ -8,7 +8,7 @@ type AppHeaderProps = {
   className?: string;
   position?: 'fixed' | 'sticky';
   menuButtonClassName?: string;
-  onMobileLogoClick?: () => void;
+  onLogoClick?: () => void;
 };
 
 export default function AppHeader({
@@ -18,7 +18,7 @@ export default function AppHeader({
   className = '',
   position = 'sticky',
   menuButtonClassName = '',
-  onMobileLogoClick,
+  onLogoClick,
 }: AppHeaderProps) {
   const positionClass = position === 'fixed' ? 'fixed' : 'sticky';
 
@@ -47,10 +47,10 @@ export default function AppHeader({
           </button>
         )}
 
-        {onMobileLogoClick && (
+        {onLogoClick && (
           <button
             type="button"
-            onClick={onMobileLogoClick}
+            onClick={onLogoClick}
             aria-label="Ir a Inicio"
             className="absolute left-3 inline-flex h-11 items-center justify-center rounded-xl px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:left-5 lg:hidden"
           >
@@ -58,7 +58,7 @@ export default function AppHeader({
           </button>
         )}
         <img
-          className={`absolute left-1/2 h-8 max-w-[132px] -translate-x-1/2 object-contain ${onMobileLogoClick ? 'hidden lg:block' : ''}`}
+          className={`absolute left-1/2 h-8 max-w-[132px] -translate-x-1/2 object-contain ${onLogoClick ? 'hidden lg:block' : ''}`}
           src="/tandem-logo.png"
           alt="Tandem"
         />

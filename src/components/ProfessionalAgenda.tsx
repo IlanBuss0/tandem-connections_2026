@@ -313,7 +313,7 @@ export default function ProfessionalAgenda({
     <div className="space-y-5">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <h2 className="font-heading text-xl font-bold">Agenda y sesiones</h2>
+          <h2 className="font-heading text-xl font-bold">Gestión de sesiones</h2>
           <p className="text-sm text-muted-foreground">
             Sesiones vinculadas a pacientes autorizados
           </p>

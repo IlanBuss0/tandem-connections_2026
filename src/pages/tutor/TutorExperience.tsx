@@ -115,7 +115,7 @@ export default function TutorExperience() {
       <a href="#tutor-main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-[100] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2">Saltar al contenido</a>
       <AppHeader
         onMenuClick={() => setMenuOpen(true)}
-        onMobileLogoClick={() => navigate('home')}
+        onLogoClick={() => navigate('home')}
         menuButtonClassName="invisible pointer-events-none lg:visible lg:pointer-events-auto"
         rightSlot={<div className="flex items-center gap-2">
           <NotificationBellButton count={unreadCount} onClick={() => navigate('notifications')} className="border-0 bg-transparent" />

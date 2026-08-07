@@ -16,10 +16,11 @@ import {
   Send,
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
-import { fetchPertenecienteHome, PertenecienteHomeData, PertenecienteHomeActivity } from '@/data/api';
+import { createPersonalNote, fetchPertenecienteHome, PertenecienteHomeData, PertenecienteHomeActivity } from '@/data/api';
 import EventPictogram from '@/components/EventPictogram';
 import { useCalendarPictograms } from '@/hooks/useCalendarPictograms';
 import BelongingHomeSecondaryAccess from '@/components/belonging/BelongingHomeSecondaryAccess';
+import { useEmotions } from '@/contexts/EmotionsContext';
 
 interface Props {
   onNavigate?: (tab: string) => void;
@@ -67,6 +68,7 @@ gsap.registerPlugin(ScrollTrigger);
 
 export default function UserHome({ onNavigate }: Props) {
   const { user } = useAuth();
+  const { add: addEmotion } = useEmotions();
   const { events, eventsOn } = useCalendar();
   const [home, setHome] = useState<PertenecienteHomeData>(emptyHome);
   const [loading, setLoading] = useState(true);
@@ -80,6 +82,10 @@ export default function UserHome({ onNavigate }: Props) {
   const [canScrollRight, setCanScrollRight] = useState(true);
   const [note, setNote] = useState('');
   const [saved, setSaved] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
+  const [selectedBoardEmotion, setSelectedBoardEmotion] = useState<{ label: string; emoji: string } | null>(null);
+  const [savingBoardEmotion, setSavingBoardEmotion] = useState(false);
+  const [boardEmotionSaved, setBoardEmotionSaved] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const panelRefs = useRef<Array<HTMLElement | null>>([]);
 
@@ -129,12 +135,38 @@ export default function UserHome({ onNavigate }: Props) {
     }
   }, []);
 
-  const handleSaveNote = () => {
-    if (!note.trim()) return;
-    // TODO: connect to backend
-    setSaved(true);
-    setNote('');
-    setTimeout(() => setSaved(false), 2500);
+  const handleSaveNote = async () => {
+    if (!note.trim() || savingNote || !user) return;
+    setSavingNote(true);
+    try {
+      await createPersonalNote(user.id, note);
+      setSaved(true);
+      setNote('');
+      setTimeout(() => setSaved(false), 2500);
+    } catch {
+      setError('No pudimos guardar la nota. Intentá nuevamente.');
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  const handleSaveBoardEmotion = async () => {
+    if (!selectedBoardEmotion || savingBoardEmotion) return;
+    setSavingBoardEmotion(true);
+    try {
+      await addEmotion({
+        emotion: selectedBoardEmotion.label,
+        emoji: selectedBoardEmotion.emoji,
+        intensity: 3,
+        context: '',
+        whatHelped: '',
+      });
+      setBoardEmotionSaved(true);
+      setSelectedBoardEmotion(null);
+      setTimeout(() => setBoardEmotionSaved(false), 2500);
+    } finally {
+      setSavingBoardEmotion(false);
+    }
   };
 
   useEffect(() => {
@@ -243,7 +275,7 @@ export default function UserHome({ onNavigate }: Props) {
               {[
                 { id: 'chat', label: 'Chat', icon: MessageCircle, tone: 'bg-white text-[#5c3f7f]' },
                 { id: 'calendar', label: 'Calendario', icon: Calendar, tone: 'bg-[#6f4ca6] text-white' },
-                { id: 'notes', label: 'Notas', icon: FileText, tone: 'bg-[#fffafc] text-[#7b5fa6]' },
+                { id: 'emotions', label: 'Registro personal', icon: FileText, tone: 'bg-[#fffafc] text-[#7b5fa6]' },
               ].map(item => (
                 <button
                   key={item.id}
@@ -360,6 +392,10 @@ export default function UserHome({ onNavigate }: Props) {
               <h3 className="text-2xl sm:text-3xl font-bold text-[#2e2344]">¿Cómo te sentiste hoy?</h3>
             </div>
 
+            <button type="button" onClick={() => onNavigate?.('emotions')} className="text-sm font-semibold text-[#6f4ca6] transition hover:text-[#2e2344]">
+              Ver más
+            </button>
+
             <textarea
               value={note}
               onChange={e => { setNote(e.target.value); setSaved(false); }}
@@ -380,10 +416,10 @@ export default function UserHome({ onNavigate }: Props) {
                 )}
                 <button
                   onClick={handleSaveNote}
-                  disabled={!note.trim()}
+                  disabled={!note.trim() || savingNote}
                   className="text-sm font-semibold text-[#6f4ca6] transition disabled:text-[#b5a8c8]"
                 >
-                  Guardar nota
+                  {savingNote ? 'Guardando...' : 'Guardar nota'}
                 </button>
               </div>
             </div>
@@ -416,13 +452,19 @@ export default function UserHome({ onNavigate }: Props) {
                 <button
                   key={e.id}
                   aria-label={e.label}
-                  aria-pressed={note === e.label}
-                  onClick={() => { setNote(e.label); setSaved(false); }}
-                  className="flex min-h-14 items-center justify-center rounded-lg border border-[#efe8f8] bg-[#fcf9ff] px-3 py-3 transition hover:bg-[#f8f2ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6f4ca6] focus-visible:ring-offset-2"
+                  aria-pressed={selectedBoardEmotion?.label === e.label}
+                  onClick={() => { setSelectedBoardEmotion({ label: e.label, emoji: e.emoji }); setBoardEmotionSaved(false); }}
+                  className={`flex min-h-14 items-center justify-center rounded-lg border px-3 py-3 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6f4ca6] focus-visible:ring-offset-2 ${selectedBoardEmotion?.label === e.label ? 'border-[#6f4ca6] bg-[#f1e8ff] ring-2 ring-[#6f4ca6]/20' : 'border-[#efe8f8] bg-[#fcf9ff] hover:bg-[#f8f2ff]'}`}
                 >
                   <span className="inline-flex h-10 w-10 items-center justify-center text-2xl leading-none" aria-hidden="true">{e.emoji}</span>
                 </button>
               ))}
+            </div>
+            <div className="mt-4 flex items-center justify-between gap-3">
+              {boardEmotionSaved && <span className="text-xs font-medium text-emerald-600">Emoción guardada</span>}
+              <button type="button" onClick={handleSaveBoardEmotion} disabled={!selectedBoardEmotion || savingBoardEmotion} className="ml-auto rounded-xl bg-[#6f4ca6] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#5a3c8a] disabled:cursor-not-allowed disabled:opacity-45">
+                {savingBoardEmotion ? 'Guardando...' : 'Guardar emoción'}
+              </button>
             </div>
           </section>
         </div>
