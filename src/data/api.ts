@@ -1,7 +1,7 @@
 import * as legacy from './mockData';
 import { tandemApi } from '@/services/api';
 import { API_BASE_URL, ApiError, apiRequest, clearDefaultAuthToken, unwrapApiData } from '@/services/api/client';
-import { activityDisplayDescription } from '@/lib/activityDescription';
+import { activityDisplayDescription, activityDisplayTitle } from '@/lib/activityDescription';
 import type { GameData, GameType } from '@/data/miniGames';
 import type {
   Actividad as DbActividad,
@@ -1299,7 +1299,13 @@ export interface TutorHomeData {
   }>;
 }
 
-export async function fetchPertenecienteHome(userId: string): Promise<PertenecienteHomeData> {
+export async function fetchPertenecienteHome(
+  userId: string,
+  options?: {
+    onActivitiesReady?: (activities: PertenecienteHomeActivity[]) => void;
+    skipProfileLookups?: boolean;
+  },
+): Promise<PertenecienteHomeData> {
   if (!isBackendUserId(userId)) {
     const user = legacy.getUserById(userId);
     const activities = legacy.getActivitiesForUser(userId);
@@ -1323,6 +1329,12 @@ export async function fetchPertenecienteHome(userId: string): Promise<Pertenecie
     };
   }
 
+  // Estos catálogos no dependen del id del perteneciente: se empiezan mientras
+  // se resuelve su perfil para evitar una segunda ronda de red en Inicio.
+  const activityCatalogsRequest = Promise.all([
+    tandemApi.actividades.getAll(),
+    tandemApi.estadosActividades.getAll(),
+  ]);
   const perteneciente = await fetchPertenecienteByUsuarioId(userId);
   if (!perteneciente) {
     return {
@@ -1338,31 +1350,49 @@ export async function fetchPertenecienteHome(userId: string): Promise<Pertenecie
     };
   }
 
-  const [
-    asignadas,
-    actividades,
-    actividadesPersonalizadas,
-    estados,
-    notificaciones,
-    saldos,
-    avatares,
-    nivelesApoyo,
-    autonomias,
-  ] = await Promise.all([
+  const activitiesRequest = Promise.all([
     fetchAssignedActivitiesByPerteneciente(Number(perteneciente.id)),
-    tandemApi.actividades.getAll(),
     fetchCustomActivitiesByPerteneciente(Number(perteneciente.id)),
-    tandemApi.estadosActividades.getAll(),
-    tandemApi.notificaciones.getMine(),
-    tandemApi.saldosPuntos.getAll(),
-    tandemApi.avatares.getAll(),
-    tandemApi.nivelesApoyos.getAll(),
-    tandemApi.autonomiasOperativas.getAll(),
+    activityCatalogsRequest,
   ]);
+  const profileRequest = options?.skipProfileLookups
+    ? Promise.resolve([[], [], [], []] as [DbSaldoPuntos[], DbAvatar[], DbNivelApoyo[], DbAutonomiaOperativa[]])
+    : Promise.all([
+        tandemApi.saldosPuntos.getAll(),
+        tandemApi.avatares.getAll(),
+        tandemApi.nivelesApoyos.getAll(),
+        tandemApi.autonomiasOperativas.getAll(),
+      ]);
+
+  const [asignadas, actividadesPersonalizadas, [actividades, estados]] = await activitiesRequest;
 
   const activitiesById = new Map((actividades as DbActividad[]).map(a => [Number(a.id), a]));
   const customById = new Map((actividadesPersonalizadas as DbActividadPersonalizada[]).map(a => [Number(a.id), a]));
   const statusById = new Map((estados as DbEstadoActividad[]).map(e => [Number(e.id), e]));
+  const homeActivities = (asignadas as DbActividadAsignada[])
+    .filter(a => Number(a.id_perteneciente) === Number(perteneciente.id))
+    .filter(a =>
+      Boolean(a.id_actividad && activitiesById.has(Number(a.id_actividad))) ||
+      Boolean(a.id_actividad_personalizada && customById.has(Number(a.id_actividad_personalizada)))
+    )
+    .map(a => {
+      const base = a.id_actividad ? activitiesById.get(Number(a.id_actividad)) : undefined;
+      const custom = a.id_actividad_personalizada ? customById.get(Number(a.id_actividad_personalizada)) : undefined;
+      const status = a.id_estado_actividad ? statusById.get(Number(a.id_estado_actividad)) : undefined;
+      return {
+        id: String(a.id),
+        title: activityDisplayTitle(base?.titulo || custom?.titulo || `Actividad #${a.id}`),
+        description: activityDisplayDescription(base?.descripcion || custom?.descripcion) || 'Actividad asignada desde el equipo de apoyo.',
+        status: status?.nombre || (a.fecha_completada ? 'Completada' : 'Pendiente'),
+        completed: isCompletedStatus(status, a),
+        assignedAt: formatBackendDate(a.fecha_asignacion),
+      };
+    });
+  options?.onActivitiesReady?.(homeActivities);
+
+  const [saldos, avatares, nivelesApoyo, autonomias] = await profileRequest;
+  // Inicio no renderiza notificaciones; se cargan desde su contexto/pantalla dedicada.
+  const notificaciones: DbNotificacion[] = [];
   const saldo = (saldos as DbSaldoPuntos[]).find(s => Number(s.id_perteneciente) === Number(perteneciente.id));
   const avatar = (avatares as DbAvatar[]).find(a => Number(a.id_perteneciente) === Number(perteneciente.id));
   const supportLevel = (nivelesApoyo as DbNivelApoyo[]).find(n => Number(n.id) === Number(perteneciente.id_nivel_apoyo));
@@ -1388,7 +1418,7 @@ export async function fetchPertenecienteHome(userId: string): Promise<Pertenecie
         const status = a.id_estado_actividad ? statusById.get(Number(a.id_estado_actividad)) : undefined;
         return {
           id: String(a.id),
-          title: base?.titulo || custom?.titulo || `Actividad #${a.id}`,
+          title: activityDisplayTitle(base?.titulo || custom?.titulo || `Actividad #${a.id}`),
           description: activityDisplayDescription(base?.descripcion || custom?.descripcion) || 'Actividad asignada desde el equipo de apoyo.',
           status: status?.nombre || (a.fecha_completada ? 'Completada' : 'Pendiente'),
           completed: isCompletedStatus(status, a),

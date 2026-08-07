@@ -51,7 +51,15 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!userId) return;
-    fetchPatternsReport(userId).then((report) => setEventTypePatterns(report?.eventTypePatterns || []));
+    const loadPatterns = () => {
+      fetchPatternsReport(userId).then((report) => setEventTypePatterns(report?.eventTypePatterns || []));
+    };
+    if ('requestIdleCallback' in window) {
+      const idleId = window.requestIdleCallback(loadPatterns, { timeout: 2500 });
+      return () => window.cancelIdleCallback(idleId);
+    }
+    const timer = window.setTimeout(loadPatterns, 1000);
+    return () => window.clearTimeout(timer);
   }, [userId]);
 
   const addEvent: Ctx['addEvent'] = useCallback(async (data) => {
