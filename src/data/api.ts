@@ -1,6 +1,7 @@
 import * as legacy from './mockData';
 import { tandemApi } from '@/services/api';
 import { API_BASE_URL, ApiError, apiRequest, clearDefaultAuthToken, unwrapApiData } from '@/services/api/client';
+import { activityDisplayDescription } from '@/lib/activityDescription';
 import type { GameData, GameType } from '@/data/miniGames';
 import type {
   Actividad as DbActividad,
@@ -446,18 +447,6 @@ function extractCustomSteps(description?: string | null): string[] {
   return steps.length > 0 ? steps : [description || 'Completar la actividad asignada.'];
 }
 
-function customDescriptionWithoutMetadata(description?: string | null): string {
-  return (description || '')
-    .split('\n')
-    .filter(line =>
-      !line.trim().startsWith('Objetivo:') &&
-      !line.trim().startsWith('Pasos:') &&
-      !line.trim().startsWith('Juego:')
-    )
-    .join('\n')
-    .trim();
-}
-
 function parseActivityGameMetadata(description?: string | null): { gameType?: GameType; gameData?: GameData } {
   const line = (description || '').split('\n').find(item => item.trim().startsWith('Juego:'));
   if (!line) return {};
@@ -490,7 +479,7 @@ function toAssignedLegacyActivity(
     activa: activity.activa,
   }, userId);
   const completed = isCompletedStatus(status, assignment);
-  const customDescription = 'id_actividad_base' in activity ? customDescriptionWithoutMetadata(activity.descripcion) : '';
+  const customDescription = 'id_actividad_base' in activity ? activityDisplayDescription(activity.descripcion) : '';
   const customSteps = 'id_actividad_base' in activity ? extractCustomSteps(activity.descripcion) : null;
   const gameMetadata = parseActivityGameMetadata(activity.descripcion);
 
@@ -1400,7 +1389,7 @@ export async function fetchPertenecienteHome(userId: string): Promise<Pertenecie
         return {
           id: String(a.id),
           title: base?.titulo || custom?.titulo || `Actividad #${a.id}`,
-          description: base?.descripcion || custom?.descripcion || 'Actividad asignada desde el equipo de apoyo.',
+          description: activityDisplayDescription(base?.descripcion || custom?.descripcion) || 'Actividad asignada desde el equipo de apoyo.',
           status: status?.nombre || (a.fecha_completada ? 'Completada' : 'Pendiente'),
           completed: isCompletedStatus(status, a),
           assignedAt: formatBackendDate(a.fecha_asignacion),
@@ -1526,7 +1515,7 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
         return {
           id: String(item.id),
           title: base?.titulo || custom?.titulo || `Actividad #${item.id}`,
-          description: base?.descripcion || custom?.descripcion || 'Actividad asignada desde el equipo de apoyo.',
+          description: activityDisplayDescription(base?.descripcion || custom?.descripcion) || 'Actividad asignada desde el equipo de apoyo.',
           category: custom ? 'Personalizada' : 'Integrada',
           difficulty: 'Medio',
           points: pointName ? pointsByName[pointName] ?? 10 : 10,
