@@ -98,6 +98,12 @@ export default function AccessibilityWidget() {
   }, []);
 
   useEffect(() => {
+    const openAccessibility = () => setOpen(true);
+    window.addEventListener('tandem:open-accessibility', openAccessibility);
+    return () => window.removeEventListener('tandem:open-accessibility', openAccessibility);
+  }, []);
+
+  useEffect(() => {
     document.body.classList.toggle('accessibility-menu-open', open);
 
     if (!open) return;

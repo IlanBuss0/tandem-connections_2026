@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activityDisplayDescription } from './activityDescription';
+import { activityDisplayDescription, activityDisplayTitle } from './activityDescription';
 
 describe('activityDisplayDescription', () => {
   it('oculta objetivo, pasos y JSON del juego guardados en líneas separadas', () => {
@@ -20,5 +20,13 @@ describe('activityDisplayDescription', () => {
   it('conserva una descripción común sin metadatos', () => {
     expect(activityDisplayDescription('Preparar la merienda siguiendo los apoyos visuales.'))
       .toBe('Preparar la merienda siguiendo los apoyos visuales.');
+  });
+  it('extrae un título legible cuando llega como JSON serializado', () => {
+    expect(activityDisplayTitle('{"title":"Ir al gimnasio","status":"pending"}')).toBe('Ir al gimnasio');
+    expect(activityDisplayTitle('{"status":"pending"}')).toBe('Actividad');
+  });
+
+  it('extrae una descripción legible cuando llega como JSON serializado', () => {
+    expect(activityDisplayDescription('{"description":"Preparar la mochila","steps":[]}')).toBe('Preparar la mochila');
   });
 });
