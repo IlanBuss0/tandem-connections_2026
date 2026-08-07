@@ -20,18 +20,17 @@ import AboutTandem from '@/pages/AboutTandem';
 import { aggregateTutorEvents, type TutorAggregateEvent } from '@/lib/tutorEventAggregation';
 import { TutorDrawer, TutorProfileDrawer, TutorQuickMenu, type TutorTab } from '@/components/tutor/TutorNavigation';
 import TutorLinkedDetail from '@/components/tutor/TutorLinkedDetail';
+import TutorHome from '@/components/tutor/TutorHome';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSyncMobileMenuOpen } from '@/contexts/MobileMenuState';
 import { useTutorNavigation } from '@/hooks/useTutorNavigation';
+import type { TutorAggregateActivity as AggregateActivity, TutorAggregateEmotion as AggregateEmotion } from '@/lib/tutorHomeModel';
 import {
   createCalendarEvent, deleteCalendarEvent, fetchCalendarEventsForUser, fetchPictograms,
   fetchTutorHome, updateCalendarEvent, type CalendarEvent, type Pictogram, type TutorHomeData,
   type TutorHomeLinkedUser,
 } from '@/data/api';
-
-type AggregateActivity = TutorHomeData['byUserId'][string]['activities'][number] & { owner: TutorHomeLinkedUser };
-type AggregateEmotion = TutorHomeData['byUserId'][string]['emotions'][number] & { owner: TutorHomeLinkedUser };
 
 const tutorPageLabels: Partial<Record<TutorTab, string>> = {
   calendar: 'Calendario', activities: 'Actividades', chat: 'Chats', notifications: 'Notificaciones',
@@ -43,17 +42,6 @@ function parseDate(value?: string | null) {
   if (!value) return 0;
   const parsed = Date.parse(value.includes('T') ? value : `${value}T12:00:00`);
   return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function relativeTime(value?: string | null) {
-  const time = parseDate(value);
-  if (!time) return value || '';
-  const minutes = Math.max(0, Math.floor((Date.now() - time) / 60000));
-  if (minutes < 60) return `Hace ${Math.max(1, minutes)} min`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `Hace ${hours} h`;
-  const days = Math.floor(hours / 24);
-  return days === 1 ? 'Ayer' : `Hace ${days} días`;
 }
 
 function ownerAvatar(owner: TutorHomeLinkedUser, size = 'h-7 w-7') {
@@ -178,7 +166,7 @@ function TutorContent(props: {
   onTutorEventsChange: (events: CalendarEvent[]) => void;
 }) {
   const { tab } = props;
-  if (tab === 'home') return <TutorHome {...props} />;
+  if (tab === 'home') return <TutorHome userName={props.userName} data={props.data} linkedUsers={props.linkedUsers} activities={props.activities} emotions={props.emotions} events={props.events} pictograms={props.pictograms} onNavigate={props.onNavigate} onOpenDetail={props.onOpenDetail} />;
   if (tab === 'activities') return <ActivitiesPage activities={props.activities} linkedUsers={props.linkedUsers} />;
   if (tab === 'calendar') return <CalendarPage {...props} />;
   if (tab === 'chat') return <ChatProvider><ChatScreen key={props.selectedNotificationChatId || 'tutor-chat'} profiles={props.chatProfiles} defaultProfileId={props.userId} defaultSelectedId={props.selectedNotificationChatId} /></ChatProvider>;
@@ -202,7 +190,7 @@ function TutorContent(props: {
   return null;
 }
 
-function TutorHome(props: Parameters<typeof TutorContent>[0]) {
+function TutorHomeLegacy(props: Parameters<typeof TutorContent>[0]) {
   const completed = props.activities.filter(item => item.completed).length;
   const adherence = props.activities.length ? Math.round((completed / props.activities.length) * 100) : 0;
   const weekAgo = Date.now() - 7 * 86400000;

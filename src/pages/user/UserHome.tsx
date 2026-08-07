@@ -21,6 +21,7 @@ import EventPictogram from '@/components/EventPictogram';
 import { useCalendarPictograms } from '@/hooks/useCalendarPictograms';
 import BelongingHomeSecondaryAccess from '@/components/belonging/BelongingHomeSecondaryAccess';
 import { useEmotions } from '@/contexts/EmotionsContext';
+import { useWallet } from '@/contexts/WalletContext';
 
 interface Props {
   onNavigate?: (tab: string) => void;
@@ -63,12 +64,27 @@ function statusStyle(status: string): string {
 }
 
 const CARD_GAP = 16;
+const primarySaveButtonClass = 'rounded-xl bg-[#6f4ca6] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#5a3c8a] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45';
+const homeRequests = new Map<string, Promise<PertenecienteHomeData>>();
+
+function loadPertenecienteHome(
+  userId: string,
+  onActivitiesReady: (activities: PertenecienteHomeActivity[]) => void,
+) {
+  const existing = homeRequests.get(userId);
+  if (existing) return existing;
+  const request = fetchPertenecienteHome(userId, { onActivitiesReady, skipProfileLookups: true })
+    .finally(() => homeRequests.delete(userId));
+  homeRequests.set(userId, request);
+  return request;
+}
 
 gsap.registerPlugin(ScrollTrigger);
 
 export default function UserHome({ onNavigate }: Props) {
   const { user } = useAuth();
   const { add: addEmotion } = useEmotions();
+  const { state: wallet } = useWallet();
   const { events, eventsOn } = useCalendar();
   const [home, setHome] = useState<PertenecienteHomeData>(emptyHome);
   const [loading, setLoading] = useState(true);
@@ -76,7 +92,8 @@ export default function UserHome({ onNavigate }: Props) {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [selectedDay, setSelectedDay] = useState(() => fmt(new Date()));
   const selectedDayEvents = useMemo(() => events.filter(event => event.date === selectedDay), [events, selectedDay]);
-  useCalendarPictograms(selectedDayEvents);
+  const [secondaryContentReady, setSecondaryContentReady] = useState(false);
+  useCalendarPictograms(secondaryContentReady ? selectedDayEvents : []);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
@@ -88,6 +105,16 @@ export default function UserHome({ onNavigate }: Props) {
   const [boardEmotionSaved, setBoardEmotionSaved] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const panelRefs = useRef<Array<HTMLElement | null>>([]);
+
+  useEffect(() => {
+    const reveal = () => setSecondaryContentReady(true);
+    if ('requestIdleCallback' in window) {
+      const idleId = window.requestIdleCallback(reveal, { timeout: 1800 });
+      return () => window.cancelIdleCallback(idleId);
+    }
+    const timer = window.setTimeout(reveal, 600);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useGSAP(() => {
     const container = containerRef.current;
@@ -119,7 +146,7 @@ export default function UserHome({ onNavigate }: Props) {
         clearProps: 'transform',
       });
     });
-  }, { scope: containerRef, dependencies: [loading] });
+  }, { scope: containerRef, dependencies: [] });
 
   const handlePanelEnter = useCallback((index: number) => {
     const panel = panelRefs.current[index];
@@ -175,7 +202,9 @@ export default function UserHome({ onNavigate }: Props) {
 
     setLoading(true);
     setError('');
-    fetchPertenecienteHome(user.id)
+    loadPertenecienteHome(user.id, (activities) => {
+      if (mounted) setHome(current => ({ ...current, activities }));
+    })
       .then(data => {
         if (!mounted) return;
         setHome(data);
@@ -190,7 +219,7 @@ export default function UserHome({ onNavigate }: Props) {
       });
 
     return () => { mounted = false; };
-  }, [user]);
+  }, [user?.id, user?.role]);
 
   const firstName = user?.name.split(' ')[0] || user?.username || '';
   const today = new Date();
@@ -260,9 +289,6 @@ export default function UserHome({ onNavigate }: Props) {
         <div className="w-full rounded-[24px] border border-[#e8dcf8] bg-gradient-to-br from-[#f9f4ff] via-[#f4ebff] to-[#eef8fb] py-5 shadow-[0_10px_30px_#eadff6] sm:py-7">
           <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8">
             <div className="mx-auto flex max-w-3xl flex-col items-center gap-6">
-              <div data-hero-animate className="inline-flex items-center rounded-full border border-[#dbcdf5] bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7b5fa6] shadow-sm">
-                Resumen de hoy
-              </div>
               <h1 data-hero-animate className="text-4xl font-black leading-[0.95] tracking-[-0.02em] text-[#2e2344] sm:text-5xl">
                 Hola, {firstName}
               </h1>
@@ -417,9 +443,9 @@ export default function UserHome({ onNavigate }: Props) {
                 <button
                   onClick={handleSaveNote}
                   disabled={!note.trim() || savingNote}
-                  className="text-sm font-semibold text-[#6f4ca6] transition disabled:text-[#b5a8c8]"
+                  className={primarySaveButtonClass}
                 >
-                  {savingNote ? 'Guardando...' : 'Guardar nota'}
+                  {savingNote ? 'Guardando...' : 'Guardar Nota'}
                 </button>
               </div>
             </div>
@@ -462,7 +488,7 @@ export default function UserHome({ onNavigate }: Props) {
             </div>
             <div className="mt-4 flex items-center justify-between gap-3">
               {boardEmotionSaved && <span className="text-xs font-medium text-emerald-600">Emoción guardada</span>}
-              <button type="button" onClick={handleSaveBoardEmotion} disabled={!selectedBoardEmotion || savingBoardEmotion} className="ml-auto rounded-xl bg-[#6f4ca6] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#5a3c8a] disabled:cursor-not-allowed disabled:opacity-45">
+              <button type="button" onClick={handleSaveBoardEmotion} disabled={!selectedBoardEmotion || savingBoardEmotion} className={`ml-auto ${primarySaveButtonClass}`}>
                 {savingBoardEmotion ? 'Guardando...' : 'Guardar emoción'}
               </button>
             </div>
@@ -475,9 +501,13 @@ export default function UserHome({ onNavigate }: Props) {
           ref={el => { panelRefs.current[1] = el; }}
           className="mt-6 rounded-[24px] border border-[#ece3f8] bg-white p-6 shadow-[0_8px_24px_#f0e8f8]"
         >
-          <div className="mb-3">
+          <div className="relative mb-4 pr-0 sm:pr-24">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#7b5fa6]">Próximas acciones</p>
             <h3 className="text-lg font-semibold text-[#2e2344]">Lo que sigue</h3>
+            <div className="absolute right-0 top-0 hidden items-center gap-2 sm:flex">
+              <button type="button" onClick={() => scrollCarousel('left')} disabled={!canScrollLeft} aria-label="Actividad anterior" className="flex h-9 w-9 items-center justify-center rounded-full border border-[#e6daf5] bg-white text-[#6f4ca6] transition hover:bg-[#f5f0ff] disabled:opacity-35"><ChevronLeft size={18} /></button>
+              <button type="button" onClick={() => scrollCarousel('right')} disabled={!canScrollRight} aria-label="Actividad siguiente" className="flex h-9 w-9 items-center justify-center rounded-full border border-[#e6daf5] bg-white text-[#6f4ca6] transition hover:bg-[#f5f0ff] disabled:opacity-35"><ChevronRight size={18} /></button>
+            </div>
           </div>
 
           {loading ? (
@@ -485,17 +515,16 @@ export default function UserHome({ onNavigate }: Props) {
           ) : pendingActivities.length === 0 ? (
             <div className="py-4 text-sm text-[#4a4a5a]">No tenés actividades pendientes.</div>
           ) : (
-            <div className="relative pl-6">
-              <div className="absolute left-3 top-0 bottom-0 w-px bg-[#efe8f8]" aria-hidden />
-              {pendingActivities.slice(0, 6).map((activity, idx) => (
-                <div key={activity.id} className="relative mb-8 pl-6">
-                  <span className="absolute left-0 top-1.5 h-3 w-3 -translate-x-1/2 rounded-full bg-indigo-500" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-[#4a4a5a]">{activity.title}</p>
-                    <p className="mt-1 text-xs text-[#8b7aa0]">{activity.description}</p>
-                    <div className="mt-1 text-[10px] text-[#8b7aa0]">{activity.assignedAt}</div>
+            <div ref={scrollRef} className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3 pr-[12%] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:pr-[8%] lg:pr-6">
+              {pendingActivities.slice(0, 6).map((activity) => (
+                <article key={activity.id} className="flex min-h-[180px] min-w-[82%] snap-start flex-col rounded-[20px] border border-[#ece3f8] bg-[#fcf9ff] p-5 shadow-sm sm:min-w-[46%] lg:min-w-[31%]">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${statusStyle(activity.status)}`}>{activity.status}</span>
+                    <span className="text-[10px] font-medium text-[#8b7aa0]">{activity.assignedAt}</span>
                   </div>
-                </div>
+                  <h4 className="mt-5 break-words text-base font-bold leading-6 text-[#3f3153]">{activity.title}</h4>
+                  <p className="mt-2 line-clamp-3 break-words text-sm leading-5 text-[#756a82]">{activity.description}</p>
+                </article>
               ))}
             </div>
           )}
@@ -503,8 +532,8 @@ export default function UserHome({ onNavigate }: Props) {
       </div>
 
       <BelongingHomeSecondaryAccess
-        level={home.level}
-        points={home.points}
+        level={'level' in user ? user.level : home.level}
+        points={wallet.balance}
         avatar={user.avatar}
         onNavigate={onNavigate}
       />
