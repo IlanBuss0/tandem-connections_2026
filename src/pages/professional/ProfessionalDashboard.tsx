@@ -37,6 +37,8 @@ import AboutTandem from '@/pages/AboutTandem';
 import UserPictograms from '@/pages/user/UserPictograms';
 import { useToast } from '@/components/ui/use-toast';
 import { useSyncMobileMenuOpen } from '@/contexts/MobileMenuState';
+import RoleMobileBottomNav from '@/components/shared/RoleMobileBottomNav';
+import ProfessionalAccountPanel from '@/components/professional/ProfessionalAccountPanel';
 
 function nextSessionForPatient(sessions: ProfessionalSession[], pertenecienteId: number | undefined) {
   if (!pertenecienteId) return undefined;
@@ -68,6 +70,7 @@ export default function ProfessionalDashboard() {
   const [askLoading, setAskLoading] = useState(false);
   const [askError, setAskError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profilePanelOpen, setProfilePanelOpen] = useState(false);
   useSyncMobileMenuOpen(menuOpen);
   const [linkedUsers, setLinkedUsers] = useState<User[]>([]);
   const [activitiesByUser, setActivitiesByUser] = useState<Record<string, Activity[]>>({});
@@ -278,13 +281,13 @@ export default function ProfessionalDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="professional-surface min-h-screen overflow-x-hidden bg-gradient-to-b from-[#FAF7FF] via-[#FAF7FF] to-white">
       <AppHeader
         onMenuClick={() => setMenuOpen(true)}
         onLogoClick={() => { setTab('home'); setSelectedPatient(null); }}
         rightSlot={
           <>
-            <HeaderUserAvatar avatar={user.avatar} name={user.name} />
+            <button type="button" onClick={() => setProfilePanelOpen(true)} aria-label="Abrir Perfil y cuenta" className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed] focus-visible:ring-offset-2"><HeaderUserAvatar avatar={user.avatar} name={user.name} /></button>
             <NotificationBellButton count={unreadCount} onClick={() => { setTab('notifications'); setSelectedPatient(null); }} />
           </>
         }
@@ -345,7 +348,7 @@ export default function ProfessionalDashboard() {
 
 
 
-      <div className="max-w-4xl mx-auto p-4 space-y-4">
+      <main className="mx-auto max-w-7xl space-y-4 p-3 pb-24 sm:p-4 sm:pb-24 lg:p-6">
         {tab === 'home' && <ProfessionalHome professionalName={user.name} patientCount={linkedUsers.length} onNavigate={setTab} />}
         {tab === 'chat' && canSendMessages && (
           <ChatProvider>
@@ -814,7 +817,9 @@ export default function ProfessionalDashboard() {
           </div>
         )}
 
-      </div>
+      </main>
+      <RoleMobileBottomNav activeTab={tab} onNavigate={(next) => { setTab(next); setSelectedPatient(null); }} items={tabs.filter(item => ['home', 'patients', 'calendar', 'documents', 'chat'].includes(item.id)).slice(0, 5)} />
+      <ProfessionalAccountPanel open={profilePanelOpen} name={user.name} avatar={user.avatar} onClose={() => setProfilePanelOpen(false)} onNavigate={(next) => { if (next === 'accessibility') { window.dispatchEvent(new Event('tandem:open-accessibility')); return; } setTab(next); setSelectedPatient(null); }} onLogout={logout} />
     </div>
   );
 }
