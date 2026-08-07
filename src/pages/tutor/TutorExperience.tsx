@@ -1,9 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Activity, BarChart3, Bell, CalendarDays, CheckCircle2, ChevronRight, Clock, FileText,
-  Heart, Image, Info, Link2, Loader2, LogOut, MapPin, MessageCircle, Plus, Settings,
-  Sparkles, UserRound, Users, X,
+  Activity, Bell, CalendarDays, CheckCircle2, ChevronRight, Clock,
+  Heart, Image, Link2, MessageCircle, Settings, Sparkles, Users,
 } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
@@ -20,6 +18,8 @@ import UserNotifications from '@/pages/user/UserNotifications';
 import UserPictograms from '@/pages/user/UserPictograms';
 import AboutTandem from '@/pages/AboutTandem';
 import { aggregateTutorEvents, type TutorAggregateEvent } from '@/lib/tutorEventAggregation';
+import { TutorDrawer, TutorProfileDrawer, TutorQuickMenu, type TutorTab } from '@/components/tutor/TutorNavigation';
+import TutorLinkedDetail from '@/components/tutor/TutorLinkedDetail';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSyncMobileMenuOpen } from '@/contexts/MobileMenuState';
@@ -29,26 +29,8 @@ import {
   type TutorHomeLinkedUser,
 } from '@/data/api';
 
-type TutorTab = 'home' | 'calendar' | 'activities' | 'chat' | 'notifications' | 'reports' | 'professionals' | 'pictograms' | 'pictogramCatalog' | 'connections' | 'profile' | 'about' | 'detail';
-
 type AggregateActivity = TutorHomeData['byUserId'][string]['activities'][number] & { owner: TutorHomeLinkedUser };
 type AggregateEmotion = TutorHomeData['byUserId'][string]['emotions'][number] & { owner: TutorHomeLinkedUser };
-
-const navGroups = [
-  { title: 'Principal', items: [
-    { id: 'home' as const, label: 'Inicio', icon: BarChart3 },
-    { id: 'calendar' as const, label: 'Calendario', icon: CalendarDays },
-    { id: 'activities' as const, label: 'Actividades', icon: CheckCircle2 },
-    { id: 'chat' as const, label: 'Chats', icon: MessageCircle },
-  ]},
-  { title: 'Seguimiento y herramientas', items: [
-    { id: 'reports' as const, label: 'Reportes', icon: FileText },
-    { id: 'connections' as const, label: 'Personas vinculadas', icon: Users },
-    { id: 'professionals' as const, label: 'Profesionales', icon: UserRound },
-    { id: 'pictograms' as const, label: 'Pictogramas IA', icon: Sparkles },
-    { id: 'pictogramCatalog' as const, label: 'Pictogramas', icon: Image },
-  ]},
-];
 
 function parseDate(value?: string | null) {
   if (!value) return 0;
@@ -202,7 +184,7 @@ function TutorContent(props: {
   if (tab === 'profile') return <AccountPage name={props.userName} />;
   if (tab === 'detail') {
     const owner = props.linkedUsers.find(item => item.id === props.detailUserId);
-    return owner ? <LinkedDetail owner={owner} data={props.data.byUserId[owner.id]} onBack={() => props.onNavigate('connections')} /> : <ErrorState message="No encontramos a esa persona vinculada." onRetry={() => props.onNavigate('connections')} />;
+    return owner ? <TutorLinkedDetail owner={owner} data={props.data.byUserId[owner.id]} onBack={() => props.onNavigate('connections')} onNavigate={props.onNavigate} onOpenChat={(id) => { props.onSelectNotificationChat(id); props.onNavigate('chat'); }} /> : <ErrorState message="No encontramos a esa persona vinculada." onRetry={() => props.onNavigate('connections')} />;
   }
   return null;
 }
@@ -265,7 +247,7 @@ function TutorHome(props: Parameters<typeof TutorContent>[0]) {
       </DashboardCard>
 
       <DashboardCard title="Actividad reciente" icon={Activity} action="Ver actividades" onAction={() => props.onNavigate('activities')}>
-        <div className="divide-y divide-border">{recentItems.map(item => <div key={item.id} className="grid min-h-14 grid-cols-[36px_1fr_auto] items-center gap-3 py-2"><span className={`flex h-9 w-9 items-center justify-center rounded-xl ${item.color}`}><item.icon size={18} aria-hidden /></span><span className="min-w-0"><span className="block truncate text-sm font-semibold">{item.kind}</span><span className="block truncate text-xs text-muted-foreground">{item.detail} · {item.category}</span></span><span className="flex items-center gap-3"><PersonChip owner={item.owner} /><span className="hidden min-w-16 text-right text-xs text-muted-foreground sm:block">{relativeTime(item.date)}</span></span></div>)}{recentItems.length === 0 && <EmptyState text="Todavía no hay actividad reciente." />}</div>
+        <div className="divide-y divide-border">{recentItems.map(item => <button type="button" key={item.id} onClick={() => props.onOpenDetail(item.owner.id)} aria-label={`Ver información de ${item.owner.name}: ${item.kind}`} className="grid min-h-14 w-full grid-cols-[36px_1fr_auto] items-center gap-3 py-2 text-left transition-colors hover:bg-primary/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className={`flex h-9 w-9 items-center justify-center rounded-xl ${item.color}`}><item.icon size={18} aria-hidden /></span><span className="min-w-0"><span className="block truncate text-sm font-semibold">{item.kind}</span><span className="block truncate text-xs text-muted-foreground">{item.detail} · {item.category}</span></span><span className="flex items-center gap-3"><PersonChip owner={item.owner} /><span className="hidden min-w-16 text-right text-xs text-muted-foreground sm:block">{relativeTime(item.date)}</span><ChevronRight size={16} className="text-muted-foreground" aria-hidden /></span></button>)}{recentItems.length === 0 && <EmptyState text="Todavía no hay actividad reciente." />}</div>
       </DashboardCard>
 
       <DashboardCard title="Pictogramas" icon={Image} action="Ver todos" onAction={() => props.onNavigate('pictogramCatalog')}>
@@ -312,52 +294,8 @@ function ConnectionsPage({ users, onOpenDetail }: { users: TutorHomeLinkedUser[]
   </div>;
 }
 
-function LinkedDetail({ owner, data, onBack }: { owner: TutorHomeLinkedUser; data?: TutorHomeData['byUserId'][string]; onBack: () => void }) {
-  const activities = data?.activities || []; const emotions = data?.emotions || []; const events = data?.events || [];
-  return <div className="space-y-5"><button type="button" onClick={onBack} className="min-h-11 rounded-xl px-3 text-sm font-semibold text-primary hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">← Volver a personas vinculadas</button>
-    <section className="flex flex-col gap-4 rounded-3xl border border-border/80 bg-card p-5 shadow-sm sm:flex-row sm:items-center">{ownerAvatar(owner, 'h-20 w-20')}<div><p className="text-xs font-bold uppercase tracking-wider text-primary">Detalle de perteneciente</p><h1 className="mt-1 text-3xl font-bold">{owner.name}</h1><p className="mt-1 text-sm text-muted-foreground">{owner.supportLevel} · {owner.autonomy} · {owner.linkStatus}</p></div></section>
-    <div className="grid gap-4 md:grid-cols-3"><MetricCard value={activities.length} label="Actividades" /><MetricCard value={emotions.length} label="Registros emocionales" /><MetricCard value={events.length} label="Eventos" /></div>
-    <div className="grid gap-5 lg:grid-cols-2"><DashboardCard title="Actividades" icon={CheckCircle2}>{activities.slice(0, 8).map(item => <div key={item.id} className="border-b border-border py-2 last:border-0"><p className="text-sm font-semibold">{item.title}</p><p className="text-xs text-muted-foreground">{item.status}</p></div>)}{activities.length === 0 && <EmptyState text="Sin actividades." />}</DashboardCard><DashboardCard title="Emociones y eventos" icon={Heart}>{emotions.slice(0, 4).map(item => <div key={item.id} className="border-b border-border py-2"><p className="text-sm font-semibold">{item.emotion}</p><p className="text-xs text-muted-foreground">{item.date} · Intensidad {item.intensity}/5</p></div>)}{events.slice(0, 4).map(item => <div key={item.id} className="border-b border-border py-2"><p className="text-sm font-semibold">{item.title}</p><p className="text-xs text-muted-foreground">{item.date} · {item.time}</p></div>)}{!emotions.length && !events.length && <EmptyState text="Sin registros recientes." />}</DashboardCard></div>
-  </div>;
-}
-
 function AccountPage({ name }: { name: string }) {
   return <div className="space-y-5"><PageHeading title="Perfil y cuenta" subtitle="Tu información como Tutor y las preferencias generales de la aplicación." /><section className="rounded-3xl border border-border/80 bg-card p-6 shadow-sm"><div className="flex items-center gap-4"><HeaderUserAvatar name={name} /><div><h2 className="font-bold">{name}</h2><p className="text-sm text-muted-foreground">Tutor de TÁNDEM</p></div></div><div className="mt-6 grid gap-3 sm:grid-cols-2"><div className="rounded-2xl bg-muted/50 p-4"><Settings className="text-primary" aria-hidden /><p className="mt-2 font-semibold">Configuración</p><p className="text-sm text-muted-foreground">Las preferencias de accesibilidad se mantienen disponibles desde el widget global.</p></div><div className="rounded-2xl bg-muted/50 p-4"><Bell className="text-primary" aria-hidden /><p className="mt-2 font-semibold">Notificaciones</p><p className="text-sm text-muted-foreground">Abrilas desde la campana del encabezado.</p></div></div></section></div>;
-}
-
-function TutorDrawer({ open, active, onClose, onNavigate, onLogout }: { open: boolean; active: TutorTab; onClose: () => void; onNavigate: (tab: TutorTab) => void; onLogout: () => void }) {
-  const ref = useRef<HTMLElement>(null); const reduceMotion = useReducedMotion();
-  useEffect(() => { if (!open) return; const key = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); }; document.addEventListener('keydown', key); return () => document.removeEventListener('keydown', key); }, [open, onClose]);
-  return <AnimatePresence>{open && <motion.div className="fixed inset-0 z-[70] bg-slate-950/35 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.aside ref={ref} aria-label="Navegación del Tutor" className="flex h-full w-[min(88vw,22rem)] flex-col overflow-y-auto rounded-r-[32px] bg-[#fbf9ff] p-5 shadow-2xl" initial={reduceMotion ? { opacity: 0 } : { x: '-100%' }} animate={{ x: 0, opacity: 1 }} exit={reduceMotion ? { opacity: 0 } : { x: '-100%' }} transition={{ duration: reduceMotion ? .1 : .23, ease: 'easeOut' }} onClick={event => event.stopPropagation()}>
-    <div className="mb-5 flex items-center justify-between"><h2 className="text-xl font-bold">Menú</h2><button type="button" onClick={onClose} aria-label="Cerrar menú" className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X aria-hidden /></button></div>
-    <nav className="space-y-6">{navGroups.map(group => <section key={group.title}><h3 className="mb-2 px-3 text-xs font-bold uppercase tracking-[.14em] text-muted-foreground">{group.title}</h3><div className="space-y-1">{group.items.map(item => <button key={item.id} type="button" onClick={() => onNavigate(item.id)} aria-current={active === item.id ? 'page' : undefined} className={`flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 text-left text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active === item.id ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-primary/5'}`}><item.icon size={20} aria-hidden />{item.label}</button>)}</div></section>)}</nav>
-    <div className="mt-auto border-t border-border pt-4"><button type="button" onClick={() => onNavigate('about')} className="flex min-h-11 w-full items-center gap-3 rounded-2xl px-3 text-sm font-semibold hover:bg-primary/5"><Info size={19} aria-hidden />Acerca de TÁNDEM</button><button type="button" onClick={onLogout} className="mt-1 flex min-h-11 w-full items-center gap-3 rounded-2xl px-3 text-sm font-semibold text-primary hover:bg-primary/5"><LogOut size={19} aria-hidden />Cerrar sesión</button></div>
-  </motion.aside></motion.div>}</AnimatePresence>;
-}
-
-function TutorProfileDrawer({ open, user, onClose, onNavigate, onLogout }: { open: boolean; user: { name: string; avatar?: string | null }; onClose: () => void; onNavigate: (tab: TutorTab) => void; onLogout: () => void }) {
-  const reduceMotion = useReducedMotion();
-  const items = [
-    { id: 'profile' as const, label: 'Perfil y configuración', icon: UserRound },
-    { id: 'connections' as const, label: 'Personas vinculadas', icon: Users },
-    { id: 'reports' as const, label: 'Reportes', icon: FileText },
-    { id: 'professionals' as const, label: 'Profesionales', icon: Link2 },
-    { id: 'pictograms' as const, label: 'Pictogramas y herramientas visuales', icon: Image },
-    { id: 'about' as const, label: 'Acerca de TÁNDEM', icon: Info },
-  ];
-  useEffect(() => { if (!open) return; const key = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); }; document.addEventListener('keydown', key); return () => document.removeEventListener('keydown', key); }, [open, onClose]);
-  return <AnimatePresence>{open && <div className="fixed inset-0 z-[75]"><motion.button type="button" aria-label="Cerrar perfil" onClick={onClose} className="absolute inset-0 h-full w-full bg-slate-950/20 backdrop-blur-[2px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} /><motion.aside role="dialog" aria-modal="true" aria-labelledby="tutor-profile-title" className="absolute right-0 top-0 flex h-full w-[min(92vw,27rem)] flex-col overflow-y-auto rounded-l-[32px] bg-[#fbf9ff] p-5 shadow-2xl" initial={reduceMotion ? { opacity: 0 } : { x: '100%' }} animate={{ x: 0, opacity: 1 }} exit={reduceMotion ? { opacity: 0 } : { x: '100%' }} transition={{ duration: reduceMotion ? .1 : .22, ease: 'easeOut' }}>
-    <div className="flex items-center justify-between"><h2 id="tutor-profile-title" className="text-xl font-bold">Perfil y cuenta</h2><button type="button" onClick={onClose} aria-label="Cerrar" className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-primary/10"><X aria-hidden /></button></div>
-    <div className="mt-4 flex items-center gap-3 rounded-3xl border border-border bg-card p-4"><HeaderUserAvatar avatar={user.avatar} name={user.name} /><div><p className="font-bold">{user.name}</p><p className="text-xs text-muted-foreground">Tutor</p></div></div>
-    <nav className="mt-5 space-y-1">{items.map(item => <button key={item.id} type="button" onClick={() => onNavigate(item.id)} className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 text-left text-sm font-semibold hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><item.icon size={20} className="text-primary" aria-hidden />{item.label}</button>)}</nav>
-    <button type="button" onClick={onLogout} className="mt-auto flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 text-sm font-semibold text-primary hover:bg-primary/5"><LogOut size={20} aria-hidden />Cerrar sesión</button>
-  </motion.aside></div>}</AnimatePresence>;
-}
-
-function TutorQuickMenu({ open, onOpenChange, compactProgress, onAction }: { open: boolean; onOpenChange: (value: boolean) => void; compactProgress: number; onAction: (action: 'activity' | 'event' | 'link' | 'pictogram') => void }) {
-  const reduceMotion = useReducedMotion();
-  const actions = [{ id: 'activity' as const, label: 'Asignar actividad', icon: CheckCircle2 }, { id: 'event' as const, label: 'Agregar evento', icon: CalendarDays }, { id: 'link' as const, label: 'Vincular', icon: Link2 }, { id: 'pictogram' as const, label: 'Crear pictograma', icon: Sparkles }];
-  return <><AnimatePresence>{open && <><motion.button type="button" aria-label="Cerrar acciones" className="fixed inset-0 z-40 h-full w-full bg-white/10 backdrop-blur-[1px] lg:hidden" onClick={() => onOpenChange(false)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} /><motion.div role="dialog" aria-label="Acciones del Tutor" className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom))] left-0 right-0 z-[55] mx-auto grid w-[min(calc(100vw-3rem),23rem)] grid-cols-2 gap-2 lg:hidden" initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 18, scale: .96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: .97 }} transition={{ duration: reduceMotion ? .1 : .2 }}>{actions.map(action => <button key={action.id} type="button" onClick={() => { onOpenChange(false); onAction(action.id); }} className="flex min-h-16 items-center gap-2 rounded-[22px] border border-white bg-white/90 px-3 text-left text-xs font-bold text-foreground shadow-[0_7px_20px_rgba(77,45,112,.14)] backdrop-blur-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><action.icon size={20} className="text-primary" aria-hidden />{action.label}</button>)}</motion.div></>}</AnimatePresence><button type="button" onClick={() => onOpenChange(!open)} aria-label={open ? 'Cerrar acciones rápidas' : 'Abrir acciones rápidas'} aria-expanded={open} className="relative z-[60] inline-flex items-center justify-center rounded-full border-4 border-white bg-[#7447ac] text-white shadow-[0_7px_18px_rgba(92,52,139,.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" style={{ width: 60 - compactProgress * 12, height: 60 - compactProgress * 12, transform: `translateY(${-8 + compactProgress * 4}px)` }}>{open ? <X size={25} aria-hidden /> : <Plus size={29} aria-hidden />}</button></>;
 }
 
 function DashboardCard({ title, icon: Icon, action, onAction, children }: { title: string; icon: typeof Activity; action?: string; onAction?: () => void; children: React.ReactNode }) {
