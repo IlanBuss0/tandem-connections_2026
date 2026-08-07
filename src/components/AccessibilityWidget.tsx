@@ -546,7 +546,7 @@ export default function AccessibilityWidget() {
 
       {!isMobileMenuOpen && (
         <>
-          {user?.role === 'user' && (
+          {(user?.role === 'user' || user?.role === 'tutor') && (
             <button
               type="button"
               onClick={() => setOpen(true)}
@@ -567,7 +567,7 @@ export default function AccessibilityWidget() {
             type="button"
             onClick={() => setOpen(true)}
             aria-label="Abrir menu de accesibilidad"
-            className={`a11y-widget fixed bottom-5 left-5 z-[9998] h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-[#2357ff] text-white shadow-2xl shadow-blue-900/25 transition hover:-translate-y-0.5 hover:bg-[#5b35d5] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#b9a7ff] sm:bottom-6 sm:left-6 ${user?.role === 'user' ? 'hidden lg:flex' : 'flex'}`}
+            className={`a11y-widget fixed bottom-5 left-5 z-[9998] h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-[#2357ff] text-white shadow-2xl shadow-blue-900/25 transition hover:-translate-y-0.5 hover:bg-[#5b35d5] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#b9a7ff] sm:bottom-6 sm:left-6 ${user?.role === 'user' || user?.role === 'tutor' ? 'hidden lg:flex' : 'flex'}`}
           >
             <Accessibility size={28} />
             {activeCount > 0 && (
@@ -588,16 +588,16 @@ export default function AccessibilityWidget() {
             onClick={() => setOpen(false)}
           />
 
-          <aside className="accessibility-panel absolute bottom-0 left-0 top-0 flex w-full max-w-[440px] flex-col overflow-hidden bg-white text-slate-950 shadow-2xl sm:w-[420px]">
-            <header className="bg-gradient-to-br from-[#2357ff] via-[#5b35d5] to-[#7b2ff2] px-5 pb-5 pt-4 text-white">
+          <aside className="accessibility-panel absolute bottom-0 left-0 top-0 flex w-[min(92vw,390px)] flex-col overflow-hidden rounded-r-3xl bg-white text-slate-950 shadow-2xl md:w-[410px]">
+            <header className="bg-gradient-to-br from-[#2357ff] via-[#5b35d5] to-[#7b2ff2] px-4 pb-3 pt-3 text-white sm:px-5 sm:pb-4 sm:pt-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3">
-                  <span className="mt-1 flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25">
-                    <Accessibility size={26} />
+                  <span className="mt-1 flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25 sm:h-11 sm:w-11 sm:rounded-2xl">
+                    <Accessibility size={24} />
                   </span>
                   <div>
-                    <h2 className="text-xl font-extrabold leading-tight">Menu de Accesibilidad</h2>
-                    <p className="mt-1 text-sm text-white/85">CTRL + U</p>
+                    <h2 className="text-lg font-extrabold leading-tight sm:text-xl">Menu de Accesibilidad</h2>
+                    <p className="text-xs text-white/85 sm:mt-1 sm:text-sm">CTRL + U</p>
                   </div>
                 </div>
                 <button
@@ -610,13 +610,13 @@ export default function AccessibilityWidget() {
                 </button>
               </div>
 
-              <div className="mt-4 rounded-2xl bg-white/12 p-3 ring-1 ring-white/20">
+              <div className="mt-2 rounded-xl bg-white/12 px-3 py-2 ring-1 ring-white/20 sm:mt-4 sm:rounded-2xl sm:p-3">
                 <p className="text-xs uppercase tracking-[0.08em] text-white/70">Estado actual</p>
                 <p className="mt-1 text-sm font-bold">{profileLabel}</p>
               </div>
             </header>
 
-            <div className="accessibility-panel-scroll flex-1 overflow-y-auto px-4 py-5">
+            <div className="accessibility-panel-scroll flex-1 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4">
               <Section title="Perfiles predeterminados" description="Activan combinaciones de herramientas. Luego podes ajustar cada opcion manualmente.">
                 <div className="grid gap-3">
                   {ACCESSIBILITY_PROFILES.map(profile => {
@@ -631,7 +631,7 @@ export default function AccessibilityWidget() {
                         key={profile.id}
                         type="button"
                         onClick={() => applyProfile(profile.id)}
-                        className={`group flex min-h-[88px] w-full items-start gap-3 rounded-2xl border-2 p-3 text-left transition ${
+                        className={`group flex min-h-[76px] w-full items-start gap-2 rounded-xl border-2 p-2.5 text-left transition sm:min-h-[88px] sm:gap-3 sm:rounded-2xl sm:p-3 ${
                           active
                             ? 'border-[#2357ff] bg-[#eef3ff] shadow-sm'
                             : 'border-slate-200 bg-white hover:border-[#8067f0] hover:bg-slate-50'
@@ -677,7 +677,7 @@ export default function AccessibilityWidget() {
               </Section>
             </div>
 
-            <footer className="border-t border-slate-200 bg-slate-50 px-4 py-4">
+            <footer className="border-t border-slate-200 bg-slate-50 px-3 py-2.5 sm:px-4 sm:py-3">
               {resetNotice && <p className="mb-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">Configuración restablecida.</p>}
               <button
                 type="button"
@@ -697,10 +697,10 @@ export default function AccessibilityWidget() {
 
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
-    <section className="mb-6">
-      <div className="mb-3">
-        <h3 className="text-base font-extrabold text-slate-950">{title}</h3>
-        {description && <p className="mt-1 text-sm leading-5 text-slate-600">{description}</p>}
+    <section className="mb-4 sm:mb-5">
+      <div className="mb-2 sm:mb-3">
+        <h3 className="text-sm font-extrabold text-slate-950 sm:text-base">{title}</h3>
+        {description && <p className="mt-1 text-xs leading-4 text-slate-600 sm:text-sm sm:leading-5">{description}</p>}
       </div>
       {children}
     </section>
@@ -709,7 +709,7 @@ function Section({ title, description, children }: { title: string; description?
 
 function ToolGrid({ tools }: { tools: ToolAction[] }) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div className="grid grid-cols-2 gap-2 sm:gap-3">
       {tools.map(tool => (
         <ToolButton key={tool.id} tool={tool} />
       ))}
@@ -724,7 +724,7 @@ function ToolButton({ tool }: { tool: ToolAction }) {
     <button
       type="button"
       onClick={tool.onClick}
-      className={`relative flex min-h-[126px] flex-col rounded-2xl border-2 p-3 text-left transition focus:outline-none focus-visible:ring-4 focus-visible:ring-[#b9a7ff] ${
+      className={`relative flex min-h-[112px] flex-col rounded-xl border-2 p-2.5 text-left transition focus:outline-none focus-visible:ring-4 focus-visible:ring-[#b9a7ff] sm:min-h-[126px] sm:rounded-2xl sm:p-3 ${
         tool.active ? 'border-[#2357ff] bg-[#eef3ff]' : 'border-slate-200 bg-white hover:border-[#8067f0] hover:bg-slate-50'
       }`}
     >
@@ -734,8 +734,8 @@ function ToolButton({ tool }: { tool: ToolAction }) {
         </span>
         <ActiveMark active={tool.active} />
       </span>
-      <span className="mt-3 block text-sm font-extrabold leading-5 text-slate-950">{tool.label}</span>
-      <span className="mt-1 block flex-1 text-xs leading-5 text-slate-600">{tool.description}</span>
+      <span className="mt-2 block text-xs font-extrabold leading-4 text-slate-950 sm:mt-3 sm:text-sm sm:leading-5">{tool.label}</span>
+      <span className="mt-1 block flex-1 text-[11px] leading-4 text-slate-600 sm:text-xs sm:leading-5">{tool.description}</span>
       {tool.value && <span className="mt-2 text-xs font-bold text-[#2357ff]">{tool.value}</span>}
     </button>
   );

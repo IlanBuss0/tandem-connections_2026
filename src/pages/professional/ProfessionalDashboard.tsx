@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   askAboutPatient, deleteProfessionalSession, downloadPatientHistoryPdf, fetchActivitiesForUser,
-  fetchEmotionRecordsForUser, fetchLinkedPertenecientesForSupportUser, fetchPrivateProfessionalNote,
+  fetchEmotionRecordsForUser, fetchLinkedPertenecientesForSupportUser, fetchPersonalNotesForUser, fetchPrivateProfessionalNote,
   fetchProfessionalSessions, joinProfessionalInviteByCode, prepareSessionSummary, updateProfessionalSession,
-  type Activity, type EmotionalRecord, type ProfessionalSession, type SessionPrepSummary, type User,
+  type Activity, type EmotionalRecord, type PersonalNote, type ProfessionalSession, type SessionPrepSummary, type User,
 } from '@/data/api';
+import PersonalNotesList from '@/components/PersonalNotesList';
 import { withGoogleToken } from '@/lib/googleAuth';
 import { getDocPlainText } from '@/lib/googleDocs';
-import { LogOut, CheckCircle2, Heart, Calendar, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, Sparkles, MessageCircle, Bell, X, KeyRound, Loader2, FolderOpen, CalendarClock, Download, Send, Info, Image } from 'lucide-react';
+import { LogOut, CheckCircle2, Heart, Calendar, Home, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, Sparkles, MessageCircle, Bell, X, KeyRound, Loader2, FolderOpen, CalendarClock, Download, Send, Info, Image } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -21,12 +22,12 @@ import { ChatProvider } from '@/contexts/ChatContext';
 import AppHeader from '@/components/AppHeader';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
-import ProfessionalAgenda from '@/components/ProfessionalAgenda';
 import ProfessionalReportsPanel from '@/components/ProfessionalReportsPanel';
 import ProfessionalPrivateNote from '@/components/ProfessionalPrivateNote';
 import SessionCard from '@/components/SessionCard';
 import DriveExplorer from '@/components/DriveExplorer';
 import ProfessionalCalendar from '@/components/ProfessionalCalendar';
+import ProfessionalHome from '@/components/ProfessionalHome';
 import ProfessionalProfileSettings from '@/components/ProfessionalProfileSettings';
 import UserNotifications from '@/pages/user/UserNotifications';
 import { isPermissionEnabled, PROFESIONAL_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
@@ -53,7 +54,7 @@ export default function ProfessionalDashboard() {
   const { user, logout } = useAuth();
   const { context: permissionContext, refetch: refetchPermissionContext } = usePermissionContext();
   const { toast } = useToast();
-  const [tab, setTab] = useState('patients');
+  const [tab, setTab] = useState('home');
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
   const [patientTab, setPatientTab] = useState<'overview' | 'stats' | 'sessions'>('overview');
   const [patientNoteSession, setPatientNoteSession] = useState<ProfessionalSession | null>(null);
@@ -71,6 +72,7 @@ export default function ProfessionalDashboard() {
   const [linkedUsers, setLinkedUsers] = useState<User[]>([]);
   const [activitiesByUser, setActivitiesByUser] = useState<Record<string, Activity[]>>({});
   const [emotionsByUser, setEmotionsByUser] = useState<Record<string, EmotionalRecord[]>>({});
+  const [notesByUser, setNotesByUser] = useState<Record<string, PersonalNote[]>>({});
   const [sessions, setSessions] = useState<ProfessionalSession[]>([]);
   const [patientsError, setPatientsError] = useState<string | null>(null);
   const [loadingPatients, setLoadingPatients] = useState(true);
@@ -104,6 +106,8 @@ export default function ProfessionalDashboard() {
         });
         Promise.all(patients.map(patient => fetchEmotionRecordsForUser(patient.id).then(rows => [patient.id, rows] as const).catch(() => [patient.id, []] as const)))
           .then(entries => { if (!cancelled) setEmotionsByUser(Object.fromEntries(entries)); });
+        Promise.all(patients.map(patient => fetchPersonalNotesForUser(patient.id).then(rows => [patient.id, rows] as const).catch(() => [patient.id, []] as const)))
+          .then(entries => { if (!cancelled) setNotesByUser(Object.fromEntries(entries)); });
       })
       .catch(() => { if (!cancelled) setPatientsError('No pudimos cargar tus pacientes vinculados.'); })
       .finally(() => {
@@ -130,6 +134,8 @@ export default function ProfessionalDashboard() {
       setActivitiesByUser(Object.fromEntries(entries));
       const emotions = await Promise.all(patients.map(patient => fetchEmotionRecordsForUser(patient.id).then(rows => [patient.id, rows] as const).catch(() => [patient.id, []] as const)));
       setEmotionsByUser(Object.fromEntries(emotions));
+      const notes = await Promise.all(patients.map(patient => fetchPersonalNotesForUser(patient.id).then(rows => [patient.id, rows] as const).catch(() => [patient.id, []] as const)));
+      setNotesByUser(Object.fromEntries(notes));
     } finally {
       setLoadingPatients(false);
     }
@@ -201,8 +207,8 @@ export default function ProfessionalDashboard() {
   const canSendMessages = hasProfessionalPermission(PROFESIONAL_PERMISSIONS.ENVIAR_MENSAJES, false);
 
   const tabs = [
+    { id: 'home', label: 'Inicio', icon: Home },
     { id: 'patients', label: 'Pacientes', icon: Users },
-    ...(canScheduleSessions ? [{ id: 'agenda', label: 'Agenda', icon: Calendar }] : []),
     ...(canScheduleSessions ? [{ id: 'calendar', label: 'Calendario', icon: Calendar }] : []),
     { id: 'documents', label: 'Documentos', icon: FolderOpen },
     ...(canAssignActivities || canCreateCustomActivities ? [{ id: 'create', label: 'Crear actividad', icon: Sparkles }] : []),
@@ -275,6 +281,7 @@ export default function ProfessionalDashboard() {
     <div className="min-h-screen bg-background">
       <AppHeader
         onMenuClick={() => setMenuOpen(true)}
+        onLogoClick={() => { setTab('home'); setSelectedPatient(null); }}
         rightSlot={
           <>
             <HeaderUserAvatar avatar={user.avatar} name={user.name} />
@@ -338,15 +345,8 @@ export default function ProfessionalDashboard() {
 
 
 
-      <div className="flex gap-2 overflow-x-auto p-4 border-b border-border">
-        {tabs.map(t => (
-          <button key={t.id} onClick={() => { setTab(t.id); setSelectedPatient(null); }} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm whitespace-nowrap ${tab === t.id ? 'gradient-primary text-primary-foreground' : 'bg-card border border-border text-muted-foreground'}`}>
-            <t.icon size={14} />{t.label}
-          </button>
-        ))}
-      </div>
-
       <div className="max-w-4xl mx-auto p-4 space-y-4">
+        {tab === 'home' && <ProfessionalHome professionalName={user.name} patientCount={linkedUsers.length} onNavigate={setTab} />}
         {tab === 'chat' && canSendMessages && (
           <ChatProvider>
             <ChatScreen
@@ -414,6 +414,7 @@ export default function ProfessionalDashboard() {
           const completed = acts.filter(a => a.status === 'completada').length;
           const adherence = acts.length > 0 ? Math.round((completed / acts.length) * 100) : 0;
           const emotions = emotionsByUser[patientDetail.id] || [];
+          const personalNotes = notesByUser[patientDetail.id] || [];
           const patientPermissions = vinculosByUsuarioPerteneciente.get(String(patientDetail.id))?.permisos_efectivos?.permisos;
           const canViewPatientHistory = Boolean(permissionContext) && isPermissionEnabled(patientPermissions, PROFESIONAL_PERMISSIONS.VER_HISTORIAL, false);
           const canSchedulePatient = isPermissionEnabled(patientPermissions, PROFESIONAL_PERMISSIONS.AGENDAR_SESIONES, true);
@@ -597,7 +598,7 @@ export default function ProfessionalDashboard() {
                         onEdit={() => {
                           setAgendaInitialPatientId(pertenecienteId || undefined);
                           setSelectedPatient(null);
-                          setTab('agenda');
+                          setTab('calendar');
                         }}
                         onDelete={() => deletePatientSession(session)}
                         onPrepare={session.estado === 'programada' ? () => runPrepareSession(session) : undefined}
@@ -645,17 +646,25 @@ export default function ProfessionalDashboard() {
                 </div>
               </div>
 
-              <div className="bg-card rounded-xl p-4 border border-border">
-                <h4 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2"><TrendingUp size={16} className="text-primary" /> Evolución emocional</h4>
-                <div className="flex gap-2 overflow-x-auto pb-2">
-                  {emotions.slice(0, 10).map(em => (
-                    <div key={em.id} className="flex flex-col items-center min-w-[48px]">
-                      <span className="text-2xl">{em.emoji}</span>
-                      <span className="text-[8px] text-muted-foreground">{em.date.slice(5)}</span>
-                      <div className="flex gap-0.5 mt-0.5">{Array.from({length:5}).map((_,i)=><span key={i} className={`w-1 h-1 rounded-full ${i<em.intensity?'bg-primary':'bg-muted'}`}/>)}</div>
-                    </div>
-                  ))}
-                </div>
+              <div className="space-y-5 rounded-xl border border-border bg-card p-4">
+                <h4 className="font-heading font-semibold text-foreground flex items-center gap-2"><FileText size={16} className="text-primary" /> Registro personal</h4>
+                <section>
+                  <h5 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground"><Heart size={15} className="text-rose-500" />Emociones registradas</h5>
+                  <div className="flex gap-2 overflow-x-auto pb-2">
+                    {emotions.slice(0, 10).map(em => (
+                      <div key={em.id} className="flex min-w-[48px] flex-col items-center">
+                        <span className="text-2xl">{em.emoji}</span>
+                        <span className="text-[8px] text-muted-foreground">{em.date.slice(5)}</span>
+                        <div className="mt-0.5 flex gap-0.5">{Array.from({length:5}).map((_,i)=><span key={i} className={`h-1 w-1 rounded-full ${i<em.intensity?'bg-primary':'bg-muted'}`}/>)}</div>
+                      </div>
+                    ))}
+                    {emotions.length === 0 && <p className="text-sm text-muted-foreground">No hay emociones registradas.</p>}
+                  </div>
+                </section>
+                <section className="border-t border-border pt-4">
+                  <h5 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground"><FileText size={15} className="text-primary" />Notas del paciente</h5>
+                  <PersonalNotesList notes={personalNotes} emptyText="Este paciente todavía no tiene notas personales guardadas." />
+                </section>
               </div>
 
               <div className="flex gap-2">
@@ -666,7 +675,7 @@ export default function ProfessionalDashboard() {
                     onClick={() => {
                       setAgendaInitialPatientId(Number(linkForUser(patientDetail.id)?.perteneciente.id) || undefined);
                       setSelectedPatient(null);
-                      setTab('agenda');
+                      setTab('calendar');
                     }}
                   >
                     <Calendar size={14} className="mr-1" /> Proponer sesión
@@ -686,11 +695,11 @@ export default function ProfessionalDashboard() {
           />
         )}
 
-        {tab === 'agenda' && canScheduleSessions && (
-          <ProfessionalAgenda patients={agendaPatients} initialPatientId={agendaInitialPatientId} />
-        )}
         {tab === 'calendar' && canScheduleSessions && (
-          <ProfessionalCalendar patients={agendaPatients} onOpenAgenda={() => setTab('agenda')} />
+          <ProfessionalCalendar patients={agendaPatients} initialPatientId={agendaInitialPatientId} />
+        )}
+        {tab === 'calendar' && !canScheduleSessions && (
+          <PermissionBlocked title="Calendario deshabilitado" description="No tenés permisos activos para gestionar sesiones con tus pacientes vinculados." />
         )}
         {tab === 'documents' && <DriveExplorer />}
         {tab === 'pictograms' && <AiPictogramStudio />}
@@ -743,7 +752,7 @@ export default function ProfessionalDashboard() {
                         variant="outline"
                         onClick={() => {
                           setAgendaInitialPatientId(patient.pertenecienteId);
-                          setTab('agenda');
+                          setTab('calendar');
                         }}
                       >
                         <Calendar size={13} className="mr-1" /> Proponer sesión
