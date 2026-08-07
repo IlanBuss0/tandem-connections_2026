@@ -9,12 +9,12 @@ import {
 import PersonalNotesList from '@/components/PersonalNotesList';
 import { withGoogleToken } from '@/lib/googleAuth';
 import { getDocPlainText } from '@/lib/googleDocs';
-import { LogOut, CheckCircle2, Heart, Calendar, Home, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, Sparkles, MessageCircle, Bell, X, KeyRound, Loader2, FolderOpen, CalendarClock, Download, Send, Info, Image } from 'lucide-react';
+import { CheckCircle2, Heart, Calendar, Home, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, Sparkles, MessageCircle, Bell, KeyRound, Loader2, FolderOpen, CalendarClock, Download, Send, Info, Image } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import ActivityManager from '@/components/ActivityManager';
 import AdvancedStats from '@/components/AdvancedStats';
 import ChatScreen from '@/components/ChatScreen';
@@ -37,6 +37,9 @@ import AboutTandem from '@/pages/AboutTandem';
 import UserPictograms from '@/pages/user/UserPictograms';
 import { useToast } from '@/components/ui/use-toast';
 import { useSyncMobileMenuOpen } from '@/contexts/MobileMenuState';
+import BelongingMobileBottomNav, { type MobileDestination } from '@/components/belonging/BelongingMobileBottomNav';
+import { ProfessionalDrawer, ProfessionalProfileDrawer, ProfessionalQuickMenu, type ProfessionalTab, type ProfessionalQuickAction } from '@/components/professional/ProfessionalNavigation';
+import { useProfessionalNavigation } from '@/hooks/useProfessionalNavigation';
 
 function nextSessionForPatient(sessions: ProfessionalSession[], pertenecienteId: number | undefined) {
   if (!pertenecienteId) return undefined;
@@ -54,8 +57,8 @@ export default function ProfessionalDashboard() {
   const { user, logout } = useAuth();
   const { context: permissionContext, refetch: refetchPermissionContext } = usePermissionContext();
   const { toast } = useToast();
-  const [tab, setTab] = useState('home');
-  const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
+  const { tab, patientId: routePatientId, chatId: routeChatId, navigate: navigateRoute, goBack } = useProfessionalNavigation();
+  const [selectedPatient, setSelectedPatient] = useState<string | null>(routePatientId);
   const [patientTab, setPatientTab] = useState<'overview' | 'stats' | 'sessions'>('overview');
   const [patientNoteSession, setPatientNoteSession] = useState<ProfessionalSession | null>(null);
   const [prepSession, setPrepSession] = useState<ProfessionalSession | null>(null);
@@ -68,7 +71,10 @@ export default function ProfessionalDashboard() {
   const [askLoading, setAskLoading] = useState(false);
   const [askError, setAskError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  useSyncMobileMenuOpen(menuOpen);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
+  useSyncMobileMenuOpen(menuOpen || profileOpen || quickOpen);
+  useEffect(() => { setSelectedPatient(routePatientId); setSelectedNotificationChatId(routeChatId); }, [routePatientId, routeChatId]);
   const [linkedUsers, setLinkedUsers] = useState<User[]>([]);
   const [activitiesByUser, setActivitiesByUser] = useState<Record<string, Activity[]>>({});
   const [emotionsByUser, setEmotionsByUser] = useState<Record<string, EmotionalRecord[]>>({});
@@ -78,6 +84,7 @@ export default function ProfessionalDashboard() {
   const [loadingPatients, setLoadingPatients] = useState(true);
   const [professionalInviteCode, setProfessionalInviteCode] = useState('');
   const [joiningProfessionalInvite, setJoiningProfessionalInvite] = useState(false);
+  const [patientSearch, setPatientSearch] = useState('');
   const [selectedNotificationChatId, setSelectedNotificationChatId] = useState<string | undefined>();
   const [agendaInitialPatientId, setAgendaInitialPatientId] = useState<number | undefined>();
   const { unreadCount, setUnreadCount } = useUnreadNotifications(
@@ -206,21 +213,13 @@ export default function ProfessionalDashboard() {
   const canScheduleSessions = hasProfessionalPermission(PROFESIONAL_PERMISSIONS.AGENDAR_SESIONES, true);
   const canSendMessages = hasProfessionalPermission(PROFESIONAL_PERMISSIONS.ENVIAR_MENSAJES, false);
 
-  const tabs = [
+  const navigationPermissions = { sessions: canScheduleSessions, activities: canAssignActivities || canCreateCustomActivities, chat: canSendMessages };
+  const mobileDestinations: readonly MobileDestination[] = [
     { id: 'home', label: 'Inicio', icon: Home },
+    { id: 'calendar', label: 'Calendario', icon: Calendar },
     { id: 'patients', label: 'Pacientes', icon: Users },
-    ...(canScheduleSessions ? [{ id: 'calendar', label: 'Calendario', icon: Calendar }] : []),
-    { id: 'documents', label: 'Documentos', icon: FolderOpen },
-    ...(canAssignActivities || canCreateCustomActivities ? [{ id: 'create', label: 'Crear actividad', icon: Sparkles }] : []),
-    ...(canSendMessages ? [{ id: 'chat', label: 'Chat', icon: MessageCircle }] : []),
-    { id: 'notifications', label: 'Notificaciones', icon: Bell },
-    { id: 'pictograms', label: 'Pictogramas IA', icon: Sparkles },
-    { id: 'pictogramCatalog', label: 'Pictogramas', icon: Image },
-    { id: 'tools', label: 'Herramientas', icon: ClipboardPlus },
-    { id: 'profile', label: 'Mi perfil', icon: FileText },
-    { id: 'about', label: 'Acerca de', icon: Info },
+    { id: 'chat', label: 'Chats', icon: MessageCircle },
   ];
-
   const patientDetail = selectedPatient ? linkedUsers.find(u => u.id === selectedPatient) : null;
   const linkForUser = (userId: string) => vinculosByUsuarioPerteneciente.get(String(userId));
   const patientHasPermission = (userId: string, permission: string, fallback = false) => {
@@ -252,6 +251,7 @@ export default function ProfessionalDashboard() {
     .filter(session => session.estado === 'programada' && new Date(session.fecha_sesion).getTime() < now)
     .sort((a, b) => a.fecha_sesion.localeCompare(b.fecha_sesion));
   const patientByPertenecienteId = new Map(agendaPatients.map(p => [p.pertenecienteId, p]));
+  const visiblePatients = linkedUsers.filter(patient => patient.name.toLocaleLowerCase('es').includes(patientSearch.trim().toLocaleLowerCase('es')));
 
   const navigateFromNotification = (nextTab: string, params?: Record<string, any>) => {
     const sourceUserId = params?.sourceUserId ? String(params.sourceUserId) : null;
@@ -262,91 +262,53 @@ export default function ProfessionalDashboard() {
     if (nextTab === 'chat' && canSendMessages) {
       setSelectedNotificationChatId(params?.chatId ? String(params.chatId) : undefined);
       setSelectedPatient(null);
-      setTab('chat');
+      navigateRoute('chat', params?.chatId ? { chatId: String(params.chatId) } : undefined);
       return;
     }
 
     if (linkedPatient) {
       setSelectedPatient(linkedPatient);
       setPatientTab(nextTab === 'activities' ? 'stats' : 'overview');
-      setTab('patients');
+      navigateRoute('patients', { patientId: linkedPatient });
       return;
     }
 
     setSelectedPatient(null);
-    setTab(nextTab === 'calendar' && canScheduleSessions ? 'calendar' : 'patients');
+    navigateRoute(nextTab === 'calendar' && canScheduleSessions ? 'calendar' : 'patients');
   };
 
+  const navigate = (next: ProfessionalTab) => {
+    navigateRoute(next); setSelectedPatient(null); setMenuOpen(false); setProfileOpen(false); setQuickOpen(false);
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  };
+  const openPatient = (userId: string) => {
+    navigateRoute('patients', { patientId: userId }); setSelectedPatient(userId); setPatientTab('overview'); setMenuOpen(false); setProfileOpen(false); setQuickOpen(false);
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  };
+  const professionalPageTitle = selectedPatient && patientDetail ? patientDetail.name : ({ home: 'Inicio', calendar: 'Calendario', patients: 'Pacientes', chat: 'Chats', notifications: 'Notificaciones', documents: 'Documentos y notas', create: 'Actividades', resources: 'Recursos y herramientas', reports: 'Reportes', tools: 'Herramientas', profile: 'Perfil', about: 'Acerca de TÁNDEM', pictograms: 'Pictograma IA', pictogramCatalog: 'Pictogramas' } satisfies Record<ProfessionalTab, string>)[tab];
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-dvh overflow-x-hidden bg-[radial-gradient(circle_at_88%_4%,rgba(220,203,245,0.42),transparent_24rem),linear-gradient(180deg,#fbf9ff_0%,#f8f7fc_100%)] pb-24 lg:pb-0">
+      <a href="#professional-main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-[100] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2">Saltar al contenido</a>
       <AppHeader
         onMenuClick={() => setMenuOpen(true)}
-        onLogoClick={() => { setTab('home'); setSelectedPatient(null); }}
+        onLogoClick={() => navigate('home')}
+        onBack={tab !== 'home' ? () => { if (selectedPatient) { goBack('patients'); } else { goBack('home'); } } : undefined}
+        mobileBackOnly
+        contextTitle={professionalPageTitle}
+        menuButtonClassName="invisible pointer-events-none lg:visible lg:pointer-events-auto"
         rightSlot={
-          <>
-            <HeaderUserAvatar avatar={user.avatar} name={user.name} />
-            <NotificationBellButton count={unreadCount} onClick={() => { setTab('notifications'); setSelectedPatient(null); }} />
-          </>
+          <div className="flex items-center gap-2"><NotificationBellButton count={unreadCount} onClick={() => navigate('notifications')} className="border-0 bg-transparent" /><button type="button" onClick={() => setProfileOpen(true)} aria-label="Abrir perfil profesional" className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><HeaderUserAvatar avatar={user.avatar} name={user.name} /></button></div>
         }
       />
 
-      <AnimatePresence>
-      {menuOpen && (
-        <motion.div
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.22 }}
-          onClick={() => setMenuOpen(false)}
-        >
-          <motion.aside
-            className="relative h-full w-[85%] max-w-sm bg-white rounded-r-3xl shadow-2xl shadow-black/10 p-6 flex flex-col overflow-y-auto"
-            initial={{ x: '-100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '-100%' }}
-            transition={{ duration: 0.26, ease: 'easeOut' }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-8">
-              <img className="h-8 object-contain" src="/tandem-logo.png" alt="Tandem" />
-              <button onClick={() => setMenuOpen(false)} className="p-2 rounded-xl hover:bg-muted transition-colors" aria-label="Cerrar menú">
-                <X size={20} />
-              </button>
-            </div>
-            <nav className="flex-1 space-y-1">
-              {tabs.map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    setTab(item.id);
-                    setSelectedPatient(null);
-                    setMenuOpen(false);
-                  }}
-                  className={`flex w-full items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors text-left ${
-                    tab === item.id ? 'text-[#7C3AED] font-semibold' : 'text-muted-foreground'
-                  } hover:bg-[#C9A7EB]/60 hover:text-[#7C3AED]`}
-                >
-                  <item.icon size={18} className="shrink-0" />
-                  {item.label}
-                </button>
-              ))}
-            </nav>
-            <div className="mt-auto pt-4 border-t border-border">
-              <button onClick={logout} className="flex w-full items-center gap-3 px-4 py-3 rounded-xl text-sm text-[#7C3AED] hover:bg-[#C9A7EB]/40 transition-colors">
-                <LogOut size={18} />
-                Cerrar sesion
-              </button>
-            </div>
-          </motion.aside>
-        </motion.div>
-      )}
-      </AnimatePresence>
+      <ProfessionalDrawer open={menuOpen} active={tab} permissions={navigationPermissions} onClose={() => setMenuOpen(false)} onNavigate={navigate} onLogout={logout} />
+      <ProfessionalProfileDrawer open={profileOpen} active={tab} user={user} permissions={navigationPermissions} onClose={() => setProfileOpen(false)} onNavigate={navigate} onLogout={logout} />
 
-
-
-      <div className="max-w-4xl mx-auto p-4 space-y-4">
-        {tab === 'home' && <ProfessionalHome professionalName={user.name} patientCount={linkedUsers.length} onNavigate={setTab} />}
+      <main id="professional-main" tabIndex={-1} className="mx-auto w-full max-w-[1280px] space-y-5 px-4 py-6 sm:px-6 lg:px-8 lg:py-9">
+        {tab === 'home' && loadingPatients && <ProfessionalHomeSkeleton />}
+        {tab === 'home' && !loadingPatients && patientsError && <div role="alert" className="rounded-3xl border border-destructive/20 bg-white p-6 text-sm text-destructive shadow-sm">{patientsError}<Button type="button" variant="outline" className="ml-3" onClick={reloadPatients}>Reintentar</Button></div>}
+        {tab === 'home' && !loadingPatients && !patientsError && <ProfessionalHome professionalName={user.name} patients={linkedUsers} sessions={sessions} activitiesByUser={activitiesByUser} emotionsByUser={emotionsByUser} notesByUser={notesByUser} patientPertenecienteIds={Object.fromEntries(linkedUsers.map(patient => [patient.id, Number(linkForUser(patient.id)?.perteneciente.id)]))} onNavigate={navigate} onOpenPatient={openPatient} />}
         {tab === 'chat' && canSendMessages && (
           <ChatProvider>
             <ChatScreen
@@ -355,12 +317,14 @@ export default function ProfessionalDashboard() {
             />
           </ChatProvider>
         )}
+        {tab === 'chat' && !canSendMessages && <PermissionBlocked title="Chat deshabilitado" description="No tenés permisos activos para enviar mensajes en tus vínculos profesionales." />}
         {tab === 'notifications' && (
           <UserNotifications onUnreadCountChange={setUnreadCount} onNavigate={navigateFromNotification} />
         )}
         {tab === 'patients' && !selectedPatient && (
           <>
-            <h2 className="font-heading font-bold text-xl text-foreground">Mis pacientes ({linkedUsers.length})</h2>
+            <header><h1 className="font-heading text-3xl font-bold text-foreground">Pacientes</h1><p className="mt-2 text-sm text-muted-foreground">Consultá tus vínculos sin cambiar el contexto general de la aplicación.</p></header>
+            <div className="flex flex-col gap-3 rounded-3xl border border-white/80 bg-white/85 p-4 shadow-sm sm:flex-row sm:items-center"><label htmlFor="professional-patient-search" className="sr-only">Buscar paciente</label><Input id="professional-patient-search" type="search" value={patientSearch} onChange={event => setPatientSearch(event.target.value)} placeholder="Buscar por nombre" className="min-h-11 flex-1" /><span className="text-sm font-semibold text-muted-foreground">{visiblePatients.length} de {linkedUsers.length}</span><Button type="button" variant="outline" onClick={() => navigate('tools')} className="min-h-11"><KeyRound size={16} className="mr-2" aria-hidden />Vincular paciente</Button></div>
             {loadingPatients && (
               <div className="bg-card rounded-xl border border-border p-6 text-sm text-muted-foreground">
                 Cargando pertenecientes vinculados...
@@ -372,7 +336,7 @@ export default function ProfessionalDashboard() {
               </div>
             )}
             {patientsError && <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{patientsError}</div>}
-            {linkedUsers.map(u => {
+            <div className="grid gap-3 xl:grid-cols-2">{visiblePatients.map(u => {
               const acts = activitiesByUser[u.id] || [];
               const completed = acts.filter(a => a.status === 'completada').length;
               const adherence = acts.length > 0 ? Math.round((completed / acts.length) * 100) : 0;
@@ -382,7 +346,7 @@ export default function ProfessionalDashboard() {
               const canViewPatientHistory = Boolean(permissionContext) && isPermissionEnabled(linkPermissions?.permisos, PROFESIONAL_PERMISSIONS.VER_HISTORIAL, false);
 
               return (
-                <motion.button key={u.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} onClick={() => { setSelectedPatient(u.id); setPatientTab('overview'); }} className="w-full bg-card rounded-xl border border-border overflow-hidden text-left hover:border-primary/30 transition-all">
+                <motion.button key={u.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} onClick={() => { setSelectedPatient(u.id); setPatientTab('overview'); }} className="w-full overflow-hidden rounded-3xl border border-border/80 bg-card text-left shadow-sm transition-all hover:border-primary/30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <div className="p-4 flex items-center gap-4">
                     <span className="text-4xl">{u.avatar}</span>
                     <div className="flex-1">
@@ -405,7 +369,7 @@ export default function ProfessionalDashboard() {
                   </div>
                 </motion.button>
               );
-            })}
+            })}</div>
           </>
         )}
 
@@ -530,13 +494,13 @@ export default function ProfessionalDashboard() {
                   El tutor deshabilito ver historial para este perteneciente.
                 </div>
               )}
-              <div className="flex gap-2 overflow-x-auto">
+              <div className="grid grid-cols-3 gap-2">
                 {([
                   { id: 'overview', label: 'Resumen', icon: BarChart3 },
                   { id: 'stats', label: 'Estadísticas', icon: TrendingUp },
                   { id: 'sessions', label: 'Sesiones', icon: CalendarClock },
                 ] as const).map(t => (
-                  <button key={t.id} onClick={() => { setPatientTab(t.id); setPatientNoteSession(null); }} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm whitespace-nowrap ${patientTab === t.id ? 'gradient-primary text-primary-foreground' : 'bg-card border border-border text-muted-foreground'}`}>
+                  <button key={t.id} onClick={() => { setPatientTab(t.id); setPatientNoteSession(null); }} className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs sm:text-sm ${patientTab === t.id ? 'gradient-primary text-primary-foreground' : 'bg-card border border-border text-muted-foreground'}`}>
                     <t.icon size={14} /> {t.label}
                   </button>
                 ))}
@@ -598,7 +562,7 @@ export default function ProfessionalDashboard() {
                         onEdit={() => {
                           setAgendaInitialPatientId(pertenecienteId || undefined);
                           setSelectedPatient(null);
-                          setTab('calendar');
+                          navigate('calendar');
                         }}
                         onDelete={() => deletePatientSession(session)}
                         onPrepare={session.estado === 'programada' ? () => runPrepareSession(session) : undefined}
@@ -675,7 +639,7 @@ export default function ProfessionalDashboard() {
                     onClick={() => {
                       setAgendaInitialPatientId(Number(linkForUser(patientDetail.id)?.perteneciente.id) || undefined);
                       setSelectedPatient(null);
-                      setTab('calendar');
+                      navigate('calendar');
                     }}
                   >
                     <Calendar size={14} className="mr-1" /> Proponer sesión
@@ -701,7 +665,9 @@ export default function ProfessionalDashboard() {
         {tab === 'calendar' && !canScheduleSessions && (
           <PermissionBlocked title="Calendario deshabilitado" description="No tenés permisos activos para gestionar sesiones con tus pacientes vinculados." />
         )}
-        {tab === 'documents' && <DriveExplorer />}
+        {tab === 'documents' && <ProfessionalDocumentsArea onOpenPatients={() => navigate('patients')} />}
+        {tab === 'reports' && <ProfessionalReportsPanel patients={agendaPatients} />}
+        {tab === 'resources' && <ProfessionalResourceHub onNavigate={navigate} />}
         {tab === 'pictograms' && <AiPictogramStudio />}
         {tab === 'pictogramCatalog' && <UserPictograms />}
         {tab === 'profile' && <ProfessionalProfileSettings />}
@@ -752,7 +718,7 @@ export default function ProfessionalDashboard() {
                         variant="outline"
                         onClick={() => {
                           setAgendaInitialPatientId(patient.pertenecienteId);
-                          setTab('calendar');
+                          navigate('calendar');
                         }}
                       >
                         <Calendar size={13} className="mr-1" /> Proponer sesión
@@ -792,7 +758,7 @@ export default function ProfessionalDashboard() {
                   className="justify-start"
                   onClick={() => {
                     if (canAssignActivities || canCreateCustomActivities) {
-                      setTab('create');
+                      navigate('create');
                       return;
                     }
                     toast({
@@ -814,7 +780,34 @@ export default function ProfessionalDashboard() {
           </div>
         )}
 
-      </div>
+      </main>
+      <BelongingMobileBottomNav activeTab={tab} onNavigate={(next) => navigate(next as ProfessionalTab)} destinations={mobileDestinations} forceExpanded={quickOpen} center={(compactProgress) => <ProfessionalQuickMenu open={quickOpen} onOpenChange={setQuickOpen} compactProgress={compactProgress} permissions={navigationPermissions} onAction={(action: ProfessionalQuickAction) => {
+        if (action === 'session') { setAgendaInitialPatientId(undefined); navigate('calendar'); }
+        if (action === 'note') { navigate('patients'); toast({ title: 'Elegí una sesión', description: 'La nota clínica se guarda dentro de la sesión del paciente correspondiente.' }); }
+        if (action === 'activity') navigate('create');
+        if (action === 'pictogram') navigate('pictograms');
+      }} />}/>
     </div>
   );
+}
+
+function ProfessionalResourceHub({ onNavigate }: { onNavigate: (tab: ProfessionalTab) => void }) {
+  const areas = [
+    { id: 'pictograms' as const, title: 'Crear pictograma con IA', text: 'Generá apoyos visuales a partir de una idea.', icon: Sparkles },
+    { id: 'pictogramCatalog' as const, title: 'Explorar pictogramas', text: 'Buscá recursos visuales por categorías y temas.', icon: Image },
+    { id: 'tools' as const, title: 'Herramientas profesionales', text: 'Vínculos, métricas y seguimiento operativo.', icon: ClipboardPlus },
+  ];
+  return <div className="space-y-5"><header><h1 className="font-heading text-3xl font-bold">Recursos y herramientas</h1><p className="mt-2 text-sm text-muted-foreground sm:text-base">Materiales visuales y utilidades para tu práctica.</p></header><div className="grid gap-4 md:grid-cols-3">{areas.map(area => <button key={area.id} type="button" onClick={() => onNavigate(area.id)} className="min-h-44 rounded-[26px] border border-white/80 bg-white/90 p-5 text-left shadow-[0_12px_36px_rgba(70,45,96,.075)] transition hover:-translate-y-0.5 hover:border-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary"><area.icon size={22} aria-hidden /></span><h2 className="mt-4 font-bold">{area.title}</h2><p className="mt-1 text-sm text-muted-foreground">{area.text}</p></button>)}</div></div>;
+}
+
+function ProfessionalHomeSkeleton() {
+  return <div aria-label="Cargando inicio profesional" aria-busy="true" className="space-y-6">
+    <div className="space-y-3"><div className="h-10 w-64 animate-pulse rounded-xl bg-primary/10" /><div className="h-5 w-full max-w-lg animate-pulse rounded-lg bg-primary/5" /></div>
+    <div className="grid gap-4 md:grid-cols-2">{Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-48 animate-pulse rounded-[28px] border border-white/80 bg-white/80 shadow-sm" />)}</div>
+    <div className="grid gap-5 xl:grid-cols-2">{Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-72 animate-pulse rounded-[26px] border border-white/80 bg-white/80 shadow-sm" />)}</div>
+  </div>;
+}
+
+function ProfessionalDocumentsArea({ onOpenPatients }: { onOpenPatients: () => void }) {
+  return <div className="space-y-5"><header><h1 className="font-heading text-3xl font-bold">Documentos y notas</h1><p className="mt-2 text-sm text-muted-foreground sm:text-base">Archivos de Drive y notas clínicas organizados dentro de tu práctica.</p></header><button type="button" onClick={onOpenPatients} className="flex min-h-24 w-full items-center gap-4 rounded-3xl border border-white/80 bg-white/90 p-4 text-left shadow-sm transition hover:border-primary/20 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600"><FileText size={21} aria-hidden /></span><span className="min-w-0 flex-1"><span className="block font-bold">Notas clínicas</span><span className="block text-sm text-muted-foreground">Elegí un paciente y una sesión para consultar o escribir su nota privada.</span></span><span className="text-sm font-semibold text-primary">Ver pacientes</span></button><section className="rounded-3xl border border-white/80 bg-white/90 p-4 shadow-sm sm:p-5"><h2 className="mb-4 flex items-center gap-2 text-lg font-bold"><FolderOpen className="text-primary" aria-hidden />Documentos</h2><DriveExplorer /></section></div>;
 }
