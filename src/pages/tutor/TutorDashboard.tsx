@@ -292,6 +292,7 @@ export default function TutorDashboard({ initialUserId, initialTab, onBack }: Tu
       <AppHeader
         onMenuClick={() => { setMenuPanel('main'); setMenuOpen(true); }}
         onBack={onBack}
+        onLogoClick={onBack}
         rightSlot={
           <>
             <HeaderUserAvatar avatar={user.avatar} name={user.name} />
@@ -320,14 +321,14 @@ export default function TutorDashboard({ initialUserId, initialTab, onBack }: Tu
               onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-8">
-                <p className="font-heading font-bold text-gradient text-xl">TÁNDEM</p>
+                <img className="h-8 object-contain" src="/tandem-logo.png" alt="Tandem" />
                 <button onClick={() => setMenuOpen(false)} className="p-2 rounded-xl hover:bg-muted transition-colors" aria-label="Cerrar menú">
                   <X size={20} />
                 </button>
               </div>
               {menuPanel === 'main' ? (
-                <nav className="flex-1 space-y-4">
-                  <div className="rounded-2xl border border-border bg-background/70 p-2">
+                <nav className="flex-1 space-y-2">
+                  <div>
                     <button type="button" onClick={() => setYoOpen(prev => !prev)} className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-semibold text-foreground hover:bg-[#C9A7EB]/35">
                       <span className="flex items-center gap-3"><UserRound size={18} className="text-primary" />Yo</span>
                       <ChevronRight size={17} className={`transition-transform ${yoOpen ? 'rotate-90' : ''}`} />
@@ -342,7 +343,7 @@ export default function TutorDashboard({ initialUserId, initialTab, onBack }: Tu
                       </div>
                     )}
                   </div>
-                  <button type="button" onClick={() => setMenuPanel('pertenecientes')} className="flex w-full items-center justify-between rounded-2xl border border-border bg-background/70 px-5 py-4 text-left transition-colors hover:border-primary/50 hover:bg-primary/5">
+                  <button type="button" onClick={() => setMenuPanel('pertenecientes')} className="flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-muted-foreground transition-colors hover:bg-[#C9A7EB]/50 hover:text-[#7C3AED]">
                     <span><span className="flex items-center gap-3 text-sm font-semibold text-foreground"><Users size={18} className="text-primary" />Pertenecientes</span><span className="mt-1 block text-xs text-muted-foreground">Elegir perfil o vincular nuevo usuario</span></span>
                     <ChevronRight size={18} className="text-muted-foreground" />
                   </button>

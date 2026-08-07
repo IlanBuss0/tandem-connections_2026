@@ -1,7 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { AlertCircle, BarChart3, CalendarDays, Loader2, Save, Sparkles, Trash2 } from 'lucide-react';
+import { AlertCircle, FileText, Loader2, Save, Trash2 } from 'lucide-react';
 import { useEmotions, emotionOptions } from '@/contexts/EmotionsContext';
+import { deletePersonalNote, fetchPersonalNotesForUser, type PersonalNote } from '@/data/api';
+import { useAuth } from '@/contexts/AuthContext';
+import PersonalNotesList from '@/components/PersonalNotesList';
 import EmotionCauseQuickPicker from '@/components/EmotionCauseQuickPicker';
 
 import PermissionBlocked from '@/components/PermissionBlocked';
@@ -27,14 +30,29 @@ function formatDate(date: string) {
 }
 
 export default function UserEmotions() {
+  const { user } = useAuth();
   const { context: permissionContext } = usePermissionContext();
-  const { records, loading, error, add, remove, reload } = useEmotions();
+  const { records, loading, error, add, remove } = useEmotions();
   const [selectedEmotion, setSelectedEmotion] = useState<string | null>(null);
   const [intensity, setIntensity] = useState(3);
   const [context, setContext] = useState('');
   const [whatHelped, setWhatHelped] = useState('');
   const [saving, setSaving] = useState(false);
+  const [notes, setNotes] = useState<PersonalNote[]>([]);
+  const [notesLoading, setNotesLoading] = useState(true);
+  const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    setNotesLoading(true);
+    fetchPersonalNotesForUser(user.id)
+      .then((data) => { if (!cancelled) setNotes(data); })
+      .catch(() => { if (!cancelled) setNotes([]); })
+      .finally(() => { if (!cancelled) setNotesLoading(false); });
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   const selectedOption = emotionOptions.find((emotion) => emotion.label === selectedEmotion);
 
@@ -81,10 +99,33 @@ export default function UserEmotions() {
 
   if (!canRegisterEmotions) {
     return (
-      <PermissionBlocked
-        title="Emociones deshabilitadas"
-        description="Tu tutor deshabilito temporalmente el registro emocional. Cuando lo habilite, vas a poder registrar y revisar tus emociones."
-      />
+      <div className="space-y-6 pb-24 lg:pb-6">
+        <div>
+          <h2 className="text-3xl font-bold leading-tight text-[#6b4c9a] sm:text-4xl">Registro personal</h2>
+          <p className="mt-1 text-sm font-medium text-[#8b7aa0] sm:text-base">Cada emoción cuenta. Este es tu espacio para expresarte.</p>
+        </div>
+        <PermissionBlocked
+          title="Emociones deshabilitadas"
+          description="Tu tutor deshabilito temporalmente el registro emocional. Tus notas personales siguen disponibles."
+        />
+        <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 shadow-lg sm:p-5">
+          <h3 className="mb-1 flex items-center gap-2 font-semibold text-[#6b4c9a]"><FileText size={17} />Notas guardadas</h3>
+          <PersonalNotesList
+            notes={notes}
+            loading={notesLoading}
+            deletingId={deletingNoteId}
+            onDelete={async (id) => {
+              setDeletingNoteId(id);
+              try {
+                await deletePersonalNote(id);
+                setNotes((current) => current.filter((note) => note.id !== id));
+              } finally {
+                setDeletingNoteId(null);
+              }
+            }}
+          />
+        </section>
+      </div>
     );
   }
 
@@ -109,6 +150,16 @@ export default function UserEmotions() {
     }
   };
 
+  const handleDeleteNote = async (id: string) => {
+    setDeletingNoteId(id);
+    try {
+      await deletePersonalNote(id);
+      setNotes((current) => current.filter((note) => note.id !== id));
+    } finally {
+      setDeletingNoteId(null);
+    }
+  };
+
   const handleRemove = async (id: string) => {
     setDeletingId(id);
     try {
@@ -122,8 +173,8 @@ export default function UserEmotions() {
     <div className="pb-24 lg:pb-6 space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-3xl sm:text-4xl font-bold text-[#6b4c9a] leading-tight">Emociones</h2>
-          <p className="text-sm sm:text-base text-[#8b7aa0] mt-1 font-medium">Seguimiento emocional personal.</p>
+          <h2 className="text-3xl sm:text-4xl font-bold text-[#6b4c9a] leading-tight">Registro personal</h2>
+          <p className="text-sm sm:text-base text-[#8b7aa0] mt-1 font-medium">Cada emoción cuenta. Este es tu espacio para expresarte.</p>
         </div>
       </div>
 
@@ -134,38 +185,9 @@ export default function UserEmotions() {
         </div>
       )}
 
-      <section className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl sm:rounded-3xl border border-[#f0e8f8] bg-white p-4 shadow-lg">
-          <div className="flex items-center gap-2 text-[#8b7aa0] text-xs">
-            <CalendarDays size={15} />
-            Hoy
-          </div>
-          <p className="mt-2 text-2xl font-bold text-[#6b4c9a]">{stats.todayCount}</p>
-          <p className="text-xs text-[#8b7aa0]">registro(s)</p>
-        </div>
-        <div className="rounded-2xl sm:rounded-3xl border border-[#f0e8f8] bg-white p-4 shadow-lg">
-          <div className="flex items-center gap-2 text-[#8b7aa0] text-xs">
-            <BarChart3 size={15} />
-            Ultimos 7 dias
-          </div>
-          <p className="mt-2 text-2xl font-bold text-[#6b4c9a]">{stats.weekCount}</p>
-          <p className="text-xs text-[#8b7aa0]">seguimientos</p>
-        </div>
-        <div className="rounded-2xl sm:rounded-3xl border border-[#f0e8f8] bg-white p-4 shadow-lg">
-          <div className="flex items-center gap-2 text-[#8b7aa0] text-xs">
-            <Sparkles size={15} />
-            Intensidad media
-          </div>
-          <p className="mt-2 text-2xl font-bold text-[#6b4c9a]">
-            {stats.averageIntensity ? stats.averageIntensity.toFixed(1) : '-'}
-          </p>
-          <p className="text-xs text-[#8b7aa0]">sobre 5</p>
-        </div>
-      </section>
-
       <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 sm:p-5 shadow-lg">
         <div className="mb-4">
-          <h3 className="font-semibold text-[#6b4c9a]">Como te sentis ahora</h3>
+          <h3 className="text-lg font-semibold text-[#6b4c9a] sm:text-xl">¿Cómo te sentís ahora?</h3>
         </div>
 
         <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
@@ -247,7 +269,7 @@ export default function UserEmotions() {
         )}
       </section>
 
-      <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 sm:p-5 shadow-lg">
+      <section className="hidden" aria-hidden="true">
         <h3 className="font-semibold text-[#6b4c9a] mb-3">Resumen emocional</h3>
         <div className="space-y-2">
           {stats.topEmotions.map(([emotion, count]) => {
@@ -270,7 +292,7 @@ export default function UserEmotions() {
         </div>
       </section>
 
-      <section>
+      <section className="hidden" aria-hidden="true">
         <h3 className="font-semibold text-[#6b4c9a] mb-3">Historial</h3>
         {loading && !records.length && (
           <div className="flex items-center gap-2 rounded-2xl border border-[#f0e8f8] bg-white p-4 text-sm text-[#8b7aa0] shadow-lg">
@@ -323,6 +345,32 @@ export default function UserEmotions() {
             </div>
           </div>
         ))}
+      </section>
+
+      <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 shadow-lg sm:p-5">
+        <h3 className="mb-4 font-semibold text-[#6b4c9a]">Emociones registradas</h3>
+        {loading && records.length === 0 ? (
+          <div className="flex items-center gap-2 py-4 text-sm text-[#8b7aa0]"><Loader2 size={16} className="animate-spin" />Cargando emociones...</div>
+        ) : records.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-[#e0d8f0] bg-[#faf8ff] px-5 py-8 text-center text-sm text-[#8b7aa0]">Todavía no guardaste emociones desde el Tablero emocional.</div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {records.map((record) => (
+              <article key={record.id} className="flex items-center gap-3 rounded-2xl border border-[#f0e8f8] bg-[#faf8ff] p-3">
+                <span className="text-3xl" aria-hidden="true">{record.emoji}</span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-[#4a4a5a]">{record.emotion}</p>
+                  <p className="text-xs text-[#8b7aa0]">{record.date} · {record.timestamp}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 shadow-lg sm:p-5">
+        <h3 className="mb-1 flex items-center gap-2 font-semibold text-[#6b4c9a]"><FileText size={17} />Notas guardadas</h3>
+        <PersonalNotesList notes={notes} loading={notesLoading} deletingId={deletingNoteId} onDelete={handleDeleteNote} />
       </section>
     </div>
   );

@@ -142,6 +142,13 @@ export type ChatMessage = legacy.ChatMessage & {
 };
 export type Notification = legacy.Notification;
 export type EmotionalRecord = legacy.EmotionalRecord;
+export interface PersonalNote {
+  id: string;
+  userId: string;
+  content: string;
+  title?: string;
+  createdAt: string;
+}
 export type Achievement = legacy.Achievement;
 export type Objective = legacy.Objective;
 export type Location = legacy.Location;
@@ -891,6 +898,24 @@ function parseEmotionConfig(config: ConfiguracionUsuario): EmotionalRecord | nul
       whatHelped: value.whatHelped || '',
       timestamp: value.timestamp || new Date(config.fecha_modificacion).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
       date: value.date || config.fecha_modificacion.split('T')[0],
+    };
+  } catch {
+    return null;
+  }
+}
+
+function parsePersonalNoteConfig(config: ConfiguracionUsuario): PersonalNote | null {
+  if (!config.clave?.startsWith('personal-note:')) return null;
+
+  try {
+    const value = JSON.parse(config.valor || '{}') as Partial<PersonalNote>;
+    if (!value.content?.trim()) return null;
+    return {
+      id: String(config.id),
+      userId: String(config.id_usuario),
+      content: value.content.trim(),
+      title: value.title?.trim() || undefined,
+      createdAt: value.createdAt || config.fecha_modificacion,
     };
   } catch {
     return null;
@@ -1823,6 +1848,35 @@ export async function deleteEmotionRecord(recordId: string): Promise<void> {
   }
 
   await apiFetchWithFallback<unknown>([`/emotions/${encodeURIComponent(recordId)}`], { method: 'DELETE' });
+}
+
+export async function fetchPersonalNotesForUser(userId: string): Promise<PersonalNote[]> {
+  if (!isBackendUserId(userId)) return [];
+
+  const configs = await tandemApi.configuracionesUsuarios.getAll();
+  return configs
+    .filter((config) => config.id_usuario === Number(userId) && config.clave.startsWith('personal-note:'))
+    .map(parsePersonalNoteConfig)
+    .filter((note): note is PersonalNote => Boolean(note))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function createPersonalNote(userId: string, content: string, title?: string): Promise<PersonalNote> {
+  if (!isBackendUserId(userId)) throw new Error('Las notas personales requieren un usuario del backend.');
+
+  const now = new Date().toISOString();
+  const value = { content: content.trim(), title: title?.trim() || undefined, createdAt: now };
+  const result = await tandemApi.configuracionesUsuarios.create({
+    id_usuario: Number(userId),
+    clave: `personal-note:${now}`,
+    valor: JSON.stringify(value),
+    fecha_modificacion: now,
+  });
+  return { id: String(result.id), userId, ...value };
+}
+
+export async function deletePersonalNote(noteId: string): Promise<void> {
+  await tandemApi.configuracionesUsuarios.delete(noteId);
 }
 
 async function getUserConfig(userId: number, key: string): Promise<ConfiguracionUsuario | undefined> {

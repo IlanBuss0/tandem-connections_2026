@@ -7,7 +7,7 @@ import {
   type Pictogram,
   type ProfessionalSession,
 } from '@/data/api';
-import type { AgendaPatient } from '@/components/ProfessionalAgenda';
+import ProfessionalAgenda, { type AgendaPatient } from '@/components/ProfessionalAgenda';
 import { useToast } from '@/components/ui/use-toast';
 import { sessionStatusBadgeClass } from '@/lib/sessionStatus';
 
@@ -22,7 +22,7 @@ function sessionDateKey(session: ProfessionalSession) {
   return fmt(new Date(session.fecha_sesion));
 }
 
-export default function ProfessionalCalendar({ patients, onOpenAgenda }: { patients: AgendaPatient[]; onOpenAgenda?: () => void }) {
+export default function ProfessionalCalendar({ patients, initialPatientId }: { patients: AgendaPatient[]; initialPatientId?: number }) {
   const { toast } = useToast();
   const { events, addEvent, updateEvent, deleteEvent } = useCalendar();
   const [sessions, setSessions] = useState<ProfessionalSession[]>([]);
@@ -81,7 +81,8 @@ export default function ProfessionalCalendar({ patients, onOpenAgenda }: { patie
   };
 
   return (
-    <PersonalEventCalendar
+    <div className="space-y-10">
+      <PersonalEventCalendar
       heading="Calendario profesional"
       events={events}
       onCreate={addEvent}
@@ -89,9 +90,12 @@ export default function ProfessionalCalendar({ patients, onOpenAgenda }: { patie
       onDelete={deleteEvent}
       patients={patientOptions}
       readOnlyItemsForDate={readOnlyItemsForDate}
-      readOnlyHint="Las sesiones se gestionan desde Agenda."
+      readOnlyHint="Las sesiones se gestionan debajo, dentro de este Calendario."
       loading={loading}
-      headerAction={onOpenAgenda ? { label: 'Ir a agenda', onClick: onOpenAgenda } : undefined}
-    />
+      />
+      <section className="border-t border-border pt-8">
+        <ProfessionalAgenda patients={patients} initialPatientId={initialPatientId} />
+      </section>
+    </div>
   );
 }
