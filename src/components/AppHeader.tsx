@@ -9,6 +9,8 @@ type AppHeaderProps = {
   position?: 'fixed' | 'sticky';
   menuButtonClassName?: string;
   onLogoClick?: () => void;
+  mobileBackOnly?: boolean;
+  contextTitle?: string;
 };
 
 export default function AppHeader({
@@ -19,6 +21,8 @@ export default function AppHeader({
   position = 'sticky',
   menuButtonClassName = '',
   onLogoClick,
+  mobileBackOnly = false,
+  contextTitle,
 }: AppHeaderProps) {
   const positionClass = position === 'fixed' ? 'fixed' : 'sticky';
 
@@ -27,16 +31,17 @@ export default function AppHeader({
       className={`${positionClass} top-0 left-0 right-0 z-50 h-16 border-b border-border bg-white/95 shadow-[0_1px_0_rgba(15,23,42,0.04)] backdrop-blur ${className}`}
     >
       <div className="relative flex h-full w-full items-center justify-between px-4 sm:px-6 lg:px-8">
-        {onBack ? (
+        {onBack ? <>
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className={`inline-flex h-11 w-11 items-center justify-center rounded-lg text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${mobileBackOnly ? 'lg:hidden' : ''}`}
             aria-label="Volver"
           >
             <ChevronLeft size={24} strokeWidth={2.5} />
           </button>
-        ) : (
+          {mobileBackOnly && <button type="button" onClick={onMenuClick} className={`hidden h-11 w-11 items-center justify-center rounded-lg text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:inline-flex ${menuButtonClassName}`} aria-label="Abrir menu"><Menu size={24} strokeWidth={2.5} /></button>}
+        </> : (
           <button
             type="button"
             onClick={onMenuClick}
@@ -47,22 +52,22 @@ export default function AppHeader({
           </button>
         )}
 
-        {onLogoClick ? (
+        {onLogoClick && !onBack && (
           <button
             type="button"
             onClick={onLogoClick}
             aria-label="Ir a Inicio"
-            className="absolute left-1/2 inline-flex h-11 -translate-x-1/2 items-center justify-center rounded-xl px-2 transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="absolute left-3 inline-flex h-11 items-center justify-center rounded-xl px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:left-5 lg:hidden"
           >
             <img className="h-7 max-w-[108px] object-contain min-[360px]:h-8 min-[360px]:max-w-[132px]" src="/tandem-logo.png" alt="Tandem" />
           </button>
-        ) : (
-          <img
-            className="absolute left-1/2 h-8 max-w-[132px] -translate-x-1/2 object-contain"
-            src="/tandem-logo.png"
-            alt="Tandem"
-          />
         )}
+        <img
+          className={`absolute left-1/2 h-8 max-w-[132px] -translate-x-1/2 object-contain ${onLogoClick ? 'hidden lg:block' : ''}`}
+          src="/tandem-logo.png"
+          alt="Tandem"
+        />
+        {onBack && contextTitle && <span className="pointer-events-none absolute left-1/2 max-w-[55vw] -translate-x-1/2 truncate text-sm font-bold lg:hidden">{contextTitle}</span>}
 
         <div className="flex min-w-11 items-center justify-end gap-3">
           {rightSlot}

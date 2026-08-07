@@ -59,8 +59,7 @@ const AboutTandem = lazy(() => import("@/pages/AboutTandem"));
 const ProfessionalDirectory = lazy(
   () => import("@/components/ProfessionalDirectory"),
 );
-const TutorLanding = lazy(() => import("@/pages/tutor/TutorLanding"));
-const TutorDashboard = lazy(() => import("@/pages/tutor/TutorDashboard"));
+const TutorExperience = lazy(() => import("@/pages/tutor/TutorExperience"));
 const ProfessionalDashboard = lazy(
   () => import("@/pages/professional/ProfessionalDashboard"),
 );
@@ -107,10 +106,6 @@ function loadActiveTab() {
   }
 }
 
-type TutorView =
-  | { view: "landing" }
-  | { view: "dashboard"; selectedUserId?: number; initialTab?: string };
-
 export default function AppShell() {
   const { user, logout } = useAuth();
   const { state: wallet } = useWallet();
@@ -122,7 +117,6 @@ export default function AppShell() {
     useUnreadNotifications(
       user && user.role === "user" ? { id: String(user.id) } : null,
     );
-  const [tutorView, setTutorView] = useState<TutorView>({ view: "landing" });
   const [navParams, setNavParams] = useState<Record<string, any> | null>(null);
   const [navKey, setNavKey] = useState(0);
   const [profilePanelOpen, setProfilePanelOpen] = useState(false);
@@ -148,31 +142,9 @@ export default function AppShell() {
       </Suspense>
     );
   if (user.role === "tutor") {
-    if (tutorView.view === "landing") {
-      return (
-        <Suspense fallback={<ScreenFallback />}>
-          <TutorLanding
-            onSelectPerteneciente={(userId) =>
-              setTutorView({
-                view: "dashboard",
-                selectedUserId: userId,
-                initialTab: "overview",
-              })
-            }
-            onNavigateTo={(tab) =>
-              setTutorView({ view: "dashboard", initialTab: tab })
-            }
-          />
-        </Suspense>
-      );
-    }
     return (
       <Suspense fallback={<ScreenFallback />}>
-        <TutorDashboard
-          initialUserId={tutorView.selectedUserId}
-          initialTab={tutorView.initialTab}
-          onBack={() => setTutorView({ view: "landing" })}
-        />
+        <TutorExperience />
       </Suspense>
     );
   }

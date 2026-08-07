@@ -2,7 +2,7 @@ export type RoutineSequenceMode = 'order' | 'next' | 'missing' | 'detective' | '
 export type RoutineSupportLevel = 'initial' | 'intermediate' | 'advanced';
 
 export interface RoutineCard { id: string; text: string; emoji?: string; pictogramId?: string; imageUrl?: string; accessibleLabel?: string; }
-export interface RoutineRound { id: string; prompt?: string; sequenceIds?: string[]; optionIds: string[]; acceptedIds: string[]; conflictId?: string; explanation?: string; }
+export interface RoutineRound { id: string; prompt?: string; sequenceIds?: string[]; optionIds: string[]; acceptedIds: string[]; conflictId?: string; conflictIds?: string[]; changedStepId?: string; explanation?: string; }
 export interface RoutineSequenceData {
   schemaVersion: 1; mode: RoutineSequenceMode; prompt: string; supportLevel: RoutineSupportLevel;
   cards: RoutineCard[]; stepIds: string[]; acceptedOrders: string[][]; rounds?: RoutineRound[]; hintsEnabled: boolean;
@@ -41,11 +41,28 @@ export function validateRoutineSequence(data?: RoutineSequenceData | null): stri
   if (data.mode !== 'order') {
     if (!data.rounds?.length) return 'El modo necesita al menos una ronda.';
     for (const round of data.rounds) {
+      if (data.mode === 'detective') {
+        const conflictIds = round.conflictIds?.length ? round.conflictIds : round.conflictId ? [round.conflictId] : [];
+        if (!conflictIds.length) return 'Detective necesita seleccionar al menos un paso incorrecto.';
+        if (conflictIds.some(id => !(round.sequenceIds || []).includes(id))) return 'Los pasos incorrectos deben pertenecer a la rutina mostrada.';
+        continue;
+      }
+      if (data.mode === 'plan-b') {
+        if (!round.changedStepId || !data.stepIds.includes(round.changedStepId)) return 'Plan B necesita seleccionar el paso de la rutina que no se puede realizar.';
+        if (round.optionIds.some(id => data.stepIds.includes(id))) return 'Las alternativas de Plan B deben ser opciones nuevas, externas a la rutina.';
+      }
+      const promptStepId = round.sequenceIds?.[0];
+      if (data.mode === 'next' && !round.sequenceIds?.length) return 'Cada ronda necesita elegir un paso de consigna.';
+      if (data.mode === 'next' && promptStepId && round.optionIds.includes(promptStepId)) return 'El paso de consigna no puede aparecer también como opción.';
+      if (data.mode === 'next' && round.acceptedIds.length !== 1) return 'Elegí una única opción correcta para cada ronda.';
+      const missingStepId = round.acceptedIds[0];
+      if (data.mode === 'missing' && round.acceptedIds.length !== 1) return 'Cada ronda necesita elegir un único paso para ocultar.';
+      if (data.mode === 'missing' && (!missingStepId || !data.stepIds.includes(missingStepId))) return 'El paso oculto debe pertenecer a la rutina.';
+      if (data.mode === 'missing' && round.sequenceIds?.includes(missingStepId)) return 'El paso oculto no puede seguir visible en la secuencia.';
       if (round.optionIds.length < 2 || round.optionIds.length > 4 || new Set(round.optionIds).size !== round.optionIds.length) return 'Cada ronda necesita entre 2 y 4 opciones distintas.';
       if (!round.acceptedIds.length || round.acceptedIds.some(id => !round.optionIds.includes(id))) return 'Cada ronda necesita una respuesta aceptable incluida en sus opciones.';
       if ([...(round.sequenceIds || []), ...round.optionIds].some(id => !ids.has(id))) return 'Una ronda referencia tarjetas inexistentes.';
-      if ((data.mode === 'detective' || data.mode === 'plan-b') && !round.explanation?.trim()) return 'La explicación descriptiva es obligatoria.';
-      if (data.mode === 'detective' && (!round.conflictId || !(round.sequenceIds || []).includes(round.conflictId))) return 'Detective necesita identificar el paso conflictivo.';
+      if (data.mode === 'plan-b' && !round.explanation?.trim()) return 'La explicación descriptiva es obligatoria.';
     }
   }
   return null;
