@@ -23,6 +23,7 @@ import TutorLinkedDetail from '@/components/tutor/TutorLinkedDetail';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSyncMobileMenuOpen } from '@/contexts/MobileMenuState';
+import { useTutorNavigation } from '@/hooks/useTutorNavigation';
 import {
   createCalendarEvent, deleteCalendarEvent, fetchCalendarEventsForUser, fetchPictograms,
   fetchTutorHome, updateCalendarEvent, type CalendarEvent, type Pictogram, type TutorHomeData,
@@ -31,6 +32,12 @@ import {
 
 type AggregateActivity = TutorHomeData['byUserId'][string]['activities'][number] & { owner: TutorHomeLinkedUser };
 type AggregateEmotion = TutorHomeData['byUserId'][string]['emotions'][number] & { owner: TutorHomeLinkedUser };
+
+const tutorPageLabels: Partial<Record<TutorTab, string>> = {
+  calendar: 'Calendario', activities: 'Actividades', chat: 'Chats', notifications: 'Notificaciones',
+  reports: 'Reportes', professionals: 'Profesionales', pictograms: 'Crear pictograma',
+  pictogramCatalog: 'Pictogramas', connections: 'Personas vinculadas', profile: 'Perfil', about: 'Acerca de TÁNDEM',
+};
 
 function parseDate(value?: string | null) {
   if (!value) return 0;
@@ -57,7 +64,7 @@ function ownerAvatar(owner: TutorHomeLinkedUser, size = 'h-7 w-7') {
 
 export default function TutorExperience() {
   const { user, logout } = useAuth();
-  const [tab, setTab] = useState<TutorTab>('home');
+  const { tab, detailUserId, chatId, navigate: navigateRoute, goBack } = useTutorNavigation();
   const [data, setData] = useState<TutorHomeData | null>(null);
   const [tutorEvents, setTutorEvents] = useState<CalendarEvent[]>([]);
   const [pictograms, setPictograms] = useState<Pictogram[]>([]);
@@ -66,7 +73,6 @@ export default function TutorExperience() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
-  const [detailUserId, setDetailUserId] = useState<string | null>(null);
   const [selectedNotificationChatId, setSelectedNotificationChatId] = useState<string | undefined>();
   const { unreadCount, setUnreadCount } = useUnreadNotifications(user?.role === 'tutor' ? { id: String(user.id) } : null);
   useSyncMobileMenuOpen(menuOpen || profileOpen || quickOpen);
@@ -87,6 +93,7 @@ export default function TutorExperience() {
   }, [user]);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { setSelectedNotificationChatId(chatId); }, [chatId]);
 
   const linkedUsers = useMemo(() => data?.linkedUsers || [], [data]);
   const aggregates = useMemo(() => {
@@ -106,9 +113,11 @@ export default function TutorExperience() {
 
   if (!user || user.role !== 'tutor') return null;
 
-  const navigate = (next: TutorTab) => { setTab(next); setMenuOpen(false); setProfileOpen(false); setQuickOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-  const openDetail = (id: string) => { setDetailUserId(id); navigate('detail'); };
+  const navigate = (next: TutorTab, context?: { detailUserId?: string | null; chatId?: string }) => { setMenuOpen(false); setProfileOpen(false); setQuickOpen(false); navigateRoute(next, context); };
+  const openDetail = (id: string) => navigate('detail', { detailUserId: id });
   const chatProfiles = [{ id: String(user.id), name: user.name, avatar: user.avatar, label: 'Tutor' }, ...linkedUsers.map(item => ({ id: item.id, name: item.name, avatar: item.avatar, label: 'Perteneciente' }))];
+  const detailOwner = linkedUsers.find(item => item.id === detailUserId);
+  const pageTitle = tab === 'detail' ? detailOwner?.name || 'Detalle' : tutorPageLabels[tab] || 'TÁNDEM';
 
   return (
     <div className="min-h-dvh overflow-x-hidden bg-[radial-gradient(circle_at_88%_4%,rgba(220,203,245,0.48),transparent_24rem),linear-gradient(180deg,#fbf9ff_0%,#f8f7fc_100%)] pb-24 lg:pb-0">
@@ -116,6 +125,9 @@ export default function TutorExperience() {
       <AppHeader
         onMenuClick={() => setMenuOpen(true)}
         onLogoClick={() => navigate('home')}
+        onBack={tab !== 'home' ? () => goBack('home') : undefined}
+        mobileBackOnly
+        contextTitle={pageTitle}
         menuButtonClassName="invisible pointer-events-none lg:visible lg:pointer-events-auto"
         rightSlot={<div className="flex items-center gap-2">
           <NotificationBellButton count={unreadCount} onClick={() => navigate('notifications')} className="border-0 bg-transparent" />
@@ -127,6 +139,7 @@ export default function TutorExperience() {
       <TutorProfileDrawer open={profileOpen} user={user} onClose={() => setProfileOpen(false)} onNavigate={navigate} onLogout={logout} />
 
       <main id="tutor-main" tabIndex={-1} className="mx-auto w-full max-w-[1280px] px-4 py-6 sm:px-6 lg:px-8 lg:py-9">
+        {tab !== 'home' && <TutorBreadcrumb current={pageTitle} parent={tab === 'detail' ? 'Personas vinculadas' : undefined} onBack={() => goBack('home')} />}
         {loading ? <TutorSkeleton /> : error ? <ErrorState message={error} onRetry={load} /> : (
           <TutorContent
             tab={tab} userName={user.name} userId={user.id} data={data!} linkedUsers={linkedUsers}
@@ -160,7 +173,7 @@ function TutorContent(props: {
   activities: AggregateActivity[]; emotions: AggregateEmotion[]; events: TutorAggregateEvent[]; tutorEvents: CalendarEvent[];
   pictograms: Pictogram[]; detailUserId: string | null;
   chatProfiles: { id: string; name: string; avatar?: string | null; label: string }[]; selectedNotificationChatId?: string;
-  onNavigate: (tab: TutorTab) => void; onOpenDetail: (id: string) => void;
+  onNavigate: (tab: TutorTab, context?: { detailUserId?: string | null; chatId?: string }) => void; onOpenDetail: (id: string) => void;
   onUnreadCountChange: (count: number) => void; onSelectNotificationChat: (id?: string) => void;
   onTutorEventsChange: (events: CalendarEvent[]) => void;
 }) {
@@ -170,7 +183,7 @@ function TutorContent(props: {
   if (tab === 'calendar') return <CalendarPage {...props} />;
   if (tab === 'chat') return <ChatProvider><ChatScreen key={props.selectedNotificationChatId || 'tutor-chat'} profiles={props.chatProfiles} defaultProfileId={props.userId} defaultSelectedId={props.selectedNotificationChatId} /></ChatProvider>;
   if (tab === 'notifications') return <UserNotifications onUnreadCountChange={props.onUnreadCountChange} onNavigate={(next, params) => {
-    if (next === 'chat') { props.onSelectNotificationChat(params?.chatId ? String(params.chatId) : undefined); props.onNavigate('chat'); }
+    if (next === 'chat') { const chatId = params?.chatId ? String(params.chatId) : undefined; props.onSelectNotificationChat(chatId); props.onNavigate('chat', { chatId }); }
     else if (next === 'calendar') props.onNavigate('calendar');
     else if (next === 'activities') props.onNavigate('activities');
     else props.onNavigate('home');
@@ -184,7 +197,7 @@ function TutorContent(props: {
   if (tab === 'profile') return <AccountPage name={props.userName} />;
   if (tab === 'detail') {
     const owner = props.linkedUsers.find(item => item.id === props.detailUserId);
-    return owner ? <TutorLinkedDetail owner={owner} data={props.data.byUserId[owner.id]} onBack={() => props.onNavigate('connections')} onNavigate={props.onNavigate} onOpenChat={(id) => { props.onSelectNotificationChat(id); props.onNavigate('chat'); }} /> : <ErrorState message="No encontramos a esa persona vinculada." onRetry={() => props.onNavigate('connections')} />;
+    return owner ? <TutorLinkedDetail owner={owner} data={props.data.byUserId[owner.id]} onNavigate={props.onNavigate} onOpenChat={(id) => { props.onSelectNotificationChat(id); props.onNavigate('chat', { chatId: id }); }} /> : <ErrorState message="No encontramos a esa persona vinculada." onRetry={() => props.onNavigate('connections')} />;
   }
   return null;
 }
@@ -309,6 +322,7 @@ function EventContextChip({ owner }: { owner?: TutorHomeLinkedUser }) { return o
 function Legend({ color, label, value }: { color: string; label: string; value: number }) { return <div className="flex items-center gap-2"><span className={`h-2.5 w-2.5 rounded-full ${color}`} /><span className="flex-1 text-muted-foreground">{label}</span><span className="font-semibold tabular-nums">{value}%</span></div>; }
 function Metric({ value, label }: { value: string | number; label: string }) { return <div className="text-center"><p className="text-xl font-bold text-primary tabular-nums">{value}</p><p className="text-[11px] text-muted-foreground">{label}</p></div>; }
 function MetricCard({ value, label }: { value: string | number; label: string }) { return <div className="rounded-2xl border border-border/80 bg-card p-4 text-center shadow-sm"><p className="text-2xl font-bold text-primary tabular-nums">{value}</p><p className="text-xs text-muted-foreground">{label}</p></div>; }
+function TutorBreadcrumb({ current, parent, onBack }: { current: string; parent?: string; onBack: () => void }) { return <nav aria-label="Ruta de navegación" className="mb-5 hidden min-h-11 items-center gap-2 text-sm lg:flex"><button type="button" onClick={onBack} className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 font-semibold text-primary hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><ChevronRight size={17} className="rotate-180" aria-hidden />Volver</button><span className="text-muted-foreground">TÁNDEM</span><ChevronRight size={15} className="text-muted-foreground" aria-hidden />{parent && <><span className="text-muted-foreground">{parent}</span><ChevronRight size={15} className="text-muted-foreground" aria-hidden /></>}<span className="font-semibold text-foreground" aria-current="page">{current}</span></nav>; }
 function PageHeading({ title, subtitle }: { title: string; subtitle: string }) { return <header><h1 className="font-heading text-3xl font-bold tracking-tight">{title}</h1><p className="mt-2 text-sm text-muted-foreground sm:text-base">{subtitle}</p></header>; }
 function EmptyState({ text }: { text: string }) { return <p className="rounded-2xl border border-dashed border-border p-5 text-center text-sm text-muted-foreground">{text}</p>; }
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) { return <div role="alert" className="mx-auto max-w-xl rounded-3xl border border-destructive/20 bg-card p-8 text-center shadow-sm"><p className="font-semibold">No pudimos cargar esta información.</p><p className="mt-2 text-sm text-muted-foreground">{message}</p><button type="button" onClick={onRetry} className="mt-4 min-h-11 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground">Intentar nuevamente</button></div>; }

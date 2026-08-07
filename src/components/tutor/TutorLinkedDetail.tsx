@@ -1,5 +1,5 @@
 import {
-  Activity, ArrowLeft, CalendarDays, CheckCircle2, ChevronRight, Clock,
+  Activity, CalendarDays, CheckCircle2, ChevronRight, Clock,
   FileText, Heart, MapPin, MessageCircle, ShieldCheck, Sparkles,
 } from 'lucide-react';
 import type { TutorHomeData, TutorHomeLinkedUser } from '@/data/api';
@@ -10,7 +10,6 @@ type Destination = 'activities' | 'calendar' | 'chat' | 'reports';
 interface Props {
   owner: TutorHomeLinkedUser;
   data?: DetailData;
-  onBack: () => void;
   onNavigate: (destination: Destination) => void;
   onOpenChat: (userId: string) => void;
 }
@@ -40,7 +39,7 @@ function formatDate(date: string, time?: string) {
   return parsed.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' }) + (time ? ` · ${time}` : '');
 }
 
-export default function TutorLinkedDetail({ owner, data, onBack, onNavigate, onOpenChat }: Props) {
+export default function TutorLinkedDetail({ owner, data, onNavigate, onOpenChat }: Props) {
   const activities = data?.activities || [];
   const emotions = data?.emotions || [];
   const events = data?.events || [];
@@ -51,8 +50,6 @@ export default function TutorLinkedDetail({ owner, data, onBack, onNavigate, onO
     .slice(0, 5);
 
   return <div className="space-y-5">
-    <button type="button" onClick={onBack} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-primary hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><ArrowLeft size={18} aria-hidden />Volver a personas vinculadas</button>
-
     <section className="overflow-hidden rounded-[30px] border border-white/80 bg-[linear-gradient(135deg,rgba(255,255,255,.98),rgba(243,237,253,.92))] p-5 shadow-[0_14px_40px_rgba(70,45,96,.09)] sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">{avatar(owner)}<div className="min-w-0 flex-1"><p className="text-xs font-bold uppercase tracking-wider text-primary">Detalle de perteneciente</p><h1 className="mt-1 text-3xl font-bold">{owner.name}</h1><div className="mt-2 flex flex-wrap gap-2"><InfoChip icon={ShieldCheck} text={`Apoyo: ${owner.supportLevel}`} /><InfoChip icon={Sparkles} text={`Autonomía: ${owner.autonomy}`} /><InfoChip icon={CheckCircle2} text={owner.linkStatus} /></div></div></div>
       {owner.observation && <p className="mt-5 rounded-2xl border border-primary/10 bg-white/70 p-4 text-sm text-muted-foreground"><span className="mb-1 block font-semibold text-foreground">Observación del vínculo</span>{owner.observation}</p>}
