@@ -18,6 +18,7 @@ export default function RoutineSequenceGame({ data, onFinish }: { data: RoutineS
   const [order, setOrder] = useState(() => shuffle(data.stepIds));
   const [roundIndex, setRoundIndex] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
+  const [selectedConflicts, setSelectedConflicts] = useState<string[]>([]);
   const [detectiveStage, setDetectiveStage] = useState<'identify' | 'replace'>('identify');
   const [attempts, setAttempts] = useState(0);
   const [mistakes, setMistakes] = useState(0);
@@ -28,6 +29,9 @@ export default function RoutineSequenceGame({ data, onFinish }: { data: RoutineS
   const executionId = useRef(crypto.randomUUID());
   const finished = useRef(false);
   const round = data.rounds?.[roundIndex];
+  const roundPrompt = data.mode === 'plan-b' && round?.changedStepId
+    ? `Hoy no se puede seguir el paso “${cards.get(round.changedStepId)?.text || ''}”. ¿Qué otra alternativa existe?`
+    : round?.prompt || data.prompt;
 
   const complete = (nextAttempts: number, nextConflicts = conflicts) => {
     if (finished.current) return;
@@ -37,7 +41,7 @@ export default function RoutineSequenceGame({ data, onFinish }: { data: RoutineS
   };
   const advance = (nextAttempts: number, nextConflicts = conflicts) => {
     if (!data.rounds || roundIndex + 1 >= data.rounds.length) return complete(nextAttempts, nextConflicts);
-    setRoundIndex(index => index + 1); setSelected(null); setDetectiveStage('identify'); setFeedback('');
+    setRoundIndex(index => index + 1); setSelected(null); setSelectedConflicts([]); setDetectiveStage('identify'); setFeedback('');
   };
   const move = (index: number, direction: -1 | 1) => {
     const target = index + direction; if (target < 0 || target >= order.length) return;
@@ -57,10 +61,19 @@ export default function RoutineSequenceGame({ data, onFinish }: { data: RoutineS
     else { setMistakes(value => value + 1); setConflicts(current => [...new Set([...current, id])]); setFeedback(data.mode === 'plan-b' ? 'Esa opción puede no ayudar en este cambio. Probemos otra alternativa.' : 'Revisemos el contexto y probemos otra vez.'); }
   };
   const verifyConflict = () => {
-    if (!round || !selected) return;
+    if (!round || !selectedConflicts.length) return;
     const nextAttempts = attempts + 1; setAttempts(nextAttempts);
-    if (selected === round.conflictId) { setDetectiveStage('replace'); setSelected(null); setFeedback('Encontraste el paso para revisar. Ahora elegí un reemplazo.'); }
-    else { setMistakes(value => value + 1); setConflicts(current => [...new Set([...current, selected])]); setFeedback('Ese paso puede mantenerse. Busquemos cuál necesita revisión.'); }
+    const expected = round.conflictIds?.length ? round.conflictIds : round.conflictId ? [round.conflictId] : [];
+    const isCorrect = expected.length === selectedConflicts.length && expected.every(id => selectedConflicts.includes(id));
+    if (isCorrect) {
+      const nextConflicts = [...new Set([...conflicts, ...selectedConflicts])];
+      setConflicts(nextConflicts);
+      setFeedback('Encontraste todos los pasos que necesitan revisión.');
+      window.setTimeout(() => advance(nextAttempts, nextConflicts), 350);
+    } else {
+      setMistakes(value => value + 1);
+      setFeedback('Revisá la rutina: puede faltar marcar un paso o haber uno que sí puede mantenerse.');
+    }
   };
   const requestHint = () => {
     if (!data.hintsEnabled || hints >= 4) return;
@@ -71,13 +84,30 @@ export default function RoutineSequenceGame({ data, onFinish }: { data: RoutineS
   if (error) return <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>;
 
   return <div className="space-y-4">
-    <div className="flex items-start gap-2"><p className="flex-1 font-semibold">{round?.prompt || data.prompt}</p><SpeakButton text={round?.prompt || data.prompt} /></div>
+    <div className="flex items-start gap-2"><p className="flex-1 font-semibold">{roundPrompt}</p><SpeakButton text={roundPrompt} /></div>
+    {data.mode === 'plan-b' && <CompactRoutine stepIds={data.stepIds} changedStepId={round?.changedStepId} cards={cards} />}
     {data.mode === 'order' ? <div className="space-y-2" aria-label="Pasos de la rutina">
       {order.map((id, index) => <div key={id} className="flex items-center gap-2"><span className="w-6 text-center font-bold text-primary">{index + 1}</span><div className="flex-1"><Card card={cards.get(id)} /></div><div className="flex gap-1"><button type="button" className="min-h-11 min-w-11 rounded-lg border" aria-label={`Mover ${cards.get(id)?.text} hacia arriba`} disabled={index === 0} onClick={() => move(index, -1)}>▲</button><button type="button" className="min-h-11 min-w-11 rounded-lg border" aria-label={`Mover ${cards.get(id)?.text} hacia abajo`} disabled={index === order.length - 1} onClick={() => move(index, 1)}>▼</button></div></div>)}
       <Button className="w-full" onClick={verifyOrder}>Verificar orden</Button>
-    </div> : <RoundView mode={data.mode} round={round!} fullOrder={data.acceptedOrders[0]} cards={cards} selected={selected} stage={detectiveStage} onSelect={data.mode === 'detective' && detectiveStage === 'identify' ? setSelected : choose} onVerifyConflict={verifyConflict} />}
+    </div> : data.mode === 'detective' ? <DetectiveRoundView round={round!} cards={cards} selectedIds={selectedConflicts} onToggle={id => setSelectedConflicts(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id])} onVerify={verifyConflict} /> : <RoundView mode={data.mode} round={round!} fullOrder={data.acceptedOrders[0]} cards={cards} selected={selected} stage={detectiveStage} onSelect={choose} onVerifyConflict={verifyConflict} />}
     <div aria-live="polite" className="min-h-10 rounded-xl bg-muted/50 p-2 text-sm">{feedback}</div>
     {data.hintsEnabled && hints < 4 && <Button type="button" variant="outline" className="w-full" onClick={requestHint}>Pista {hints + 1} de 4</Button>}
+  </div>;
+}
+
+function CompactRoutine({ stepIds, changedStepId, cards }: { stepIds: string[]; changedStepId?: string; cards: Map<string, RoutineCard> }) {
+  return <div className="rounded-xl border bg-muted/30 p-2" aria-label="Rutina completa">
+    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Rutina completa</p>
+    <div className="flex flex-wrap items-center gap-1">{stepIds.map((id, index) => { const card = cards.get(id); const changed = id === changedStepId; return <div key={id} className="flex items-center gap-1"><div className={`flex max-w-36 items-center gap-1 rounded-lg border px-2 py-1.5 text-xs ${changed ? 'border-destructive bg-destructive/10 font-semibold text-destructive' : 'bg-card'}`}><span aria-hidden="true">{card?.emoji || '📌'}</span><span className="truncate">{card?.text}</span>{changed && <span className="sr-only"> (paso que no se puede realizar)</span>}</div>{index < stepIds.length - 1 && <span className="text-muted-foreground" aria-hidden="true">→</span>}</div>; })}</div>
+  </div>;
+}
+
+function DetectiveRoundView({ round, cards, selectedIds, onToggle, onVerify }: { round: RoutineRound; cards: Map<string, RoutineCard>; selectedIds: string[]; onToggle: (id: string) => void; onVerify: () => void }) {
+  return <div className="space-y-3">
+    <div className="space-y-2" aria-label="Pasos de la rutina para revisar">
+      {(round.sequenceIds || []).map((id, index) => <Card key={`${id}-${index}`} card={cards.get(id)} selected={selectedIds.includes(id)} onClick={() => onToggle(id)} />)}
+    </div>
+    <Button className="w-full" disabled={!selectedIds.length} onClick={onVerify}>Revisar pasos seleccionados</Button>
   </div>;
 }
 
