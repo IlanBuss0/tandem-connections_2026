@@ -11,6 +11,7 @@ import {
   Search,
   X,
   Gamepad2,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,12 @@ import {
   STEP_ICON_OPTIONS,
 } from "@/data/activityTemplates";
 import { GAME_TEMPLATES, GameTemplate } from "@/data/miniGames";
+import {
+  ACTIVITY_GAME_TYPES,
+  emptyGameData,
+  gameTypeOrder,
+  isGameTypeAvailable,
+} from "@/data/activityGameTypes";
 import {
   fetchLinkedPertenecientesForSupportUser,
   fetchPictograms,
@@ -379,7 +386,7 @@ function VisualValue({
     );
   }
 
-  return <span className={className}>{value || "Soltá un pictograma"}</span>;
+  return <span className={className}>{value || "Agregar pictograma"}</span>;
 }
 
 const PICTOGRAM_PAGE_SIZE = 24;
@@ -1742,6 +1749,29 @@ export default function ActivityBuilder({
     setStep(1);
   };
 
+  const applyEmptyGameType = (gameType: GameType) => {
+    if (!isGameTypeAvailable(gameType)) return;
+    const nextGameData = emptyGameData(gameType);
+    setForm((prev) => ({
+      ...prev,
+      title: "",
+      category: gameType === "routine-sequence" ? "autonomía personal" : "comunicación",
+      type: "juego",
+      difficulty: "fácil",
+      duration: "5 min",
+      objective: "",
+      description: "",
+      steps: [""],
+      stepIcons: ["📌"],
+      points: 30,
+      completionMessage: "¡Bien hecho!",
+      gameType,
+      gameData: nextGameData,
+    }));
+    setGameContentText(serializeGameContent(gameType, nextGameData));
+    setStep(1);
+  };
+
   const updateStep = (i: number, value: string) =>
     setForm((prev) => ({
       ...prev,
@@ -1969,7 +1999,10 @@ export default function ActivityBuilder({
   const filteredGameTpls = GAME_TEMPLATES.filter(
     (t) =>
       t.name.toLowerCase().includes(q) || t.tags.some((tag) => tag.includes(q)),
-  );
+  ).sort((a, b) => {
+    const availability = Number(isGameTypeAvailable(b.gameType)) - Number(isGameTypeAvailable(a.gameType));
+    return availability || gameTypeOrder(a.gameType) - gameTypeOrder(b.gameType);
+  });
 
   const stepsLabels = [
     "Plantilla",
@@ -2047,6 +2080,56 @@ export default function ActivityBuilder({
                     🎮.
                   </p>
                 </div>
+
+                <section className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+                  <div className="mb-3">
+                    <h3 className="font-heading text-base font-semibold text-foreground">
+                      ¿Qué actividad quieres crear?
+                    </h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Elegí un tipo disponible para comenzar con una actividad vacía.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {ACTIVITY_GAME_TYPES.map((option) => (
+                      <button
+                        key={option.type}
+                        type="button"
+                        disabled={!option.available}
+                        onClick={() => applyEmptyGameType(option.type)}
+                        className={`relative flex min-h-24 gap-3 rounded-xl border p-3 text-left transition ${
+                          option.available
+                            ? "border-primary/30 bg-card hover:-translate-y-0.5 hover:border-primary hover:shadow-sm"
+                            : "cursor-not-allowed border-border bg-muted/60 text-muted-foreground opacity-75"
+                        }`}
+                      >
+                        <span className={`text-2xl ${option.available ? "" : "grayscale"}`} aria-hidden="true">
+                          {option.emoji}
+                        </span>
+                        <span className="min-w-0 pr-16">
+                          <span className="block text-sm font-semibold text-foreground">{option.label}</span>
+                          <span className="mt-1 block text-[10px] leading-relaxed text-muted-foreground">
+                            {option.description}
+                          </span>
+                        </span>
+                        {option.available ? (
+                          <span className="absolute right-2 top-2 rounded-full bg-primary/10 px-2 py-0.5 text-[9px] font-bold text-primary">
+                            Disponible
+                          </span>
+                        ) : (
+                          <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full border border-primary/15 bg-background px-2 py-0.5 text-[9px] font-bold text-muted-foreground">
+                            <Lock size={9} /> Próximamente
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+
+                <div className="border-t border-border pt-4">
+                  <h3 className="font-heading text-sm font-semibold text-foreground">Actividades precreadas</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">También podés partir de una actividad con contenido de ejemplo.</p>
+                </div>
                 <div className="relative">
                   <Search
                     size={14}
@@ -2076,8 +2159,14 @@ export default function ActivityBuilder({
                       {filteredGameTpls.map((tpl) => (
                         <button
                           key={tpl.id}
+                          type="button"
+                          disabled={!isGameTypeAvailable(tpl.gameType)}
                           onClick={() => applyTemplate(tpl)}
-                          className="text-left p-3 rounded-lg border border-primary/30 bg-gradient-to-br from-primary/5 to-accent/10 hover:border-primary transition-colors flex gap-3"
+                          className={`relative flex gap-3 rounded-lg border p-3 text-left transition-colors ${
+                            isGameTypeAvailable(tpl.gameType)
+                              ? "border-primary/30 bg-gradient-to-br from-primary/5 to-accent/10 hover:border-primary"
+                              : "cursor-not-allowed border-border bg-muted/60 opacity-70"
+                          }`}
                         >
                           <span className="text-2xl shrink-0">{tpl.emoji}</span>
                           <div className="min-w-0">
@@ -2096,6 +2185,11 @@ export default function ActivityBuilder({
                               {tpl.description}
                             </p>
                           </div>
+                          {!isGameTypeAvailable(tpl.gameType) && (
+                            <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-background px-2 py-0.5 text-[9px] font-bold text-muted-foreground shadow-sm">
+                              <Lock size={9} /> Próximamente
+                            </span>
+                          )}
                         </button>
                       ))}
                     </div>
@@ -2113,8 +2207,9 @@ export default function ActivityBuilder({
                       {filteredTpls.map((tpl) => (
                         <button
                           key={tpl.id}
-                          onClick={() => applyTemplate(tpl)}
-                          className="text-left p-3 rounded-lg border border-border hover:border-primary/40 hover:bg-muted/40 transition-colors flex gap-3"
+                          type="button"
+                          disabled
+                          className="relative flex cursor-not-allowed gap-3 rounded-lg border border-border bg-muted/60 p-3 text-left opacity-70"
                         >
                           <span className="text-2xl shrink-0">{tpl.emoji}</span>
                           <div className="min-w-0">
@@ -2128,6 +2223,9 @@ export default function ActivityBuilder({
                               {tpl.description || "Empezar desde cero"}
                             </p>
                           </div>
+                          <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-background px-2 py-0.5 text-[9px] font-bold text-muted-foreground shadow-sm">
+                            <Lock size={9} /> Próximamente
+                          </span>
                         </button>
                       ))}
                     </div>

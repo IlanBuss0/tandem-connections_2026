@@ -75,6 +75,7 @@ import {
 } from '@/data/api';
 import { useSyncMobileMenuOpen } from '@/contexts/MobileMenuState';
 import { toast } from '@/hooks/ui/use-toast';
+import { activityDisplayDescription } from '@/lib/activityDescription';
 
 type TabId =
   | 'overview'
@@ -819,7 +820,7 @@ function TutorActivitiesPanel({
     ...customActivities.map(activity => ({
       id: activity.id,
       title: activity.title,
-      description: activity.description,
+      description: activityDisplayDescription(activity.description) || 'Actividad asignada desde el equipo de apoyo.',
       category: activity.category,
       difficulty: activity.difficulty,
       points: activity.points,
