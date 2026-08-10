@@ -1,4 +1,4 @@
-import { Calendar, CheckSquare, Home, MessageCircle } from 'lucide-react';
+import { Calendar, CheckSquare, Home, MessageCircle, type LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
@@ -8,9 +8,12 @@ type Props = {
   onNavigate: (tab: string) => void;
   center: (compactProgress: number) => ReactNode;
   forceExpanded?: boolean;
+  destinations?: readonly MobileDestination[];
 };
 
-const destinations = [
+export type MobileDestination = { id: string; label: string; icon: LucideIcon };
+
+const defaultDestinations = [
   { id: 'home', label: 'Inicio', icon: Home },
   { id: 'calendar', label: 'Calendario', icon: Calendar },
   { id: 'activities', label: 'Actividades', icon: CheckSquare },
@@ -106,7 +109,7 @@ function useScrollCompactProgress(forceExpanded: boolean) {
   return forceExpanded ? 0 : progress;
 }
 
-export default function BelongingMobileBottomNav({ activeTab, onNavigate, center, forceExpanded = false }: Props) {
+export default function BelongingMobileBottomNav({ activeTab, onNavigate, center, forceExpanded = false, destinations = defaultDestinations }: Props) {
   const compactProgress = useScrollCompactProgress(forceExpanded);
   const iconSize = lerp(20, 17, compactProgress);
   const textSize = lerp(10, 8.5, compactProgress);
