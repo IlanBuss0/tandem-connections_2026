@@ -6,7 +6,6 @@ import { deletePersonalNote, fetchPersonalNotesForUser, type PersonalNote } from
 import { useAuth } from '@/contexts/AuthContext';
 import PersonalNotesList from '@/components/PersonalNotesList';
 import EmotionCauseQuickPicker from '@/components/EmotionCauseQuickPicker';
-
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 
@@ -31,6 +30,7 @@ function formatDate(date: string) {
 
 export default function UserEmotions() {
   const { user } = useAuth();
+  const userId = user?.id;
   const { context: permissionContext } = usePermissionContext();
   const { records, loading, error, add, remove } = useEmotions();
   const [selectedEmotion, setSelectedEmotion] = useState<string | null>(null);
@@ -40,19 +40,30 @@ export default function UserEmotions() {
   const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState<PersonalNote[]>([]);
   const [notesLoading, setNotesLoading] = useState(true);
+  const [notesError, setNotesError] = useState<string | null>(null);
   const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) return;
+    if (!userId) {
+      setNotes([]);
+      setNotesLoading(false);
+      return;
+    }
     let cancelled = false;
     setNotesLoading(true);
-    fetchPersonalNotesForUser(user.id)
+    setNotesError(null);
+    fetchPersonalNotesForUser(userId)
       .then((data) => { if (!cancelled) setNotes(data); })
-      .catch(() => { if (!cancelled) setNotes([]); })
+      .catch(() => {
+        if (!cancelled) {
+          setNotes([]);
+          setNotesError('No se pudieron cargar las notas personales.');
+        }
+      })
       .finally(() => { if (!cancelled) setNotesLoading(false); });
     return () => { cancelled = true; };
-  }, [user?.id]);
+  }, [userId]);
 
   const selectedOption = emotionOptions.find((emotion) => emotion.label === selectedEmotion);
 
@@ -91,6 +102,16 @@ export default function UserEmotions() {
   }, [records]);
 
   const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+  const handleDeleteNote = async (id: string) => {
+    setDeletingNoteId(id);
+    try {
+      await deletePersonalNote(id);
+      setNotes((current) => current.filter((note) => note.id !== id));
+    } finally {
+      setDeletingNoteId(null);
+    }
+  };
+
   const canRegisterEmotions = isPermissionEnabled(
     permissionContext?.perteneciente?.permisos_efectivos?.permisos,
     PERTENECIENTE_PERMISSIONS.REGISTRAR_EMOCIONES,
@@ -106,24 +127,12 @@ export default function UserEmotions() {
         </div>
         <PermissionBlocked
           title="Emociones deshabilitadas"
-          description="Tu tutor deshabilito temporalmente el registro emocional. Tus notas personales siguen disponibles."
+          description="Tu tutor deshabilitó temporalmente el registro emocional. Tus notas personales siguen disponibles."
         />
         <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 shadow-lg sm:p-5">
           <h3 className="mb-1 flex items-center gap-2 font-semibold text-[#6b4c9a]"><FileText size={17} />Notas guardadas</h3>
-          <PersonalNotesList
-            notes={notes}
-            loading={notesLoading}
-            deletingId={deletingNoteId}
-            onDelete={async (id) => {
-              setDeletingNoteId(id);
-              try {
-                await deletePersonalNote(id);
-                setNotes((current) => current.filter((note) => note.id !== id));
-              } finally {
-                setDeletingNoteId(null);
-              }
-            }}
-          />
+          {notesError && <p role="alert" className="mb-3 text-sm text-amber-800">{notesError}</p>}
+          <PersonalNotesList notes={notes} loading={notesLoading} deletingId={deletingNoteId} onDelete={handleDeleteNote} />
         </section>
       </div>
     );
@@ -147,16 +156,6 @@ export default function UserEmotions() {
       setIntensity(3);
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleDeleteNote = async (id: string) => {
-    setDeletingNoteId(id);
-    try {
-      await deletePersonalNote(id);
-      setNotes((current) => current.filter((note) => note.id !== id));
-    } finally {
-      setDeletingNoteId(null);
     }
   };
 
@@ -370,6 +369,11 @@ export default function UserEmotions() {
 
       <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 shadow-lg sm:p-5">
         <h3 className="mb-1 flex items-center gap-2 font-semibold text-[#6b4c9a]"><FileText size={17} />Notas guardadas</h3>
+        {notesError && (
+          <p role="alert" className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            {notesError}
+          </p>
+        )}
         <PersonalNotesList notes={notes} loading={notesLoading} deletingId={deletingNoteId} onDelete={handleDeleteNote} />
       </section>
     </div>

@@ -31,14 +31,14 @@ import NotificationBellButton, {
   useUnreadNotifications,
 } from "@/components/NotificationBellButton";
 import UserHome from "@/pages/user/UserHome";
+import UserEmotions from "@/pages/user/UserEmotions";
 import { useSyncMobileMenuOpen } from "@/contexts/MobileMenuState";
-import { ACTIVE_TAB_KEY } from "@/lib/activeTab";
+import { ACTIVE_TAB_KEY, activeTabFromPath, pathForActiveTab } from "@/lib/activeTab";
 
 const UserRoutines = lazy(() => import("@/pages/user/UserRoutines"));
 const UserCalendar = lazy(() => import("@/pages/user/UserCalendar"));
 const UserActivities = lazy(() => import("@/pages/user/UserActivities"));
 const UserChat = lazy(() => import("@/pages/user/UserChat"));
-const UserEmotions = lazy(() => import("@/pages/user/UserEmotions"));
 const UserAchievements = lazy(() => import("@/pages/user/UserAchievements"));
 const UserProfile = lazy(() => import("@/pages/user/UserProfile"));
 const UserProfileSettings = lazy(
@@ -98,6 +98,9 @@ function ScreenFallback() {
 }
 
 function loadActiveTab() {
+  const pathTab = activeTabFromPath(window.location.pathname);
+  if (pathTab) return pathTab;
+
   try {
     const stored = localStorage.getItem(ACTIVE_TAB_KEY);
     return stored && validUserTabs.has(stored) ? stored : "home";
@@ -131,6 +134,16 @@ export default function AppShell() {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    const handlePopState = () => {
+      const pathTab = activeTabFromPath(window.location.pathname);
+      setActiveTab(pathTab || "home");
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
   useSyncMobileMenuOpen(sidebarOpen);
 
   if (!user) return null;
@@ -162,6 +175,11 @@ export default function AppShell() {
     setProfilePanelOpen(false);
     setNavParams(params || null);
     if (params) setNavKey((k) => k + 1);
+
+    const nextPath = pathForActiveTab(tab);
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState(null, "", nextPath);
+    }
   };
 
   const renderContent = () => {

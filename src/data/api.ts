@@ -870,41 +870,52 @@ export type UserProfileSettingsPayload = {
   accessibility: UserProfileSettings['accessibility'];
 };
 
-function parseEmotionConfig(config: ConfiguracionUsuario): EmotionalRecord | null {
+export function parseEmotionConfig(config: ConfiguracionUsuario): EmotionalRecord | null {
   if (!config.clave?.startsWith('emotion:')) return null;
 
   try {
-    const value = JSON.parse(config.valor || '{}') as Partial<EmotionalRecord>;
-    if (!value.emotion) return null;
+    const value = JSON.parse(config.valor || '{}') as Record<string, unknown>;
+    if (typeof value.emotion !== 'string' || !value.emotion.trim()) return null;
+
+    const modificationDate = typeof config.fecha_modificacion === 'string'
+      ? config.fecha_modificacion
+      : new Date().toISOString();
+    const parsedIntensity = Number(value.intensity);
 
     return {
       id: String(config.id),
       userId: String(config.id_usuario),
-      emotion: value.emotion,
-      emoji: value.emoji || '🙂',
-      intensity: Number(value.intensity || 3),
-      context: value.context || '',
-      whatHelped: value.whatHelped || '',
-      timestamp: value.timestamp || new Date(config.fecha_modificacion).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
-      date: value.date || config.fecha_modificacion.split('T')[0],
+      emotion: value.emotion.trim(),
+      emoji: typeof value.emoji === 'string' && value.emoji ? value.emoji : '🙂',
+      intensity: Number.isFinite(parsedIntensity) ? Math.min(5, Math.max(1, parsedIntensity)) : 3,
+      context: typeof value.context === 'string' ? value.context : '',
+      whatHelped: typeof value.whatHelped === 'string' ? value.whatHelped : '',
+      timestamp: typeof value.timestamp === 'string' && value.timestamp
+        ? value.timestamp
+        : new Date(modificationDate).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+      date: typeof value.date === 'string' && value.date
+        ? value.date
+        : modificationDate.split('T')[0],
     };
   } catch {
     return null;
   }
 }
 
-function parsePersonalNoteConfig(config: ConfiguracionUsuario): PersonalNote | null {
+export function parsePersonalNoteConfig(config: ConfiguracionUsuario): PersonalNote | null {
   if (!config.clave?.startsWith('personal-note:')) return null;
 
   try {
-    const value = JSON.parse(config.valor || '{}') as Partial<PersonalNote>;
-    if (!value.content?.trim()) return null;
+    const value = JSON.parse(config.valor || '{}') as Record<string, unknown>;
+    if (typeof value.content !== 'string' || !value.content.trim()) return null;
     return {
       id: String(config.id),
       userId: String(config.id_usuario),
       content: value.content.trim(),
-      title: value.title?.trim() || undefined,
-      createdAt: value.createdAt || config.fecha_modificacion,
+      title: typeof value.title === 'string' ? value.title.trim() || undefined : undefined,
+      createdAt: typeof value.createdAt === 'string' && value.createdAt
+        ? value.createdAt
+        : config.fecha_modificacion,
     };
   } catch {
     return null;
