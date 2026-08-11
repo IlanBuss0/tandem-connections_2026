@@ -25,6 +25,7 @@ import NotificationBellButton, { useUnreadNotifications } from '@/components/Not
 import ProfessionalReportsPanel from '@/components/ProfessionalReportsPanel';
 import ProfessionalPrivateNote from '@/components/ProfessionalPrivateNote';
 import SessionCard from '@/components/SessionCard';
+import SessionSeriesFolder from '@/components/SessionSeriesFolder';
 import DriveExplorer from '@/components/DriveExplorer';
 import ProfessionalCalendar from '@/components/ProfessionalCalendar';
 import ProfessionalHome from '@/components/ProfessionalHome';
@@ -383,6 +384,20 @@ export default function ProfessionalDashboard() {
           const patientSessions = sessions
             .filter(session => Number(session.id_perteneciente) === pertenecienteId)
             .sort((a, b) => b.fecha_sesion.localeCompare(a.fecha_sesion));
+          const patientSessionSeries = Array.from(
+            patientSessions.reduce((groups, session) => {
+              if (!session.recurrence_group_id) return groups;
+              const group = groups.get(session.recurrence_group_id) || [];
+              group.push(session);
+              groups.set(session.recurrence_group_id, group);
+              return groups;
+            }, new Map<string, ProfessionalSession[]>()),
+            ([groupId, groupedSessions]) => ({
+              groupId,
+              sessions: groupedSessions.sort((a, b) => a.fecha_sesion.localeCompare(b.fecha_sesion)),
+            }),
+          ).sort((a, b) => b.sessions[0].fecha_sesion.localeCompare(a.sessions[0].fecha_sesion));
+          const standalonePatientSessions = patientSessions.filter(session => !session.recurrence_group_id);
           const patientCompletadas = patientSessions.filter(s => s.estado === 'completada').length;
           const patientAusentes = patientSessions.filter(s => s.estado === 'ausente').length;
           const patientAsistencia = patientCompletadas + patientAusentes > 0
@@ -542,7 +557,22 @@ export default function ProfessionalDashboard() {
                         Todavia no hay sesiones agendadas con este paciente.
                       </div>
                     )}
-                    <section className="rounded-2xl border border-[#ebe7f2] bg-white p-4 shadow-sm"><h3 className="mb-3 font-bold text-[#302444]">Historial de sesiones</h3><div className="space-y-2">{patientSessions.map(session => (
+                    <section className="rounded-2xl border border-[#ebe7f2] bg-white p-4 shadow-sm"><h3 className="mb-1 font-bold text-[#302444]">Historial de sesiones</h3><p className="mb-4 text-xs text-muted-foreground">Las sesiones recurrentes se agrupan por serie. Abrí una carpeta para consultar sus sesiones y notas.</p><div className="space-y-2">{patientSessionSeries.map(({ groupId, sessions: groupedSessions }) => (
+                      <SessionSeriesFolder
+                        key={groupId}
+                        groupId={groupId}
+                        sessions={groupedSessions}
+                        patientName={patientDetail.name}
+                        onOpenNote={setPatientNoteSession}
+                        onEditSession={() => {
+                          setAgendaInitialPatientId(pertenecienteId || undefined);
+                          setSelectedPatient(null);
+                          navigate('calendar');
+                        }}
+                        onDeleteSession={deletePatientSession}
+                        onSeriesChanged={reloadSessions}
+                      />
+                    ))}{standalonePatientSessions.map(session => (
                       <SessionCard
                         key={session.id}
                         session={session}
