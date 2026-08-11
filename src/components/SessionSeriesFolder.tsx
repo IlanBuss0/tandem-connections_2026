@@ -23,6 +23,7 @@ export default function SessionSeriesFolder({
   onEditSession,
   onDeleteSession,
   onSeriesChanged,
+  compact = false,
 }: {
   groupId: string;
   /** Todas las sesiones de esta serie, ya ordenadas por fecha ascendente. */
@@ -32,6 +33,7 @@ export default function SessionSeriesFolder({
   onEditSession: (session: ProfessionalSession) => void;
   onDeleteSession: (session: ProfessionalSession) => void;
   onSeriesChanged: () => void;
+  compact?: boolean;
 }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -45,6 +47,8 @@ export default function SessionSeriesFolder({
   const last = sessions[sessions.length - 1];
   const frequency = (first.recurrence_rule?.frequency || "none") as RecurrenceFrequency;
   const frequencyLabel = recurrenceLabels[frequency] || recurrenceLabels.none;
+  const firstSessionDate = new Date(first.fecha_sesion);
+  const compactSchedule = `${firstSessionDate.toLocaleDateString("es-AR", { weekday: "long" })} · ${firstSessionDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`;
 
   const pendingCompletionCount = useMemo(() => {
     const now = Date.now();
@@ -116,7 +120,7 @@ export default function SessionSeriesFolder({
 
   return (
     <div className="rounded-xl border border-primary/20 bg-card">
-      <div className="flex items-center gap-3 p-4">
+      <div className={`flex items-center gap-3 ${compact ? "p-3" : "p-4"}`}>
         <button
           type="button"
           className="flex flex-1 items-center gap-3 text-left"
@@ -124,23 +128,33 @@ export default function SessionSeriesFolder({
           aria-expanded={open}
           aria-controls={`series-${groupId}`}
         >
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <div className={`flex shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ${compact ? "h-10 w-10" : "h-12 w-12"}`}>
             <Repeat size={20} />
           </div>
           <div className="min-w-0 flex-1">
             <p className="font-semibold">{first.titulo}</p>
-            <p className="text-sm text-muted-foreground">
-              {patientName} · {frequencyLabel} · {sessions.length} sesiones
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {new Date(first.fecha_sesion).toLocaleDateString("es-AR")} –{" "}
-              {new Date(last.fecha_sesion).toLocaleDateString("es-AR")}
-            </p>
+            {compact ? (
+              <p className="text-sm capitalize text-muted-foreground">
+                {compactSchedule} · {sessions.length} sesiones
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  {patientName} · {frequencyLabel} · {sessions.length} sesiones
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(first.fecha_sesion).toLocaleDateString("es-AR")} –{" "}
+                  {new Date(last.fecha_sesion).toLocaleDateString("es-AR")}
+                </p>
+              </>
+            )}
           </div>
         </button>
-        <Button size="sm" variant="ghost" onClick={openEditDialog}>
-          <Pencil size={14} />
-        </Button>
+        {!compact && (
+          <Button size="sm" variant="ghost" onClick={openEditDialog}>
+            <Pencil size={14} />
+          </Button>
+        )}
         <button
           type="button"
           onClick={() => setOpen((value) => !value)}
