@@ -6,10 +6,9 @@ import {
   fetchProfessionalSessions, joinProfessionalInviteByCode, prepareSessionSummary, updateProfessionalSession,
   type Activity, type EmotionalRecord, type PersonalNote, type ProfessionalSession, type SessionPrepSummary, type User,
 } from '@/data/api';
-import PersonalNotesList from '@/components/PersonalNotesList';
 import { withGoogleToken } from '@/lib/googleAuth';
 import { getDocPlainText } from '@/lib/googleDocs';
-import { CheckCircle2, Heart, Calendar, Home, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, Sparkles, MessageCircle, Bell, KeyRound, Loader2, FolderOpen, CalendarClock, Download, Send, Info, Image } from 'lucide-react';
+import { CheckCircle2, Calendar, Home, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, Sparkles, MessageCircle, Bell, KeyRound, Loader2, FolderOpen, CalendarClock, Download, Send, Info, Image, ShieldCheck, Link2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -17,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { motion } from 'framer-motion';
 import ActivityManager from '@/components/ActivityManager';
 import AdvancedStats from '@/components/AdvancedStats';
+import ProfessionalPatientOverview from '@/components/ProfessionalPatientOverview';
 import ChatScreen from '@/components/ChatScreen';
 import { ChatProvider } from '@/contexts/ChatContext';
 import AppHeader from '@/components/AppHeader';
@@ -305,7 +305,7 @@ export default function ProfessionalDashboard() {
       <ProfessionalDrawer open={menuOpen} active={tab} permissions={navigationPermissions} onClose={() => setMenuOpen(false)} onNavigate={navigate} onLogout={logout} />
       <ProfessionalProfileDrawer open={profileOpen} active={tab} user={user} permissions={navigationPermissions} onClose={() => setProfileOpen(false)} onNavigate={navigate} onLogout={logout} />
 
-      <main id="professional-main" tabIndex={-1} className="mx-auto w-full max-w-[1280px] space-y-5 px-4 py-6 sm:px-6 lg:px-8 lg:py-9">
+      <main id="professional-main" tabIndex={-1} className="mx-auto w-full max-w-[1280px] space-y-5 px-4 py-6 max-lg:pb-28 sm:px-6 lg:px-8 lg:py-9">
         {tab === 'home' && loadingPatients && <ProfessionalHomeSkeleton />}
         {tab === 'home' && !loadingPatients && patientsError && <div role="alert" className="rounded-3xl border border-destructive/20 bg-white p-6 text-sm text-destructive shadow-sm">{patientsError}<Button type="button" variant="outline" className="ml-3" onClick={reloadPatients}>Reintentar</Button></div>}
         {tab === 'home' && !loadingPatients && !patientsError && <ProfessionalHome professionalName={user.name} patients={linkedUsers} sessions={sessions} activitiesByUser={activitiesByUser} emotionsByUser={emotionsByUser} notesByUser={notesByUser} patientPertenecienteIds={Object.fromEntries(linkedUsers.map(patient => [patient.id, Number(linkForUser(patient.id)?.perteneciente.id)]))} onNavigate={navigate} onOpenPatient={openPatient} />}
@@ -375,10 +375,7 @@ export default function ProfessionalDashboard() {
 
         {tab === 'patients' && selectedPatient && patientDetail && (() => {
           const acts = activitiesByUser[patientDetail.id] || [];
-          const completed = acts.filter(a => a.status === 'completada').length;
-          const adherence = acts.length > 0 ? Math.round((completed / acts.length) * 100) : 0;
           const emotions = emotionsByUser[patientDetail.id] || [];
-          const personalNotes = notesByUser[patientDetail.id] || [];
           const patientPermissions = vinculosByUsuarioPerteneciente.get(String(patientDetail.id))?.permisos_efectivos?.permisos;
           const canViewPatientHistory = Boolean(permissionContext) && isPermissionEnabled(patientPermissions, PROFESIONAL_PERMISSIONS.VER_HISTORIAL, false);
           const canSchedulePatient = isPermissionEnabled(patientPermissions, PROFESIONAL_PERMISSIONS.AGENDAR_SESIONES, true);
@@ -391,6 +388,9 @@ export default function ProfessionalDashboard() {
           const patientAsistencia = patientCompletadas + patientAusentes > 0
             ? Math.round((patientCompletadas / (patientCompletadas + patientAusentes)) * 100)
             : null;
+          const nextPatientSession = nextSessionForPatient(sessions, pertenecienteId);
+          const patientSupportLevel = patientDetail.supportLevel || 'Sin registrar';
+          const patientAutonomy = (patientDetail as User & { autonomy?: string }).autonomy || 'Sin registrar';
 
           const gatherNotesFor = async (candidatas: ProfessionalSession[]) => {
             return Promise.all(
@@ -487,20 +487,34 @@ export default function ProfessionalDashboard() {
           };
 
           return (
-            <div className="space-y-4">
-              <button onClick={() => { setSelectedPatient(null); setPatientTab('overview'); setPatientNoteSession(null); }} className="text-sm text-primary font-medium">← Volver a pacientes</button>
+            <div className="space-y-5 pb-24 lg:pb-6">
+              <button onClick={() => { setSelectedPatient(null); setPatientTab('overview'); setPatientNoteSession(null); }} className="inline-flex min-h-10 items-center rounded-lg border border-primary/20 bg-white px-4 text-sm font-semibold text-primary shadow-sm">← Volver a pacientes</button>
+              <section className="flex flex-col gap-4 border-b border-border/70 pb-4 lg:flex-row lg:items-center max-lg:rounded-[26px] max-lg:border max-lg:border-white/80 max-lg:bg-white/80 max-lg:p-4 max-lg:shadow-sm">
+                <div className="flex min-w-0 items-center gap-4">
+                  <span className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-violet-50 text-4xl shadow-md max-sm:h-16 max-sm:w-16 max-sm:text-3xl">
+                    {patientDetail.avatar && /^(https?:|data:image\/|\/|\.\/|\.\.\/)/.test(patientDetail.avatar) ? <img src={patientDetail.avatar} alt="" className="h-full w-full object-cover" /> : patientDetail.avatar}
+                  </span>
+                  <div className="min-w-0"><h1 className="truncate text-2xl font-bold text-[#302444] sm:text-3xl">{patientDetail.name}</h1><p className="text-sm text-muted-foreground">{patientDetail.age ? `${patientDetail.age} años` : 'Edad sin registrar'}</p></div>
+                </div>
+                <div className="flex flex-wrap gap-2 lg:ml-4 max-sm:grid max-sm:grid-cols-2">
+                  <span className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-violet-200 bg-violet-50/60 px-3 text-xs font-semibold text-violet-700 max-sm:px-2"><ShieldCheck size={16} className="shrink-0" />Apoyo {patientSupportLevel}</span>
+                  <span className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/60 px-3 text-xs font-semibold text-amber-700 max-sm:px-2"><Users size={16} className="shrink-0" />Autonomía {patientAutonomy}</span>
+                  <span className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 text-xs font-semibold text-emerald-700 max-sm:col-span-2 max-sm:px-2"><Link2 size={16} className="shrink-0" />Vínculo activo</span>
+                </div>
+                {nextPatientSession && <div className="rounded-xl border bg-white p-3 shadow-sm lg:ml-auto lg:min-w-52 max-lg:w-full"><p className="flex items-center gap-2 text-xs font-bold text-[#302444]"><CalendarClock size={17} className="text-violet-600" />Próxima sesión</p><p className="mt-1 pl-6 text-xs text-muted-foreground">{new Date(nextPatientSession.fecha_sesion).toLocaleString('es-AR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</p></div>}
+              </section>
               {!canViewPatientHistory && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
                   El tutor deshabilito ver historial para este perteneciente.
                 </div>
               )}
-              <div className="grid grid-cols-3 gap-2">
+              <div className="flex gap-1 overflow-x-auto border-b border-border/70 max-lg:sticky max-lg:top-16 max-lg:z-30 max-lg:-mx-4 max-lg:bg-[#faf8fe]/95 max-lg:px-4 max-lg:backdrop-blur sm:max-lg:-mx-6 sm:max-lg:px-6">
                 {([
                   { id: 'overview', label: 'Resumen', icon: BarChart3 },
                   { id: 'stats', label: 'Estadísticas', icon: TrendingUp },
                   { id: 'sessions', label: 'Sesiones', icon: CalendarClock },
                 ] as const).map(t => (
-                  <button key={t.id} onClick={() => { setPatientTab(t.id); setPatientNoteSession(null); }} className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs sm:text-sm ${patientTab === t.id ? 'gradient-primary text-primary-foreground' : 'bg-card border border-border text-muted-foreground'}`}>
+                  <button key={t.id} onClick={() => { setPatientTab(t.id); setPatientNoteSession(null); }} className={`flex min-h-12 min-w-28 flex-1 items-center justify-center gap-1.5 border-b-2 px-4 py-2 text-sm font-semibold transition max-sm:min-w-[104px] max-sm:px-2 ${patientTab === t.id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
                     <t.icon size={14} /> {t.label}
                   </button>
                 ))}
@@ -514,46 +528,21 @@ export default function ProfessionalDashboard() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {patientSessions.length > 0 && (
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <Button size="sm" variant="outline" onClick={downloadPatientPdf} disabled={downloadingPatientPdf}>
+                    <div className="grid gap-3 rounded-2xl border border-[#ebe7f2] bg-white p-4 shadow-sm sm:grid-cols-[1fr_1fr_auto] max-sm:rounded-[22px]">
+                        {canSchedulePatient && <Button onClick={() => { setAgendaInitialPatientId(pertenecienteId || undefined); setSelectedPatient(null); navigate('calendar'); }} className="min-h-11">+ Programar sesión</Button>}
+                        <Button variant="outline" onClick={downloadPatientPdf} disabled={downloadingPatientPdf || patientSessions.length === 0} className="min-h-11">
                           {downloadingPatientPdf ? <Loader2 size={13} className="mr-1 animate-spin" /> : <Download size={13} className="mr-1" />}
                           Historial (PDF)
                         </Button>
-                      </div>
-                    )}
-                    {patientAsistencia !== null && (
-                      <div className="rounded-xl border bg-muted/30 p-3 text-center">
-                        <p className="text-lg font-bold">{patientAsistencia}%</p>
-                        <p className="text-xs text-muted-foreground">Asistencia ({patientCompletadas} completadas / {patientAusentes} ausencias)</p>
-                      </div>
-                    )}
-                    {patientSessions.some(s => s.has_note) && (
-                      <div className="rounded-xl border bg-card p-3 space-y-2">
-                        <p className="text-sm font-semibold flex items-center gap-1.5">
-                          <Sparkles size={14} className="text-primary" /> Preguntale a la IA sobre este paciente
-                        </p>
-                        <div className="flex gap-2">
-                          <Input
-                            value={askQuestion}
-                            onChange={e => setAskQuestion(e.target.value)}
-                            placeholder="Ej: ¿cómo venía trabajando las rutinas visuales?"
-                            onKeyDown={e => e.key === 'Enter' && runAskQuestion()}
-                          />
-                          <Button size="sm" onClick={runAskQuestion} disabled={askLoading || !askQuestion.trim()}>
-                            {askLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                          </Button>
-                        </div>
-                        {askError && <p className="text-xs text-destructive">{askError}</p>}
-                        {askAnswer && <p className="text-sm whitespace-pre-wrap border-t pt-2">{askAnswer}</p>}
-                      </div>
-                    )}
+                        <div className="rounded-xl bg-violet-50 px-5 py-2 text-center text-violet-700"><p className="text-lg font-bold">{patientAsistencia === null ? '—' : `${patientAsistencia}%`}</p><p className="text-[10px]">de asistencia</p></div>
+                    </div>
+                    {nextPatientSession && <section className="grid gap-4 rounded-2xl border border-[#ebe7f2] bg-white p-5 shadow-sm sm:grid-cols-[1fr_auto] sm:items-center max-sm:rounded-[22px] max-sm:p-4"><div className="flex gap-3"><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-violet-50 text-violet-600"><CalendarClock /></span><div><p className="text-xs font-bold text-violet-600">Próxima sesión</p><h3 className="text-xl font-bold text-[#302444] max-sm:text-lg">{new Date(nextPatientSession.fecha_sesion).toLocaleString('es-AR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</h3><p className="text-sm text-muted-foreground">{nextPatientSession.titulo} · {nextPatientSession.duracion_minutos} minutos</p></div></div><Button onClick={() => runPrepareSession(nextPatientSession)} className="min-h-11 max-sm:w-full"><Sparkles size={15} className="mr-2" />Preparar con IA</Button></section>}
                     {patientSessions.length === 0 && (
                       <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
                         Todavia no hay sesiones agendadas con este paciente.
                       </div>
                     )}
-                    {patientSessions.map(session => (
+                    <section className="rounded-2xl border border-[#ebe7f2] bg-white p-4 shadow-sm"><h3 className="mb-3 font-bold text-[#302444]">Historial de sesiones</h3><div className="space-y-2">{patientSessions.map(session => (
                       <SessionCard
                         key={session.id}
                         session={session}
@@ -567,13 +556,14 @@ export default function ProfessionalDashboard() {
                         onDelete={() => deletePatientSession(session)}
                         onPrepare={session.estado === 'programada' ? () => runPrepareSession(session) : undefined}
                       />
-                    ))}
+                    ))}</div></section>
+                    {patientSessions.some(s => s.has_note) && <section className="rounded-2xl border border-[#ebe7f2] bg-white p-4 shadow-sm"><p className="mb-3 flex items-center gap-2 text-sm font-semibold"><Sparkles size={16} className="text-primary" />Preguntale a la IA sobre este perteneciente</p><div className="flex flex-col gap-2 sm:flex-row"><Input value={askQuestion} onChange={e => setAskQuestion(e.target.value)} placeholder="¿Cómo evolucionó el uso de apoyos visuales?" onKeyDown={e => e.key === 'Enter' && runAskQuestion()} /><Button onClick={runAskQuestion} disabled={askLoading || !askQuestion.trim()}>{askLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} className="mr-2" />}Consultar</Button></div>{askError && <p className="mt-2 text-xs text-destructive">{askError}</p>}{askAnswer && <p className="mt-3 whitespace-pre-wrap border-t pt-3 text-sm">{askAnswer}</p>}<p className="mt-2 text-[11px] text-muted-foreground">La respuesta utiliza únicamente las sesiones y notas a las que tenés acceso.</p></section>}
                   </div>
                 )
               )}
 
               <Dialog open={Boolean(prepSession)} onOpenChange={(open) => !open && setPrepSession(null)}>
-                <DialogContent className="sm:max-w-lg">
+                <DialogContent className="sm:max-w-lg max-lg:bottom-0 max-lg:left-0 max-lg:top-auto max-lg:max-h-[88dvh] max-lg:w-full max-lg:max-w-none max-lg:translate-x-0 max-lg:translate-y-0 max-lg:overflow-y-auto max-lg:rounded-b-none max-lg:rounded-t-[28px] max-lg:p-5">
                   <DialogHeader>
                     <DialogTitle>Preparación — {prepSession?.titulo}</DialogTitle>
                   </DialogHeader>
@@ -592,61 +582,8 @@ export default function ProfessionalDashboard() {
                 </DialogContent>
               </Dialog>
 
-              {patientTab === 'stats' && canViewPatientHistory && <AdvancedStats user={patientDetail} activities={acts} emotions={emotions} />}
-              {patientTab === 'overview' && canViewPatientHistory && (<>
-              <div className="bg-card rounded-xl p-5 border border-border">
-                <div className="flex items-center gap-4 mb-4">
-                  <span className="text-5xl">{patientDetail.avatar}</span>
-                  <div>
-                    <h3 className="font-heading font-bold text-xl text-foreground">{patientDetail.name}</h3>
-                    <p className="text-sm text-muted-foreground">{patientDetail.age} años · {patientDetail.bio}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Nivel {patientDetail.level} · {patientDetail.points} pts · Racha {patientDetail.streak} días</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="text-center p-3 bg-muted/50 rounded-lg"><p className="text-2xl font-bold text-foreground">{adherence}%</p><p className="text-xs text-muted-foreground">Adherencia</p></div>
-                  <div className="text-center p-3 bg-muted/50 rounded-lg"><p className="text-2xl font-bold text-foreground">{completed}</p><p className="text-xs text-muted-foreground">Completadas</p></div>
-                  <div className="text-center p-3 bg-muted/50 rounded-lg"><p className="text-2xl font-bold text-foreground">{emotions.length}</p><p className="text-xs text-muted-foreground">Registros emoc.</p></div>
-                </div>
-              </div>
-
-              <div className="space-y-5 rounded-xl border border-border bg-card p-4">
-                <h4 className="font-heading font-semibold text-foreground flex items-center gap-2"><FileText size={16} className="text-primary" /> Registro personal</h4>
-                <section>
-                  <h5 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground"><Heart size={15} className="text-rose-500" />Emociones registradas</h5>
-                  <div className="flex gap-2 overflow-x-auto pb-2">
-                    {emotions.slice(0, 10).map(em => (
-                      <div key={em.id} className="flex min-w-[48px] flex-col items-center">
-                        <span className="text-2xl">{em.emoji}</span>
-                        <span className="text-[8px] text-muted-foreground">{em.date.slice(5)}</span>
-                        <div className="mt-0.5 flex gap-0.5">{Array.from({length:5}).map((_,i)=><span key={i} className={`h-1 w-1 rounded-full ${i<em.intensity?'bg-primary':'bg-muted'}`}/>)}</div>
-                      </div>
-                    ))}
-                    {emotions.length === 0 && <p className="text-sm text-muted-foreground">No hay emociones registradas.</p>}
-                  </div>
-                </section>
-                <section className="border-t border-border pt-4">
-                  <h5 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground"><FileText size={15} className="text-primary" />Notas del paciente</h5>
-                  <PersonalNotesList notes={personalNotes} emptyText="Este paciente todavía no tiene notas personales guardadas." />
-                </section>
-              </div>
-
-              <div className="flex gap-2">
-                {canSchedulePatient && (
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => {
-                      setAgendaInitialPatientId(Number(linkForUser(patientDetail.id)?.perteneciente.id) || undefined);
-                      setSelectedPatient(null);
-                      navigate('calendar');
-                    }}
-                  >
-                    <Calendar size={14} className="mr-1" /> Proponer sesión
-                  </Button>
-                )}
-              </div>
-              </>)}
+              {patientTab === 'stats' && canViewPatientHistory && <AdvancedStats user={patientDetail} activities={acts} emotions={emotions} sessions={patientSessions} />}
+              {patientTab === 'overview' && canViewPatientHistory && <ProfessionalPatientOverview user={patientDetail} emotions={emotions} sessions={patientSessions} supportLevel={patientSupportLevel} autonomy={patientAutonomy} />}
             </div>
           );
         })()}
