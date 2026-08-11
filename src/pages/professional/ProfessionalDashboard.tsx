@@ -571,6 +571,7 @@ export default function ProfessionalDashboard() {
                         }}
                         onDeleteSession={deletePatientSession}
                         onSeriesChanged={reloadSessions}
+                        compact
                       />
                     ))}{standalonePatientSessions.map(session => (
                       <SessionCard
