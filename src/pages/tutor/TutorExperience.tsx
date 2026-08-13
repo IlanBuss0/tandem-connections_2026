@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Activity, Bell, CalendarDays, CheckCircle2, ChevronRight, Clock,
-  Heart, Image, Link2, MessageCircle, Settings, Sparkles, Users,
+  Activity, CalendarDays, CheckCircle2, ChevronRight, Clock,
+  Heart, Image, Link2, MessageCircle, Sparkles, Users,
 } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
@@ -21,6 +21,7 @@ import { aggregateTutorEvents, type TutorAggregateEvent } from '@/lib/tutorEvent
 import { TutorDrawer, TutorProfileDrawer, TutorQuickMenu, type TutorTab } from '@/components/tutor/TutorNavigation';
 import TutorLinkedDetail from '@/components/tutor/TutorLinkedDetail';
 import TutorHome from '@/components/tutor/TutorHome';
+import TutorAccountSettings from '@/components/tutor/TutorAccountSettings';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSyncMobileMenuOpen } from '@/contexts/MobileMenuState';
@@ -182,7 +183,7 @@ function TutorContent(props: {
   if (tab === 'pictogramCatalog') return <UserPictograms />;
   if (tab === 'connections') return <ConnectionsPage users={props.linkedUsers} onOpenDetail={props.onOpenDetail} />;
   if (tab === 'about') return <AboutTandem />;
-  if (tab === 'profile') return <AccountPage name={props.userName} />;
+  if (tab === 'profile') return <TutorAccountSettings onManageConnections={() => props.onNavigate('connections')} />;
   if (tab === 'detail') {
     const owner = props.linkedUsers.find(item => item.id === props.detailUserId);
     return owner ? <TutorLinkedDetail owner={owner} data={props.data.byUserId[owner.id]} onNavigate={props.onNavigate} onOpenChat={(id) => { props.onSelectNotificationChat(id); props.onNavigate('chat', { chatId: id }); }} /> : <ErrorState message="No encontramos a esa persona vinculada." onRetry={() => props.onNavigate('connections')} />;
@@ -293,10 +294,6 @@ function ConnectionsPage({ users, onOpenDetail }: { users: TutorHomeLinkedUser[]
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{users.map(owner => <button key={owner.id} type="button" onClick={() => onOpenDetail(owner.id)} className="flex min-h-24 items-center gap-4 rounded-3xl border border-border/80 bg-card p-4 text-left shadow-sm transition hover:border-primary/30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{ownerAvatar(owner, 'h-14 w-14')}<span className="min-w-0 flex-1"><span className="block truncate font-bold">{owner.name}</span><span className="block truncate text-xs text-muted-foreground">{owner.supportLevel} · {owner.linkStatus}</span></span><ChevronRight className="text-muted-foreground" aria-hidden /></button>)}{users.length === 0 && <EmptyState text="Todavía no hay personas vinculadas." />}</div>
     <TutorConnections />
   </div>;
-}
-
-function AccountPage({ name }: { name: string }) {
-  return <div className="space-y-5"><PageHeading title="Perfil y cuenta" subtitle="Tu información como Tutor y las preferencias generales de la aplicación." /><section className="rounded-3xl border border-border/80 bg-card p-6 shadow-sm"><div className="flex items-center gap-4"><HeaderUserAvatar name={name} /><div><h2 className="font-bold">{name}</h2><p className="text-sm text-muted-foreground">Tutor de TÁNDEM</p></div></div><div className="mt-6 grid gap-3 sm:grid-cols-2"><div className="rounded-2xl bg-muted/50 p-4"><Settings className="text-primary" aria-hidden /><p className="mt-2 font-semibold">Configuración</p><p className="text-sm text-muted-foreground">Las preferencias de accesibilidad se mantienen disponibles desde el widget global.</p></div><div className="rounded-2xl bg-muted/50 p-4"><Bell className="text-primary" aria-hidden /><p className="mt-2 font-semibold">Notificaciones</p><p className="text-sm text-muted-foreground">Abrilas desde la campana del encabezado.</p></div></div></section></div>;
 }
 
 function DashboardCard({ title, icon: Icon, action, onAction, children }: { title: string; icon: typeof Activity; action?: string; onAction?: () => void; children: React.ReactNode }) {
