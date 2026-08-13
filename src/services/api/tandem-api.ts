@@ -94,6 +94,18 @@ export type LoginRequest = {
 
 export type RegisterRole = "perteneciente" | "tutor" | "profesional";
 
+export interface TutorAccount {
+  id: number;
+  id_tutor: number;
+  nombre_usuario: string;
+  nombre: string;
+  apellido: string;
+  correo: string;
+  telefono: string | number | null;
+  parentesco: string | null;
+  email_verificado: boolean;
+}
+
 export type RegisterRequest = Pick<
   Usuario,
   "nombre_usuario" | "nombre" | "apellido" | "correo"
@@ -178,6 +190,27 @@ export const authApi = {
       method: "POST",
     });
 
+    return unwrapApiData(response);
+  },
+
+  async getTutorAccount(): Promise<TutorAccount> {
+    const response = await apiRequest<ApiEnvelope<TutorAccount>>("/api/auth/tutor-account");
+    return unwrapApiData(response);
+  },
+
+  async updateTutorAccount(payload: Pick<TutorAccount, "nombre" | "apellido" | "correo" | "telefono" | "parentesco"> & { contrasena_actual?: string }): Promise<TutorAccount> {
+    const response = await apiRequest<ApiEnvelope<TutorAccount>>("/api/auth/tutor-account", {
+      method: "PATCH",
+      body: payload,
+    });
+    return unwrapApiData(response);
+  },
+
+  async changePassword(payload: { contrasena_actual: string; contrasena_nueva: string }): Promise<{ changed: boolean }> {
+    const response = await apiRequest<ApiEnvelope<{ changed: boolean }>>("/api/auth/password", {
+      method: "PATCH",
+      body: payload,
+    });
     return unwrapApiData(response);
   },
 };
