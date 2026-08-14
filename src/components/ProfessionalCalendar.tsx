@@ -81,7 +81,7 @@ export default function ProfessionalCalendar({ patients, initialPatientId }: { p
   };
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-6">
       <PersonalEventCalendar
       heading="Calendario profesional"
       events={events}
@@ -93,7 +93,7 @@ export default function ProfessionalCalendar({ patients, initialPatientId }: { p
       readOnlyHint="Las sesiones se gestionan debajo, dentro de este Calendario."
       loading={loading}
       />
-      <section className="border-t border-border pt-8">
+      <section className="rounded-[24px] border border-[#ece3f8] bg-white p-4 shadow-[0_8px_24px_#f0e8f8] sm:p-5">
         <ProfessionalAgenda patients={patients} initialPatientId={initialPatientId} />
       </section>
     </div>

@@ -1,13 +1,11 @@
-import { useMemo, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { CalendarDays, ChevronLeft, ChevronRight, Clock, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
+import { AlertTriangle, CalendarDays, ChevronLeft, ChevronRight, Clock, Pencil, Plus, Trash2, X } from 'lucide-react';
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { useCalendar, eventTypes } from '@/contexts/CalendarContext';
 import { useRoutines } from '@/contexts/RoutinesContext';
-import SectionSelector from '@/components/SectionSelector';
 import { CalendarEvent } from '@/data/api';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
-import ReminderPicker from '@/components/ReminderPicker';
 import EventPictogram from '@/components/EventPictogram';
 import { useCalendarPictograms } from '@/hooks/useCalendarPictograms';
 import SpeakButton from '@/components/SpeakButton';
@@ -15,7 +13,17 @@ import { formatConcreteDays } from '@/lib/concreteTime';
 import SocialStoryView from '@/components/SocialStoryView';
 import ReassuranceCard from '@/components/ReassuranceCard';
 import { isDayOverloaded } from '@/lib/weekLoad';
-import { AlertTriangle } from 'lucide-react';
+import CalendarEventDialog from '@/components/calendar/CalendarEventDialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -71,9 +79,11 @@ export default function UserCalendar() {
   const todayKey = dateKey(today);
   const [cursor, setCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState(todayKey);
+  const dayDetailRef = useRef<HTMLElement>(null);
 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<CalendarEvent | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<CalendarEvent | null>(null);
   // Sesion 25 (perfil de memoria), item "anticipacion al crear un evento":
   // sugerencia descartable, NUNCA se abre la historia social sola — mismo
   // espiritu que el aviso de sobrecarga del dia (S17), avisar no imponer.
@@ -117,15 +127,17 @@ export default function UserCalendar() {
     };
   }, [cursor]);
 
-  const selectedDayEvents = useMemo(
+  const selectedDayItems = useMemo(
     () => [...(eventsByDate[selectedDate] || [])].sort((a, b) => a.time.localeCompare(b.time)),
     [eventsByDate, selectedDate],
   );
+  const selectedDayActivities = useMemo(() => selectedDayItems.filter(event => event.type === 'actividad'), [selectedDayItems]);
+  const selectedDayEvents = useMemo(() => selectedDayItems.filter(event => event.type !== 'actividad'), [selectedDayItems]);
 
   // Solo se pictogramiza el dia que se esta mirando, no todo el calendario
   // (mismo criterio que "Mi dia" en Sesion 1: no gastar cuota en lo que
   // nadie esta viendo).
-  useCalendarPictograms(selectedDayEvents);
+  useCalendarPictograms(selectedDayItems);
 
   if (!canUseCalendar) {
     return (
@@ -183,8 +195,8 @@ export default function UserCalendar() {
     setShowForm(true);
   };
 
-  const submit = () => {
-    const payload = { ...form, title: form.title.trim() };
+  const submit = (submittedForm = form) => {
+    const payload = { ...submittedForm, title: submittedForm.title.trim() };
     if (!payload.title) return;
 
     if (editing) {
@@ -199,9 +211,22 @@ export default function UserCalendar() {
     }
 
     setShowForm(false);
-    setSelectedDate(form.date);
-    const formDate = new Date(`${form.date}T12:00:00`);
+    setSelectedDate(payload.date);
+    const formDate = new Date(`${payload.date}T12:00:00`);
     setCursor(new Date(formDate.getFullYear(), formDate.getMonth(), 1));
+  };
+
+  const selectDate = (date: string) => {
+    setSelectedDate(date);
+    if (window.matchMedia('(max-width: 1023px)').matches) {
+      window.requestAnimationFrame(() => dayDetailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    }
+  };
+
+  const confirmDelete = () => {
+    if (!deleteCandidate) return;
+    deleteEvent(deleteCandidate.id);
+    setDeleteCandidate(null);
   };
 
   return (
@@ -212,7 +237,6 @@ export default function UserCalendar() {
         className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
       >
         <div>
-          <p className="text-xs font-semibold text-[#8b7aa0] uppercase tracking-wide">Vista mensual</p>
           <h1 className="text-3xl sm:text-4xl font-bold text-[#6b4c9a] leading-tight">Calendario</h1>
           <p className="text-sm sm:text-base text-[#8b7aa0] mt-1 font-medium">{monthLabel}</p>
         </div>
@@ -221,15 +245,16 @@ export default function UserCalendar() {
           className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-3 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 transition"
         >
           <Plus size={17} />
-          Evento
+          Crear nuevo Evento
         </button>
       </motion.div>
 
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.75fr)_minmax(280px,0.65fr)] xl:grid-cols-[minmax(0,2fr)_minmax(300px,0.7fr)] xl:gap-6">
       <motion.section
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.05 }}
-        className="w-full bg-white rounded-3xl shadow-lg border border-[#f0e8f8] p-3 sm:p-5"
+        className="w-full min-w-0 rounded-3xl border border-[#f0e8f8] bg-white p-3 shadow-lg sm:p-5 xl:p-6"
       >
         <div className="flex flex-col items-center gap-1.5 mb-4">
           <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 w-full">
@@ -289,7 +314,7 @@ export default function UserCalendar() {
 
         <div className="grid grid-cols-7 gap-1 sm:gap-2">
           {monthDays.leadingBlanks.map(blank => (
-            <div key={`blank-${blank}`} aria-hidden className="min-h-[68px] sm:min-h-[86px]" />
+            <div key={`blank-${blank}`} aria-hidden className="min-h-[68px] sm:min-h-[86px] xl:min-h-[92px]" />
           ))}
 
           {monthDays.days.map(({ day, key }) => {
@@ -302,9 +327,11 @@ export default function UserCalendar() {
             return (
               <button
                 key={key}
-                onClick={() => setSelectedDate(key)}
+                onClick={() => selectDate(key)}
                 onDoubleClick={() => openCreate(key)}
-                className={`relative flex min-h-[68px] sm:min-h-[86px] flex-col rounded-2xl border p-1.5 sm:p-2 text-left transition-all duration-200 ${
+                aria-pressed={isSelected}
+                aria-label={`${day} de ${monthNames[cursor.getMonth()]}${hasEvents ? `, ${dayEvents.length} elementos` : ', sin contenido'}`}
+                className={`relative flex min-h-[68px] sm:min-h-[86px] xl:min-h-[92px] flex-col rounded-2xl border p-1.5 sm:p-2 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed] focus-visible:ring-offset-2 ${
                   isToday
                     ? 'border-[#6b4c9a] bg-[#6b4c9a] text-white shadow-md shadow-purple-200'
                     : isPastEventDay && isSelected
@@ -364,118 +391,39 @@ export default function UserCalendar() {
         </div>
       </motion.section>
 
-      <AnimatePresence>
-        {showForm && (
-          <motion.section
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden rounded-3xl border border-[#d8c7ef] bg-white p-4 sm:p-5 shadow-lg"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-bold text-[#6b4c9a]">{editing ? 'Editar evento' : 'Nuevo evento'}</h2>
-              <button
-                onClick={() => setShowForm(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-[#8b7aa0] hover:bg-[#f5f0ff] hover:text-[#6b4c9a]"
-                aria-label="Cerrar"
-              >
-                <X size={17} />
-              </button>
-            </div>
-
-            <div className="mt-4 space-y-3">
-              <input
-                value={form.title}
-                onChange={event => setForm(current => ({ ...current, title: event.target.value }))}
-                placeholder="Título del evento"
-                className="w-full rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
-              />
-              <div className="grid gap-3 sm:grid-cols-2">
-                <input
-                  type="date"
-                  value={form.date}
-                  onChange={event => setForm(current => ({ ...current, date: event.target.value }))}
-                  className="min-w-0 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
-                />
-                <input
-                  type="time"
-                  value={form.time}
-                  onChange={event => setForm(current => ({ ...current, time: event.target.value }))}
-                  className="min-w-0 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
-                />
-              </div>
-              <SectionSelector
-                value={form.type}
-                onChange={type => setForm(current => ({ ...current, type }))}
-                className="w-full flex items-center justify-between p-3 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
-              />
-              <textarea
-                value={form.description}
-                onChange={event => setForm(current => ({ ...current, description: event.target.value }))}
-                placeholder="Descripción (opcional)"
-                className="h-20 w-full resize-none rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
-              />
-              <ReminderPicker value={form.reminders} onChange={reminders => setForm(current => ({ ...current, reminders }))} />
-              <textarea
-                value={form.afterNote || ''}
-                onChange={event => setForm(current => ({ ...current, afterNote: event.target.value }))}
-                placeholder="¿Qué pasa después? (opcional) Ej: volvemos a casa y descansamos"
-                className="h-16 w-full resize-none rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
-              />
-              <textarea
-                value={form.planB || ''}
-                onChange={event => setForm(current => ({ ...current, planB: event.target.value }))}
-                placeholder="Plan B (opcional) Ej: si hay mucha gente, salimos afuera un rato"
-                className="h-16 w-full resize-none rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
-              />
-              <textarea
-                value={form.sensoryNote || ''}
-                onChange={event => setForm(current => ({ ...current, sensoryNote: event.target.value }))}
-                placeholder="Preparación sensorial (opcional) Ej: va a haber ruido, llevá auriculares"
-                className="h-16 w-full resize-none rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20"
-              />
-              <button
-                onClick={submit}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-3 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] transition"
-              >
-                <Save size={16} />
-                {editing ? 'Guardar cambios' : 'Crear evento'}
-              </button>
-            </div>
-          </motion.section>
-        )}
-      </AnimatePresence>
+      <CalendarEventDialog
+        open={showForm}
+        editing={Boolean(editing)}
+        form={form}
+        onOpenChange={setShowForm}
+        onFormChange={setForm}
+        onSubmit={submit}
+      />
 
       <motion.section
+        ref={dayDetailRef}
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="min-w-0 max-w-full rounded-3xl border border-[#f0e8f8] bg-white p-4 sm:p-5 shadow-lg"
+        className="min-w-0 max-w-full self-start rounded-3xl border border-[#f0e8f8] bg-white p-3.5 shadow-lg sm:p-4"
       >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
           <div>
             <p className="text-xs font-semibold text-[#8b7aa0] uppercase tracking-wide">
               {selectedDate === todayKey ? 'Hoy' : labelDate(selectedDate)}
               {selectedDate !== todayKey && ` · ${formatConcreteDays(selectedDate, new Date())}`}
             </p>
-            <h2 className="text-xl sm:text-2xl font-bold text-[#6b4c9a]">Actividades del día</h2>
+            <h2 className="text-xl font-bold text-[#6b4c9a]">Detalle del día</h2>
             {isDayOverloaded(events, selectedDate) && (
               <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-amber-700">
                 <AlertTriangle size={12} /> Día con muchas actividades — puede ser mucho para un solo día
               </p>
             )}
           </div>
-          <button
-            onClick={() => openCreate(selectedDate)}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#f5f0ff] px-4 py-2.5 text-sm font-semibold text-[#6b4c9a] hover:bg-[#EFE3FF] transition"
-          >
-            <Plus size={16} />
-            Agregar
-          </button>
         </div>
 
         {anticipationSuggestion && (
-          <div className="mt-4 flex items-start gap-2 rounded-2xl border border-[#d8c7ef] bg-[#faf8ff] p-3 text-xs text-[#6b4c9a]">
+          <div className="mt-3 flex items-start gap-2 rounded-2xl border border-[#d8c7ef] bg-[#faf8ff] p-2.5 text-xs text-[#6b4c9a]">
             <AlertTriangle size={14} className="mt-0.5 shrink-0" />
             <p className="flex-1">
               Este tipo de evento a veces te resulta difícil. Podés tocar <strong>"Historia social"</strong> en el evento para prepararlo con tiempo.
@@ -491,20 +439,22 @@ export default function UserCalendar() {
           </div>
         )}
 
+        <section aria-labelledby="day-events-title" className="mt-3.5">
+          <h3 id="day-events-title" className="text-sm font-extrabold uppercase tracking-wide text-[#5f477c]">Eventos</h3>
         {selectedDayEvents.length === 0 ? (
-          <div className="mt-5 flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#e0d8f0] bg-[#faf8ff] px-4 py-10 text-center">
-            <CalendarDays size={34} className="text-[#6b4c9a]" />
-            <p className="mt-3 text-sm font-semibold text-[#4a4a5a]">No hay actividades para este día</p>
+          <div className="mt-2 flex min-h-14 items-center gap-2.5 rounded-2xl border border-dashed border-[#e0d8f0] bg-[#faf8ff] px-3 py-2.5">
+            <CalendarDays size={22} className="shrink-0 text-[#6b4c9a]" />
+            <p className="text-sm font-semibold text-[#4a4a5a]">No hay eventos para este día</p>
           </div>
         ) : (
-          <div className="mt-5 min-w-0 max-w-full space-y-3">
+          <div className="mt-2.5 min-w-0 max-w-full space-y-2.5">
             {selectedDayEvents.map((event, index) => (
               <motion.div
                 key={event.id}
                 initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.04 }}
-                className={`group min-w-0 max-w-full overflow-hidden rounded-2xl border p-4 ${typeBg[event.type] || 'bg-[#faf8ff] border-[#ede4f8]'}`}
+                className={`group min-w-0 max-w-full overflow-hidden rounded-2xl border p-3 ${typeBg[event.type] || 'bg-[#faf8ff] border-[#ede4f8]'}`}
               >
                 <div className="flex min-w-0 max-w-full items-start gap-3">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/70 text-xl">
@@ -543,18 +493,9 @@ export default function UserCalendar() {
                       <Pencil size={14} />
                     </button>
                     <button
-                      onClick={() => {
-                        // item 24 "avisar cambios con cuidado": borrar un
-                        // evento de HOY o MAÑANA es cambiar un plan que la
-                        // persona ya tenia armado, no un simple borrado de
-                        // lista — el mensaje lo dice distinto.
-                        const isNearTerm = event.date === todayKey || formatConcreteDays(event.date, new Date()) === 'mañana';
-                        const message = isNearTerm
-                          ? `Esto va a cambiar un plan que ya estaba armado para ${event.date === todayKey ? 'hoy' : 'mañana'}: "${event.title}". ¿Seguro que lo querés sacar?`
-                          : '¿Eliminar evento?';
-                        if (confirm(message)) deleteEvent(event.id);
-                      }}
-                      className="p-1.5 rounded-full hover:bg-white/50"
+                      onClick={() => setDeleteCandidate(event)}
+                      className="flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"
+                      aria-label={`Eliminar ${event.title}`}
                       title="Eliminar"
                     >
                       <Trash2 size={14} />
@@ -565,7 +506,52 @@ export default function UserCalendar() {
             ))}
           </div>
         )}
+        </section>
+
+        <section aria-labelledby="day-activities-title" className="mt-4 border-t border-[#eee5f7] pt-3.5">
+          <h3 id="day-activities-title" className="text-sm font-extrabold uppercase tracking-wide text-[#5f477c]">Actividades</h3>
+          {selectedDayActivities.length === 0 ? (
+            <div className="mt-2 rounded-2xl border border-dashed border-[#e0d8f0] bg-[#faf8ff] px-3 py-2.5">
+              <p className="text-sm font-semibold text-[#4a4a5a]">No hay actividades para este día</p>
+            </div>
+          ) : (
+            <div className="mt-2.5 space-y-2.5">
+              {selectedDayActivities.map(activity => (
+                <div key={activity.id} className="group flex items-start gap-3 rounded-2xl border border-yellow-200 bg-yellow-50 p-3 text-yellow-800">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/70"><EventPictogram event={activity} /></span>
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-sm font-bold">{activity.title}</p>
+                    {activity.description && <p className="mt-1 break-words text-xs leading-relaxed opacity-80">{activity.description}</p>}
+                    <p className="mt-2 inline-flex items-center gap-1 text-xs opacity-75"><Clock size={12} /> {activity.time}</p>
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    <button onClick={() => openEdit(activity)} aria-label={`Editar ${activity.title}`} className="flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"><Pencil size={14} /></button>
+                    <button onClick={() => setDeleteCandidate(activity)} aria-label={`Eliminar ${activity.title}`} className="flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"><Trash2 size={14} /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </motion.section>
+      </div>
+
+      <AlertDialog open={Boolean(deleteCandidate)} onOpenChange={open => { if (!open) setDeleteCandidate(null); }}>
+        <AlertDialogContent overlayClassName="bg-[#241a30]/45 backdrop-blur-sm" className="w-[calc(100%-1.5rem)] max-w-md rounded-[28px] border-[#ddcfed] bg-[#fffaff]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-extrabold text-[#5b3784]">¿Querés eliminar este evento?</AlertDialogTitle>
+            <AlertDialogDescription className="leading-relaxed text-[#756a82]">
+              {deleteCandidate && (deleteCandidate.date === todayKey || formatConcreteDays(deleteCandidate.date, new Date()) === 'mañana')
+                ? `Esto va a cambiar el plan de ${deleteCandidate.date === todayKey ? 'hoy' : 'mañana'}: “${deleteCandidate.title}”.`
+                : deleteCandidate ? `Se eliminará “${deleteCandidate.title}”.` : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="min-h-11 rounded-xl border-[#ddcfed] text-[#5f477c] hover:bg-[#f5f0ff]">Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="min-h-11 rounded-xl bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500">Eliminar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
