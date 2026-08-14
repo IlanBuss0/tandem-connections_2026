@@ -433,6 +433,20 @@ export interface ActividadAsignada {
   id_estado_actividad: number;
   fecha_asignacion: string;
   fecha_completada: string | null;
+  puntaje_ultimo: number | null;
+  puntaje_mejor: number | null;
+  fecha_ultimo_intento: string | null;
+}
+
+export interface ResultadoActividadPersonalizada {
+  id_actividad_asignada: number;
+  id_perteneciente: number;
+  id_usuario_perteneciente: number;
+  nombre: string;
+  completada: boolean;
+  puntaje_ultimo: number | null;
+  puntaje_mejor: number | null;
+  fecha_ultimo_intento: string | null;
 }
 
 export interface FavoritoActividad {

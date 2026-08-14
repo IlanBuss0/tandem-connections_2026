@@ -49,6 +49,7 @@ import type {
   PermisoOtorgadoProfesional,
   PlanSuscripcion,
   Profesional,
+  ResultadoActividadPersonalizada,
   PuntoOtorgado,
   ReporteUsuario,
   ResenaProfesional,
@@ -251,6 +252,21 @@ class NotificationApiService {
   }
 }
 
+class CustomActivityApiService extends CrudApiService<ActividadPersonalizada> {
+  getResults(id: number): Promise<ResultadoActividadPersonalizada[]> {
+    return apiRequest<ResultadoActividadPersonalizada[]>(`/api/actividades-personalizadas/${encodeURIComponent(String(id))}/resultados`);
+  }
+}
+
+class AssignedActivityApiService extends CrudApiService<ActividadAsignada> {
+  complete(id: number, score?: number): Promise<ActividadAsignada> {
+    return apiRequest<ActividadAsignada>(`/api/actividades-asignadas/${encodeURIComponent(String(id))}/completar`, {
+      method: 'POST',
+      body: score === undefined ? {} : { puntaje: score },
+    });
+  }
+}
+
 class FileApiService extends CrudApiService<Archivo> {
   constructor() {
     super("/api/archivos");
@@ -277,8 +293,8 @@ export const tandemApi = {
   tutores: new CrudApiService<Tutor>("/api/tutores"),
   profesionales: new CrudApiService<Profesional>("/api/profesionales"),
   actividades: new CrudApiService<Actividad>("/api/actividades"),
-  actividadesPersonalizadas: new CrudApiService<ActividadPersonalizada>("/api/actividades-personalizadas"),
-  actividadesAsignadas: new CrudApiService<ActividadAsignada>("/api/actividades-asignadas"),
+  actividadesPersonalizadas: new CustomActivityApiService("/api/actividades-personalizadas"),
+  actividadesAsignadas: new AssignedActivityApiService("/api/actividades-asignadas"),
   favoritosActividades: new CrudApiService<FavoritoActividad>("/api/favoritos-actividades"),
   calificacionesActividades: new CrudApiService<CalificacionActividad>("/api/calificaciones-actividades"),
   avatares: new CrudApiService<Avatar>("/api/avatares"),
