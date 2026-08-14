@@ -309,7 +309,7 @@ export default function ProfessionalDashboard() {
       <main id="professional-main" tabIndex={-1} className="mx-auto w-full max-w-[1280px] space-y-5 px-4 py-6 max-lg:pb-28 sm:px-6 lg:px-8 lg:py-9">
         {tab === 'home' && loadingPatients && <ProfessionalHomeSkeleton />}
         {tab === 'home' && !loadingPatients && patientsError && <div role="alert" className="rounded-3xl border border-destructive/20 bg-white p-6 text-sm text-destructive shadow-sm">{patientsError}<Button type="button" variant="outline" className="ml-3" onClick={reloadPatients}>Reintentar</Button></div>}
-        {tab === 'home' && !loadingPatients && !patientsError && <ProfessionalHome professionalName={user.name} patients={linkedUsers} sessions={sessions} activitiesByUser={activitiesByUser} emotionsByUser={emotionsByUser} notesByUser={notesByUser} patientPertenecienteIds={Object.fromEntries(linkedUsers.map(patient => [patient.id, Number(linkForUser(patient.id)?.perteneciente.id)]))} onNavigate={navigate} onOpenPatient={openPatient} />}
+        {tab === 'home' && !loadingPatients && !patientsError && <ProfessionalHome professionalName={user.name} patients={linkedUsers} sessions={sessions} patientPertenecienteIds={Object.fromEntries(linkedUsers.map(patient => [patient.id, Number(linkForUser(patient.id)?.perteneciente.id)]))} onNavigate={navigate} onOpenPatient={openPatient} />}
         {tab === 'chat' && canSendMessages && (
           <ChatProvider>
             <ChatScreen
