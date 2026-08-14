@@ -20,7 +20,6 @@ import ProfessionalPatientOverview from '@/components/ProfessionalPatientOvervie
 import ChatScreen from '@/components/ChatScreen';
 import { ChatProvider } from '@/contexts/ChatContext';
 import AppHeader from '@/components/AppHeader';
-import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
 import ProfessionalReportsPanel from '@/components/ProfessionalReportsPanel';
 import ProfessionalPrivateNote from '@/components/ProfessionalPrivateNote';
@@ -28,7 +27,7 @@ import SessionCard from '@/components/SessionCard';
 import SessionSeriesFolder from '@/components/SessionSeriesFolder';
 import DriveExplorer from '@/components/DriveExplorer';
 import ProfessionalCalendar from '@/components/ProfessionalCalendar';
-import ProfessionalHome from '@/components/ProfessionalHome';
+import ProfessionalHome, { ProfessionalEmotionalStatus, ProfessionalRecentActivity } from '@/components/ProfessionalHome';
 import ProfessionalProfileSettings from '@/components/ProfessionalProfileSettings';
 import UserNotifications from '@/pages/user/UserNotifications';
 import { isPermissionEnabled, PROFESIONAL_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
@@ -39,7 +38,7 @@ import UserPictograms from '@/pages/user/UserPictograms';
 import { useToast } from '@/components/ui/use-toast';
 import { useSyncMobileMenuOpen } from '@/contexts/MobileMenuState';
 import BelongingMobileBottomNav, { type MobileDestination } from '@/components/belonging/BelongingMobileBottomNav';
-import { ProfessionalDrawer, ProfessionalProfileDrawer, ProfessionalQuickMenu, type ProfessionalTab, type ProfessionalQuickAction } from '@/components/professional/ProfessionalNavigation';
+import { ProfessionalAccountMenu, ProfessionalDrawer, ProfessionalQuickMenu, type ProfessionalTab, type ProfessionalQuickAction } from '@/components/professional/ProfessionalNavigation';
 import { useProfessionalNavigation } from '@/hooks/useProfessionalNavigation';
 
 function nextSessionForPatient(sessions: ProfessionalSession[], pertenecienteId: number | undefined) {
@@ -58,7 +57,7 @@ export default function ProfessionalDashboard() {
   const { user, logout } = useAuth();
   const { context: permissionContext, refetch: refetchPermissionContext } = usePermissionContext();
   const { toast } = useToast();
-  const { tab, patientId: routePatientId, chatId: routeChatId, navigate: navigateRoute, goBack } = useProfessionalNavigation();
+  const { tab, patientId: routePatientId, chatId: routeChatId, navigate: navigateRoute } = useProfessionalNavigation();
   const [selectedPatient, setSelectedPatient] = useState<string | null>(routePatientId);
   const [patientTab, setPatientTab] = useState<'overview' | 'stats' | 'sessions'>('overview');
   const [patientNoteSession, setPatientNoteSession] = useState<ProfessionalSession | null>(null);
@@ -286,30 +285,25 @@ export default function ProfessionalDashboard() {
     navigateRoute('patients', { patientId: userId }); setSelectedPatient(userId); setPatientTab('overview'); setMenuOpen(false); setProfileOpen(false); setQuickOpen(false);
     window.scrollTo({ top: 0, behavior: 'auto' });
   };
-  const professionalPageTitle = selectedPatient && patientDetail ? patientDetail.name : ({ home: 'Inicio', calendar: 'Calendario', patients: 'Pacientes', chat: 'Chats', notifications: 'Notificaciones', documents: 'Documentos y notas', create: 'Actividades', resources: 'Recursos y herramientas', reports: 'Reportes', tools: 'Herramientas', profile: 'Perfil', about: 'Acerca de TÁNDEM', pictograms: 'Pictograma IA', pictogramCatalog: 'Pictogramas' } satisfies Record<ProfessionalTab, string>)[tab];
-
   return (
-    <div className="min-h-dvh overflow-x-hidden bg-[radial-gradient(circle_at_88%_4%,rgba(220,203,245,0.42),transparent_24rem),linear-gradient(180deg,#fbf9ff_0%,#f8f7fc_100%)] pb-24 lg:pb-0">
+    <div className="professional-surface min-h-dvh overflow-x-hidden bg-[radial-gradient(circle_at_88%_4%,rgba(220,203,245,0.42),transparent_24rem),linear-gradient(180deg,#fbf9ff_0%,#f8f7fc_100%)] pb-24 lg:pb-0">
       <a href="#professional-main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-[100] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2">Saltar al contenido</a>
       <AppHeader
-        onMenuClick={() => setMenuOpen(true)}
+        onMenuClick={() => { setProfileOpen(false); setQuickOpen(false); setMenuOpen(true); }}
         onLogoClick={() => navigate('home')}
-        onBack={tab !== 'home' ? () => { if (selectedPatient) { goBack('patients'); } else { goBack('home'); } } : undefined}
-        mobileBackOnly
-        contextTitle={professionalPageTitle}
-        menuButtonClassName="invisible pointer-events-none lg:visible lg:pointer-events-auto"
+        centerLogoMobile
         rightSlot={
-          <div className="flex items-center gap-2"><NotificationBellButton count={unreadCount} onClick={() => navigate('notifications')} className="border-0 bg-transparent" /><button type="button" onClick={() => setProfileOpen(true)} aria-label="Abrir perfil profesional" className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><HeaderUserAvatar avatar={user.avatar} name={user.name} /></button></div>
+          <div className="flex items-center gap-2"><NotificationBellButton count={unreadCount} onClick={() => { setMenuOpen(false); setProfileOpen(false); navigate('notifications'); }} className="border-0 bg-transparent text-primary hover:bg-primary/10" /><ProfessionalAccountMenu open={profileOpen} onOpenChange={(open) => { setProfileOpen(open); if (open) { setMenuOpen(false); setQuickOpen(false); } }} user={user} onNavigate={navigate} onLogout={logout} /></div>
         }
       />
 
       <ProfessionalDrawer open={menuOpen} active={tab} permissions={navigationPermissions} onClose={() => setMenuOpen(false)} onNavigate={navigate} onLogout={logout} />
-      <ProfessionalProfileDrawer open={profileOpen} active={tab} user={user} permissions={navigationPermissions} onClose={() => setProfileOpen(false)} onNavigate={navigate} onLogout={logout} />
-
-      <main id="professional-main" tabIndex={-1} className="mx-auto w-full max-w-[1280px] space-y-5 px-4 py-6 max-lg:pb-28 sm:px-6 lg:px-8 lg:py-9">
+      <main id="professional-main" tabIndex={-1} className="mx-auto w-full max-w-[1536px] space-y-5 px-4 py-6 max-lg:pb-28 sm:px-6 lg:px-8 lg:py-9 xl:px-10">
         {tab === 'home' && loadingPatients && <ProfessionalHomeSkeleton />}
         {tab === 'home' && !loadingPatients && patientsError && <div role="alert" className="rounded-3xl border border-destructive/20 bg-white p-6 text-sm text-destructive shadow-sm">{patientsError}<Button type="button" variant="outline" className="ml-3" onClick={reloadPatients}>Reintentar</Button></div>}
         {tab === 'home' && !loadingPatients && !patientsError && <ProfessionalHome professionalName={user.name} patients={linkedUsers} sessions={sessions} activitiesByUser={activitiesByUser} emotionsByUser={emotionsByUser} notesByUser={notesByUser} patientPertenecienteIds={Object.fromEntries(linkedUsers.map(patient => [patient.id, Number(linkForUser(patient.id)?.perteneciente.id)]))} onNavigate={navigate} onOpenPatient={openPatient} />}
+        {tab === 'recentActivity' && <ProfessionalRecentActivity patients={linkedUsers} emotionsByUser={emotionsByUser} notesByUser={notesByUser} onOpenPatient={openPatient} />}
+        {tab === 'emotionalStatus' && <ProfessionalEmotionalStatus patients={linkedUsers} emotionsByUser={emotionsByUser} />}
         {tab === 'chat' && canSendMessages && (
           <ChatProvider>
             <ChatScreen
@@ -337,7 +331,7 @@ export default function ProfessionalDashboard() {
               </div>
             )}
             {patientsError && <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{patientsError}</div>}
-            <div className="grid gap-3 xl:grid-cols-2">{visiblePatients.map(u => {
+            <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">{visiblePatients.map(u => {
               const acts = activitiesByUser[u.id] || [];
               const completed = acts.filter(a => a.status === 'completada').length;
               const adherence = acts.length > 0 ? Math.round((completed / acts.length) * 100) : 0;
@@ -347,7 +341,7 @@ export default function ProfessionalDashboard() {
               const canViewPatientHistory = Boolean(permissionContext) && isPermissionEnabled(linkPermissions?.permisos, PROFESIONAL_PERMISSIONS.VER_HISTORIAL, false);
 
               return (
-                <motion.button key={u.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} onClick={() => { setSelectedPatient(u.id); setPatientTab('overview'); }} className="w-full overflow-hidden rounded-3xl border border-border/80 bg-card text-left shadow-sm transition-all hover:border-primary/30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <motion.button key={u.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} onClick={() => { setSelectedPatient(u.id); setPatientTab('overview'); }} className="w-full overflow-hidden rounded-[24px] border border-[#ece3f8] bg-white text-left shadow-[0_8px_24px_#f0e8f8] transition-all hover:border-primary/30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <div className="p-4 flex items-center gap-4">
                     <span className="text-4xl">{u.avatar}</span>
                     <div className="flex-1">
@@ -360,10 +354,10 @@ export default function ProfessionalDashboard() {
                     </div>
                   </div>
                   <div className="grid grid-cols-4 gap-2 px-4 pb-4">
-                    <div className="bg-muted/50 rounded-lg p-2 text-center"><p className="text-xs text-muted-foreground">Actividades</p><p className="font-bold text-foreground">{canViewPatientHistory ? `${completed}/${acts.length}` : '-'}</p></div>
-                    <div className="bg-muted/50 rounded-lg p-2 text-center"><p className="text-xs text-muted-foreground">Emociones</p><p className="font-bold text-foreground">{canViewPatientHistory ? emotions.length : '-'}</p></div>
-                    <div className="bg-muted/50 rounded-lg p-2 text-center"><p className="text-xs text-muted-foreground">Historial</p><p className="font-bold text-foreground text-xs">{canViewPatientHistory ? 'Habilitado' : 'Privado'}</p></div>
-                    <div className="bg-muted/50 rounded-lg p-2 text-center"><p className="text-xs text-muted-foreground">Próx. sesión</p><p className="font-bold text-foreground text-xs">{nextSession ? nextSession.fecha_sesion.slice(5, 10) : '-'}</p></div>
+                    <div className="rounded-2xl bg-primary/[.045] p-2 text-center"><p className="text-xs text-muted-foreground">Actividades</p><p className="font-bold text-foreground">{canViewPatientHistory ? `${completed}/${acts.length}` : '-'}</p></div>
+                    <div className="rounded-2xl bg-primary/[.045] p-2 text-center"><p className="text-xs text-muted-foreground">Emociones</p><p className="font-bold text-foreground">{canViewPatientHistory ? emotions.length : '-'}</p></div>
+                    <div className="rounded-2xl bg-primary/[.045] p-2 text-center"><p className="text-xs text-muted-foreground">Historial</p><p className="font-bold text-foreground text-xs">{canViewPatientHistory ? 'Habilitado' : 'Privado'}</p></div>
+                    <div className="rounded-2xl bg-primary/[.045] p-2 text-center"><p className="text-xs text-muted-foreground">Próx. sesión</p><p className="font-bold text-foreground text-xs">{nextSession ? nextSession.fecha_sesion.slice(5, 10) : '-'}</p></div>
                   </div>
                   <div className="px-4 pb-3 flex gap-1">
                     {emotions.slice(0, 5).map(em => <span key={em.id} className="text-lg">{em.emoji}</span>)}
@@ -750,9 +744,9 @@ export default function ProfessionalDashboard() {
 
       </main>
       <BelongingMobileBottomNav activeTab={tab} onNavigate={(next) => navigate(next as ProfessionalTab)} destinations={mobileDestinations} forceExpanded={quickOpen} center={(compactProgress) => <ProfessionalQuickMenu open={quickOpen} onOpenChange={setQuickOpen} compactProgress={compactProgress} permissions={navigationPermissions} onAction={(action: ProfessionalQuickAction) => {
-        if (action === 'session') { setAgendaInitialPatientId(undefined); navigate('calendar'); }
-        if (action === 'note') { navigate('patients'); toast({ title: 'Elegí una sesión', description: 'La nota clínica se guarda dentro de la sesión del paciente correspondiente.' }); }
         if (action === 'activity') navigate('create');
+        if (action === 'resources') navigate('resources');
+        if (action === 'documents') navigate('documents');
         if (action === 'pictogram') navigate('pictograms');
       }} />}/>
     </div>
@@ -765,7 +759,7 @@ function ProfessionalResourceHub({ onNavigate }: { onNavigate: (tab: Professiona
     { id: 'pictogramCatalog' as const, title: 'Explorar pictogramas', text: 'Buscá recursos visuales por categorías y temas.', icon: Image },
     { id: 'tools' as const, title: 'Herramientas profesionales', text: 'Vínculos, métricas y seguimiento operativo.', icon: ClipboardPlus },
   ];
-  return <div className="space-y-5"><header><h1 className="font-heading text-3xl font-bold">Recursos y herramientas</h1><p className="mt-2 text-sm text-muted-foreground sm:text-base">Materiales visuales y utilidades para tu práctica.</p></header><div className="grid gap-4 md:grid-cols-3">{areas.map(area => <button key={area.id} type="button" onClick={() => onNavigate(area.id)} className="min-h-44 rounded-[26px] border border-white/80 bg-white/90 p-5 text-left shadow-[0_12px_36px_rgba(70,45,96,.075)] transition hover:-translate-y-0.5 hover:border-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary"><area.icon size={22} aria-hidden /></span><h2 className="mt-4 font-bold">{area.title}</h2><p className="mt-1 text-sm text-muted-foreground">{area.text}</p></button>)}</div></div>;
+  return <div className="space-y-5"><header><h1 className="font-heading text-3xl font-bold">Recursos y herramientas</h1><p className="mt-2 text-sm text-muted-foreground sm:text-base">Materiales visuales y utilidades para tu práctica.</p></header><div className="grid gap-4 md:grid-cols-3">{areas.map(area => <button key={area.id} type="button" onClick={() => onNavigate(area.id)} className="min-h-44 rounded-[24px] border border-[#ece3f8] bg-white p-5 text-left shadow-[0_8px_24px_#f0e8f8] transition hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary"><area.icon size={22} aria-hidden /></span><h2 className="mt-4 font-bold text-[#2e2344]">{area.title}</h2><p className="mt-1 text-sm text-muted-foreground">{area.text}</p></button>)}</div></div>;
 }
 
 function ProfessionalHomeSkeleton() {
@@ -777,5 +771,5 @@ function ProfessionalHomeSkeleton() {
 }
 
 function ProfessionalDocumentsArea({ onOpenPatients }: { onOpenPatients: () => void }) {
-  return <div className="space-y-5"><header><h1 className="font-heading text-3xl font-bold">Documentos y notas</h1><p className="mt-2 text-sm text-muted-foreground sm:text-base">Archivos de Drive y notas clínicas organizados dentro de tu práctica.</p></header><button type="button" onClick={onOpenPatients} className="flex min-h-24 w-full items-center gap-4 rounded-3xl border border-white/80 bg-white/90 p-4 text-left shadow-sm transition hover:border-primary/20 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600"><FileText size={21} aria-hidden /></span><span className="min-w-0 flex-1"><span className="block font-bold">Notas clínicas</span><span className="block text-sm text-muted-foreground">Elegí un paciente y una sesión para consultar o escribir su nota privada.</span></span><span className="text-sm font-semibold text-primary">Ver pacientes</span></button><section className="rounded-3xl border border-white/80 bg-white/90 p-4 shadow-sm sm:p-5"><h2 className="mb-4 flex items-center gap-2 text-lg font-bold"><FolderOpen className="text-primary" aria-hidden />Documentos</h2><DriveExplorer /></section></div>;
+  return <div className="space-y-5"><header><h1 className="font-heading text-3xl font-bold">Documentos y notas</h1><p className="mt-2 text-sm text-muted-foreground sm:text-base">Archivos de Drive y notas clínicas organizados dentro de tu práctica.</p></header><button type="button" onClick={onOpenPatients} className="flex min-h-24 w-full items-center gap-4 rounded-[24px] border border-[#ece3f8] bg-white p-4 text-left shadow-[0_8px_24px_#f0e8f8] transition hover:border-primary/25 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary"><FileText size={21} aria-hidden /></span><span className="min-w-0 flex-1"><span className="block font-bold text-[#2e2344]">Notas clínicas</span><span className="block text-sm text-muted-foreground">Elegí un paciente y una sesión para consultar o escribir su nota privada.</span></span><span className="text-sm font-semibold text-primary">Ver pacientes</span></button><section className="rounded-[24px] border border-[#ece3f8] bg-white p-4 shadow-[0_8px_24px_#f0e8f8] sm:p-5"><h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-[#2e2344]"><FolderOpen className="text-primary" aria-hidden />Documentos</h2><DriveExplorer /></section></div>;
 }

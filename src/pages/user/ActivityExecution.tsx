@@ -11,7 +11,7 @@ import { logUsageEvent } from '@/data/usageApi';
 interface Props {
   activity: Activity;
   onBack: () => void;
-  onComplete: (id: string) => void;
+  onComplete: (id: string, score?: number) => void;
 }
 
 const isImageIcon = (value?: string) => Boolean(value?.startsWith('http'));
@@ -60,7 +60,7 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
 
   useEffect(() => {
     if (finished && !completionReported) {
-      onComplete(activity.id);
+      onComplete(activity.id, gameResult?.score);
       if (gameResult?.gameType === 'routine-sequence') {
         const result = gameResult as RoutineSequenceResult;
         const assignedActivity = activity as Activity & { assignedActivityId?: string | number };
@@ -95,7 +95,7 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
           <h2 className="text-2xl font-heading font-bold text-[#6b4c9a]">¡Actividad completada!</h2>
           <p className="text-[#8b7aa0] mt-2 max-w-sm">{activity.completionMessage || '¡Excelente trabajo! Seguí así.'}</p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
-            {gameResult?.gameType === 'routine-sequence' && (
+            {gameResult && (
               <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-100 text-purple-700 font-bold">
                 Resultado: {gameResult.score}/100 · ¡Seguí practicando a tu ritmo!
               </span>
