@@ -1,8 +1,8 @@
-import { Activity, CalendarDays, CheckCircle2, ChevronRight, FileText, FolderOpen, Heart, Sparkles, Users } from 'lucide-react';
+import { Activity, CalendarDays, CheckCircle2, ChevronRight, FileText, FolderOpen, Heart, Users } from 'lucide-react';
 import type { Activity as PatientActivity, EmotionalRecord, PersonalNote, ProfessionalSession, User } from '@/data/api';
 
-type HomeTab = 'patients' | 'calendar' | 'documents' | 'resources';
-type Props = {
+type HomeTab = 'patients' | 'calendar' | 'documents';
+export type ProfessionalHomeProps = {
   professionalName: string;
   patients: User[];
   sessions: ProfessionalSession[];
@@ -24,7 +24,7 @@ function avatar(user?: User, size = 'h-8 w-8') {
 function parseTime(value?: string) { const time = Date.parse(value || ''); return Number.isFinite(time) ? time : 0; }
 function relative(value: string) { const diff = Math.max(0, Date.now() - parseTime(value)); const hours = Math.floor(diff / 3_600_000); return hours < 1 ? 'Recién' : hours < 24 ? `Hace ${hours} h` : hours < 48 ? 'Ayer' : `Hace ${Math.floor(hours / 24)} días`; }
 
-export default function ProfessionalHome(props: Props) {
+export default function ProfessionalHome(props: ProfessionalHomeProps) {
   const byPerteneciente = new Map(Object.entries(props.patientPertenecienteIds).map(([userId, id]) => [id, props.patients.find(patient => patient.id === userId)]));
   const upcoming = props.sessions.filter(session => session.estado === 'programada' && parseTime(session.fecha_sesion) >= Date.now() - 3_600_000).sort((a, b) => a.fecha_sesion.localeCompare(b.fecha_sesion));
   const today = new Date().toISOString().slice(0, 10);
@@ -32,17 +32,12 @@ export default function ProfessionalHome(props: Props) {
   const totalActivities = Object.values(props.activitiesByUser).flat();
   const completedActivities = totalActivities.filter(activity => activity.status === 'completada').length;
   const adherence = totalActivities.length ? Math.round(completedActivities / totalActivities.length * 100) : null;
-  const emotions = Object.entries(props.emotionsByUser).flatMap(([userId, rows]) => rows.map(row => ({ ...row, patient: props.patients.find(item => item.id === userId)! }))).filter(item => item.patient).sort((a, b) => `${b.date}T${b.timestamp}`.localeCompare(`${a.date}T${a.timestamp}`));
   const notes = Object.entries(props.notesByUser).flatMap(([userId, rows]) => rows.map(row => ({ ...row, patient: props.patients.find(item => item.id === userId)! }))).filter(item => item.patient).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const recent = [
-    ...emotions.slice(0, 5).map(item => ({ id: `emotion-${item.id}`, title: `Registró ${item.emotion.toLowerCase()}`, detail: 'Registro emocional', date: `${item.date}T${item.timestamp || '12:00'}`, patient: item.patient, icon: Heart, tone: 'bg-rose-50 text-rose-600' })),
-    ...notes.slice(0, 5).map(item => ({ id: `note-${item.id}`, title: item.title || 'Actualizó una nota personal', detail: 'Nota compartida', date: item.createdAt, patient: item.patient, icon: FileText, tone: 'bg-blue-50 text-blue-600' })),
-  ].sort((a, b) => parseTime(b.date) - parseTime(a.date)).slice(0, 6);
 
   return <div className="space-y-6">
     <header><h1 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">Hola, Lic. {props.professionalName.replace(/^Lic\.?\s*/i, '').split(' ')[0]}</h1><p className="mt-2 text-sm text-muted-foreground sm:text-base">Organizá tus pacientes, sesiones y recursos en un solo lugar.</p></header>
 
-    <section aria-label="Áreas principales" className="grid gap-4 md:grid-cols-2">
+    <section aria-label="Áreas principales" className="grid gap-4 md:grid-cols-3">
       <NavigationCard icon={Users} title="Pacientes" text={`${props.patients.length} ${props.patients.length === 1 ? 'paciente vinculado' : 'pacientes vinculados'}`} onClick={() => props.onNavigate('patients')}>
         <div className="flex -space-x-2">{props.patients.slice(0, 5).map(patient => <span key={patient.id} className="rounded-full border-2 border-white">{avatar(patient, 'h-9 w-9')}</span>)}{props.patients.length > 5 && <span className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-primary/10 text-xs font-bold text-primary">+{props.patients.length - 5}</span>}</div>
       </NavigationCard>
@@ -51,9 +46,6 @@ export default function ProfessionalHome(props: Props) {
       </NavigationCard>
       <NavigationCard icon={FolderOpen} title="Documentos y notas" text="Archivos y seguimiento, juntos" onClick={() => props.onNavigate('documents')}>
         {notes[0] ? <div className="flex items-center gap-2 rounded-2xl bg-blue-50/70 p-3">{avatar(notes[0].patient)}<span className="min-w-0"><span className="block truncate text-sm font-semibold">{notes[0].title || 'Última nota compartida'}</span><span className="block truncate text-xs text-muted-foreground">{notes[0].patient.name}</span></span></div> : <SmallEmpty text="Sin notas recientes." />}
-      </NavigationCard>
-      <NavigationCard icon={Sparkles} title="Recursos y herramientas" text="Pictogramas, IA y materiales" onClick={() => props.onNavigate('resources')}>
-        <div className="flex items-center gap-3 rounded-2xl bg-violet-50/75 p-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-primary"><Sparkles size={20} aria-hidden /></span><span><span className="block text-sm font-semibold">Crear con IA</span><span className="block text-xs text-muted-foreground">Herramientas visuales de TÁNDEM</span></span></div>
       </NavigationCard>
     </section>
 
@@ -65,15 +57,23 @@ export default function ProfessionalHome(props: Props) {
       <Card title="Próximas sesiones" icon={CalendarDays} action="Ver calendario" onAction={() => props.onNavigate('calendar')}>
         <div className="divide-y divide-border">{upcoming.slice(0, 5).map(session => <button key={session.id} type="button" onClick={() => props.onNavigate('calendar')} className="grid min-h-16 w-full grid-cols-[58px_1fr_auto] items-center gap-3 py-2 text-left hover:bg-primary/[.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="text-xs font-bold text-primary">{new Date(session.fecha_sesion).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span><span className="min-w-0"><span className="block truncate text-sm font-semibold">{session.titulo}</span><span className="block text-xs text-muted-foreground">{session.duracion_minutos} min · {session.estado}</span></span><Person patient={byPerteneciente.get(Number(session.id_perteneciente))} /></button>)}{!upcoming.length && <SmallEmpty text="Todavía no hay sesiones programadas." />}</div>
       </Card>
-      <Card title="Actividad reciente" icon={Activity} action="Ver pacientes" onAction={() => props.onNavigate('patients')}>
-        <div className="divide-y divide-border">{recent.map(item => <button key={item.id} type="button" onClick={() => props.onOpenPatient(item.patient.id)} aria-label={`${item.title}. Abrir perfil de ${item.patient.name}`} className="flex min-h-14 w-full items-center gap-3 py-2 text-left hover:bg-primary/[.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${item.tone}`}><item.icon size={18} aria-hidden /></span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{item.title}</span><span className="block truncate text-xs text-muted-foreground">{item.detail}</span></span><Person patient={item.patient} /><span className="hidden text-xs text-muted-foreground sm:block">{relative(item.date)}</span></button>)}{!recent.length && <SmallEmpty text="Sin actividad reciente disponible." />}</div>
-      </Card>
-      <Card title="Estado emocional reciente" icon={Heart}>
-        {emotions.length ? <><div className="flex flex-wrap gap-2">{emotions.slice(0, 8).map(item => <div key={`${item.patient.id}-${item.id}`} className="flex items-center gap-2 rounded-2xl border border-rose-100 bg-rose-50/45 p-2"><span className="text-2xl" role="img" aria-label={item.emotion}>{item.emoji || '🙂'}</span><span><span className="block text-xs font-semibold">{item.emotion}</span><span className="block text-[11px] text-muted-foreground">{item.patient.name.split(' ')[0]} · {item.intensity}/5</span></span></div>)}</div><p className="mt-4 text-xs text-muted-foreground">Resumen descriptivo de registros compartidos; no representa una evaluación clínica.</p></> : <SmallEmpty text="No hay registros emocionales disponibles." />}
-      </Card>
     </div>
   </div>;
 }
+
+export function ProfessionalRecentActivity({ patients, emotionsByUser, notesByUser, onOpenPatient }: Pick<ProfessionalHomeProps, 'patients' | 'emotionsByUser' | 'notesByUser' | 'onOpenPatient'>) {
+  const emotions = Object.entries(emotionsByUser).flatMap(([userId, rows]) => rows.map(row => ({ ...row, patient: patients.find(item => item.id === userId)! }))).filter(item => item.patient);
+  const notes = Object.entries(notesByUser).flatMap(([userId, rows]) => rows.map(row => ({ ...row, patient: patients.find(item => item.id === userId)! }))).filter(item => item.patient);
+  const recent = [...emotions.slice(0, 8).map(item => ({ id: `emotion-${item.id}`, title: `Registró ${item.emotion.toLowerCase()}`, detail: 'Registro emocional', date: `${item.date}T${item.timestamp || '12:00'}`, patient: item.patient, icon: Heart, tone: 'bg-primary/10 text-primary' })), ...notes.slice(0, 8).map(item => ({ id: `note-${item.id}`, title: item.title || 'Actualizó una nota personal', detail: 'Nota compartida', date: item.createdAt, patient: item.patient, icon: FileText, tone: 'bg-primary/10 text-primary' }))].sort((a, b) => parseTime(b.date) - parseTime(a.date));
+  return <div className="space-y-5"><PageHeading title="Actividad reciente" subtitle="Últimos registros y notas compartidas por tus pacientes." /><Card title="Actividad reciente" icon={Activity}><div className="divide-y divide-border">{recent.map(item => <button key={item.id} type="button" onClick={() => onOpenPatient(item.patient.id)} aria-label={`${item.title}. Abrir perfil de ${item.patient.name}`} className="flex min-h-16 w-full items-center gap-3 py-3 text-left hover:bg-primary/[.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${item.tone}`}><item.icon size={19} aria-hidden /></span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{item.title}</span><span className="block truncate text-xs text-muted-foreground">{item.detail}</span></span><Person patient={item.patient} /><span className="hidden text-xs text-muted-foreground sm:block">{relative(item.date)}</span></button>)}{!recent.length && <SmallEmpty text="Sin actividad reciente disponible." />}</div></Card></div>;
+}
+
+export function ProfessionalEmotionalStatus({ patients, emotionsByUser }: Pick<ProfessionalHomeProps, 'patients' | 'emotionsByUser'>) {
+  const emotions = Object.entries(emotionsByUser).flatMap(([userId, rows]) => rows.map(row => ({ ...row, patient: patients.find(item => item.id === userId)! }))).filter(item => item.patient).sort((a, b) => `${b.date}T${b.timestamp}`.localeCompare(`${a.date}T${a.timestamp}`));
+  return <div className="space-y-5"><PageHeading title="Estado emocional" subtitle="Registros emocionales recientes compartidos por tus pacientes." /><Card title="Estado emocional reciente" icon={Heart}>{emotions.length ? <><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{emotions.map(item => <div key={`${item.patient.id}-${item.id}`} className="flex items-center gap-3 rounded-2xl border border-primary/10 bg-primary/[.035] p-3"><span className="text-2xl" role="img" aria-label={item.emotion}>{item.emoji || '🙂'}</span><span className="min-w-0"><span className="block truncate text-sm font-semibold">{item.emotion}</span><span className="block truncate text-xs text-muted-foreground">{item.patient.name} · {item.intensity}/5</span></span></div>)}</div><p className="mt-4 text-xs text-muted-foreground">Resumen descriptivo de registros compartidos; no representa una evaluación clínica.</p></> : <SmallEmpty text="No hay registros emocionales disponibles." />}</Card></div>;
+}
+
+function PageHeading({ title, subtitle }: { title: string; subtitle: string }) { return <header><h1 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">{title}</h1><p className="mt-2 text-sm text-muted-foreground sm:text-base">{subtitle}</p></header>; }
 
 function NavigationCard({ icon: Icon, title, text, onClick, children }: { icon: typeof Users; title: string; text: string; onClick: () => void; children: React.ReactNode }) { return <button type="button" onClick={onClick} className="group min-h-48 rounded-[28px] border border-white/80 bg-white/90 p-5 text-left shadow-[0_12px_36px_rgba(70,45,96,.075)] transition hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="flex items-start gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Icon size={22} aria-hidden /></span><span className="min-w-0 flex-1"><span className="block text-lg font-bold">{title}</span><span className="mt-1 block text-sm text-muted-foreground">{text}</span></span><ChevronRight className="text-primary transition-transform group-hover:translate-x-0.5" aria-hidden /></span><span className="mt-5 block">{children}</span></button>; }
 function Card({ title, icon: Icon, action, onAction, children }: { title: string; icon: typeof Users; action?: string; onAction?: () => void; children: React.ReactNode }) { return <section className="rounded-[26px] border border-white/80 bg-white/90 p-4 shadow-[0_12px_36px_rgba(70,45,96,.075)] sm:p-5"><header className="mb-4 flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Icon size={20} aria-hidden /></span><h2 className="min-w-0 flex-1 text-lg font-bold">{title}</h2>{action && <button type="button" onClick={onAction} className="min-h-11 rounded-xl px-2 text-sm font-semibold text-primary hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{action}</button>}</header>{children}</section>; }
