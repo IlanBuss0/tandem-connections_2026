@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { KeyRound, Loader2, Mail, ShieldCheck } from 'lucide-react';
+import { ChevronRight, KeyRound, Loader2, Mail, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,7 +10,7 @@ import { tandemApi } from '@/services/api';
 
 const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 
-export default function AccountSecuritySettings({ className = '' }: { className?: string }) {
+export default function AccountSecuritySettings({ className = '', compact = false }: { className?: string; compact?: boolean }) {
   const { user, refreshUser, logout } = useAuth();
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
@@ -59,11 +59,11 @@ export default function AccountSecuritySettings({ className = '' }: { className?
     finally { setLoading(false); }
   };
 
-  return <section className={`rounded-3xl border border-border/80 bg-card p-5 shadow-sm sm:p-6 ${className}`}>
-    <div className="mb-5 flex items-start gap-4"><span className="rounded-2xl bg-primary/10 p-3 text-primary"><ShieldCheck aria-hidden /></span><div><h2 className="text-lg font-bold">Seguridad de la cuenta</h2><p className="text-sm text-muted-foreground">Administrá tu contraseña y el correo con el que ingresás.</p></div></div>
-    <div className="grid gap-3 sm:grid-cols-2">
-      <button type="button" onClick={() => setPasswordOpen(true)} className="flex items-center gap-3 rounded-2xl border p-4 text-left transition hover:bg-muted/50"><KeyRound className="text-primary" /><span><strong className="block">Cambiar contraseña</strong><small className="text-muted-foreground">Requiere tu contraseña actual.</small></span></button>
-      <button type="button" onClick={() => { setNewEmail(user.email); setEmailOpen(true); }} className="flex items-center gap-3 rounded-2xl border p-4 text-left transition hover:bg-muted/50"><Mail className="text-primary" /><span className="min-w-0"><strong className="block">Cambiar correo</strong><small className="block truncate text-muted-foreground">{user.email}</small></span></button>
+  return <section className={`${compact ? '' : 'rounded-[28px] border border-white/80 bg-white/90 p-5 shadow-[0_12px_36px_rgba(70,45,96,.075)] sm:p-6'} ${className}`}>
+    {!compact && <div className="mb-5 flex items-start gap-4"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary"><ShieldCheck aria-hidden /></span><div><p className="text-xs font-bold uppercase tracking-[.14em] text-primary">Cuenta protegida</p><h2 className="mt-0.5 text-xl font-bold">Correo y contraseña</h2><p className="mt-1 text-sm text-muted-foreground">Los cambios sensibles se realizan en ventanas separadas y requieren verificación.</p></div></div>}
+    <div className="grid grid-cols-2 gap-3">
+      <button type="button" onClick={() => setPasswordOpen(true)} className="group relative flex min-h-36 flex-col items-start gap-3 rounded-[22px] border border-border/70 bg-muted/20 p-4 pr-8 text-left transition hover:-translate-y-0.5 hover:border-primary/20 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-24 sm:flex-row sm:items-center"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-primary shadow-sm"><KeyRound size={20} /></span><span className="min-w-0 flex-1"><strong className="block">Cambiar contraseña</strong><small className="text-muted-foreground">Actual y nueva dos veces.</small></span><ChevronRight size={18} className="absolute bottom-4 right-3 text-muted-foreground transition-transform group-hover:translate-x-0.5 sm:static" /></button>
+      <button type="button" onClick={() => { setNewEmail(user.email); setEmailOpen(true); }} className="group relative flex min-h-36 flex-col items-start gap-3 rounded-[22px] border border-border/70 bg-muted/20 p-4 pr-8 text-left transition hover:-translate-y-0.5 hover:border-primary/20 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-24 sm:flex-row sm:items-center"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-primary shadow-sm"><Mail size={20} /></span><span className="min-w-0 flex-1"><strong className="block">Cambiar correo</strong><small className="block max-w-full truncate text-muted-foreground">{user.email}</small></span><ChevronRight size={18} className="absolute bottom-4 right-3 text-muted-foreground transition-transform group-hover:translate-x-0.5 sm:static" /></button>
     </div>
 
     <Dialog open={passwordOpen} onOpenChange={open => { setPasswordOpen(open); if (!open) resetPasswordFields(); }}><DialogContent className="max-w-md rounded-3xl"><DialogHeader><DialogTitle>Cambiar contraseña</DialogTitle><DialogDescription>Ingresá la contraseña anterior y escribí dos veces la nueva.</DialogDescription></DialogHeader><form onSubmit={changePassword} className="space-y-4"><Field label="Contraseña actual"><Input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} autoComplete="current-password" required /></Field><Field label="Nueva contraseña"><Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} autoComplete="new-password" required /></Field><Field label="Repetir nueva contraseña"><Input type="password" value={confirmation} onChange={e => setConfirmation(e.target.value)} autoComplete="new-password" required /></Field><button type="button" onClick={forgotPassword} disabled={loading} className="text-sm font-semibold text-primary hover:underline">Olvidé mi contraseña</button><DialogFooter><Button type="submit" disabled={loading}>{loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar contraseña</Button></DialogFooter></form></DialogContent></Dialog>

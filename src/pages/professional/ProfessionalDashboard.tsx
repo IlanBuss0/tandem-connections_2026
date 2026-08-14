@@ -638,7 +638,7 @@ export default function ProfessionalDashboard() {
         {tab === 'resources' && <ProfessionalResourceHub onNavigate={navigate} />}
         {tab === 'pictograms' && <AiPictogramStudio />}
         {tab === 'pictogramCatalog' && <UserPictograms />}
-        {tab === 'profile' && <ProfessionalProfileSettings />}
+        {tab === 'profile' && <ProfessionalProfileSettings patients={linkedUsers} />}
         {tab === 'about' && <AboutTandem />}
 
         {tab === 'tools' && (
