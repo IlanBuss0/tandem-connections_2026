@@ -17,7 +17,7 @@ export default function ProfessionalAccountPanel({ open, name, avatar, onClose, 
   }, [open, onClose]);
   const go = (tab: string) => { onClose(); onNavigate(tab); };
   const sections = [
-    { title: 'Mi perfil', items: [{ label: 'Perfil profesional', icon: UserRound, tab: 'profile' }] },
+    { title: 'Mi perfil', items: [{ label: 'Perfil y seguridad', icon: UserRound, tab: 'profile' }] },
     { title: 'Preferencias', items: [{ label: 'Accesibilidad', icon: Accessibility, tab: 'accessibility' }] },
     { title: 'Tándem', items: [{ label: 'Documentos', icon: FileText, tab: 'documents' }, { label: 'Acerca de TÁNDEM', icon: Info, tab: 'about' }] },
   ];
