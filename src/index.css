@@ -122,4 +122,10 @@
   .professional-surface textarea,
   .professional-surface select { border-radius: 1rem; }
   .professional-surface button { transition-duration: 200ms; }
+  .professional-surface .gradient-primary {
+    background: linear-gradient(135deg, #6f4ca6, #8b65bd);
+  }
+  .professional-surface :where(button, a):focus-visible {
+    outline-color: #6f4ca6;
+  }
 }
