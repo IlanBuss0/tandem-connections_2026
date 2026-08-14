@@ -236,7 +236,6 @@ export default function AppShell() {
       case "profile":
         return editingProfilePersonalData ? (
           <UserProfileSettings
-            mode="personal"
             onBack={() => setEditingProfilePersonalData(false)}
           />
         ) : (
