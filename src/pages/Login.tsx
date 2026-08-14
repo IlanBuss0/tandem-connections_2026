@@ -324,6 +324,8 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
                   onTogglePassword={() => setShowPassword(prev => !prev)}
                 />
 
+                <a href="/olvidaste-contrasena" className="block text-right text-sm font-semibold text-[#6F518E] underline-offset-4 hover:underline">¿Olvidaste tu contraseña?</a>
+
                 <Feedback message={error} />
 
                 <AuthActionButton type="submit">Iniciar sesión</AuthActionButton>
