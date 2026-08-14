@@ -20,7 +20,6 @@ import ProfessionalPatientOverview from '@/components/ProfessionalPatientOvervie
 import ChatScreen from '@/components/ChatScreen';
 import { ChatProvider } from '@/contexts/ChatContext';
 import AppHeader from '@/components/AppHeader';
-import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
 import ProfessionalReportsPanel from '@/components/ProfessionalReportsPanel';
 import ProfessionalPrivateNote from '@/components/ProfessionalPrivateNote';
@@ -28,7 +27,7 @@ import SessionCard from '@/components/SessionCard';
 import SessionSeriesFolder from '@/components/SessionSeriesFolder';
 import DriveExplorer from '@/components/DriveExplorer';
 import ProfessionalCalendar from '@/components/ProfessionalCalendar';
-import ProfessionalHome from '@/components/ProfessionalHome';
+import ProfessionalHome, { ProfessionalEmotionalStatus, ProfessionalRecentActivity } from '@/components/ProfessionalHome';
 import ProfessionalProfileSettings from '@/components/ProfessionalProfileSettings';
 import UserNotifications from '@/pages/user/UserNotifications';
 import { isPermissionEnabled, PROFESIONAL_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
@@ -39,7 +38,7 @@ import UserPictograms from '@/pages/user/UserPictograms';
 import { useToast } from '@/components/ui/use-toast';
 import { useSyncMobileMenuOpen } from '@/contexts/MobileMenuState';
 import BelongingMobileBottomNav, { type MobileDestination } from '@/components/belonging/BelongingMobileBottomNav';
-import { ProfessionalDrawer, ProfessionalProfileDrawer, ProfessionalQuickMenu, type ProfessionalTab, type ProfessionalQuickAction } from '@/components/professional/ProfessionalNavigation';
+import { ProfessionalAccountMenu, ProfessionalDrawer, ProfessionalQuickMenu, type ProfessionalTab, type ProfessionalQuickAction } from '@/components/professional/ProfessionalNavigation';
 import { useProfessionalNavigation } from '@/hooks/useProfessionalNavigation';
 
 function nextSessionForPatient(sessions: ProfessionalSession[], pertenecienteId: number | undefined) {
@@ -286,30 +285,30 @@ export default function ProfessionalDashboard() {
     navigateRoute('patients', { patientId: userId }); setSelectedPatient(userId); setPatientTab('overview'); setMenuOpen(false); setProfileOpen(false); setQuickOpen(false);
     window.scrollTo({ top: 0, behavior: 'auto' });
   };
-  const professionalPageTitle = selectedPatient && patientDetail ? patientDetail.name : ({ home: 'Inicio', calendar: 'Calendario', patients: 'Pacientes', chat: 'Chats', notifications: 'Notificaciones', documents: 'Documentos y notas', create: 'Actividades', resources: 'Recursos y herramientas', reports: 'Reportes', tools: 'Herramientas', profile: 'Perfil', about: 'Acerca de TÁNDEM', pictograms: 'Pictograma IA', pictogramCatalog: 'Pictogramas' } satisfies Record<ProfessionalTab, string>)[tab];
+  const professionalPageTitle = selectedPatient && patientDetail ? patientDetail.name : ({ home: 'Inicio', calendar: 'Calendario', patients: 'Pacientes', chat: 'Chats', notifications: 'Notificaciones', documents: 'Documentos y notas', create: 'Actividades', resources: 'Recursos y herramientas', recentActivity: 'Actividad reciente', emotionalStatus: 'Estado emocional', reports: 'Reportes', tools: 'Herramientas', profile: 'Perfil', about: 'Acerca de TÁNDEM', pictograms: 'Pictograma IA', pictogramCatalog: 'Pictogramas' } satisfies Record<ProfessionalTab, string>)[tab];
 
   return (
-    <div className="min-h-dvh overflow-x-hidden bg-[radial-gradient(circle_at_88%_4%,rgba(220,203,245,0.42),transparent_24rem),linear-gradient(180deg,#fbf9ff_0%,#f8f7fc_100%)] pb-24 lg:pb-0">
+    <div className="professional-surface min-h-dvh overflow-x-hidden bg-[radial-gradient(circle_at_88%_4%,rgba(220,203,245,0.42),transparent_24rem),linear-gradient(180deg,#fbf9ff_0%,#f8f7fc_100%)] pb-24 lg:pb-0">
       <a href="#professional-main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-[100] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2">Saltar al contenido</a>
       <AppHeader
-        onMenuClick={() => setMenuOpen(true)}
+        onMenuClick={() => { setProfileOpen(false); setQuickOpen(false); setMenuOpen(true); }}
         onLogoClick={() => navigate('home')}
         onBack={tab !== 'home' ? () => { if (selectedPatient) { goBack('patients'); } else { goBack('home'); } } : undefined}
         mobileBackOnly
+        showMenuWithBack
         contextTitle={professionalPageTitle}
-        menuButtonClassName="invisible pointer-events-none lg:visible lg:pointer-events-auto"
         rightSlot={
-          <div className="flex items-center gap-2"><NotificationBellButton count={unreadCount} onClick={() => navigate('notifications')} className="border-0 bg-transparent" /><button type="button" onClick={() => setProfileOpen(true)} aria-label="Abrir perfil profesional" className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><HeaderUserAvatar avatar={user.avatar} name={user.name} /></button></div>
+          <div className="flex items-center gap-2"><NotificationBellButton count={unreadCount} onClick={() => { setMenuOpen(false); setProfileOpen(false); navigate('notifications'); }} className="border-0 bg-transparent text-primary hover:bg-primary/10" /><ProfessionalAccountMenu open={profileOpen} onOpenChange={(open) => { setProfileOpen(open); if (open) { setMenuOpen(false); setQuickOpen(false); } }} user={user} onNavigate={navigate} onLogout={logout} /></div>
         }
       />
 
       <ProfessionalDrawer open={menuOpen} active={tab} permissions={navigationPermissions} onClose={() => setMenuOpen(false)} onNavigate={navigate} onLogout={logout} />
-      <ProfessionalProfileDrawer open={profileOpen} active={tab} user={user} permissions={navigationPermissions} onClose={() => setProfileOpen(false)} onNavigate={navigate} onLogout={logout} />
-
-      <main id="professional-main" tabIndex={-1} className="mx-auto w-full max-w-[1280px] space-y-5 px-4 py-6 max-lg:pb-28 sm:px-6 lg:px-8 lg:py-9">
+      <main id="professional-main" tabIndex={-1} className="mx-auto w-full max-w-[1536px] space-y-5 px-4 py-6 max-lg:pb-28 sm:px-6 lg:px-8 lg:py-9 xl:px-10">
         {tab === 'home' && loadingPatients && <ProfessionalHomeSkeleton />}
         {tab === 'home' && !loadingPatients && patientsError && <div role="alert" className="rounded-3xl border border-destructive/20 bg-white p-6 text-sm text-destructive shadow-sm">{patientsError}<Button type="button" variant="outline" className="ml-3" onClick={reloadPatients}>Reintentar</Button></div>}
         {tab === 'home' && !loadingPatients && !patientsError && <ProfessionalHome professionalName={user.name} patients={linkedUsers} sessions={sessions} activitiesByUser={activitiesByUser} emotionsByUser={emotionsByUser} notesByUser={notesByUser} patientPertenecienteIds={Object.fromEntries(linkedUsers.map(patient => [patient.id, Number(linkForUser(patient.id)?.perteneciente.id)]))} onNavigate={navigate} onOpenPatient={openPatient} />}
+        {tab === 'recentActivity' && <ProfessionalRecentActivity patients={linkedUsers} emotionsByUser={emotionsByUser} notesByUser={notesByUser} onOpenPatient={openPatient} />}
+        {tab === 'emotionalStatus' && <ProfessionalEmotionalStatus patients={linkedUsers} emotionsByUser={emotionsByUser} />}
         {tab === 'chat' && canSendMessages && (
           <ChatProvider>
             <ChatScreen

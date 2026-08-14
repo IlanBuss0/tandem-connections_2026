@@ -57,6 +57,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { aiPictogramsApi } from "@/services/ai-pictograms";
 import RoutineSequenceEditor from "@/components/RoutineSequenceEditor";
 import { emptyRoutineSequence, validateRoutineSequence } from "@/data/routineSequence";
+import ResourceScenarioEditor from "@/components/ResourceScenarioEditor";
+import { emptyResourceScenario, isShoppingBudgetScenario, validateResourceScenario } from "@/data/resourceScenario";
 import {
   dragAnswerLetters,
   dragAnswerWords,
@@ -1755,7 +1757,7 @@ export default function ActivityBuilder({
     setForm((prev) => ({
       ...prev,
       title: "",
-      category: gameType === "routine-sequence" ? "autonomía personal" : "comunicación",
+      category: gameType === "routine-sequence" ? "autonomía personal" : gameType === "resource-scenario" ? "compras" : "comunicación",
       type: "juego",
       difficulty: "fácil",
       duration: "5 min",
@@ -1830,6 +1832,14 @@ export default function ActivityBuilder({
   const canNext = !errors[step];
 
   const persist = async (publishNow: boolean) => {
+    if (publishNow && form.gameType === "resource-scenario") {
+      const scenarioError = validateResourceScenario(form.gameData?.resourceScenario);
+      if (scenarioError) {
+        toast({ title: isShoppingBudgetScenario(form.gameData?.resourceScenario) ? "La compra está incompleta" : "La simulación está incompleta", description: scenarioError, variant: "destructive" });
+        setStep(2);
+        return;
+      }
+    }
     if (publishNow && form.gameType === "routine-sequence") {
       const routineError = validateRoutineSequence(form.gameData?.routineSequence);
       if (routineError) {
@@ -2447,12 +2457,23 @@ export default function ActivityBuilder({
                     onChange={(routineSequence) => setForm((prev) => ({ ...prev, gameData: { ...(prev.gameData || {}), routineSequence } }))}
                   />
                 )}
+                {form.gameType === "resource-scenario" && (
+                  <ResourceScenarioEditor
+                    value={form.gameData?.resourceScenario || emptyResourceScenario()}
+                    targetUsuarioId={form.assignedToIds[0]}
+                    onChange={(resourceScenario) => setForm((prev) => ({
+                      ...prev,
+                      gameData: { ...(prev.gameData || {}), resourceScenario },
+                    }))}
+                  />
+                )}
                 {form.gameType &&
                   form.gameType !== "multiple-choice" &&
                   form.gameType !== "drag-word" &&
                   form.gameType !== "wheel" &&
                   form.gameType !== "memory" &&
-                  form.gameType !== "routine-sequence" && (
+                  form.gameType !== "routine-sequence" &&
+                  form.gameType !== "resource-scenario" && (
                     <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <div>
