@@ -22,9 +22,11 @@ import { useCalendarPictograms } from '@/hooks/useCalendarPictograms';
 import BelongingHomeSecondaryAccess from '@/components/belonging/BelongingHomeSecondaryAccess';
 import { useEmotions } from '@/contexts/EmotionsContext';
 import { useWallet } from '@/contexts/WalletContext';
+import { ACTIVITY_STATUS_CHANGED_EVENT } from '@/lib/activityEvents';
+import { isPendingActivity } from '@/lib/activityStatus';
 
 interface Props {
-  onNavigate?: (tab: string) => void;
+  onNavigate?: (tab: string, params?: Record<string, string>) => void;
 }
 
 
@@ -95,6 +97,7 @@ export default function UserHome({ onNavigate }: Props) {
   const [secondaryContentReady, setSecondaryContentReady] = useState(false);
   useCalendarPictograms(secondaryContentReady ? selectedDayEvents : []);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const pointerDragRef = useRef({ pointerId: -1, startX: 0, scrollLeft: 0, dragged: false });
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
   const [note, setNote] = useState('');
@@ -200,45 +203,42 @@ export default function UserHome({ onNavigate }: Props) {
     let mounted = true;
     if (!user || user.role !== 'user') return;
 
-    setLoading(true);
-    setError('');
-    loadPertenecienteHome(user.id, (activities) => {
-      if (mounted) setHome(current => ({ ...current, activities }));
-    })
-      .then(data => {
-        if (!mounted) return;
-        setHome(data);
+    const refresh = () => {
+      setLoading(true);
+      setError('');
+      void loadPertenecienteHome(user.id, (activities) => {
+        if (mounted) setHome(current => ({ ...current, activities }));
       })
-      .catch(() => {
-        if (!mounted) return;
-        setHome(emptyHome);
-        setError('No pude cargar tus datos del backend local.');
-      })
-      .finally(() => {
-        if (mounted) setLoading(false);
-      });
+        .then(data => {
+          if (!mounted) return;
+          setHome(data);
+        })
+        .catch(() => {
+          if (!mounted) return;
+          setHome(emptyHome);
+          setError('No pude cargar tus datos del backend local.');
+        })
+        .finally(() => {
+          if (mounted) setLoading(false);
+        });
+    };
 
-    return () => { mounted = false; };
-  }, [user?.id, user?.role]);
+    refresh();
+    window.addEventListener(ACTIVITY_STATUS_CHANGED_EVENT, refresh);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener(ACTIVITY_STATUS_CHANGED_EVENT, refresh);
+    };
+  }, [user]);
 
   const firstName = user?.name.split(' ')[0] || user?.username || '';
   const today = new Date();
   const todayKey = fmt(today);
 
   const pendingActivities = useMemo(() => {
-    const real = home.activities.filter(a => !a.completed);
-    if (real.length > 0 || loading) return real;
-    const demoCompleted = localStorage.getItem('tandem:demo-completed') === 'true';
-    if (demoCompleted) return [];
-    return [{
-      id: `demo-pictogramas-${user?.id || 'anon'}`,
-      title: 'Preparar una merienda con pictogramas',
-      description: 'Usar apoyos visuales para seguir una rutina simple',
-      status: 'Pendiente',
-      completed: false,
-      assignedAt: 'Hoy',
-    }] as PertenecienteHomeActivity[];
-  }, [home.activities, loading, user]);
+    return home.activities.filter(isPendingActivity);
+  }, [home.activities]);
 
   const weekDays = useMemo(() =>
     Array.from({ length: 7 }, (_, i) => {
@@ -280,6 +280,46 @@ export default function UserHome({ onNavigate }: Props) {
     const scrollAmount = dir === 'left' ? -(cardWidth + CARD_GAP) : (cardWidth + CARD_GAP);
     el.scrollBy({ left: scrollAmount, behavior: 'smooth' });
   }, []);
+
+  const handleCarouselPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== 'mouse' || event.button !== 0 || !scrollRef.current) return;
+    pointerDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      scrollLeft: scrollRef.current.scrollLeft,
+      dragged: false,
+    };
+  }, []);
+
+  const handleCarouselPointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = pointerDragRef.current;
+    if (event.pointerType !== 'mouse' || drag.pointerId !== event.pointerId || !scrollRef.current) return;
+    const delta = event.clientX - drag.startX;
+    if (Math.abs(delta) > 6 && !drag.dragged) {
+      drag.dragged = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+    if (drag.dragged) {
+      event.preventDefault();
+      scrollRef.current.scrollLeft = drag.scrollLeft - delta;
+    }
+  }, []);
+
+  const handleCarouselPointerEnd = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (pointerDragRef.current.pointerId !== event.pointerId) return;
+    pointerDragRef.current.pointerId = -1;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }, []);
+
+  const openActivity = useCallback((activityId: string) => {
+    if (pointerDragRef.current.dragged) {
+      pointerDragRef.current.dragged = false;
+      return;
+    }
+    onNavigate?.('activities', { activityId });
+  }, [onNavigate]);
 
   if (!user || user.role !== 'user') return null;
 
@@ -515,16 +555,29 @@ export default function UserHome({ onNavigate }: Props) {
           ) : pendingActivities.length === 0 ? (
             <div className="py-4 text-sm text-[#4a4a5a]">No tenés actividades pendientes.</div>
           ) : (
-            <div ref={scrollRef} className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3 pr-[12%] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:pr-[8%] lg:pr-6">
+            <div
+              ref={scrollRef}
+              onPointerDown={handleCarouselPointerDown}
+              onPointerMove={handleCarouselPointerMove}
+              onPointerUp={handleCarouselPointerEnd}
+              onPointerCancel={handleCarouselPointerEnd}
+              className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3 pr-[12%] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:pr-[8%] lg:pr-6"
+            >
               {pendingActivities.slice(0, 6).map((activity) => (
-                <article key={activity.id} className="flex min-h-[180px] min-w-[82%] snap-start flex-col rounded-[20px] border border-[#ece3f8] bg-[#fcf9ff] p-5 shadow-sm sm:min-w-[46%] lg:min-w-[31%]">
+                <button
+                  key={activity.id}
+                  type="button"
+                  onClick={() => openActivity(activity.id)}
+                  aria-label={`Abrir actividad: ${activity.title}`}
+                  className="flex min-h-[180px] min-w-[82%] cursor-pointer snap-start flex-col rounded-[20px] border border-[#ece3f8] bg-[#fcf9ff] p-5 text-left shadow-sm transition-[transform,box-shadow,border-color,background-color] duration-200 hover:-translate-y-0.5 hover:border-[#d9c7ed] hover:bg-[#faf5ff] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed] focus-visible:ring-offset-2 sm:min-w-[46%] lg:min-w-[31%]"
+                >
                   <div className="flex items-start justify-between gap-3">
                     <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${statusStyle(activity.status)}`}>{activity.status}</span>
                     <span className="text-[10px] font-medium text-[#8b7aa0]">{activity.assignedAt}</span>
                   </div>
                   <h4 className="mt-5 break-words text-base font-bold leading-6 text-[#3f3153]">{activity.title}</h4>
                   <p className="mt-2 line-clamp-3 break-words text-sm leading-5 text-[#756a82]">{activity.description}</p>
-                </article>
+                </button>
               ))}
             </div>
           )}

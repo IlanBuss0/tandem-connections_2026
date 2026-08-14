@@ -263,7 +263,7 @@ export function CustomActivitiesProvider({ children }: { children: ReactNode }) 
   const complete: Ctx['complete'] = useCallback(async (id, userId) => {
     const activity = items.find(a => a.id === id);
     if (activity) {
-      await completeAssignedActivity(activity, userId).catch(() => undefined);
+      await completeAssignedActivity(activity, userId);
     }
     setItems(prev => prev.map(a => a.id === id ? { ...a, status: 'completada', progress: 100, updatedAt: Date.now() } : a));
   }, [items]);
