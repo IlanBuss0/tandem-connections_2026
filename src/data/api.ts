@@ -1637,13 +1637,12 @@ export async function fetchActivitiesForUser(userId: string): Promise<Activity[]
   }
 }
 
-export async function completeAssignedActivity(activity: Activity, userId: string): Promise<void> {
+export async function completeAssignedActivity(activity: Activity, userId: string, score?: number): Promise<void> {
   if (!isBackendUserId(userId)) {
     legacy.completeActivityForUser(activity.id, userId);
     notifyActivityStatusChanged(activity.id);
     return;
   }
-
   let assignedActivityId = Number((activity as any).assignedActivityId || activity.id);
   if (!Number.isFinite(assignedActivityId)) {
     const numericUserId = Number(userId);
@@ -1662,20 +1661,7 @@ export async function completeAssignedActivity(activity: Activity, userId: strin
   }
   if (!Number.isFinite(assignedActivityId)) return;
 
-  const token = getStoredAuthToken();
-  const [assignment, estados] = await Promise.all([
-    tandemApi.actividadesAsignadas.getById(assignedActivityId, { token }),
-    tandemApi.estadosActividades.getAll(),
-  ]);
-  const completedStatus = (estados as DbEstadoActividad[]).find(item =>
-    item.nombre.toLowerCase().includes('complet')
-  );
-
-  await tandemApi.actividadesAsignadas.update(assignedActivityId, {
-    ...assignment,
-    id_estado_actividad: completedStatus?.id || 3,
-    fecha_completada: new Date().toISOString(),
-  }, { token });
+  await tandemApi.actividadesAsignadas.complete(assignedActivityId, score);
   notifyActivityStatusChanged(assignedActivityId);
 }
 
