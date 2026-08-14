@@ -193,6 +193,16 @@ export const authApi = {
     return unwrapApiData(response);
   },
 
+  async forgotPassword(correo: string): Promise<{ sent: boolean }> {
+    const response = await apiRequest<ApiEnvelope<{ sent: boolean }>>("/api/auth/forgot-password", { method: "POST", body: { correo } });
+    return unwrapApiData(response);
+  },
+
+  async resetPassword(payload: { token: string; contrasena_nueva: string }): Promise<{ changed: boolean }> {
+    const response = await apiRequest<ApiEnvelope<{ changed: boolean }>>("/api/auth/reset-password", { method: "POST", body: payload });
+    return unwrapApiData(response);
+  },
+
   async getTutorAccount(): Promise<TutorAccount> {
     const response = await apiRequest<ApiEnvelope<TutorAccount>>("/api/auth/tutor-account");
     return unwrapApiData(response);
@@ -208,6 +218,14 @@ export const authApi = {
 
   async changePassword(payload: { contrasena_actual: string; contrasena_nueva: string }): Promise<{ changed: boolean }> {
     const response = await apiRequest<ApiEnvelope<{ changed: boolean }>>("/api/auth/password", {
+      method: "PATCH",
+      body: payload,
+    });
+    return unwrapApiData(response);
+  },
+
+  async changeEmail(payload: { contrasena_actual: string; correo_nuevo: string }): Promise<{ correo: string; email_verificado: boolean }> {
+    const response = await apiRequest<ApiEnvelope<{ correo: string; email_verificado: boolean }>>("/api/auth/email", {
       method: "PATCH",
       body: payload,
     });

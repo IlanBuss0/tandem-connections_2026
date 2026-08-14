@@ -34,6 +34,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { toast } from '@/hooks/ui/use-toast';
+import AccountSecuritySettings from '@/components/account/AccountSecuritySettings';
 
 // =============================================================
 // SUPER ADMIN / GOD MODE DASHBOARD — fully functional, real data
@@ -1289,6 +1290,7 @@ function SystemSection({ tick }: { tick: number }) {
   const storageBytes = storageEntries.reduce((s, k) => s + (localStorage.getItem(k)?.length || 0), 0);
   return (
     <div className="row g-3">
+      <div className="col-12"><AccountSecuritySettings className="text-slate-900" /></div>
       <div className="col-12 col-xl-8">
         <Panel title="Infra · simulated nodes">
           <div className="row g-2">
