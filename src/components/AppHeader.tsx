@@ -10,6 +10,7 @@ type AppHeaderProps = {
   menuButtonClassName?: string;
   onLogoClick?: () => void;
   mobileBackOnly?: boolean;
+  showMenuWithBack?: boolean;
   contextTitle?: string;
 };
 
@@ -22,6 +23,7 @@ export default function AppHeader({
   menuButtonClassName = '',
   onLogoClick,
   mobileBackOnly = false,
+  showMenuWithBack = false,
   contextTitle,
 }: AppHeaderProps) {
   const positionClass = position === 'fixed' ? 'fixed' : 'sticky';
@@ -40,7 +42,7 @@ export default function AppHeader({
           >
             <ChevronLeft size={24} strokeWidth={2.5} />
           </button>
-          {mobileBackOnly && <button type="button" onClick={onMenuClick} className={`hidden h-11 w-11 items-center justify-center rounded-lg text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:inline-flex ${menuButtonClassName}`} aria-label="Abrir menu"><Menu size={24} strokeWidth={2.5} /></button>}
+          {(mobileBackOnly || showMenuWithBack) && <button type="button" onClick={onMenuClick} className={`${showMenuWithBack ? 'inline-flex' : 'hidden lg:inline-flex'} h-11 w-11 items-center justify-center rounded-lg text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${menuButtonClassName}`} aria-label="Abrir menu"><Menu size={24} strokeWidth={2.5} /></button>}
         </> : (
           <button
             type="button"
