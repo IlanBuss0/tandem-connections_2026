@@ -183,7 +183,7 @@ function TutorContent(props: {
   if (tab === 'pictogramCatalog') return <UserPictograms />;
   if (tab === 'connections') return <ConnectionsPage users={props.linkedUsers} onOpenDetail={props.onOpenDetail} />;
   if (tab === 'about') return <AboutTandem />;
-  if (tab === 'profile') return <TutorAccountSettings onManageConnections={() => props.onNavigate('connections')} />;
+  if (tab === 'profile') return <TutorAccountSettings linkedUsers={props.linkedUsers} onManageConnections={() => props.onNavigate('connections')} />;
   if (tab === 'detail') {
     const owner = props.linkedUsers.find(item => item.id === props.detailUserId);
     return owner ? <TutorLinkedDetail owner={owner} data={props.data.byUserId[owner.id]} onNavigate={props.onNavigate} onOpenChat={(id) => { props.onSelectNotificationChat(id); props.onNavigate('chat', { chatId: id }); }} /> : <ErrorState message="No encontramos a esa persona vinculada." onRetry={() => props.onNavigate('connections')} />;
