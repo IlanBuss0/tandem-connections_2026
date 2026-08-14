@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 import ActivityExecution from './ActivityExecution';
+import { useToast } from '@/components/ui/use-toast';
 
 const categoryEmoji: Record<string, string> = {
   'autonomía personal': '🦸', higiene: '🧼', organización: '📋', escuela: '📚', 'cocina básica': '🍳',
@@ -142,6 +143,7 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
   const { user } = useAuth();
   const { forUser, complete: completeCustomActivity } = useCustomActivities();
   const { context: permissionContext } = usePermissionContext();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('todas');
   const [selectedType, setSelectedType] = useState<ActivityTypeFilter>('todos');
@@ -204,7 +206,7 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
       <ActivityExecution
         activity={executingActivity}
         onBack={() => setExecutingActivity(null)}
-        onComplete={(id) => { void completeActivity(id); }}
+        onComplete={(id, score) => { void completeActivity(id, score); }}
       />
     );
   }
@@ -280,16 +282,24 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
     setSelectedLauncher('todos');
   };
 
-  async function completeActivity(id: string) {
+  async function completeActivity(id: string, score?: number) {
     if (!canCompleteActivities) return;
     const activity = merged.find(item => item.id === id);
     if (!activity || !user) return;
-    if ((activity as any).isCustom) {
-      await completeCustomActivity(id, user.id);
-    } else {
-      await completeAssignedActivity(activity, user.id).catch(() => undefined);
+    try {
+      if ((activity as any).isCustom) {
+        await completeCustomActivity(id, user.id, score);
+      } else {
+        await completeAssignedActivity(activity, user.id, score);
+      }
+      setLocalActivities(prev => prev.map(a => a.id === id ? { ...a, status: 'completada' as const, progress: 100 } : a));
+    } catch (error) {
+      toast({
+        title: 'No pudimos guardar el resultado',
+        description: error instanceof Error ? error.message : 'Intentá nuevamente.',
+        variant: 'destructive',
+      });
     }
-    setLocalActivities(prev => prev.map(a => a.id === id ? { ...a, status: 'completada' as const, progress: 100 } : a));
   }
 
   // Daily challenge
