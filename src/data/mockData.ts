@@ -825,6 +825,13 @@ export function getUserById(id: string): User | undefined { return users.find(u 
 export function getTutorById(id: string): Tutor | undefined { return tutors.find(t => t.id === id); }
 export function getProfessionalById(id: string): Professional | undefined { return professionals.find(p => p.id === id); }
 export function getActivitiesForUser(userId: string): Activity[] { return activities.filter(a => a.assignedTo === userId); }
+
+export function completeActivityForUser(activityId: string, userId: string): void {
+  const activity = activities.find(item => item.id === activityId && item.assignedTo === userId);
+  if (!activity) return;
+  activity.status = 'completada';
+  activity.progress = 100;
+}
 export function getEventsForUser(userId: string): CalendarEvent[] { return calendarEvents.filter(e => e.userId === userId); }
 export function getConversationsForUser(userId: string): Conversation[] { return conversations.filter(c => c.participants.includes(userId)); }
 export function getMessagesForConversation(convId: string): ChatMessage[] { return chatMessages.filter(m => m.conversationId === convId); }
