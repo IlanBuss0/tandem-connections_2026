@@ -13,6 +13,7 @@ import Login from '@/pages/Login';
 import InviteLinkHandler from '@/pages/InviteLinkHandler';
 import ProfessionalInviteLinkHandler from '@/pages/ProfessionalInviteLinkHandler';
 import VerifyEmailPage from '@/pages/VerifyEmailPage';
+import PasswordRecoveryPage from '@/pages/PasswordRecoveryPage';
 import EmailVerificationGate from '@/pages/EmailVerificationGate';
 import OnboardingQuestionnaire from '@/pages/OnboardingQuestionnaire';
 import AppShell from '@/components/AppShell';
@@ -54,6 +55,7 @@ function AuthGate() {
   const [professionalInviteToken, setProfessionalInviteToken] = useState<string | null>(() => professionalInviteTokenFromPath(window.location.pathname));
   const [verifyEmailToken, setVerifyEmailToken] = useState<string | null>(() => verifyEmailTokenFromPath(window.location.pathname, window.location.search));
   const [isVerifyEmailRoute, setIsVerifyEmailRoute] = useState(() => window.location.pathname === '/verificar-email');
+  const [passwordRecoveryPath, setPasswordRecoveryPath] = useState(() => window.location.pathname);
 
   useEffect(() => {
     const syncPublicView = () => {
@@ -62,6 +64,7 @@ function AuthGate() {
       setProfessionalInviteToken(professionalInviteTokenFromPath(window.location.pathname));
       setVerifyEmailToken(verifyEmailTokenFromPath(window.location.pathname, window.location.search));
       setIsVerifyEmailRoute(window.location.pathname === '/verificar-email');
+      setPasswordRecoveryPath(window.location.pathname);
     };
 
     window.addEventListener('popstate', syncPublicView);
@@ -121,9 +124,13 @@ function AuthGate() {
 
     setPublicView(nextView);
     setIsVerifyEmailRoute(false);
+    setPasswordRecoveryPath(path);
   };
 
-  const content = isVerifyEmailRoute ? (
+  const isPasswordRecoveryRoute = passwordRecoveryPath === '/olvidaste-contrasena' || passwordRecoveryPath === '/restablecer-contrasena';
+  const content = isPasswordRecoveryRoute ? (
+    <PasswordRecoveryPage isReset={passwordRecoveryPath === '/restablecer-contrasena'} token={new URLSearchParams(window.location.search).get('token')} onGoToLogin={() => navigatePublic('login')} />
+  ) : isVerifyEmailRoute ? (
     <VerifyEmailPage token={verifyEmailToken} onGoToLogin={() => navigatePublic('login')} />
   ) : isLoading ? (
     <div className="min-h-screen bg-background flex items-center justify-center text-sm font-medium text-muted-foreground">

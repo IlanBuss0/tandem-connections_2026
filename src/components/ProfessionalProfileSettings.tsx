@@ -11,6 +11,7 @@ import {
   saveProfessionalOwnProfile,
   type ProfessionalOwnProfile,
 } from "@/data/api";
+import AccountSecuritySettings from "@/components/account/AccountSecuritySettings";
 
 type FormState = {
   descripcion: string;
@@ -106,6 +107,7 @@ export default function ProfessionalProfileSettings() {
           Controla cómo apareces en el directorio para tutores y pertenecientes.
         </p>
       </div>
+      <AccountSecuritySettings />
       <div className="rounded-xl border bg-card p-4">
         <div className="flex items-center gap-2">
           <ShieldCheck className="text-primary" size={18} />

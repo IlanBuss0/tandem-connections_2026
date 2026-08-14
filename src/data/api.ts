@@ -30,6 +30,8 @@ import type {
   VinculoTutorPerteneciente as DbVinculoTutorPerteneciente,
   ZonaSegura as DbZonaSegura,
 } from '@/types/database';
+import { isCompletedActivityStatus } from '@/lib/activityStatus';
+import { notifyActivityStatusChanged } from '@/lib/activityEvents';
 
 export type UserRole = legacy.UserRole;
 export type User = legacy.User;
@@ -959,8 +961,7 @@ function buildAchievement(
 }
 
 function isCompletedStatus(status?: DbEstadoActividad, assigned?: DbActividadAsignada) {
-  const name = (status?.nombre || '').toLowerCase();
-  return Boolean(assigned?.fecha_completada || name.includes('complet') || name.includes('finaliz'));
+  return Boolean(assigned?.fecha_completada || isCompletedActivityStatus(status?.nombre));
 }
 
 function formatBackendDate(value?: string | null) {
@@ -1637,6 +1638,12 @@ export async function fetchActivitiesForUser(userId: string): Promise<Activity[]
 }
 
 export async function completeAssignedActivity(activity: Activity, userId: string): Promise<void> {
+  if (!isBackendUserId(userId)) {
+    legacy.completeActivityForUser(activity.id, userId);
+    notifyActivityStatusChanged(activity.id);
+    return;
+  }
+
   let assignedActivityId = Number((activity as any).assignedActivityId || activity.id);
   if (!Number.isFinite(assignedActivityId)) {
     const numericUserId = Number(userId);
@@ -1669,6 +1676,7 @@ export async function completeAssignedActivity(activity: Activity, userId: strin
     id_estado_actividad: completedStatus?.id || 3,
     fecha_completada: new Date().toISOString(),
   }, { token });
+  notifyActivityStatusChanged(assignedActivityId);
 }
 
 export async function fetchMyNotifications(userId?: string): Promise<Notification[]> {

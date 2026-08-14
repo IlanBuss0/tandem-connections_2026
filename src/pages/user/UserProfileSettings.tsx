@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { toast } from '@/hooks/ui/use-toast';
+import AccountSecuritySettings from '@/components/account/AccountSecuritySettings';
 
 type FormState = UserProfileSettingsPayload & {
   telefonoText: string;
@@ -447,7 +448,7 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
                 </div>
                 <div className="space-y-2">
                   <label htmlFor="profile-email" className="text-sm font-medium text-[#4a4a5a]">Correo</label>
-                  <input id="profile-email" type="email" value={form.usuario.correo} onChange={e => updateUsuario('correo', e.target.value)} className="w-full rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-2.5 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]" />
+                  <input id="profile-email" type="email" value={form.usuario.correo} readOnly className="w-full cursor-not-allowed rounded-2xl border border-[#ede4f8] bg-[#f3f1f6] p-2.5 text-sm text-[#777080]" />
                 </div>
                 <div className="space-y-2">
                   <label htmlFor="profile-phone" className="text-sm font-medium text-[#4a4a5a]">Telefono</label>
@@ -465,6 +466,10 @@ export default function UserProfileSettings({ onBack, mode = 'settings' }: { onB
                 </div>
               </div>
             </section>
+          )}
+
+          {!isPersonalMode && (
+          <AccountSecuritySettings />
           )}
 
           {!isPersonalMode && (
