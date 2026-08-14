@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { HelpCircle, Image, Info, LogOut, ShoppingBag, Stethoscope, UserRound, X } from 'lucide-react';
+import { HelpCircle, Image, Info, LogOut, Settings, ShoppingBag, Stethoscope, UserRound, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 
@@ -41,6 +41,7 @@ export default function BelongingProfileAccountPanel(props: Props) {
   const sections = [
     { title: 'Mi perfil', items: [
       { label: 'Ver perfil', icon: UserRound, action: () => go('profile') },
+      { label: 'Configuración y seguridad', icon: Settings, action: () => go('profile-settings') },
     ]},
     { title: 'Personalización', items: [
       { label: 'Mis pictogramas', icon: Image, action: () => go('pictograms') },

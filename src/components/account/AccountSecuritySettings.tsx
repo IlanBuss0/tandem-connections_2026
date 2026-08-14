@@ -11,7 +11,7 @@ import { tandemApi } from '@/services/api';
 const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 
 export default function AccountSecuritySettings({ className = '' }: { className?: string }) {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, logout } = useAuth();
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -33,7 +33,9 @@ export default function AccountSecuritySettings({ className = '' }: { className?
     setLoading(true);
     try {
       await tandemApi.auth.changePassword({ contrasena_actual: currentPassword, contrasena_nueva: newPassword });
-      resetPasswordFields(); setPasswordOpen(false); toast({ title: 'Contraseña actualizada' });
+      resetPasswordFields(); setPasswordOpen(false);
+      toast({ title: 'Contraseña actualizada', description: 'Por seguridad, volvé a iniciar sesión con tu contraseña nueva.' });
+      logout();
     } catch (error) { toast({ title: 'No se pudo cambiar la contraseña', description: error instanceof Error ? error.message : 'Intentá nuevamente.', variant: 'destructive' }); }
     finally { setLoading(false); }
   };
