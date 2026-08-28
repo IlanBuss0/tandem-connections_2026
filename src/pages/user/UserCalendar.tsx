@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { AlertTriangle, CalendarDays, ChevronLeft, ChevronRight, Clock, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { AlertTriangle, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock, Moon, Pencil, Plus, Sun, Sunrise, Tag, Trash2, X } from 'lucide-react';
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { useCalendar, eventTypes } from '@/contexts/CalendarContext';
 import { useRoutines } from '@/contexts/RoutinesContext';
@@ -11,8 +11,6 @@ import { useCalendarPictograms } from '@/hooks/useCalendarPictograms';
 import SpeakButton from '@/components/SpeakButton';
 import { formatConcreteDays } from '@/lib/concreteTime';
 import SocialStoryView from '@/components/SocialStoryView';
-import ReassuranceCard from '@/components/ReassuranceCard';
-import { isDayOverloaded } from '@/lib/weekLoad';
 import CalendarEventDialog from '@/components/calendar/CalendarEventDialog';
 import {
   AlertDialog,
@@ -29,19 +27,6 @@ const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Juli
 const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const diasSemanaOrdenCalendario = [1, 2, 3, 4, 5, 6, 0];
 
-const typeBg: Record<string, string> = {
-  terapia: 'bg-purple-100 text-purple-700 border-purple-200',
-  escuela: 'bg-blue-100 text-blue-700 border-blue-200',
-  personal: 'bg-amber-100 text-amber-700 border-amber-200',
-  médico: 'bg-red-100 text-red-700 border-red-200',
-  social: 'bg-green-100 text-green-700 border-green-200',
-  actividad: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-  mañana: 'bg-amber-50 text-amber-700 border-amber-200',
-  mediodía: 'bg-orange-50 text-orange-700 border-orange-200',
-  tarde: 'bg-purple-50 text-purple-700 border-purple-200',
-  noche: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-};
-
 function dateKey(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -55,6 +40,13 @@ function labelDate(date: string) {
     day: 'numeric',
     month: 'long',
   });
+}
+
+function momentoDelDia(time: string) {
+  const hour = parseInt(time.split(':')[0], 10) || 0;
+  if (hour < 12) return { label: 'Mañana', Icon: Sunrise };
+  if (hour < 19) return { label: 'Tarde', Icon: Sun };
+  return { label: 'Noche', Icon: Moon };
 }
 
 export default function UserCalendar() {
@@ -75,6 +67,17 @@ export default function UserCalendar() {
     return predefinedNames[catId] || catId;
   };
 
+  const eventoMomento = (event: CalendarEvent) => {
+    const label = getSectionName(event.type);
+    const momentIcons: Record<string, typeof Sunrise> = {
+      mañana: Sunrise,
+      mediodía: Sun,
+      tarde: Sun,
+      noche: Moon,
+    };
+    return { label, Icon: momentIcons[event.type] || Tag };
+  };
+
   const today = new Date();
   const todayKey = dateKey(today);
   const [cursor, setCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
@@ -84,6 +87,17 @@ export default function UserCalendar() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<CalendarEvent | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<CalendarEvent | null>(null);
+  // Cards del detalle del dia: expansion INDEPENDIENTE por card (una abierta
+  // no fuerza a las demas). Solo cambia la presentacion, no los datos.
+  const [openDetailIds, setOpenDetailIds] = useState<Set<string>>(() => new Set());
+  const toggleDetail = (id: string) => {
+    setOpenDetailIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
   // Sesion 25 (perfil de memoria), item "anticipacion al crear un evento":
   // sugerencia descartable, NUNCA se abre la historia social sola — mismo
   // espiritu que el aviso de sobrecarga del dia (S17), avisar no imponer.
@@ -133,6 +147,11 @@ export default function UserCalendar() {
   );
   const selectedDayActivities = useMemo(() => selectedDayItems.filter(event => event.type === 'actividad'), [selectedDayItems]);
   const selectedDayEvents = useMemo(() => selectedDayItems.filter(event => event.type !== 'actividad'), [selectedDayItems]);
+  const selectedDayTemporalLabel = selectedDate === todayKey
+    ? 'Hoy'
+    : selectedDate < todayKey
+      ? labelDate(selectedDate)
+      : formatConcreteDays(selectedDate, new Date());
 
   // Solo se pictogramiza el dia que se esta mirando, no todo el calendario
   // (mismo criterio que "Mi dia" en Sesion 1: no gastar cuota en lo que
@@ -409,16 +428,9 @@ export default function UserCalendar() {
       >
         <div>
           <div>
-            <p className="text-xs font-semibold text-[#8b7aa0] uppercase tracking-wide">
-              {selectedDate === todayKey ? 'Hoy' : labelDate(selectedDate)}
-              {selectedDate !== todayKey && ` · ${formatConcreteDays(selectedDate, new Date())}`}
+            <p className="text-base font-bold capitalize text-[#6b4c9a] sm:text-lg">
+              {labelDate(selectedDate)}
             </p>
-            <h2 className="text-xl font-bold text-[#6b4c9a]">Detalle del día</h2>
-            {isDayOverloaded(events, selectedDate) && (
-              <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-amber-700">
-                <AlertTriangle size={12} /> Día con muchas actividades — puede ser mucho para un solo día
-              </p>
-            )}
           </div>
         </div>
 
@@ -439,71 +451,115 @@ export default function UserCalendar() {
           </div>
         )}
 
-        <section aria-labelledby="day-events-title" className="mt-3.5">
+        <section aria-labelledby="day-events-title" className="mt-4">
           <h3 id="day-events-title" className="text-sm font-extrabold uppercase tracking-wide text-[#5f477c]">Eventos</h3>
         {selectedDayEvents.length === 0 ? (
           <div className="mt-2 flex min-h-14 items-center gap-2.5 rounded-2xl border border-dashed border-[#e0d8f0] bg-[#faf8ff] px-3 py-2.5">
             <CalendarDays size={22} className="shrink-0 text-[#6b4c9a]" />
-            <p className="text-sm font-semibold text-[#4a4a5a]">No hay eventos para este día</p>
+            <p className="text-sm font-semibold text-[#4a4a5a]">No hay eventos</p>
           </div>
         ) : (
           <div className="mt-2.5 min-w-0 max-w-full space-y-2.5">
-            {selectedDayEvents.map((event, index) => (
+            {selectedDayEvents.map((event, index) => {
+              const open = openDetailIds.has(event.id);
+              const { label: momentoLabel, Icon: MomentoIcon } = eventoMomento(event);
+              return (
               <motion.div
                 key={event.id}
                 initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.04 }}
-                className={`group min-w-0 max-w-full overflow-hidden rounded-2xl border p-3 ${typeBg[event.type] || 'bg-[#faf8ff] border-[#ede4f8]'}`}
+                className="group relative overflow-hidden rounded-2xl border border-[#ddcfed] bg-[#fbf7ff] p-4 text-[#4a3a62] shadow-sm transition-shadow hover:shadow-md focus-within:shadow-md"
               >
-                <div className="flex min-w-0 max-w-full items-start gap-3">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/70 text-xl">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#f3ecff] text-xl">
                     <EventPictogram event={event} />
                   </span>
-                  <div className="min-w-0 max-w-full flex-1">
-                    <p className="max-w-full whitespace-normal [overflow-wrap:anywhere] text-sm font-bold">{event.title}</p>
-                    {event.description && <p className="mt-1 max-w-full whitespace-normal [overflow-wrap:anywhere] text-xs leading-relaxed opacity-80">{event.description}</p>}
-                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs opacity-75">
-                      <span className="inline-flex items-center gap-1"><Clock size={12} /> {event.time}</span>
-                      <span className="capitalize">{getSectionName(event.type)}</span>
+                  <div className="min-w-0 flex-1 self-center">
+                    <p className="break-words text-base font-bold leading-snug text-[#452e6d]">{event.title}</p>
+                  </div>
+                </div>
+
+                <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleDetail(event.id)}
+                    aria-expanded={open}
+                    aria-controls={`ev-${event.id}-details`}
+                    className="flex min-h-9 items-center gap-1 rounded-full px-2.5 text-sm font-bold text-[#6b4c9a] transition hover:bg-[#f0e8f8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"
+                  >
+                    {open ? 'Ver menos' : 'Ver más'}
+                    <ChevronDown size={15} aria-hidden className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+                  </button>
+                  {open && (
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => openEdit(event)}
+                        className="rounded-full p-1.5 hover:bg-[#f5f0ff]"
+                        title="Editar"
+                        aria-label={`Editar ${event.title}`}
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <button
+                        onClick={() => setDeleteCandidate(event)}
+                        className="flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"
+                        aria-label={`Eliminar ${event.title}`}
+                        title="Eliminar"
+                      >
+                        <Trash2 size={15} />
+                      </button>
                     </div>
+                  )}
+                </div>
+
+                {open && (
+                  <div id={`ev-${event.id}-details`} className="mt-2.5 border-t border-[#f0e8f8] pt-3">
+                    {event.description && <p className="mt-1.5 break-words text-sm leading-relaxed text-[#756a82]">{event.description}</p>}
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-[#6b4c9a] px-3 py-1 text-sm font-bold text-white shadow-sm">
+                        <Clock size={14} aria-hidden /> {event.time}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                      <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#3d2b55]">
+                        <CalendarDays size={15} className="text-[#6b4c9a]" aria-hidden /> {selectedDayTemporalLabel}
+                      </span>
+                      <span aria-hidden className="hidden h-4 w-px bg-[#e2d6f0] sm:inline-block" />
+                      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[#8b7aa0]">
+                        <MomentoIcon size={15} className="text-[#8b7aa0]" aria-hidden /> {momentoLabel}
+                      </span>
+                    </div>
+
                     {event.afterNote && (
-                      <p className="mt-2 max-w-full whitespace-normal [overflow-wrap:anywhere] rounded-lg bg-white/60 p-2 text-xs text-[#4a4a5a]">
+                      <p className="mt-3 max-w-full whitespace-normal [overflow-wrap:anywhere] rounded-lg bg-[#f7f2ff] p-2.5 text-xs text-[#5f477c]">
                         <span className="font-semibold">Después: </span>{event.afterNote}
                       </p>
                     )}
                     {event.planB && (
-                      <p className="mt-1.5 max-w-full whitespace-normal [overflow-wrap:anywhere] rounded-lg bg-amber-50 p-2 text-xs text-[#4a4a5a]">
+                      <p className="mt-1.5 max-w-full whitespace-normal [overflow-wrap:anywhere] rounded-lg bg-amber-50 p-2.5 text-xs text-[#4a4a5a]">
                         <span className="font-semibold">Plan B: </span>{event.planB}
                       </p>
                     )}
                     {event.sensoryNote && (
-                      <p className="mt-1.5 max-w-full whitespace-normal [overflow-wrap:anywhere] rounded-lg bg-blue-50 p-2 text-xs text-[#4a4a5a]">
+                      <p className="mt-1.5 max-w-full whitespace-normal [overflow-wrap:anywhere] rounded-lg bg-blue-50 p-2.5 text-xs text-[#4a4a5a]">
                         <span className="font-semibold">Preparate: </span>{event.sensoryNote}
                       </p>
                     )}
-                    <ReassuranceCard event={event} />
-                    <div className="mt-2">
-                      <SocialStoryView event={event} />
+
+                    <div className="mt-3 border-t border-[#f0e8f8] pt-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <SocialStoryView event={event} />
+                        <SpeakButton text={event.title} size={14} className="p-1.5" />
+                      </div>
                     </div>
                   </div>
-                  <div className="flex shrink-0 gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                    <SpeakButton text={event.title} size={14} className="p-1.5" />
-                    <button onClick={() => openEdit(event)} className="p-1.5 rounded-full hover:bg-white/50" title="Editar">
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={() => setDeleteCandidate(event)}
-                      className="flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"
-                      aria-label={`Eliminar ${event.title}`}
-                      title="Eliminar"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
+                )}
               </motion.div>
-            ))}
+              );
+            })}
           </div>
         )}
         </section>
@@ -512,24 +568,78 @@ export default function UserCalendar() {
           <h3 id="day-activities-title" className="text-sm font-extrabold uppercase tracking-wide text-[#5f477c]">Actividades</h3>
           {selectedDayActivities.length === 0 ? (
             <div className="mt-2 rounded-2xl border border-dashed border-[#e0d8f0] bg-[#faf8ff] px-3 py-2.5">
-              <p className="text-sm font-semibold text-[#4a4a5a]">No hay actividades para este día</p>
+              <p className="text-sm font-semibold text-[#4a4a5a]">No hay actividades</p>
             </div>
           ) : (
             <div className="mt-2.5 space-y-2.5">
-              {selectedDayActivities.map(activity => (
-                <div key={activity.id} className="group flex items-start gap-3 rounded-2xl border border-yellow-200 bg-yellow-50 p-3 text-yellow-800">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/70"><EventPictogram event={activity} /></span>
-                  <div className="min-w-0 flex-1">
-                    <p className="break-words text-sm font-bold">{activity.title}</p>
-                    {activity.description && <p className="mt-1 break-words text-xs leading-relaxed opacity-80">{activity.description}</p>}
-                    <p className="mt-2 inline-flex items-center gap-1 text-xs opacity-75"><Clock size={12} /> {activity.time}</p>
+              {selectedDayActivities.map(activity => {
+                const open = openDetailIds.has(activity.id);
+                const isAssigned = Boolean(activity.assignedActivityId);
+                const { label: momentoLabel, Icon: MomentoIcon } = momentoDelDia(activity.time);
+                return (
+                <div key={activity.id} className="group relative overflow-hidden rounded-2xl border border-[#ddcfed] bg-[#fbf7ff] p-4 text-[#4a3a62] shadow-sm transition-shadow hover:shadow-md focus-within:shadow-md">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#f3ecff] text-xl">
+                      <EventPictogram event={activity} />
+                    </span>
+                    <div className="min-w-0 flex-1 self-center">
+                      <p className="break-words text-base font-bold leading-snug text-[#452e6d]">{activity.title}</p>
+                    </div>
                   </div>
-                  <div className="flex shrink-0 gap-1">
-                    <button onClick={() => openEdit(activity)} aria-label={`Editar ${activity.title}`} className="flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"><Pencil size={14} /></button>
-                    <button onClick={() => setDeleteCandidate(activity)} aria-label={`Eliminar ${activity.title}`} className="flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"><Trash2 size={14} /></button>
+
+                  <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleDetail(activity.id)}
+                      aria-expanded={open}
+                      aria-controls={`act-${activity.id}-details`}
+                      className="flex min-h-9 items-center gap-1 rounded-full px-2.5 text-sm font-bold text-[#6b4c9a] transition hover:bg-[#f0e8f8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"
+                    >
+                      {open ? 'Ver menos' : 'Ver más'}
+                      <ChevronDown size={15} aria-hidden className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+                    </button>
+                    {open && !isAssigned && (
+                      <div className="flex gap-1">
+                        <button onClick={() => openEdit(activity)} aria-label={`Editar ${activity.title}`} className="flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-[#f5f0ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"><Pencil size={15} /></button>
+                        <button onClick={() => setDeleteCandidate(activity)} aria-label={`Eliminar ${activity.title}`} className="flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"><Trash2 size={15} /></button>
+                      </div>
+                    )}
                   </div>
+
+                  {open && (
+                    <div id={`act-${activity.id}-details`} className="mt-2.5 border-t border-[#f0e8f8] pt-3">
+                      {activity.description && <p className="mt-1.5 break-words text-sm leading-relaxed text-[#756a82]">{activity.description}</p>}
+
+                      <div className="mt-3">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#6b4c9a] px-3 py-1 text-sm font-bold text-white shadow-sm">
+                          <Clock size={14} aria-hidden /> {isAssigned ? 'Todo el día' : activity.time}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                        <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#3d2b55]">
+                          <CalendarDays size={15} className="text-[#6b4c9a]" aria-hidden /> {selectedDayTemporalLabel}
+                        </span>
+                        <span aria-hidden className="hidden h-4 w-px bg-[#e2d6f0] sm:inline-block" />
+                        {isAssigned ? (
+                          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[#8b7aa0]">
+                            <Tag size={15} className="text-[#8b7aa0]" aria-hidden /> Asignada
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[#8b7aa0]">
+                            <MomentoIcon size={15} className="text-[#8b7aa0]" aria-hidden /> {momentoLabel}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="mt-3 border-t border-[#f0e8f8] pt-3">
+                        <SocialStoryView event={activity} />
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
