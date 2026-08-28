@@ -2023,8 +2023,8 @@ export default function ActivityBuilder({
   ];
 
   return (
-    <div className="fixed inset-0 z-[60] bg-background/95 backdrop-blur-sm overflow-y-auto">
-      <div className="max-w-3xl mx-auto p-4 sm:p-6">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/70 p-3 backdrop-blur-sm sm:p-6">
+      <div className="max-h-[calc(100dvh-1.5rem)] w-full max-w-xl overflow-y-auto rounded-2xl border border-border bg-background p-3 shadow-2xl [zoom:.9] sm:max-h-[calc(100dvh-3rem)] sm:p-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
