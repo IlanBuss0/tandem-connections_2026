@@ -11,10 +11,6 @@ import { useCalendarPictograms } from '@/hooks/useCalendarPictograms';
 import SpeakButton from '@/components/SpeakButton';
 import { formatConcreteDays } from '@/lib/concreteTime';
 import SocialStoryView from '@/components/SocialStoryView';
-<<<<<<< HEAD
-=======
-import { isDayOverloaded } from '@/lib/weekLoad';
->>>>>>> 39302bfabfc2bcbccd0dd8d8e12032d78bbf5592
 import CalendarEventDialog from '@/components/calendar/CalendarEventDialog';
 import {
   AlertDialog,
@@ -514,7 +510,6 @@ export default function UserCalendar() {
                         <Trash2 size={15} />
                       </button>
                     </div>
-<<<<<<< HEAD
                   )}
                 </div>
 
@@ -559,10 +554,6 @@ export default function UserCalendar() {
                         <SocialStoryView event={event} />
                         <SpeakButton text={event.title} size={14} className="p-1.5" />
                       </div>
-=======
-                    <div className="mt-2">
-                      <SocialStoryView event={event} />
->>>>>>> 39302bfabfc2bcbccd0dd8d8e12032d78bbf5592
                     </div>
                   </div>
                 )}
