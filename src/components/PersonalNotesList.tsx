@@ -1,4 +1,4 @@
-import { FileText, Loader2, Trash2 } from 'lucide-react';
+import { MoreHorizontal, FileText, Loader2 } from 'lucide-react';
 import type { PersonalNote } from '@/data/api';
 
 type PersonalNotesListProps = {
@@ -39,18 +39,24 @@ export default function PersonalNotesList({
   return (
     <div className="space-y-3">
       {notes.map((note) => (
-        <article key={note.id} className="flex gap-3 rounded-2xl border border-border bg-background p-4">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><FileText size={18} /></span>
+        <article key={note.id} className="flex gap-3 rounded-2xl border border-[#f0e8f8] bg-white p-4 shadow-sm">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f5f0ff] text-[#6b4c9a]"><FileText size={17} /></span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h4 className="text-sm font-semibold text-foreground">{note.title || 'Nota personal'}</h4>
-              <time className="text-[11px] text-muted-foreground" dateTime={note.createdAt}>{formatNoteDate(note.createdAt)}</time>
+              <h4 className="text-sm font-semibold text-[#4a4a5a]">{note.title || 'Nota personal'}</h4>
+              <time className="text-[11px] text-[#a99cc0]" dateTime={note.createdAt}>{formatNoteDate(note.createdAt)}</time>
             </div>
-            <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">{note.content}</p>
+            <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-6 text-[#6d6678]">{note.content}</p>
           </div>
           {onDelete && (
-            <button type="button" onClick={() => onDelete(note.id)} disabled={deletingId === note.id} aria-label="Eliminar nota" className="h-9 w-9 shrink-0 rounded-xl text-muted-foreground hover:bg-primary/10 hover:text-primary disabled:opacity-60">
-              {deletingId === note.id ? <Loader2 size={16} className="mx-auto animate-spin" /> : <Trash2 size={16} className="mx-auto" />}
+            <button
+              type="button"
+              onClick={() => onDelete(note.id)}
+              disabled={deletingId === note.id}
+              aria-label="Eliminar nota"
+              className="mt-1 h-7 w-7 shrink-0 rounded-lg text-[#b8b0c8] hover:bg-[#f5f0ff] hover:text-[#6b4c9a] disabled:opacity-60"
+            >
+              {deletingId === note.id ? <Loader2 size={15} className="mx-auto animate-spin" /> : <MoreHorizontal size={15} className="mx-auto" />}
             </button>
           )}
         </article>

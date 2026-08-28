@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
-import { AlertCircle, FileText, Loader2, Save, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { AlertCircle, Check, FileText, Heart, Loader2 } from 'lucide-react';
 import { useEmotions, emotionOptions } from '@/contexts/EmotionsContext';
 import { deletePersonalNote, fetchPersonalNotesForUser, type PersonalNote } from '@/data/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,6 +8,7 @@ import PersonalNotesList from '@/components/PersonalNotesList';
 import EmotionCauseQuickPicker from '@/components/EmotionCauseQuickPicker';
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
+import { toast } from '@/hooks/ui/use-toast';
 
 const intensityLabels: Record<number, string> = {
   1: 'Muy leve',
@@ -17,24 +18,56 @@ const intensityLabels: Record<number, string> = {
   5: 'Muy fuerte',
 };
 
-const todayIso = () => new Date().toISOString().split('T')[0];
+const EMOTION_PASTEL: Record<string, string> = {
+  Contento: 'bg-[#fdf8e8] border-[#f5ecd0]',
+  Feliz: 'bg-[#fef9e3] border-[#f7eebd]',
+  Tranquilo: 'bg-[#eaf8f4] border-[#d4efe6]',
+  Motivado: 'bg-[#f3eefb] border-[#e3d8f5]',
+  Orgulloso: 'bg-[#f0eafb] border-[#dfd2f5]',
+  Ansioso: 'bg-[#eef3fb] border-[#d8e4f5]',
+  Nervioso: 'bg-[#eef1fb] border-[#dce3f5]',
+  Frustrado: 'bg-[#fdf1ec] border-[#f5ddd0]',
+  Enojado: 'bg-[#fdeeed] border-[#f5d5d2]',
+  Triste: 'bg-[#eef0fb] border-[#dce1f5]',
+  Cansado: 'bg-[#f0f1f7] border-[#dfe2ed]',
+  Aburrido: 'bg-[#f2f1f5] border-[#e2e0ea]',
+  Sorprendido: 'bg-[#fef6ec] border-[#f5e6cd]',
+  Preocupado: 'bg-[#f0edf8] border-[#e0d8f0]',
+};
 
-function formatDate(date: string) {
-  if (date === todayIso()) return 'Hoy';
-  return new Date(`${date}T12:00:00`).toLocaleDateString('es-AR', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'short',
-  });
+const EMOTION_SELECTED_BG: Record<string, string> = {
+  Contento: 'bg-[#f9f2d8] border-[#d4b94a]',
+  Feliz: 'bg-[#faf1d0] border-[#d4b94a]',
+  Tranquilo: 'bg-[#d5f0e8] border-[#4a9a8a]',
+  Motivado: 'bg-[#e4d8f7] border-[#7c5cbf]',
+  Orgulloso: 'bg-[#e0d4f7] border-[#7c5cbf]',
+  Ansioso: 'bg-[#d8e6f7] border-[#6b7cc9]',
+  Nervioso: 'bg-[#dce5f7] border-[#6b7cc9]',
+  Frustrado: 'bg-[#f7ddd0] border-[#c48060]',
+  Enojado: 'bg-[#f7d5d2] border-[#c47060]',
+  Triste: 'bg-[#dde1f7] border-[#7080c0]',
+  Cansado: 'bg-[#e0e3ef] border-[#8090a8]',
+  Aburrido: 'bg-[#e5e3ec] border-[#9088a8]',
+  Sorprendido: 'bg-[#f7e8d0] border-[#c4a050]',
+  Preocupado: 'bg-[#e2daf5] border-[#8070b0]',
+};
+
+function emotionPastel(label: string) {
+  return EMOTION_PASTEL[label] ?? 'bg-[#f3eefb] border-[#e3d8f5]';
+}
+
+function emotionSelectedBg(label: string) {
+  return EMOTION_SELECTED_BG[label] ?? 'bg-[#e4d8f7] border-[#7c5cbf]';
 }
 
 export default function UserEmotions() {
   const { user } = useAuth();
   const userId = user?.id;
   const { context: permissionContext } = usePermissionContext();
-  const { records, loading, error, add, remove } = useEmotions();
+  const { records, loading, error, add } = useEmotions();
   const [selectedEmotion, setSelectedEmotion] = useState<string | null>(null);
   const [intensity, setIntensity] = useState(3);
+  const [causes, setCauses] = useState<string[]>([]);
   const [context, setContext] = useState('');
   const [whatHelped, setWhatHelped] = useState('');
   const [saving, setSaving] = useState(false);
@@ -42,7 +75,6 @@ export default function UserEmotions() {
   const [notesLoading, setNotesLoading] = useState(true);
   const [notesError, setNotesError] = useState<string | null>(null);
   const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) {
@@ -67,51 +99,6 @@ export default function UserEmotions() {
 
   const selectedOption = emotionOptions.find((emotion) => emotion.label === selectedEmotion);
 
-  const stats = useMemo(() => {
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
-    const since = sevenDaysAgo.toISOString().split('T')[0];
-    const weekRecords = records.filter((record) => record.date >= since);
-    const averageIntensity = weekRecords.length
-      ? weekRecords.reduce((sum, record) => sum + record.intensity, 0) / weekRecords.length
-      : 0;
-    const emotionCounts = records.reduce((acc, record) => {
-      acc[record.emotion] = (acc[record.emotion] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-    const topEmotions = Object.entries(emotionCounts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5);
-    const todayRecords = records.filter((record) => record.date === todayIso());
-
-    return {
-      weekCount: weekRecords.length,
-      averageIntensity,
-      topEmotions,
-      todayCount: todayRecords.length,
-      lastRecord: records[0],
-    };
-  }, [records]);
-
-  const grouped = useMemo(() => {
-    return records.reduce((acc, record) => {
-      if (!acc[record.date]) acc[record.date] = [];
-      acc[record.date].push(record);
-      return acc;
-    }, {} as Record<string, typeof records>);
-  }, [records]);
-
-  const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
-  const handleDeleteNote = async (id: string) => {
-    setDeletingNoteId(id);
-    try {
-      await deletePersonalNote(id);
-      setNotes((current) => current.filter((note) => note.id !== id));
-    } finally {
-      setDeletingNoteId(null);
-    }
-  };
-
   const canRegisterEmotions = isPermissionEnabled(
     permissionContext?.perteneciente?.permisos_efectivos?.permisos,
     PERTENECIENTE_PERMISSIONS.REGISTRAR_EMOCIONES,
@@ -120,19 +107,35 @@ export default function UserEmotions() {
 
   if (!canRegisterEmotions) {
     return (
-      <div className="space-y-6 pb-24 lg:pb-6">
-        <div>
-          <h2 className="text-3xl font-bold leading-tight text-[#6b4c9a] sm:text-4xl">Registro personal</h2>
-          <p className="mt-1 text-sm font-medium text-[#8b7aa0] sm:text-base">Cada emoción cuenta. Este es tu espacio para expresarte.</p>
+      <div className="mx-auto max-w-[900px] space-y-6 pb-24 lg:pb-6">
+        <div className="rounded-[24px] border border-[#e8dcf8] bg-gradient-to-br from-[#f9f4ff] via-[#f4ebff] to-[#eef8fb] p-6 text-center shadow-[0_10px_30px_#eadff6]">
+          <span className="text-4xl">💜</span>
+          <h2 className="mt-3 text-2xl font-bold text-[#2e2344] sm:text-3xl">¿Cómo te sentís hoy?</h2>
+          <p className="mt-1 text-sm text-[#7b5fa6]">Tomate un momento para vos.</p>
+          <p className="text-sm text-[#7b5fa6]">No hay respuestas correctas.</p>
         </div>
         <PermissionBlocked
           title="Emociones deshabilitadas"
           description="Tu tutor deshabilitó temporalmente el registro emocional. Tus notas personales siguen disponibles."
         />
         <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 shadow-lg sm:p-5">
-          <h3 className="mb-1 flex items-center gap-2 font-semibold text-[#6b4c9a]"><FileText size={17} />Notas guardadas</h3>
+          <h3 className="mb-3 flex items-center gap-2 font-semibold text-[#6b4c9a]"><FileText size={17} />Mis notas</h3>
+          <p className="mb-3 text-xs text-[#8b7aa0]">Tus pensamientos guardados</p>
           {notesError && <p role="alert" className="mb-3 text-sm text-amber-800">{notesError}</p>}
-          <PersonalNotesList notes={notes} loading={notesLoading} deletingId={deletingNoteId} onDelete={handleDeleteNote} />
+          <PersonalNotesList
+            notes={notes}
+            loading={notesLoading}
+            deletingId={deletingNoteId}
+            onDelete={async (id) => {
+              setDeletingNoteId(id);
+              try {
+                await deletePersonalNote(id);
+                setNotes((current) => current.filter((note) => note.id !== id));
+              } finally {
+                setDeletingNoteId(null);
+              }
+            }}
+          />
         </section>
       </div>
     );
@@ -147,213 +150,204 @@ export default function UserEmotions() {
         emotion: selectedEmotion,
         emoji: selectedOption?.emoji || '😊',
         intensity,
-        context: context.trim(),
+        context: [...causes, context.trim()].filter(Boolean).join(', '),
         whatHelped: whatHelped.trim(),
       });
       setSelectedEmotion(null);
+      setCauses([]);
       setContext('');
       setWhatHelped('');
       setIntensity(3);
+      toast({ title: '✓ Emoción guardada', description: 'Tu registro se guardó correctamente.' });
     } finally {
       setSaving(false);
     }
   };
 
-  const handleRemove = async (id: string) => {
-    setDeletingId(id);
+const handleDeleteNote = async (id: string) => {
+    setDeletingNoteId(id);
     try {
-      await remove(id);
+      await deletePersonalNote(id);
+      setNotes((current) => current.filter((note) => note.id !== id));
     } finally {
-      setDeletingId(null);
+      setDeletingNoteId(null);
     }
   };
 
   return (
-    <div className="pb-24 lg:pb-6 space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="text-3xl sm:text-4xl font-bold text-[#6b4c9a] leading-tight">Registro personal</h2>
-          <p className="text-sm sm:text-base text-[#8b7aa0] mt-1 font-medium">Cada emoción cuenta. Este es tu espacio para expresarte.</p>
-        </div>
+    <div className="mx-auto max-w-[900px] space-y-6 pb-24 lg:pb-6">
+      {/* Hero */}
+      <div className="rounded-[24px] border border-[#e8dcf8] bg-gradient-to-br from-[#f9f4ff] via-[#f4ebff] to-[#eef8fb] p-6 text-center shadow-[0_10px_30px_#eadff6] sm:p-8">
+        <span className="text-4xl">💜</span>
+        <h2 className="mt-3 text-2xl font-bold text-[#2e2344] sm:text-3xl">¿Cómo te sentís hoy?</h2>
+        <p className="mt-1 text-sm text-[#7b5fa6]">Tomate un momento para vos.</p>
+        <p className="text-sm text-[#7b5fa6]">No hay respuestas correctas.</p>
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <div className="flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           <AlertCircle size={16} />
           {error}
         </div>
       )}
 
-      <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 sm:p-5 shadow-lg">
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold text-[#6b4c9a] sm:text-xl">¿Cómo te sentís ahora?</h3>
-        </div>
+      {/* Emotion selector */}
+      <div className="text-center">
+        <h3 className="text-lg font-semibold text-[#4a4a5a]">Elegí cómo te sentís</h3>
+      </div>
 
-        <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
-          {emotionOptions.map((option) => (
+      <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
+        {emotionOptions.map((option) => {
+          const isSelected = selectedEmotion === option.label;
+          return (
             <button
               key={option.label}
               type="button"
-              onClick={() => setSelectedEmotion(option.label)}
-              className={`min-h-[76px] rounded-xl border p-2 text-center transition-all ${
-                selectedEmotion === option.label
-                  ? 'border-[#6b4c9a] bg-[#f5f0ff] text-[#6b4c9a] shadow-sm'
-                  : 'border-[#ede4f8] bg-[#faf8ff] hover:border-[#d8c7ef] hover:bg-[#f5f0ff]'
+              onClick={() => setSelectedEmotion(isSelected ? null : option.label)}
+              aria-pressed={isSelected}
+              className={`relative flex flex-col items-center justify-center rounded-2xl border p-3 transition-all duration-200 min-h-[88px] ${
+                isSelected
+                  ? `border-2 ${emotionSelectedBg(option.label)} shadow-md scale-[1.03]`
+                  : `${emotionPastel(option.label)} hover:shadow-sm hover:scale-[1.01]`
               }`}
             >
-              <span className="block text-2xl leading-none">{option.emoji}</span>
-              <span className="mt-2 block text-[11px] font-medium leading-tight">{option.label}</span>
-            </button>
-          ))}
-        </div>
-
-        {selectedEmotion && (
-          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-5 space-y-4">
-            <div>
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <label className="text-sm font-medium text-[#4a4a5a]">Intensidad</label>
-                <span className="rounded-full bg-[#f5f0ff] px-2 py-1 text-xs font-semibold text-[#6b4c9a]">
-                  {intensity}/5 · {intensityLabels[intensity]}
+              {isSelected && (
+                <span className="absolute top-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#6b4c9a]">
+                  <Check size={12} className="text-white" strokeWidth={3} />
                 </span>
+              )}
+              <span className="text-3xl leading-none">{option.emoji}</span>
+              <span className="mt-1.5 text-[11px] font-medium text-[#4a4a5a] leading-tight">{option.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Accompaniment message (when no emotion selected) */}
+      {!selectedEmotion && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-3 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-4"
+        >
+          <Heart size={20} className="shrink-0 text-[#9b8abf]" />
+          <div>
+            <p className="text-sm font-medium text-[#6b4c9a]">Todas tus emociones son válidas.</p>
+            <p className="text-xs text-[#8b7aa0]">Este es tu espacio seguro.</p>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Mini form */}
+      <AnimatePresence>
+        {selectedEmotion && selectedOption && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.25 }}
+            className="space-y-5 rounded-3xl border border-[#e8dcf8] bg-white p-5 shadow-lg sm:p-6"
+          >
+            {/* Header */}
+            <div className="text-center">
+              <span className="text-3xl">{selectedOption.emoji}</span>
+              <h4 className="mt-1 text-lg font-bold text-[#4a4a5a]">{selectedOption.label}</h4>
+              <p className="text-sm text-[#8b7aa0]">Está bien sentirte así 💜</p>
+            </div>
+
+            {/* Intensity */}
+            <div>
+              <p className="mb-2 text-sm font-medium text-[#4a4a5a]">Intensidad</p>
+              <div className="flex items-center justify-center gap-2">
+                {[1, 2, 3, 4, 5].map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() => setIntensity(level)}
+                    className={`flex h-11 w-11 items-center justify-center rounded-xl text-sm font-semibold transition-all duration-150 ${
+                      intensity === level
+                        ? 'bg-[#6b4c9a] text-white shadow-sm'
+                        : 'bg-[#f5f0ff] text-[#6b4c9a] hover:bg-[#ede4f8]'
+                    }`}
+                    aria-label={`Intensidad ${level}`}
+                  >
+                    {level}
+                  </button>
+                ))}
               </div>
-              <input
-                type="range"
-                min={1}
-                max={5}
-                value={intensity}
-                onChange={(event) => setIntensity(Number(event.target.value))}
-                className="w-full accent-[#6b4c9a]"
+              <p className="mt-2 text-center text-xs font-medium text-[#8b7aa0]">{intensityLabels[intensity]}</p>
+            </div>
+
+            {/* ¿Qué pasó? */}
+            <div>
+              <p className="mb-2 text-sm font-medium text-[#4a4a5a]">¿Qué pasó?</p>
+              <div className="mb-2">
+                <EmotionCauseQuickPicker
+                  selected={causes}
+                  onToggle={(cause) => setCauses((prev) =>
+                    prev.includes(cause) ? prev.filter((item) => item !== cause) : [...prev, cause]
+                  )}
+                />
+              </div>
+              <textarea
+                value={context}
+                onChange={(event) => setContext(event.target.value)}
+                placeholder="Contame si querés..."
+                rows={3}
+                className="w-full resize-none rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3.5 text-sm text-[#4a4a5a] outline-none transition-colors focus:border-[#6b4c9a]/40 focus:ring-2 focus:ring-[#6b4c9a]/15 placeholder:text-[#b8b0c8]"
               />
-              <div className="mt-1 flex justify-between text-[11px] text-[#8b7aa0]">
-                <span>Poco</span>
-                <span>Mucho</span>
-              </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block">
-                <span className="text-sm font-medium text-[#4a4a5a]">Que paso</span>
-                <div className="mt-1 mb-2">
-                  <EmotionCauseQuickPicker
-                    onPick={(cause) => setContext((prev) => {
-                      const trimmed = prev.trim();
-                      if (!trimmed) return cause;
-                      return trimmed.toLowerCase().includes(cause) ? trimmed : `${trimmed}, ${cause}`;
-                    })}
-                  />
-                </div>
-                <textarea
-                  value={context}
-                  onChange={(event) => setContext(event.target.value)}
-                  placeholder="Ej: hubo un cambio de plan, complete una actividad, tuve una conversacion..."
-                  className="h-24 w-full resize-none rounded-xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]"
-                />
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium text-[#4a4a5a]">Que ayudo</span>
-                <textarea
-                  value={whatHelped}
-                  onChange={(event) => setWhatHelped(event.target.value)}
-                  placeholder="Ej: respirar, pedir ayuda, descansar, usar pictogramas..."
-                  className="mt-1 h-24 w-full resize-none rounded-xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]"
-                />
-              </label>
+            {/* ¿Qué ayudó? */}
+            <div>
+              <p className="mb-2 text-sm font-medium text-[#4a4a5a]">¿Hubo algo que te ayudó?</p>
+              <textarea
+                value={whatHelped}
+                onChange={(event) => setWhatHelped(event.target.value)}
+                placeholder="¿Qué te hizo sentir un poco mejor?"
+                rows={3}
+                className="w-full resize-none rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3.5 text-sm text-[#4a4a5a] outline-none transition-colors focus:border-[#6b4c9a]/40 focus:ring-2 focus:ring-[#6b4c9a]/15 placeholder:text-[#b8b0c8]"
+              />
             </div>
 
-            <button onClick={submit} disabled={saving} className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-3 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 disabled:opacity-60">
-              {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-              Registrar emocion
+            {/* Save button */}
+            <button
+              onClick={submit}
+              disabled={saving}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#7c3aed] to-[#6b4c9a] px-4 py-3.5 text-sm font-semibold text-white shadow-md shadow-purple-200/60 transition-all hover:shadow-lg hover:shadow-purple-200/70 active:scale-[0.98] disabled:opacity-60"
+            >
+              {saving ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <Heart size={18} />
+              )}
+              Guardar cómo me siento
             </button>
           </motion.div>
         )}
-      </section>
+      </AnimatePresence>
 
-      <section className="hidden" aria-hidden="true">
-        <h3 className="font-semibold text-[#6b4c9a] mb-3">Resumen emocional</h3>
-        <div className="space-y-2">
-          {stats.topEmotions.map(([emotion, count]) => {
-            const option = emotionOptions.find((item) => item.label === emotion);
-            const maxCount = stats.topEmotions[0]?.[1] || 1;
-            return (
-              <div key={emotion} className="grid grid-cols-[auto_88px_1fr_auto] items-center gap-2">
-                <span className="text-lg">{option?.emoji || '🙂'}</span>
-                <span className="text-xs font-medium text-[#4a4a5a]">{emotion}</span>
-                <div className="h-2 rounded-full bg-[#f0e8f8]">
-                  <div className="h-2 rounded-full bg-[#6b4c9a]" style={{ width: `${(count / maxCount) * 100}%` }} />
-                </div>
-                <span className="w-6 text-right text-xs text-[#8b7aa0]">{count}</span>
-              </div>
-            );
-          })}
-          {!stats.topEmotions.length && (
-            <p className="text-sm text-[#8b7aa0]">Todavía no hay registros emocionales.</p>
-          )}
-        </div>
-      </section>
-
-      <section className="hidden" aria-hidden="true">
-        <h3 className="font-semibold text-[#6b4c9a] mb-3">Historial</h3>
-        {loading && !records.length && (
-          <div className="flex items-center gap-2 rounded-2xl border border-[#f0e8f8] bg-white p-4 text-sm text-[#8b7aa0] shadow-lg">
-            <Loader2 size={16} className="animate-spin" />
-            Cargando registros...
-          </div>
-        )}
-
-        {!loading && dates.length === 0 && (
-          <div className="rounded-3xl border border-dashed border-[#e0d8f0] bg-[#faf8ff] px-6 py-14 text-center text-sm text-[#8b7aa0] shadow-sm">
-            No hay emociones registradas todavía.
-          </div>
-        )}
-
-        {dates.map((date) => (
-          <div key={date} className="mb-4">
-            <p className="mb-2 text-xs font-medium capitalize text-[#8b7aa0]">{formatDate(date)}</p>
-            <div className="space-y-2">
-              {grouped[date].map((record) => (
-                <div key={record.id} className="grid grid-cols-[auto_1fr_auto] gap-3 rounded-2xl border border-[#f0e8f8] bg-white p-3 shadow-md">
-                  <span className="text-2xl">{record.emoji}</span>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium text-sm text-[#4a4a5a]">{record.emotion}</p>
-                      <div className="flex gap-0.5" aria-label={`Intensidad ${record.intensity} de 5`}>
-                        {Array.from({ length: 5 }).map((_, index) => (
-                          <span key={index} className={`h-2 w-2 rounded-full ${index < record.intensity ? 'bg-[#6b4c9a]' : 'bg-[#f0e8f8]'}`} />
-                        ))}
-                      </div>
-                      <span className="text-[11px] text-[#8b7aa0]">{record.timestamp}</span>
-                    </div>
-                    {record.context && <p className="mt-1 text-xs text-[#8b7aa0]">{record.context}</p>}
-                    {record.whatHelped && (
-                      <p className="mt-1 text-xs text-[#4a4a5a]">
-                        <span className="font-medium">Ayudo:</span> {record.whatHelped}
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleRemove(record.id)}
-                    disabled={deletingId === record.id}
-                    className="h-8 w-8 rounded-xl text-[#8b7aa0] hover:bg-[#f5f0ff] hover:text-[#6b4c9a] disabled:opacity-60"
-                    title="Eliminar"
-                  >
-                    {deletingId === record.id ? <Loader2 size={15} className="mx-auto animate-spin" /> : <Trash2 size={15} className="mx-auto" />}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </section>
-
+      {/* Notes */}
       <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 shadow-lg sm:p-5">
-        <h3 className="mb-4 font-semibold text-[#6b4c9a]">Emociones registradas</h3>
+        <h3 className="mb-1 flex items-center gap-2 font-semibold text-[#6b4c9a]"><FileText size={17} />Mis notas</h3>
+        <p className="mb-3 text-xs text-[#8b7aa0]">Tus pensamientos guardados</p>
+        {notesError && (
+          <p role="alert" className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            {notesError}
+          </p>
+        )}
+        <PersonalNotesList notes={notes} loading={notesLoading} deletingId={deletingNoteId} onDelete={handleDeleteNote} />
+      </section>
+
+      {/* Emociones registradas */}
+      <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 shadow-lg sm:p-5">
+        <h3 className="mb-3 font-semibold text-[#6b4c9a]">Emociones registradas</h3>
         {loading && records.length === 0 ? (
           <div className="flex items-center gap-2 py-4 text-sm text-[#8b7aa0]"><Loader2 size={16} className="animate-spin" />Cargando emociones...</div>
         ) : records.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-[#e0d8f0] bg-[#faf8ff] px-5 py-8 text-center text-sm text-[#8b7aa0]">Todavía no guardaste emociones desde el Tablero emocional.</div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-2.5 sm:grid-cols-2">
             {records.map((record) => (
               <article key={record.id} className="flex items-center gap-3 rounded-2xl border border-[#f0e8f8] bg-[#faf8ff] p-3">
                 <span className="text-3xl" aria-hidden="true">{record.emoji}</span>
@@ -365,16 +359,6 @@ export default function UserEmotions() {
             ))}
           </div>
         )}
-      </section>
-
-      <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 shadow-lg sm:p-5">
-        <h3 className="mb-1 flex items-center gap-2 font-semibold text-[#6b4c9a]"><FileText size={17} />Notas guardadas</h3>
-        {notesError && (
-          <p role="alert" className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            {notesError}
-          </p>
-        )}
-        <PersonalNotesList notes={notes} loading={notesLoading} deletingId={deletingNoteId} onDelete={handleDeleteNote} />
       </section>
     </div>
   );
