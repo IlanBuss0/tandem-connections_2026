@@ -11,7 +11,6 @@ import { useCalendarPictograms } from '@/hooks/useCalendarPictograms';
 import SpeakButton from '@/components/SpeakButton';
 import { formatConcreteDays } from '@/lib/concreteTime';
 import SocialStoryView from '@/components/SocialStoryView';
-import ReassuranceCard from '@/components/ReassuranceCard';
 import { isDayOverloaded } from '@/lib/weekLoad';
 import CalendarEventDialog from '@/components/calendar/CalendarEventDialog';
 import {
@@ -467,22 +466,6 @@ export default function UserCalendar() {
                       <span className="inline-flex items-center gap-1"><Clock size={12} /> {event.time}</span>
                       <span className="capitalize">{getSectionName(event.type)}</span>
                     </div>
-                    {event.afterNote && (
-                      <p className="mt-2 max-w-full whitespace-normal [overflow-wrap:anywhere] rounded-lg bg-white/60 p-2 text-xs text-[#4a4a5a]">
-                        <span className="font-semibold">Después: </span>{event.afterNote}
-                      </p>
-                    )}
-                    {event.planB && (
-                      <p className="mt-1.5 max-w-full whitespace-normal [overflow-wrap:anywhere] rounded-lg bg-amber-50 p-2 text-xs text-[#4a4a5a]">
-                        <span className="font-semibold">Plan B: </span>{event.planB}
-                      </p>
-                    )}
-                    {event.sensoryNote && (
-                      <p className="mt-1.5 max-w-full whitespace-normal [overflow-wrap:anywhere] rounded-lg bg-blue-50 p-2 text-xs text-[#4a4a5a]">
-                        <span className="font-semibold">Preparate: </span>{event.sensoryNote}
-                      </p>
-                    )}
-                    <ReassuranceCard event={event} />
                     <div className="mt-2">
                       <SocialStoryView event={event} />
                     </div>
