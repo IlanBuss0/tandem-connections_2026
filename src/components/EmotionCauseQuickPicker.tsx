@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { fetchPictograms, type Pictogram } from '@/data/api';
 
-// Unica responsabilidad: chips de causas comunes con pictograma, para
+// Unica responsabilidad: cards de causas comunes con pictograma, para
 // completar mas rapido el "Que paso" de un registro emocional (Sesion 9,
 // item 30 del roadmap). No reemplaza el campo de texto libre que ya
-// existia — lo complementa: tocar un chip agrega esa palabra al texto.
+// existia — lo complementa: tocar una card la selecciona/deselecciona
+// de forma independiente al texto.
 //
 // Lista fija y chica a proposito: son las causas mas comunes que
 // aparecen en la practica de CAA (escuela, cambios, ruido...). Un picker
@@ -12,7 +13,12 @@ import { fetchPictograms, type Pictogram } from '@/data/api';
 // grande que no hace falta para el caso de uso real.
 const COMMON_CAUSES = ['escuela', 'familia', 'cambio de planes', 'ruido', 'cansancio', 'amigos', 'tarea', 'salida'];
 
-export default function EmotionCauseQuickPicker({ onPick }: { onPick: (label: string) => void }) {
+type EmotionCauseQuickPickerProps = {
+  selected: string[];
+  onToggle: (label: string) => void;
+};
+
+export default function EmotionCauseQuickPicker({ selected, onToggle }: EmotionCauseQuickPickerProps) {
   const [pictograms, setPictograms] = useState<Record<string, Pictogram | null>>({});
 
   useEffect(() => {
@@ -32,22 +38,28 @@ export default function EmotionCauseQuickPicker({ onPick }: { onPick: (label: st
   }, []);
 
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       {COMMON_CAUSES.map((cause) => {
         const picto = pictograms[cause];
+        const isSelected = selected.includes(cause);
         return (
           <button
             key={cause}
             type="button"
-            onClick={() => onPick(cause)}
-            className="flex items-center gap-1 rounded-full border border-[#ede4f8] bg-[#faf8ff] py-1 pl-1 pr-2.5 text-xs text-[#6b4c9a] hover:border-[#6b4c9a]/40 hover:bg-[#f5f0ff]"
+            onClick={() => onToggle(cause)}
+            aria-pressed={isSelected}
+            className={`flex items-center gap-2 rounded-xl border px-2.5 py-2 text-xs font-medium transition-all ${
+              isSelected
+                ? 'border-[#6b4c9a]/50 bg-[#f0e8fb] text-[#6b4c9a] shadow-sm'
+                : 'border-[#ede4f8] bg-[#f8f4ff] text-[#6b4c9a] hover:border-[#6b4c9a]/40 hover:bg-[#f2ecfd]'
+            }`}
           >
             {picto?.imageUrl ? (
-              <img src={picto.imageUrl} alt="" className="h-5 w-5 object-contain" loading="lazy" />
+              <img src={picto.imageUrl} alt="" className="h-6 w-6 shrink-0 object-contain" loading="lazy" />
             ) : (
-              <span className="h-5 w-5" />
+              <span className="h-6 w-6 shrink-0" />
             )}
-            {cause}
+            <span className="min-w-0 leading-tight">{cause}</span>
           </button>
         );
       })}
