@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { Heart, MessageCircle, Sparkles, Sun, X } from 'lucide-react';
+import { Heart, MessageCircle, Sparkles, X } from 'lucide-react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 
 type Props = {
@@ -12,7 +12,6 @@ type Props = {
 };
 
 const actions = [
-  { id: 'routines', label: 'Mi día', icon: Sun, color: 'text-amber-600' },
   { id: 'emotions', label: 'Registro personal', icon: Heart, color: 'text-rose-500' },
   { id: 'explainThis', label: 'Ayudame a entender', icon: Sparkles, color: 'text-violet-600' },
   { id: 'communicate', label: 'Comunicarme', icon: MessageCircle, color: 'text-sky-600' },

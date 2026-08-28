@@ -8,7 +8,7 @@ import CoinBadge from '@/components/CoinBadge';
 import { toast } from '@/hooks/ui/use-toast';
 import { CompactRelations, ProfileGrid, ProfileHero, ProfileInfoGrid, ProfileLayout, ProfileSection } from '@/components/account/ProfileLayout';
 
-export default function UserProfile({ onConfigure }: { onConfigure?: () => void }) {
+export default function UserProfile({ onConfigure, embedded = false }: { onConfigure?: () => void; embedded?: boolean }) {
   const { user, refreshUser } = useAuth();
   const { state: wallet } = useWallet();
   const [profile, setProfile] = useState<UserProfileDashboard | null>(null);
@@ -70,7 +70,7 @@ export default function UserProfile({ onConfigure }: { onConfigure?: () => void 
   const allSupport = [...(profile?.tutors || []), ...(profile?.professionals || [])];
 
   const selectedPlan = profile?.plans.find(plan => plan.highlighted) || profile?.plans[0];
-  return <ProfileLayout>
+  return <ProfileLayout embedded={embedded}>
     {error && <div role="alert" className="flex items-center gap-2 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"><AlertCircle size={16} />{error}</div>}
     {loading && !profile && <div className="flex items-center gap-2 rounded-2xl border border-[#ebe3f3] bg-white p-4 text-sm text-[#80748c]"><Loader2 size={16} className="animate-spin" />Cargando perfil...</div>}
     <ProfileHero avatar={<AvatarPreview equipped={wallet.equipped} appearance={wallet.appearance} size={120} />} name={fullName} username={username} roleLabel="Perteneciente" secondary={<CoinBadge size="md" />} metrics={[{ label: 'Nivel', value: profile?.level ?? user.level }, { label: 'Puntos', value: profile?.points ?? user.points }, { label: 'Experiencia', value: profile?.experience ?? 0 }]} action={onConfigure && <button type="button" onClick={onConfigure} className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-[#d7c4eb] bg-white px-4 text-sm font-bold text-[#6530ad] shadow-sm hover:bg-[#f7f1fc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6b35b5]"><Settings size={16} />Configurar</button>} />

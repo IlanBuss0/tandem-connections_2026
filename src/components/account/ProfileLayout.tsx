@@ -3,8 +3,8 @@ import type { CSSProperties, ReactNode } from 'react';
 
 export type ProfileMetric = { label: string; value: ReactNode; hint?: string };
 
-export function ProfileLayout({ children }: { children: ReactNode }) {
-  return <div className="space-y-5 pb-24 lg:pb-6">{children}</div>;
+export function ProfileLayout({ children, embedded = false }: { children: ReactNode; embedded?: boolean }) {
+  return <div className={embedded ? 'space-y-5' : 'space-y-5 pb-24 lg:pb-6'}>{children}</div>;
 }
 
 export function ProfileHero({ avatar, name, username, roleLabel, secondary, metrics, action }: {

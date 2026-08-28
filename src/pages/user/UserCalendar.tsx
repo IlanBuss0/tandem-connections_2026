@@ -1,9 +1,9 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, CalendarDays, ChevronLeft, ChevronRight, Clock, Pencil, Plus, Trash2, X } from 'lucide-react';
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { useCalendar, eventTypes } from '@/contexts/CalendarContext';
-import { useRoutines } from '@/contexts/RoutinesContext';
+import { useRoutines, DayKey } from '@/contexts/RoutinesContext';
 import { CalendarEvent } from '@/data/api';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 import EventPictogram from '@/components/EventPictogram';
@@ -13,6 +13,7 @@ import { formatConcreteDays } from '@/lib/concreteTime';
 import SocialStoryView from '@/components/SocialStoryView';
 import { isDayOverloaded } from '@/lib/weekLoad';
 import CalendarEventDialog from '@/components/calendar/CalendarEventDialog';
+import BelongingRoutineDaySection from '@/components/belonging/BelongingRoutineDaySection';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,10 +57,10 @@ function labelDate(date: string) {
   });
 }
 
-export default function UserCalendar() {
+export default function UserCalendar({ initialRoutineId, initialItemId }: { initialRoutineId?: string; initialItemId?: string } = {}) {
   const { context: permissionContext } = usePermissionContext();
   const { events, addEvent, updateEvent, deleteEvent, eventTypePatterns } = useCalendar();
-  const { customCategories } = useRoutines();
+  const { customCategories, routines } = useRoutines();
 
   const getSectionName = (catId: string) => {
     const custom = customCategories.find(c => c.id === catId);
@@ -137,6 +138,22 @@ export default function UserCalendar() {
   // (mismo criterio que "Mi dia" en Sesion 1: no gastar cuota en lo que
   // nadie esta viendo).
   useCalendarPictograms(selectedDayItems);
+
+  // Deep link desde una notificacion de rutina (ej: "recordatorio de paso"):
+  // el Calendario se posiciona en la proxima aparicion del dia de la semana
+  // al que esta vinculada la rutina.
+  useEffect(() => {
+    if (!initialRoutineId) return;
+    const routine = routines.find(r => r.id === initialRoutineId);
+    if (!routine || routine.dayOfWeek === null) return;
+    const currentDow = new Date().getDay() as DayKey;
+    const diff = (routine.dayOfWeek - currentDow + 7) % 7;
+    if (diff === 0) return;
+    const target = new Date();
+    target.setDate(target.getDate() + diff);
+    setCursor(new Date(target.getFullYear(), target.getMonth(), 1));
+    setSelectedDate(dateKey(target));
+  }, [initialRoutineId, routines]);
 
   if (!canUseCalendar) {
     return (
@@ -516,6 +533,12 @@ export default function UserCalendar() {
             </div>
           )}
         </section>
+
+        <BelongingRoutineDaySection
+          dayOfWeek={new Date(`${selectedDate}T12:00:00`).getDay() as DayKey}
+          initialRoutineId={initialRoutineId}
+          initialItemId={initialItemId}
+        />
       </motion.section>
       </div>
 
