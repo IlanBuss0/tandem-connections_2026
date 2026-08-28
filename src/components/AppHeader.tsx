@@ -12,6 +12,7 @@ type AppHeaderProps = {
   mobileBackOnly?: boolean;
   showMenuWithBack?: boolean;
   centerLogoMobile?: boolean;
+  mobileInlineLayout?: boolean;
   contextTitle?: string;
 };
 
@@ -26,6 +27,7 @@ export default function AppHeader({
   mobileBackOnly = false,
   showMenuWithBack = false,
   centerLogoMobile = false,
+  mobileInlineLayout = false,
   contextTitle,
 }: AppHeaderProps) {
   const positionClass = position === 'fixed' ? 'fixed' : 'sticky';
@@ -34,7 +36,7 @@ export default function AppHeader({
     <header
       className={`${positionClass} top-0 left-0 right-0 z-50 h-16 border-b border-border bg-white/95 shadow-[0_1px_0_rgba(15,23,42,0.04)] backdrop-blur ${className}`}
     >
-      <div className="relative flex h-full w-full items-center justify-between px-4 sm:px-6 lg:px-8">
+      <div className={`relative flex h-full w-full items-center px-4 sm:px-6 lg:px-8 ${mobileInlineLayout ? 'justify-center gap-2 lg:justify-between lg:gap-0' : 'justify-between'}`}>
         {onBack ? <>
           <button
             type="button"
@@ -61,7 +63,7 @@ export default function AppHeader({
             type="button"
             onClick={onLogoClick}
             aria-label="Ir a Inicio"
-            className={`absolute inline-flex h-11 items-center justify-center rounded-xl px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden ${centerLogoMobile ? 'left-1/2 -translate-x-1/2' : 'left-3 sm:left-5'}`}
+            className={`${mobileInlineLayout ? 'relative' : 'absolute'} inline-flex h-11 items-center justify-center rounded-xl px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden ${mobileInlineLayout ? '' : centerLogoMobile ? 'left-1/2 -translate-x-1/2' : 'left-3 sm:left-5'}`}
           >
             <img className="h-7 max-w-[108px] object-contain min-[360px]:h-8 min-[360px]:max-w-[132px]" src="/tandem-logo.png" alt="Tandem" />
           </button>
@@ -73,7 +75,7 @@ export default function AppHeader({
         />
         {onBack && contextTitle && <span className="pointer-events-none absolute left-1/2 max-w-[55vw] -translate-x-1/2 truncate text-sm font-bold lg:hidden">{contextTitle}</span>}
 
-        <div className="flex min-w-11 items-center justify-end gap-3">
+        <div className={`flex min-w-11 items-center justify-end gap-2 sm:gap-3 ${mobileInlineLayout ? 'lg:ml-auto' : ''}`}>
           {rightSlot}
         </div>
       </div>

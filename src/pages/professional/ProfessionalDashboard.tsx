@@ -8,7 +8,7 @@ import {
 } from '@/data/api';
 import { withGoogleToken } from '@/lib/googleAuth';
 import { getDocPlainText } from '@/lib/googleDocs';
-import { CheckCircle2, Calendar, Home, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, Sparkles, MessageCircle, Bell, KeyRound, Loader2, FolderOpen, CalendarClock, Download, Send, Info, Image, ShieldCheck, Link2 } from 'lucide-react';
+import { Activity as ActivityIcon, CheckCircle2, Calendar, Home, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, Sparkles, MessageCircle, Bell, Heart, KeyRound, Loader2, FolderOpen, CalendarClock, Download, Send, Info, Image, ShieldCheck, Link2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -73,7 +73,7 @@ export default function ProfessionalDashboard() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
-  useSyncMobileMenuOpen(menuOpen || profileOpen || quickOpen);
+  useSyncMobileMenuOpen(profileOpen || quickOpen);
   useEffect(() => { setSelectedPatient(routePatientId); setSelectedNotificationChatId(routeChatId); }, [routePatientId, routeChatId]);
   const [linkedUsers, setLinkedUsers] = useState<User[]>([]);
   const [activitiesByUser, setActivitiesByUser] = useState<Record<string, Activity[]>>({});
@@ -290,8 +290,9 @@ export default function ProfessionalDashboard() {
       <a href="#professional-main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-[100] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2">Saltar al contenido</a>
       <AppHeader
         onMenuClick={() => { setProfileOpen(false); setQuickOpen(false); setMenuOpen(true); }}
+        menuButtonClassName="hidden lg:inline-flex"
         onLogoClick={() => navigate('home')}
-        centerLogoMobile
+        mobileInlineLayout
         rightSlot={
           <div className="flex items-center gap-2"><NotificationBellButton count={unreadCount} onClick={() => { setMenuOpen(false); setProfileOpen(false); navigate('notifications'); }} className="border-0 bg-transparent text-primary hover:bg-primary/10" /><ProfessionalAccountMenu open={profileOpen} onOpenChange={(open) => { setProfileOpen(open); if (open) { setMenuOpen(false); setQuickOpen(false); } }} user={user} onNavigate={navigate} onLogout={logout} /></div>
         }
@@ -302,8 +303,9 @@ export default function ProfessionalDashboard() {
         {tab === 'home' && loadingPatients && <ProfessionalHomeSkeleton />}
         {tab === 'home' && !loadingPatients && patientsError && <div role="alert" className="rounded-3xl border border-destructive/20 bg-white p-6 text-sm text-destructive shadow-sm">{patientsError}<Button type="button" variant="outline" className="ml-3" onClick={reloadPatients}>Reintentar</Button></div>}
         {tab === 'home' && !loadingPatients && !patientsError && <ProfessionalHome professionalName={user.name} patients={linkedUsers} sessions={sessions} activitiesByUser={activitiesByUser} emotionsByUser={emotionsByUser} notesByUser={notesByUser} patientPertenecienteIds={Object.fromEntries(linkedUsers.map(patient => [patient.id, Number(linkForUser(patient.id)?.perteneciente.id)]))} onNavigate={navigate} onOpenPatient={openPatient} />}
-        {tab === 'recentActivity' && <ProfessionalRecentActivity patients={linkedUsers} emotionsByUser={emotionsByUser} notesByUser={notesByUser} onOpenPatient={openPatient} />}
-        {tab === 'emotionalStatus' && <ProfessionalEmotionalStatus patients={linkedUsers} emotionsByUser={emotionsByUser} />}
+        {(tab === 'patients' || tab === 'recentActivity' || tab === 'emotionalStatus') && !selectedPatient && <ProfessionalAreaNavigation title="Pacientes" description="Gestioná tus pacientes y consultá su seguimiento desde un mismo lugar." active={tab} onNavigate={navigate} items={[{ id: 'patients', label: 'Listado y gestión', icon: Users }, { id: 'recentActivity', label: 'Actividad reciente', icon: ActivityIcon }, { id: 'emotionalStatus', label: 'Estado emocional', icon: Heart }]} />}
+        {tab === 'recentActivity' && <ProfessionalRecentActivity embedded patients={linkedUsers} emotionsByUser={emotionsByUser} notesByUser={notesByUser} onOpenPatient={openPatient} />}
+        {tab === 'emotionalStatus' && <ProfessionalEmotionalStatus embedded patients={linkedUsers} emotionsByUser={emotionsByUser} />}
         {tab === 'chat' && canSendMessages && (
           <ChatProvider>
             <ChatScreen
@@ -318,7 +320,6 @@ export default function ProfessionalDashboard() {
         )}
         {tab === 'patients' && !selectedPatient && (
           <>
-            <header><h1 className="font-heading text-3xl font-bold text-foreground">Pacientes</h1><p className="mt-2 text-sm text-muted-foreground">Consultá tus vínculos sin cambiar el contexto general de la aplicación.</p></header>
             <div className="flex flex-col gap-3 rounded-3xl border border-white/80 bg-white/85 p-4 shadow-sm sm:flex-row sm:items-center"><label htmlFor="professional-patient-search" className="sr-only">Buscar paciente</label><Input id="professional-patient-search" type="search" value={patientSearch} onChange={event => setPatientSearch(event.target.value)} placeholder="Buscar por nombre" className="min-h-11 flex-1" /><span className="text-sm font-semibold text-muted-foreground">{visiblePatients.length} de {linkedUsers.length}</span><Button type="button" variant="outline" onClick={() => navigate('tools')} className="min-h-11"><KeyRound size={16} className="mr-2" aria-hidden />Vincular paciente</Button></div>
             {loadingPatients && (
               <div className="bg-card rounded-xl border border-border p-6 text-sm text-muted-foreground">
@@ -627,6 +628,7 @@ export default function ProfessionalDashboard() {
         {tab === 'calendar' && !canScheduleSessions && (
           <PermissionBlocked title="Calendario deshabilitado" description="No tenés permisos activos para gestionar sesiones con tus pacientes vinculados." />
         )}
+        {(tab === 'documents' || tab === 'reports') && <ProfessionalAreaNavigation title="Documentos y notas" description="Centralizá archivos, notas clínicas y reportes de tu práctica." active={tab} onNavigate={navigate} items={[{ id: 'documents', label: 'Documentos y notas', icon: FolderOpen }, { id: 'reports', label: 'Reportes', icon: BarChart3 }]} />}
         {tab === 'documents' && <ProfessionalDocumentsArea onOpenPatients={() => navigate('patients')} />}
         {tab === 'reports' && <ProfessionalReportsPanel patients={agendaPatients} />}
         {tab === 'resources' && <ProfessionalResourceHub onNavigate={navigate} />}
@@ -735,15 +737,11 @@ export default function ProfessionalDashboard() {
               </div>
             </div>
 
-            <div className="bg-card rounded-xl p-4 border border-border">
-              <h3 className="font-heading font-semibold text-foreground mb-3">📄 Reportes</h3>
-              <ProfessionalReportsPanel patients={agendaPatients} />
-            </div>
           </div>
         )}
 
       </main>
-      <BelongingMobileBottomNav activeTab={tab} onNavigate={(next) => navigate(next as ProfessionalTab)} destinations={mobileDestinations} forceExpanded={quickOpen} center={(compactProgress) => <ProfessionalQuickMenu open={quickOpen} onOpenChange={setQuickOpen} compactProgress={compactProgress} permissions={navigationPermissions} onAction={(action: ProfessionalQuickAction) => {
+      <BelongingMobileBottomNav activeTab={tab === 'recentActivity' || tab === 'emotionalStatus' ? 'patients' : tab} onNavigate={(next) => navigate(next as ProfessionalTab)} destinations={mobileDestinations} forceExpanded={quickOpen} center={(compactProgress) => <ProfessionalQuickMenu open={quickOpen} onOpenChange={setQuickOpen} compactProgress={compactProgress} permissions={navigationPermissions} onAction={(action: ProfessionalQuickAction) => {
         if (action === 'activity') navigate('create');
         if (action === 'resources') navigate('resources');
         if (action === 'documents') navigate('documents');
@@ -771,5 +769,9 @@ function ProfessionalHomeSkeleton() {
 }
 
 function ProfessionalDocumentsArea({ onOpenPatients }: { onOpenPatients: () => void }) {
-  return <div className="space-y-5"><header><h1 className="font-heading text-3xl font-bold">Documentos y notas</h1><p className="mt-2 text-sm text-muted-foreground sm:text-base">Archivos de Drive y notas clínicas organizados dentro de tu práctica.</p></header><button type="button" onClick={onOpenPatients} className="flex min-h-24 w-full items-center gap-4 rounded-[24px] border border-[#ece3f8] bg-white p-4 text-left shadow-[0_8px_24px_#f0e8f8] transition hover:border-primary/25 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary"><FileText size={21} aria-hidden /></span><span className="min-w-0 flex-1"><span className="block font-bold text-[#2e2344]">Notas clínicas</span><span className="block text-sm text-muted-foreground">Elegí un paciente y una sesión para consultar o escribir su nota privada.</span></span><span className="text-sm font-semibold text-primary">Ver pacientes</span></button><section className="rounded-[24px] border border-[#ece3f8] bg-white p-4 shadow-[0_8px_24px_#f0e8f8] sm:p-5"><h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-[#2e2344]"><FolderOpen className="text-primary" aria-hidden />Documentos</h2><DriveExplorer /></section></div>;
+  return <div className="space-y-5"><button type="button" onClick={onOpenPatients} className="flex min-h-24 w-full items-center gap-4 rounded-[24px] border border-[#ece3f8] bg-white p-4 text-left shadow-[0_8px_24px_#f0e8f8] transition hover:border-primary/25 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary"><FileText size={21} aria-hidden /></span><span className="min-w-0 flex-1"><span className="block font-bold text-[#2e2344]">Notas clínicas</span><span className="block text-sm text-muted-foreground">Elegí un paciente y una sesión para consultar o escribir su nota privada.</span></span><span className="text-sm font-semibold text-primary">Ver pacientes</span></button><section className="rounded-[24px] border border-[#ece3f8] bg-white p-4 shadow-[0_8px_24px_#f0e8f8] sm:p-5"><h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-[#2e2344]"><FolderOpen className="text-primary" aria-hidden />Documentos</h2><DriveExplorer /></section></div>;
+}
+
+function ProfessionalAreaNavigation({ title, description, active, items, onNavigate }: { title: string; description: string; active: ProfessionalTab; items: { id: ProfessionalTab; label: string; icon: typeof Users }[]; onNavigate: (tab: ProfessionalTab) => void }) {
+  return <section className="space-y-4"><header><h1 className="font-heading text-3xl font-bold tracking-tight text-foreground sm:text-4xl">{title}</h1><p className="mt-2 text-sm text-muted-foreground sm:text-base">{description}</p></header><nav aria-label={`Secciones de ${title}`} className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">{items.map(item => { const selected = active === item.id; return <button key={item.id} type="button" onClick={() => onNavigate(item.id)} aria-current={selected ? 'page' : undefined} className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-2xl border px-4 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected ? 'border-primary bg-primary text-primary-foreground shadow-sm' : 'border-[#ddd0eb] bg-white text-[#5f526d] hover:border-primary/30 hover:bg-primary/5 hover:text-primary'}`}><item.icon size={18} aria-hidden />{item.label}</button>; })}</nav></section>;
 }

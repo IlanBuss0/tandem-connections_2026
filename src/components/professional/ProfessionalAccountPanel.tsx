@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { Accessibility, FileText, Info, LogOut, UserRound, X } from 'lucide-react';
+import { Info, LogOut, Settings, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 
@@ -17,9 +17,7 @@ export default function ProfessionalAccountPanel({ open, name, avatar, onClose, 
   }, [open, onClose]);
   const go = (tab: string) => { onClose(); onNavigate(tab); };
   const sections = [
-    { title: 'Mi perfil', items: [{ label: 'Perfil y seguridad', icon: UserRound, tab: 'profile' }] },
-    { title: 'Preferencias', items: [{ label: 'Accesibilidad', icon: Accessibility, tab: 'accessibility' }] },
-    { title: 'Tándem', items: [{ label: 'Documentos', icon: FileText, tab: 'documents' }, { label: 'Acerca de TÁNDEM', icon: Info, tab: 'about' }] },
+    { title: 'Cuenta', items: [{ label: 'Mi perfil y configuración', icon: Settings, tab: 'profile' }, { label: 'Acerca de TÁNDEM', icon: Info, tab: 'about' }] },
   ];
   return <AnimatePresence>{open && <div className="fixed inset-0 z-[70]" role="presentation">
     <motion.button aria-label="Cerrar Perfil y cuenta" className="absolute inset-0 h-full w-full bg-slate-950/15 backdrop-blur-[2px]" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
