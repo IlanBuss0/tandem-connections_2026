@@ -12,6 +12,7 @@ import SpeakButton from '@/components/SpeakButton';
 import { formatConcreteDays } from '@/lib/concreteTime';
 import SocialStoryView from '@/components/SocialStoryView';
 import CalendarEventDialog from '@/components/calendar/CalendarEventDialog';
+import UserRoutines from '@/pages/user/UserRoutines';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,7 +50,7 @@ function momentoDelDia(time: string) {
   return { label: 'Noche', Icon: Moon };
 }
 
-export default function UserCalendar() {
+export default function UserCalendar({ initialRoutineId, initialItemId }: { initialRoutineId?: string; initialItemId?: string } = {}) {
   const { context: permissionContext } = usePermissionContext();
   const { events, addEvent, updateEvent, deleteEvent, eventTypePatterns } = useCalendar();
   const { customCategories } = useRoutines();
@@ -82,6 +83,7 @@ export default function UserCalendar() {
   const todayKey = dateKey(today);
   const [cursor, setCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState(todayKey);
+  const [section, setSection] = useState<'calendar' | 'routines'>(() => initialRoutineId || initialItemId ? 'routines' : 'calendar');
   const dayDetailRef = useRef<HTMLElement>(null);
 
   const [showForm, setShowForm] = useState(false);
@@ -115,6 +117,13 @@ export default function UserCalendar() {
     permissionContext?.perteneciente?.permisos_efectivos?.permisos,
     PERTENECIENTE_PERMISSIONS.USAR_CALENDARIO,
     true,
+  );
+
+  const sectionNavigation = (
+    <div className="grid grid-cols-2 gap-1 rounded-2xl border border-[#e8ddf5] bg-[#f5f0ff] p-1" aria-label="Secciones de Calendario">
+      <button type="button" onClick={() => setSection('calendar')} aria-pressed={section === 'calendar'} className={`min-h-11 rounded-xl px-4 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${section === 'calendar' ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-primary'}`}>Calendario</button>
+      <button type="button" onClick={() => setSection('routines')} aria-pressed={section === 'routines'} className={`min-h-11 rounded-xl px-4 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${section === 'routines' ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-primary'}`}>Rutinas del día</button>
+    </div>
   );
 
   const eventsByDate = useMemo(() => {
@@ -157,6 +166,10 @@ export default function UserCalendar() {
   // (mismo criterio que "Mi dia" en Sesion 1: no gastar cuota en lo que
   // nadie esta viendo).
   useCalendarPictograms(selectedDayItems);
+
+  if (section === 'routines') {
+    return <div className="space-y-6">{sectionNavigation}<UserRoutines initialRoutineId={initialRoutineId} initialItemId={initialItemId} /></div>;
+  }
 
   if (!canUseCalendar) {
     return (
@@ -250,6 +263,7 @@ export default function UserCalendar() {
 
   return (
     <div className="pb-24 lg:pb-6 space-y-6">
+      {sectionNavigation}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}

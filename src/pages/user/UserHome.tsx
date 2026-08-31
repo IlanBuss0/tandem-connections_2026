@@ -587,7 +587,6 @@ export default function UserHome({ onNavigate }: Props) {
       <BelongingHomeSecondaryAccess
         level={'level' in user ? user.level : home.level}
         points={wallet.balance}
-        avatar={user.avatar}
         onNavigate={onNavigate}
       />
 
