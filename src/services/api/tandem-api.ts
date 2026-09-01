@@ -85,6 +85,11 @@ export type AuthPayload = {
   token?: string;
   accessToken?: string;
   expiresAt?: string;
+  professionalVerification?: {
+    status: string;
+    reviewStatus: string;
+    messageCode: string;
+  };
 };
 
 export type LoginRequest = {
@@ -121,7 +126,21 @@ export type RegisterRequest = Pick<
     matricula?: string;
     especialidad?: string;
     institucion?: string;
+    dniFrente?: File;
   };
+
+function authFormData(payload: Partial<RegisterRequest> & { accessToken?: string }): FormData {
+  const formData = new FormData();
+  Object.entries(payload).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    if (key === "dniFrente" && value instanceof File) {
+      formData.append("dni_frente", value);
+      return;
+    }
+    formData.append(key, String(value));
+  });
+  return formData;
+}
 
 export const authApi = {
   async login(payload: LoginRequest): Promise<AuthPayload> {
@@ -135,6 +154,14 @@ export const authApi = {
   },
 
   async register(payload: RegisterRequest): Promise<AuthPayload> {
+    if (payload.rol === "profesional") {
+      const response = await apiUploadFile<ApiEnvelope<AuthPayload>>(
+        "/api/auth/register",
+        authFormData(payload),
+      );
+      return unwrapApiData(response);
+    }
+
     const response = await apiRequest<ApiEnvelope<AuthPayload>>("/api/auth/register", {
       method: "POST",
       body: payload,
@@ -169,7 +196,15 @@ export const authApi = {
     return unwrapApiData(response);
   },
 
-  async google(payload: { idToken: string; rol?: RegisterRole } & Partial<RegisterRequest>): Promise<AuthPayload> {
+  async google(payload: { accessToken: string; rol?: RegisterRole } & Partial<RegisterRequest>): Promise<AuthPayload> {
+    if (payload.rol === "profesional") {
+      const response = await apiUploadFile<ApiEnvelope<AuthPayload>>(
+        "/api/auth/google",
+        authFormData(payload),
+      );
+      return unwrapApiData(response);
+    }
+
     const response = await apiRequest<ApiEnvelope<AuthPayload>>("/api/auth/google", {
       method: "POST",
       body: payload,

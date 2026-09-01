@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Eye, EyeOff, HeartHandshake, Sparkles, Stethoscope, User as UserIcon } from 'lucide-react';
+import { ArrowLeft, Camera, Eye, EyeOff, HeartHandshake, RotateCcw, Sparkles, Stethoscope, User as UserIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -61,6 +61,8 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
   const [registerProfesion, setRegisterProfesion] = useState('');
   const [registerMatricula, setRegisterMatricula] = useState('');
   const [registerEspecialidad, setRegisterEspecialidad] = useState('');
+  const [registerDniFrente, setRegisterDniFrente] = useState<File | null>(null);
+  const [registerDniPreview, setRegisterDniPreview] = useState<string | null>(null);
   const [registerLoading, setRegisterLoading] = useState(false);
   // Access token de Google en espera de que el usuario elija su rol (cuenta
   // nueva) o complete matricula/profesion (rol profesional). Google ya dio
@@ -79,9 +81,19 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     }
   }, [initialView]);
 
+  useEffect(() => () => {
+    if (registerDniPreview) URL.revokeObjectURL(registerDniPreview);
+  }, [registerDniPreview]);
+
   const resetFeedback = () => {
     setError('');
     setShowCredentials(false);
+  };
+
+  const updateDniFrente = (file?: File | null) => {
+    if (registerDniPreview) URL.revokeObjectURL(registerDniPreview);
+    setRegisterDniFrente(file || null);
+    setRegisterDniPreview(file ? URL.createObjectURL(file) : null);
   };
 
   const goTo = (nextView: AuthView) => {
@@ -91,6 +103,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
       setRegisterStep('role');
       setRegisterRole(null);
       setPendingGoogleToken(null);
+      updateDniFrente(null);
     }
     onViewChange?.(nextView);
   };
@@ -99,13 +112,14 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     setGoogleLoading(true);
     setError('');
     try {
-      const payload: { accessToken: string } & Record<string, string | undefined> = { accessToken };
+      const payload: { accessToken: string } & Record<string, string | File | undefined> = { accessToken };
       if (role) payload.rol = role;
       if (role === 'tutor') payload.parentesco = registerParentesco.trim() || undefined;
       if (role === 'profesional') {
         payload.profesion = registerProfesion.trim();
         payload.matricula = registerMatricula.trim();
         payload.especialidad = registerEspecialidad.trim() || undefined;
+        payload.dniFrente = registerDniFrente || undefined;
       }
       await googleAuth(payload);
       setPendingGoogleToken(null);
@@ -186,8 +200,8 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     }
 
     if (pendingGoogleToken) {
-      if (registerRole === 'profesional' && (!registerProfesion.trim() || !registerMatricula.trim())) {
-        setError('Completá profesión y matrícula para registrarte como profesional');
+      if (registerRole === 'profesional' && (!registerProfesion.trim() || !registerMatricula.trim() || !registerDniFrente)) {
+        setError('Completá profesión, matrícula y foto del frente del DNI para registrarte como profesional');
         return;
       }
       await completeGoogleAuth(pendingGoogleToken, registerRole);
@@ -219,8 +233,8 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
       return;
     }
 
-    if (registerRole === 'profesional' && (!registerProfesion.trim() || !registerMatricula.trim())) {
-      setError('Completá profesión y matrícula para registrarte como profesional');
+    if (registerRole === 'profesional' && (!registerProfesion.trim() || !registerMatricula.trim() || !registerDniFrente)) {
+      setError('Completá profesión, matrícula y foto del frente del DNI para registrarte como profesional');
       return;
     }
 
@@ -239,6 +253,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
               profesion: registerProfesion.trim(),
               matricula: registerMatricula.trim(),
               especialidad: registerEspecialidad.trim() || undefined,
+              dniFrente: registerDniFrente,
             }
           : {}),
       });
@@ -444,6 +459,12 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
                       onChange={e => setRegisterEspecialidad(e.target.value)}
                       placeholder="ej: TEA, neurodesarrollo..."
                     />
+                    <DniFrontField
+                      fileName={registerDniFrente?.name || null}
+                      previewUrl={registerDniPreview}
+                      onChange={file => updateDniFrente(file)}
+                      onClear={() => updateDniFrente(null)}
+                    />
                   </>
                 )}
 
@@ -470,7 +491,9 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
 
                 <AuthActionButton type="submit" disabled={registerLoading || googleLoading}>
                   {registerLoading || googleLoading
-                    ? 'Creando cuenta...'
+                    ? registerRole === 'profesional'
+                      ? 'Verificando tus credenciales profesionales...'
+                      : 'Creando cuenta...'
                     : pendingGoogleToken
                       ? 'Continuar'
                       : 'Registrarse'}
@@ -526,6 +549,62 @@ function RoleOption({
         <span className="block text-xs font-medium text-[#6F518E]/65">{option.description}</span>
       </span>
     </button>
+  );
+}
+
+function DniFrontField({
+  fileName,
+  previewUrl,
+  onChange,
+  onClear,
+}: {
+  fileName: string | null;
+  previewUrl: string | null;
+  onChange: (file: File | null) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="space-y-3 rounded-2xl border border-[#C9A7EB]/60 bg-white p-4 text-[#6F518E]">
+      <div className="space-y-1">
+        <p className="text-sm font-extrabold">Verificá tus credenciales profesionales</p>
+        <p className="text-xs font-medium leading-relaxed text-[#6F518E]/70">
+          Necesitamos una foto del frente de tu DNI para comprobar que tus datos coincidan con el Registro Federal de Profesionales de la Salud.
+        </p>
+      </div>
+
+      {previewUrl && (
+        <img
+          src={previewUrl}
+          alt="Vista previa del frente del DNI"
+          className="h-40 w-full rounded-xl border border-[#C9A7EB]/40 object-cover"
+        />
+      )}
+
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <label className="inline-flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-[10px] bg-[#6F518E] px-3 text-sm font-bold text-white">
+          <Camera size={18} />
+          {fileName ? 'Cambiar foto' : 'Subir frente'}
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            capture="environment"
+            className="sr-only"
+            onChange={event => onChange(event.target.files?.[0] || null)}
+          />
+        </label>
+        {fileName && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] border border-[#C9A7EB]/60 px-3 text-sm font-bold"
+          >
+            <RotateCcw size={17} />
+            Retomar
+          </button>
+        )}
+      </div>
+      {fileName && <p className="truncate text-xs font-semibold text-[#6F518E]/60">{fileName}</p>}
+    </div>
   );
 }
 

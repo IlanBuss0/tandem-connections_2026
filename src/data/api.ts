@@ -1188,7 +1188,7 @@ export async function registerUser(
 }
 
 export async function loginWithGoogle(
-  payload: { idToken: string } & Partial<import('@/services/api').RegisterRequest>,
+  payload: { accessToken: string } & Partial<import('@/services/api').RegisterRequest>,
 ): Promise<User | Tutor | Professional | Admin> {
   const auth = await tandemApi.auth.google(payload);
   storeAuthToken();
