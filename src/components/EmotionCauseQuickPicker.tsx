@@ -38,7 +38,7 @@ export default function EmotionCauseQuickPicker({ selected, onToggle }: EmotionC
   }, []);
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+    <div className="grid grid-cols-4 gap-1.5">
       {COMMON_CAUSES.map((cause) => {
         const picto = pictograms[cause];
         const isSelected = selected.includes(cause);
@@ -48,7 +48,7 @@ export default function EmotionCauseQuickPicker({ selected, onToggle }: EmotionC
             type="button"
             onClick={() => onToggle(cause)}
             aria-pressed={isSelected}
-            className={`flex items-center gap-2 rounded-xl border px-2.5 py-2 text-xs font-medium transition-all ${
+            className={`flex flex-col items-center justify-center gap-0.5 rounded-xl border px-1 py-1.5 text-[10px] font-medium leading-tight transition-all ${
               isSelected
                 ? 'border-[#6b4c9a]/50 bg-[#f0e8fb] text-[#6b4c9a] shadow-sm'
                 : 'border-[#ede4f8] bg-[#f8f4ff] text-[#6b4c9a] hover:border-[#6b4c9a]/40 hover:bg-[#f2ecfd]'
@@ -59,7 +59,7 @@ export default function EmotionCauseQuickPicker({ selected, onToggle }: EmotionC
             ) : (
               <span className="h-6 w-6 shrink-0" />
             )}
-            <span className="min-w-0 leading-tight">{cause}</span>
+            <span className="min-w-0 text-center">{cause}</span>
           </button>
         );
       })}

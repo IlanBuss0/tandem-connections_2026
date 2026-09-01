@@ -1,12 +1,10 @@
-import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, Check, FileText, Heart, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { AlertCircle, Check, Heart, Loader2 } from 'lucide-react';
 import { useEmotions, emotionOptions } from '@/contexts/EmotionsContext';
-import { deletePersonalNote, fetchPersonalNotesForUser, type PersonalNote } from '@/data/api';
-import { useAuth } from '@/contexts/AuthContext';
-import PersonalNotesList from '@/components/PersonalNotesList';
 import EmotionCauseQuickPicker from '@/components/EmotionCauseQuickPicker';
 import PermissionBlocked from '@/components/PermissionBlocked';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 import { toast } from '@/hooks/ui/use-toast';
 
@@ -61,7 +59,6 @@ function emotionSelectedBg(label: string) {
 }
 
 export default function UserEmotions() {
-  const { user } = useAuth();
   const { context: permissionContext } = usePermissionContext();
   const { records, loading, error, add } = useEmotions();
   const [selectedEmotion, setSelectedEmotion] = useState<string | null>(null);
@@ -70,20 +67,6 @@ export default function UserEmotions() {
   const [context, setContext] = useState('');
   const [whatHelped, setWhatHelped] = useState('');
   const [saving, setSaving] = useState(false);
-  const [notes, setNotes] = useState<PersonalNote[]>([]);
-  const [notesLoading, setNotesLoading] = useState(true);
-  const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    setNotesLoading(true);
-    fetchPersonalNotesForUser(user.id)
-      .then((data) => { if (!cancelled) setNotes(data); })
-      .catch(() => { if (!cancelled) setNotes([]); })
-      .finally(() => { if (!cancelled) setNotesLoading(false); });
-    return () => { cancelled = true; };
-  }, [user?.id]);
 
   const selectedOption = emotionOptions.find((emotion) => emotion.label === selectedEmotion);
 
@@ -104,26 +87,8 @@ export default function UserEmotions() {
         </div>
         <PermissionBlocked
           title="Emociones deshabilitadas"
-          description="Tu tutor deshabilitó temporalmente el registro emocional. Tus notas personales siguen disponibles."
+          description="Tu tutor deshabilitó temporalmente el registro emocional."
         />
-        <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 shadow-lg sm:p-5">
-          <h3 className="mb-3 flex items-center gap-2 font-semibold text-[#6b4c9a]"><FileText size={17} />Mis notas</h3>
-          <p className="mb-3 text-xs text-[#8b7aa0]">Tus pensamientos guardados</p>
-          <PersonalNotesList
-            notes={notes}
-            loading={notesLoading}
-            deletingId={deletingNoteId}
-            onDelete={async (id) => {
-              setDeletingNoteId(id);
-              try {
-                await deletePersonalNote(id);
-                setNotes((current) => current.filter((note) => note.id !== id));
-              } finally {
-                setDeletingNoteId(null);
-              }
-            }}
-          />
-        </section>
       </div>
     );
   }
@@ -140,25 +105,19 @@ export default function UserEmotions() {
         context: [...causes, context.trim()].filter(Boolean).join(', '),
         whatHelped: whatHelped.trim(),
       });
-      setSelectedEmotion(null);
-      setCauses([]);
-      setContext('');
-      setWhatHelped('');
-      setIntensity(3);
+      handleCloseForm();
       toast({ title: '✓ Emoción guardada', description: 'Tu registro se guardó correctamente.' });
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDeleteNote = async (id: string) => {
-    setDeletingNoteId(id);
-    try {
-      await deletePersonalNote(id);
-      setNotes((current) => current.filter((note) => note.id !== id));
-    } finally {
-      setDeletingNoteId(null);
-    }
+  const handleCloseForm = () => {
+    setSelectedEmotion(null);
+    setCauses([]);
+    setContext('');
+    setWhatHelped('');
+    setIntensity(3);
   };
 
   return (
@@ -190,7 +149,7 @@ export default function UserEmotions() {
             <button
               key={option.label}
               type="button"
-              onClick={() => setSelectedEmotion(isSelected ? null : option.label)}
+              onClick={() => setSelectedEmotion(option.label)}
               aria-pressed={isSelected}
               className={`relative flex flex-col items-center justify-center rounded-2xl border p-3 transition-all duration-200 min-h-[88px] ${
                 isSelected
@@ -225,101 +184,90 @@ export default function UserEmotions() {
         </motion.div>
       )}
 
-      {/* Mini form */}
-      <AnimatePresence>
-        {selectedEmotion && selectedOption && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 8 }}
-            transition={{ duration: 0.25 }}
-            className="space-y-5 rounded-3xl border border-[#e8dcf8] bg-white p-5 shadow-lg sm:p-6"
-          >
-            {/* Header */}
-            <div className="text-center">
-              <span className="text-3xl">{selectedOption.emoji}</span>
-              <h4 className="mt-1 text-lg font-bold text-[#4a4a5a]">{selectedOption.label}</h4>
-              <p className="text-sm text-[#8b7aa0]">Está bien sentirte así 💜</p>
-            </div>
-
-            {/* Intensity */}
-            <div>
-              <p className="mb-2 text-sm font-medium text-[#4a4a5a]">Intensidad</p>
-              <div className="flex items-center justify-center gap-2">
-                {[1, 2, 3, 4, 5].map((level) => (
-                  <button
-                    key={level}
-                    type="button"
-                    onClick={() => setIntensity(level)}
-                    className={`flex h-11 w-11 items-center justify-center rounded-xl text-sm font-semibold transition-all duration-150 ${
-                      intensity === level
-                        ? 'bg-[#6b4c9a] text-white shadow-sm'
-                        : 'bg-[#f5f0ff] text-[#6b4c9a] hover:bg-[#ede4f8]'
-                    }`}
-                    aria-label={`Intensidad ${level}`}
-                  >
-                    {level}
-                  </button>
-                ))}
+      {/* Emoción elegida: modal */}
+      <Dialog open={Boolean(selectedEmotion)} onOpenChange={(open) => { if (!open) handleCloseForm(); }}>
+        <DialogContent className="max-h-[92vh] overflow-y-auto rounded-3xl border-[#e8dcf8] w-[88%] max-w-[88vw] sm:max-h-[85vh] sm:w-full sm:max-w-lg lg:max-w-[560px] p-0 sm:p-0">
+          {selectedEmotion && selectedOption && (
+            <div className="space-y-3 p-4 sm:space-y-5 sm:p-6">
+              {/* Header */}
+              <div className="text-center">
+                <span className="text-2xl sm:text-3xl">{selectedOption.emoji}</span>
+                <h4 className="mt-0.5 text-base font-bold text-[#4a4a5a] sm:mt-1 sm:text-lg">{selectedOption.label}</h4>
+                <p className="text-xs text-[#8b7aa0] sm:text-sm">Está bien sentirte así 💜</p>
               </div>
-              <p className="mt-2 text-center text-xs font-medium text-[#8b7aa0]">{intensityLabels[intensity]}</p>
-            </div>
 
-            {/* ¿Qué pasó? */}
-            <div>
-              <p className="mb-2 text-sm font-medium text-[#4a4a5a]">¿Qué pasó?</p>
-              <div className="mb-2">
-                <EmotionCauseQuickPicker
-                  selected={causes}
-                  onToggle={(cause) => setCauses((prev) =>
-                    prev.includes(cause) ? prev.filter((item) => item !== cause) : [...prev, cause]
-                  )}
+              {/* Intensity */}
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-[#4a4a5a] sm:mb-2 sm:text-sm">Intensidad</p>
+                <div className="flex items-center justify-center gap-2">
+                  {[1, 2, 3, 4, 5].map((level) => (
+                    <button
+                      key={level}
+                      type="button"
+                      onClick={() => setIntensity(level)}
+                      className={`flex h-8 w-8 items-center justify-center rounded-lg text-sm font-semibold transition-all duration-150 sm:h-11 sm:w-11 sm:rounded-xl ${
+                        intensity === level
+                          ? 'bg-[#6b4c9a] text-white shadow-sm'
+                          : 'bg-[#f5f0ff] text-[#6b4c9a] hover:bg-[#ede4f8]'
+                      }`}
+                      aria-label={`Intensidad ${level}`}
+                    >
+                      {level}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1 text-center text-[11px] font-medium text-[#8b7aa0] sm:mt-2 sm:text-xs">{intensityLabels[intensity]}</p>
+              </div>
+
+              {/* ¿Qué pasó? */}
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-[#4a4a5a] sm:mb-2 sm:text-sm">¿Qué pasó?</p>
+                <div className="mb-1.5 sm:mb-2">
+                  <EmotionCauseQuickPicker
+                    selected={causes}
+                    onToggle={(cause) => setCauses((prev) =>
+                      prev.includes(cause) ? prev.filter((item) => item !== cause) : [...prev, cause]
+                    )}
+                  />
+                </div>
+                <textarea
+                  value={context}
+                  onChange={(event) => setContext(event.target.value)}
+                  placeholder="Contame si querés..."
+                  rows={2}
+                  className="w-full resize-none rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-2.5 text-sm text-[#4a4a5a] outline-none transition-colors focus:border-[#6b4c9a]/40 focus:ring-2 focus:ring-[#6b4c9a]/15 placeholder:text-[#b8b0c8] sm:p-3.5"
                 />
               </div>
-              <textarea
-                value={context}
-                onChange={(event) => setContext(event.target.value)}
-                placeholder="Contame si querés..."
-                rows={3}
-                className="w-full resize-none rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3.5 text-sm text-[#4a4a5a] outline-none transition-colors focus:border-[#6b4c9a]/40 focus:ring-2 focus:ring-[#6b4c9a]/15 placeholder:text-[#b8b0c8]"
-              />
+
+              {/* ¿Qué ayudó? */}
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-[#4a4a5a] sm:mb-2 sm:text-sm">¿Hubo algo que te ayudó?</p>
+                <textarea
+                  value={whatHelped}
+                  onChange={(event) => setWhatHelped(event.target.value)}
+                  placeholder="¿Qué te hizo sentir un poco mejor?"
+                  rows={2}
+                  className="w-full resize-none rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-2.5 text-sm text-[#4a4a5a] outline-none transition-colors focus:border-[#6b4c9a]/40 focus:ring-2 focus:ring-[#6b4c9a]/15 placeholder:text-[#b8b0c8] sm:p-3.5"
+                />
+              </div>
+
+              {/* Save button */}
+              <button
+                onClick={submit}
+                disabled={saving}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#7c3aed] to-[#6b4c9a] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-200/60 transition-all hover:shadow-lg hover:shadow-purple-200/70 active:scale-[0.98] disabled:opacity-60 sm:py-3.5"
+              >
+                {saving ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <Heart size={18} />
+                )}
+                Guardar cómo me siento
+              </button>
             </div>
-
-            {/* ¿Qué ayudó? */}
-            <div>
-              <p className="mb-2 text-sm font-medium text-[#4a4a5a]">¿Hubo algo que te ayudó?</p>
-              <textarea
-                value={whatHelped}
-                onChange={(event) => setWhatHelped(event.target.value)}
-                placeholder="¿Qué te hizo sentir un poco mejor?"
-                rows={3}
-                className="w-full resize-none rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3.5 text-sm text-[#4a4a5a] outline-none transition-colors focus:border-[#6b4c9a]/40 focus:ring-2 focus:ring-[#6b4c9a]/15 placeholder:text-[#b8b0c8]"
-              />
-            </div>
-
-            {/* Save button */}
-            <button
-              onClick={submit}
-              disabled={saving}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#7c3aed] to-[#6b4c9a] px-4 py-3.5 text-sm font-semibold text-white shadow-md shadow-purple-200/60 transition-all hover:shadow-lg hover:shadow-purple-200/70 active:scale-[0.98] disabled:opacity-60"
-            >
-              {saving ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <Heart size={18} />
-              )}
-              Guardar cómo me siento
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Notes */}
-      <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 shadow-lg sm:p-5">
-        <h3 className="mb-1 flex items-center gap-2 font-semibold text-[#6b4c9a]"><FileText size={17} />Mis notas</h3>
-        <p className="mb-3 text-xs text-[#8b7aa0]">Tus pensamientos guardados</p>
-        <PersonalNotesList notes={notes} loading={notesLoading} deletingId={deletingNoteId} onDelete={handleDeleteNote} />
-      </section>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Emociones registradas */}
       <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 shadow-lg sm:p-5">
