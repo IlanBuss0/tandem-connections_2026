@@ -100,6 +100,26 @@ export type LoginRequest = {
 
 export type RegisterRole = "perteneciente" | "tutor" | "profesional";
 
+export type RefepsProfessional =
+  | {
+      nombre: string | null;
+      apellido: string | null;
+      dni: string | null;
+      matricula: string | number;
+      profesion: string | null;
+      jurisdiccion: string | null;
+      habilitado: boolean;
+      estado: string | null;
+      especialidades: string[];
+    }
+  | Record<string, never>;
+
+export type RefepsSearchResult = {
+  found: boolean;
+  ambiguous: boolean;
+  results: RefepsProfessional[];
+};
+
 export interface TutorAccount {
   id: number;
   id_tutor: number;
@@ -287,6 +307,20 @@ class NotificationApiService {
   }
 }
 
+class RefepsApiService {
+  async searchByMatricula(matricula: string): Promise<RefepsSearchResult> {
+    const response = await apiRequest<{
+      ok: boolean;
+      data: RefepsSearchResult;
+    }>("/api/refeps/search-refeps", {
+      method: "POST",
+      body: { matricula },
+      cacheTtlMs: 0,
+    });
+    return unwrapApiData(response?.data ?? response);
+  }
+}
+
 class CustomActivityApiService extends CrudApiService<ActividadPersonalizada> {
   getResults(id: number): Promise<ResultadoActividadPersonalizada[]> {
     return apiRequest<ResultadoActividadPersonalizada[]>(`/api/actividades-personalizadas/${encodeURIComponent(String(id))}/resultados`);
@@ -323,6 +357,7 @@ class FileApiService extends CrudApiService<Archivo> {
 
 export const tandemApi = {
   auth: authApi,
+  refeps: new RefepsApiService(),
   usuarios: new CrudApiService<Usuario>("/api/usuarios"),
   pertenecientes: new CrudApiService<Perteneciente>("/api/pertenecientes"),
   tutores: new CrudApiService<Tutor>("/api/tutores"),

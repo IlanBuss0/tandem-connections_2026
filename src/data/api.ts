@@ -1196,6 +1196,12 @@ export async function loginWithGoogle(
   return toLegacyUser(auth.user, avatarUrl);
 }
 
+export async function searchRefepsProfessional(
+  matricula: string,
+): Promise<import('@/services/api').RefepsSearchResult> {
+  return tandemApi.refeps.searchByMatricula(matricula);
+}
+
 export async function verifyEmailToken(token: string): Promise<{ verified: boolean }> {
   return tandemApi.auth.verifyEmail(token);
 }
