@@ -60,8 +60,7 @@ function getNotificationDestination(notification: Notification): { tab: string; 
     routine: 'calendar',
     achievement: 'achievements',
     streak: 'achievements',
-    payment: 'shop',
-    recommendation: 'resources',
+    payment: 'profile',
     alert: 'home',
     system: 'home',
   };

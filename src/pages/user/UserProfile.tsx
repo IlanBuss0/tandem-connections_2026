@@ -70,7 +70,7 @@ export default function UserProfile({ onOpenShop }: { onOpenShop?: () => void })
   const allSupport = [...(profile?.tutors || []), ...(profile?.professionals || [])];
 
   const selectedPlan = profile?.plans.find(plan => plan.highlighted) || profile?.plans[0];
-  return <ProfileLayout>
+  return <ProfileLayout embedded={embedded}>
     {error && <div role="alert" className="flex items-center gap-2 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"><AlertCircle size={16} />{error}</div>}
     {loading && !profile && <div className="flex items-center gap-2 rounded-2xl border border-[#ebe3f3] bg-white p-4 text-sm text-[#80748c]"><Loader2 size={16} className="animate-spin" />Cargando perfil...</div>}
     <ProfileHero avatar={<AvatarPreview equipped={wallet.equipped} appearance={wallet.appearance} size={120} />} name={fullName} username={username} roleLabel="Perteneciente" secondary={<CoinBadge size="md" />} metrics={[{ label: 'Nivel', value: profile?.level ?? user.level }, { label: 'Puntos', value: profile?.points ?? user.points }, { label: 'Experiencia', value: profile?.experience ?? 0 }]} />
