@@ -230,9 +230,9 @@ export default function AppShell() {
         onLogoClick={() => goToTab("home")}
         rightSlot={
           <div className="flex items-center gap-2">
-            <BelongingProfileAccountPanel
-              open={profilePanelOpen}
-              onOpenChange={setProfilePanelOpen}
+            <BelongingAccountMenu
+              open={accountMenuOpen}
+              onOpenChange={setAccountMenuOpen}
               user={{ name: user.name, avatar: user.avatar }}
               onNavigate={goToTab}
               onLogout={logout}
