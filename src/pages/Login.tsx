@@ -827,22 +827,6 @@ function ProfessionalFlow({
               </p>
             </div>
 
-            {selectedProfessional && (
-              <div className="space-y-3 rounded-2xl border border-[#C9A7EB]/40 bg-white p-4 text-[#6F518E] shadow-sm">
-                <p className="flex items-center gap-1.5 text-xs font-bold text-[#4a8f4e]">
-                  <BadgeCheck size={15} />
-                  Registro verificado por REFEPS
-                </p>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-                  <LockedField label="Nombre" value={selectedProfessional?.nombre || '—'} />
-                  <LockedField label="Apellido" value={selectedProfessional?.apellido || '—'} />
-                  <LockedField label="Profesión" value={selectedProfessional?.profesion || '—'} />
-                  <LockedField label="Matrícula" value={String(selectedProfessional?.matricula ?? '—')} />
-                  <LockedField label="Jurisdicción" value={selectedProfessional?.jurisdiccion || '—'} />
-                </div>
-              </div>
-            )}
-
             <DniFrontField
               fileName={registerDniFrente?.name || null}
               previewUrl={registerDniPreview}
@@ -1199,6 +1183,13 @@ function DniUploadModal({
               onChange={e => acceptFile(e.target.files?.[0])}
             />
           </label>
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="flex min-h-11 w-full items-center justify-center rounded-2xl px-4 text-sm font-bold text-[#6F518E]/70 transition hover:bg-[#C9A7EB]/15 hover:text-[#6F518E]"
+          >
+            Cancelar
+          </button>
           {error && <Feedback message={error} />}
         </div>
       </DialogContent>
