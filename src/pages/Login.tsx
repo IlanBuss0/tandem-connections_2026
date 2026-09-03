@@ -10,6 +10,7 @@ import {
   HeartHandshake,
   Image as ImageIcon,
   Lock,
+  Loader2,
   RotateCcw,
   Search,
   Sparkles,
@@ -28,8 +29,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import type { RegisterRole, RefepsProfessional, RefepsSearchResult } from '@/services/api';
-import { searchRefepsProfessional } from '@/data/api';
+import type { ProfessionalDniVerificationResult, RegisterRole, RefepsProfessional, RefepsSearchResult } from '@/services/api';
+import { searchRefepsProfessional, verifyProfessionalDni } from '@/data/api';
 
 type AuthView = 'welcome' | 'login' | 'register';
 type RegisterStep = 'role' | 'details';
@@ -37,10 +38,16 @@ type RegisterStep = 'role' | 'details';
 // Flujo profesional: 3 pasos más la previsualización de REFEPS (modal).
 type ProfStep = 'matricula' | 'identity' | 'account';
 type ProfProgress = 1 | 2 | 3;
+type DniVerificationState =
+  | { status: 'idle'; message: string }
+  | { status: 'processing'; message: string }
+  | { status: 'verified'; message: string; result: ProfessionalDniVerificationResult }
+  | { status: 'invalid_dni' | 'data_mismatch' | 'manual_review' | 'technical_error'; message: string; result?: ProfessionalDniVerificationResult };
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Misma regla que el backend: 8+ caracteres, al menos una letra y un numero.
 const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+const MATRICULA_REGEX = /^\d{4,}$/;
 
 const ROLE_OPTIONS: { value: RegisterRole; title: string; description: string; icon: typeof UserIcon }[] = [
   {
@@ -79,6 +86,45 @@ const TANDEM_SPECIALTIES = [
 
 const authGradient = 'linear-gradient(90deg, #6F518E 0%, #C9A7EB 100%)';
 
+function toDniVerificationState(result: ProfessionalDniVerificationResult): DniVerificationState {
+  if (result.status === 'VERIFIED') {
+    return { status: 'verified', message: '✓ DNI verificado', result };
+  }
+  if (result.status === 'DATA_MISMATCH') {
+    return {
+      status: 'data_mismatch',
+      message: 'Los datos del DNI no coinciden con el registro profesional seleccionado.',
+      result,
+    };
+  }
+  if (result.reason === 'NOT_ARGENTINE_DNI' || result.reason === 'MISSING_FIELDS') {
+    return {
+      status: 'invalid_dni',
+      message: 'No pudimos reconocer un DNI en esta imagen. Subí una foto clara del frente de tu DNI.',
+      result,
+    };
+  }
+  if (result.status === 'MANUAL_REVIEW') {
+    return {
+      status: 'manual_review',
+      message: 'No pudimos verificar el DNI automáticamente. Subí una foto más clara del frente.',
+      result,
+    };
+  }
+  return {
+    status: 'technical_error',
+    message: 'No pudimos verificar tu DNI en este momento. Intentá nuevamente.',
+    result,
+  };
+}
+
+function professionalDisplayName(professional: RefepsProfessional): string {
+  const nombre = String(professional?.nombre || '').trim();
+  const apellido = String(professional?.apellido || '').trim();
+  const fullName = [nombre, apellido].filter(Boolean).join(' ');
+  return fullName ? `Lic. ${fullName}` : 'Lic. Profesional';
+}
+
 type LoginProps = {
   initialView?: Exclude<AuthView, 'welcome'>;
   onBackToLanding?: () => void;
@@ -116,6 +162,10 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
   const [registerDniFrente, setRegisterDniFrente] = useState<File | null>(null);
   const [registerDniPreview, setRegisterDniPreview] = useState<string | null>(null);
   const [dniModalOpen, setDniModalOpen] = useState(false);
+  const [dniVerification, setDniVerification] = useState<DniVerificationState>({
+    status: 'idle',
+    message: 'Subí una foto del frente de tu DNI.',
+  });
 
   const [registerLoading, setRegisterLoading] = useState(false);
   // Access token de Google en espera de que el usuario elija su rol (cuenta
@@ -147,7 +197,41 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     if (registerDniPreview) URL.revokeObjectURL(registerDniPreview);
     setRegisterDniFrente(file);
     setRegisterDniPreview(file ? URL.createObjectURL(file) : null);
+    setDniVerification({ status: 'idle', message: 'Subí una foto del frente de tu DNI.' });
     if (file) setDniModalOpen(false);
+  };
+
+  const updateAndVerifyDniFrente = (file: File | null) => {
+    updateDniFrente(file);
+    if (!file) return;
+
+    if (!selectedProfessional?.nombre || !selectedProfessional?.apellido || !selectedProfessional?.matricula) {
+      setDniVerification({
+        status: 'technical_error',
+        message: 'No pudimos verificar tu DNI en este momento. Intentá nuevamente.',
+      });
+      return;
+    }
+
+    void verifyDniFrente(file, selectedProfessional);
+  };
+
+  const verifyDniFrente = async (file: File, professional: RefepsProfessional) => {
+    setDniVerification({ status: 'processing', message: 'Verificando tu DNI...' });
+    try {
+      const result = await verifyProfessionalDni({
+        dniFrente: file,
+        matricula: String(professional.matricula),
+        nombre: professional.nombre || '',
+        apellido: professional.apellido || '',
+      });
+      setDniVerification(toDniVerificationState(result));
+    } catch {
+      setDniVerification({
+        status: 'technical_error',
+        message: 'No pudimos verificar tu DNI en este momento. Intentá nuevamente.',
+      });
+    }
   };
 
   const resetProfessionalFlow = () => {
@@ -285,8 +369,8 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     setError('');
     setRefepsError('');
     const matricula = profMatricula.trim();
-    if (!matricula) {
-      setRefepsError('Ingresá tu número de matrícula para continuar.');
+    if (!MATRICULA_REGEX.test(matricula)) {
+      setRefepsError('La matrícula debe tener al menos 4 dígitos y solo números.');
       return;
     }
 
@@ -325,6 +409,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
 
   const handleConfirmRefeps = () => {
     setPreviewOpen(false);
+    updateDniFrente(null);
     setProfStep('identity');
   };
 
@@ -343,8 +428,8 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     setError('');
 
     if (pendingGoogleToken) {
-      if (registerRole === 'profesional' && !registerDniFrente) {
-        setError('Subí una foto del frente del DNI para continuar.');
+      if (registerRole === 'profesional' && dniVerification.status !== 'verified') {
+        setError('Verificá el frente del DNI antes de continuar.');
         return;
       }
       await completeGoogleAuth(pendingGoogleToken, registerRole || undefined);
@@ -363,6 +448,11 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
 
     if (registerRole === 'profesional' && (!nombreUsuario || !correo || !registerPassword || !registerConfirmPassword || !registerDniFrente)) {
       setError('Completá los campos y subí la foto del frente del DNI para registrarte');
+      return;
+    }
+
+    if (registerRole === 'profesional' && dniVerification.status !== 'verified') {
+      setError('Verificá el frente del DNI antes de crear la cuenta.');
       return;
     }
 
@@ -548,7 +638,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
                 profStep={profStep}
                 profProgress={profProgress[profStep]}
                 profMatricula={profMatricula}
-                setProfMatricula={setProfMatricula}
+                setProfMatricula={value => setProfMatricula(value.replace(/\D/g, ''))}
                 profSearching={profSearching}
                 refepsError={refepsError}
                 onSubmitMatricula={handleSearchMatricula}
@@ -557,7 +647,8 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
                 toggleSpecialty={toggleSpecialty}
                 registerDniPreview={registerDniPreview}
                 registerDniFrente={registerDniFrente}
-                updateDniFrente={updateDniFrente}
+                updateDniFrente={updateAndVerifyDniFrente}
+                dniVerification={dniVerification}
                 onOpenDniModal={() => setDniModalOpen(true)}
                 onGoToAccount={() => setProfStep('account')}
                 onGoogleAuth={handleGoogleAuth}
@@ -691,7 +782,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
       <DniUploadModal
         open={dniModalOpen}
         onOpenChange={setDniModalOpen}
-        onSelectFile={updateDniFrente}
+        onSelectFile={updateAndVerifyDniFrente}
       />
     </main>
   );
@@ -714,6 +805,7 @@ function ProfessionalFlow({
   registerDniPreview,
   registerDniFrente,
   updateDniFrente,
+  dniVerification,
   onOpenDniModal,
   onGoToAccount,
   onGoogleAuth,
@@ -746,6 +838,7 @@ function ProfessionalFlow({
   registerDniPreview: string | null;
   registerDniFrente: File | null;
   updateDniFrente: (file: File | null) => void;
+  dniVerification: DniVerificationState;
   onOpenDniModal: () => void;
   onGoToAccount: () => void;
   onGoogleAuth: () => void;
@@ -765,6 +858,9 @@ function ProfessionalFlow({
   onRegister: (e: React.FormEvent) => void;
   error: string;
 }) {
+  const matriculaReady = MATRICULA_REGEX.test(profMatricula.trim());
+  const canContinueIdentity = !!registerDniFrente && dniVerification.status === 'verified' && !registerLoading && !googleLoading;
+
   return (
     <div className="space-y-5">
       <ProgressIndicator current={profProgress} />
@@ -793,6 +889,8 @@ function ProfessionalFlow({
               onChange={e => setProfMatricula(e.target.value)}
               placeholder="Tu número de matrícula"
               autoComplete="off"
+              inputMode="numeric"
+              pattern="[0-9]*"
             />
 
             {profSearching && (
@@ -803,9 +901,12 @@ function ProfessionalFlow({
             )}
 
             {!profSearching && refepsError && <Feedback message={refepsError} />}
+            {!profSearching && profMatricula.length > 0 && !matriculaReady && !refepsError && (
+              <Feedback message="La matrícula debe tener al menos 4 dígitos." />
+            )}
             {!profSearching && error && <Feedback message={error} />}
 
-            <AuthActionButton type="submit" disabled={profSearching || registerLoading || googleLoading}>
+            <AuthActionButton type="submit" disabled={!matriculaReady || profSearching || registerLoading || googleLoading}>
               Continuar
             </AuthActionButton>
           </motion.form>
@@ -830,13 +931,14 @@ function ProfessionalFlow({
             <DniFrontField
               fileName={registerDniFrente?.name || null}
               previewUrl={registerDniPreview}
+              verification={dniVerification}
               onUpload={onOpenDniModal}
               onClear={() => updateDniFrente(null)}
             />
 
             <Feedback message={error} />
 
-            <AuthActionButton type="button" onClick={onGoToAccount} disabled={!registerDniFrente || registerLoading || googleLoading}>
+            <AuthActionButton type="button" onClick={onGoToAccount} disabled={!canContinueIdentity}>
               Continuar
             </AuthActionButton>
           </motion.div>
@@ -1080,14 +1182,18 @@ function RefepsPreviewModal({
                         key={idx}
                         type="button"
                         onClick={() => setSelectedProfessional(r)}
-                        className={`flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition ${
+                        className={`flex w-full items-start justify-between gap-3 rounded-xl border px-3 py-3 text-left transition ${
                           selectedProfessional === r
                             ? 'border-[#6F518E] bg-[#C9A7EB]/18'
                             : 'border-[#C9A7EB]/50 bg-white'
                         }`}
                       >
-                        <span className="text-sm font-bold text-[#6F518E]">{r?.profesion || 'Profesional'}</span>
-                        <span className="ml-auto text-xs font-semibold text-[#6F518E]/60">Mat. {String(r?.matricula ?? '')}</span>
+                        <span className="min-w-0 space-y-0.5">
+                          <span className="block truncate text-sm font-bold text-[#6F518E]">{professionalDisplayName(r)}</span>
+                          <span className="block truncate text-xs font-semibold text-[#6F518E]/65">{r?.profesion || 'Profesional'}</span>
+                          <span className="block text-xs font-semibold text-[#6F518E]/55">Matrícula: {String(r?.matricula ?? '')}</span>
+                        </span>
+                        {selectedProfessional === r && <Check size={17} className="mt-0.5 shrink-0 text-[#6F518E]" />}
                       </button>
                     ))}
                   </div>
@@ -1229,14 +1335,20 @@ function RoleOption({
 function DniFrontField({
   fileName,
   previewUrl,
+  verification,
   onUpload,
   onClear,
 }: {
   fileName: string | null;
   previewUrl: string | null;
+  verification: DniVerificationState;
   onUpload: () => void;
   onClear: () => void;
 }) {
+  const isOk = verification.status === 'verified';
+  const isProcessing = verification.status === 'processing';
+  const isError = !['idle', 'processing', 'verified'].includes(verification.status);
+
   return (
     <div className="space-y-3 rounded-2xl border border-[#C9A7EB]/60 bg-white p-4 text-[#6F518E]">
       <div className="space-y-1">
@@ -1275,6 +1387,19 @@ function DniFrontField({
         )}
       </div>
       {fileName && <p className="truncate text-xs font-semibold text-[#6F518E]/60">{fileName}</p>}
+      <p
+        className={`flex items-start gap-2 rounded-2xl px-4 py-3 text-sm font-bold ${
+          isOk
+            ? 'bg-[#4a8f4e]/10 text-[#3b7a3f]'
+            : isError
+              ? 'bg-red-50 text-red-700'
+              : 'bg-[#C9A7EB]/18 text-[#6F518E]'
+        }`}
+        role={isProcessing ? 'status' : isError ? 'alert' : undefined}
+      >
+        {isProcessing ? <Loader2 size={16} className="mt-0.5 shrink-0 animate-spin" /> : isOk ? <Check size={16} className="mt-0.5 shrink-0" /> : null}
+        <span>{verification.message}</span>
+      </p>
     </div>
   );
 }

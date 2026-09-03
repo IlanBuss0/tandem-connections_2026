@@ -120,6 +120,37 @@ export type RefepsSearchResult = {
   results: RefepsProfessional[];
 };
 
+export type ProfessionalDniVerificationStatus =
+  | "PENDING"
+  | "VERIFIED"
+  | "MANUAL_REVIEW"
+  | "NOT_FOUND"
+  | "DATA_MISMATCH"
+  | "VERIFICATION_ERROR";
+
+export type ProfessionalDniVerificationResult = {
+  status: ProfessionalDniVerificationStatus;
+  reviewStatus: ProfessionalDniVerificationStatus;
+  verified: boolean;
+  reason: string | null;
+  messageCode: string;
+  dni?: {
+    nombre: string | null;
+    apellido: string | null;
+    dni: string | null;
+    confidence: number;
+    structureScore?: number;
+    detectedFields?: string[];
+  } | null;
+};
+
+export type ProfessionalDniVerificationRequest = {
+  nombre: string;
+  apellido: string;
+  matricula: string;
+  dniFrente: File;
+};
+
 export interface TutorAccount {
   id: number;
   id_tutor: number;
@@ -230,6 +261,14 @@ export const authApi = {
       body: payload,
     });
 
+    return unwrapApiData(response);
+  },
+
+  async verifyProfessionalDni(payload: ProfessionalDniVerificationRequest): Promise<ProfessionalDniVerificationResult> {
+    const response = await apiUploadFile<ApiEnvelope<ProfessionalDniVerificationResult>>(
+      "/api/auth/verify-professional-dni",
+      authFormData(payload),
+    );
     return unwrapApiData(response);
   },
 

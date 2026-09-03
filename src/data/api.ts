@@ -1202,6 +1202,12 @@ export async function searchRefepsProfessional(
   return tandemApi.refeps.searchByMatricula(matricula);
 }
 
+export async function verifyProfessionalDni(
+  payload: import('@/services/api').ProfessionalDniVerificationRequest,
+): Promise<import('@/services/api').ProfessionalDniVerificationResult> {
+  return tandemApi.auth.verifyProfessionalDni(payload);
+}
+
 export async function verifyEmailToken(token: string): Promise<{ verified: boolean }> {
   return tandemApi.auth.verifyEmail(token);
 }
