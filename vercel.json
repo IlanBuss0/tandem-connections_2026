@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/api/:path*", "destination": "https://tandemproyect2026-backend-production.up.railway.app/api/:path*" },
+    { "source": "/socket.io/:path*", "destination": "https://tandemproyect2026-backend-production.up.railway.app/socket.io/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
