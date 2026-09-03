@@ -1111,17 +1111,17 @@ function RefepsPreviewModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-lg:bottom-0 max-lg:left-0 max-lg:top-auto max-lg:max-h-[90dvh] max-lg:w-full max-lg:translate-x-0 max-lg:translate-y-0 max-lg:rounded-b-none max-lg:rounded-t-3xl max-lg:p-6 sm:max-w-md"
+        className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden max-lg:bottom-4 max-lg:left-4 max-lg:right-4 max-lg:top-4 max-lg:w-auto max-lg:translate-x-0 max-lg:translate-y-0 max-lg:rounded-3xl max-lg:p-6 sm:max-h-[42rem] sm:max-w-md"
         overlayClassName="bg-black/60"
       >
-        <DialogHeader className="text-left">
+        <DialogHeader className="shrink-0 text-left">
           <DialogTitle className="text-lg font-extrabold text-[#6F518E]">Registro encontrado</DialogTitle>
           <DialogDescription className="text-sm font-medium text-[#6F518E]/70">
             Encontramos tus datos profesionales.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="mt-2 space-y-4 overflow-y-auto">
+        <div data-testid="refeps-modal-scroll-area" className="mt-2 min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-1">
           {current ? (
             <>
               <p className="flex items-center gap-1.5 text-xs font-bold text-[#4a8f4e]">
@@ -1207,7 +1207,7 @@ function RefepsPreviewModal({
           )}
         </div>
 
-        <div className="mt-4 space-y-2">
+        <div data-testid="refeps-modal-actions" className="mt-4 shrink-0 space-y-2">
           <AuthActionButton
             type="button"
             disabled={!current}

@@ -24,6 +24,42 @@ function openProfessionalRegistration() {
   fireEvent.click(screen.getByRole('button', { name: /soy profesional/i }));
 }
 
+function buildRefepsResults(count: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    nombre: `Nombre${index + 1}`,
+    apellido: `Apellido${index + 1}`,
+    matricula: '1234',
+    profesion: 'Psicología',
+    jurisdiccion: 'CABA',
+  }));
+}
+
+async function openRefepsResults(count: number) {
+  searchRefepsProfessional.mockResolvedValueOnce({
+    found: true,
+    ambiguous: count > 1,
+    results: buildRefepsResults(count),
+  });
+  openProfessionalRegistration();
+
+  fireEvent.change(screen.getByPlaceholderText(/tu n.*mero de matr/i), { target: { value: '1234' } });
+  fireEvent.click(screen.getByRole('button', { name: /continuar/i }));
+
+  await waitFor(() => expect(searchRefepsProfessional).toHaveBeenCalledWith('1234'));
+}
+
+function expectScrollableRefepsModal() {
+  const scrollArea = screen.getByTestId('refeps-modal-scroll-area');
+  const actions = screen.getByTestId('refeps-modal-actions');
+  const dialog = scrollArea.closest('[role="dialog"]');
+
+  expect(dialog).toHaveClass('flex', 'max-h-[calc(100dvh-2rem)]', 'overflow-hidden');
+  expect(dialog).toHaveClass('max-lg:top-4', 'max-lg:bottom-4', 'max-lg:left-4', 'max-lg:right-4', 'max-lg:w-auto');
+  expect(scrollArea).toHaveClass('min-h-0', 'flex-1', 'overflow-y-auto', 'overscroll-contain');
+  expect(actions).toHaveClass('shrink-0');
+  expect(scrollArea).not.toContainElement(actions);
+}
+
 describe('professional registration flow', () => {
   beforeEach(() => {
     searchRefepsProfessional.mockReset();
@@ -67,6 +103,61 @@ describe('professional registration flow', () => {
     expect(await screen.findByText('Lic. Juan Perez')).toBeInTheDocument();
     expect(screen.getByText('Lic. Maria Gonzalez')).toBeInTheDocument();
     expect(screen.getAllByText('Psicología')).toHaveLength(2);
+  });
+
+  it('keeps the professional selection modal scrollable with one result', async () => {
+    await openRefepsResults(1);
+
+    expect(await screen.findByText('Nombre1')).toBeInTheDocument();
+    expect(screen.getByText('Apellido1')).toBeInTheDocument();
+    expectScrollableRefepsModal();
+    expect(screen.getByRole('button', { name: /confirmar datos/i })).toBeVisible();
+    expect(screen.getByRole('button', { name: /no soy esta persona/i })).toBeVisible();
+  });
+
+  it('keeps all modal actions accessible with five professional results', async () => {
+    await openRefepsResults(5);
+
+    expect(await screen.findByText('Lic. Nombre1 Apellido1')).toBeInTheDocument();
+    expect(screen.getByText('Lic. Nombre5 Apellido5')).toBeInTheDocument();
+    expectScrollableRefepsModal();
+    expect(screen.getByRole('button', { name: /confirmar datos/i })).toBeVisible();
+    expect(screen.getByRole('button', { name: /no soy esta persona/i })).toBeVisible();
+  });
+
+  it('allows reaching and selecting the last professional with ten or more results', async () => {
+    await openRefepsResults(12);
+
+    const lastProfessional = await screen.findByText('Lic. Nombre12 Apellido12');
+    expect(lastProfessional).toBeInTheDocument();
+    expectScrollableRefepsModal();
+
+    fireEvent.click(lastProfessional);
+
+    expect(screen.getByText('Nombre12')).toBeInTheDocument();
+    expect(screen.getByText('Apellido12')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /confirmar datos/i })).toBeEnabled();
+  });
+
+  it('keeps the professional results modal constrained for mobile viewport', async () => {
+    window.innerWidth = 390;
+    window.innerHeight = 720;
+
+    await openRefepsResults(12);
+
+    expect(await screen.findByText('Lic. Nombre12 Apellido12')).toBeInTheDocument();
+    expectScrollableRefepsModal();
+  });
+
+  it('keeps the professional results modal constrained for desktop viewport', async () => {
+    window.innerWidth = 1440;
+    window.innerHeight = 900;
+
+    await openRefepsResults(12);
+
+    expect(await screen.findByText('Lic. Nombre12 Apellido12')).toBeInTheDocument();
+    expectScrollableRefepsModal();
+    expect(screen.getByTestId('refeps-modal-scroll-area').closest('[role="dialog"]')).toHaveClass('sm:max-h-[42rem]');
   });
 
   it('blocks identity continuation when DNI verification does not match REFEPS', async () => {
