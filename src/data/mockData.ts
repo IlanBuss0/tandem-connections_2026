@@ -270,6 +270,11 @@ export interface CalendarEvent {
   userId: string;
   color: string;
   reminders?: number[];
+  // Marca los eventos derivados de actividades asignadas (por ejemplo las
+  // que asigna un tutor/profesional). Es un campo SOLO de frontend: apunta al
+  // id de la actividad asignada (DbActividadAsignada.id) para poder
+  // distinguirlas de los eventos manuales del calendario y evitar duplicados.
+  assignedActivityId?: string | null;
   // Resueltos por el motor de pictogramizacion (Sesion 3), mismo patron que
   // RoutineItem. pictogramResolvedFor es el titulo con el que se resolvio:
   // mientras coincida con `title`, no se vuelve a pedir (evita quemar cuota

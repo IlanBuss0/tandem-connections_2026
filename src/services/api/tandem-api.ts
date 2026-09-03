@@ -85,6 +85,11 @@ export type AuthPayload = {
   token?: string;
   accessToken?: string;
   expiresAt?: string;
+  professionalVerification?: {
+    status: string;
+    reviewStatus: string;
+    messageCode: string;
+  };
 };
 
 export type LoginRequest = {
@@ -94,6 +99,26 @@ export type LoginRequest = {
 };
 
 export type RegisterRole = "perteneciente" | "tutor" | "profesional";
+
+export type RefepsProfessional =
+  | {
+      nombre: string | null;
+      apellido: string | null;
+      dni: string | null;
+      matricula: string | number;
+      profesion: string | null;
+      jurisdiccion: string | null;
+      habilitado: boolean;
+      estado: string | null;
+      especialidades: string[];
+    }
+  | Record<string, never>;
+
+export type RefepsSearchResult = {
+  found: boolean;
+  ambiguous: boolean;
+  results: RefepsProfessional[];
+};
 
 export interface TutorAccount {
   id: number;
@@ -121,7 +146,21 @@ export type RegisterRequest = Pick<
     matricula?: string;
     especialidad?: string;
     institucion?: string;
+    dniFrente?: File;
   };
+
+function authFormData(payload: Partial<RegisterRequest> & { accessToken?: string }): FormData {
+  const formData = new FormData();
+  Object.entries(payload).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    if (key === "dniFrente" && value instanceof File) {
+      formData.append("dni_frente", value);
+      return;
+    }
+    formData.append(key, String(value));
+  });
+  return formData;
+}
 
 export const authApi = {
   async login(payload: LoginRequest): Promise<AuthPayload> {
@@ -135,6 +174,14 @@ export const authApi = {
   },
 
   async register(payload: RegisterRequest): Promise<AuthPayload> {
+    if (payload.rol === "profesional") {
+      const response = await apiUploadFile<ApiEnvelope<AuthPayload>>(
+        "/api/auth/register",
+        authFormData(payload),
+      );
+      return unwrapApiData(response);
+    }
+
     const response = await apiRequest<ApiEnvelope<AuthPayload>>("/api/auth/register", {
       method: "POST",
       body: payload,
@@ -169,7 +216,15 @@ export const authApi = {
     return unwrapApiData(response);
   },
 
-  async google(payload: { idToken: string; rol?: RegisterRole } & Partial<RegisterRequest>): Promise<AuthPayload> {
+  async google(payload: { accessToken: string; rol?: RegisterRole } & Partial<RegisterRequest>): Promise<AuthPayload> {
+    if (payload.rol === "profesional") {
+      const response = await apiUploadFile<ApiEnvelope<AuthPayload>>(
+        "/api/auth/google",
+        authFormData(payload),
+      );
+      return unwrapApiData(response);
+    }
+
     const response = await apiRequest<ApiEnvelope<AuthPayload>>("/api/auth/google", {
       method: "POST",
       body: payload,
@@ -252,6 +307,20 @@ class NotificationApiService {
   }
 }
 
+class RefepsApiService {
+  async searchByMatricula(matricula: string): Promise<RefepsSearchResult> {
+    const response = await apiRequest<{
+      ok: boolean;
+      data: RefepsSearchResult;
+    }>("/api/refeps/search-refeps", {
+      method: "POST",
+      body: { matricula },
+      cacheTtlMs: 0,
+    });
+    return unwrapApiData(response?.data ?? response);
+  }
+}
+
 class CustomActivityApiService extends CrudApiService<ActividadPersonalizada> {
   getResults(id: number): Promise<ResultadoActividadPersonalizada[]> {
     return apiRequest<ResultadoActividadPersonalizada[]>(`/api/actividades-personalizadas/${encodeURIComponent(String(id))}/resultados`);
@@ -288,6 +357,7 @@ class FileApiService extends CrudApiService<Archivo> {
 
 export const tandemApi = {
   auth: authApi,
+  refeps: new RefepsApiService(),
   usuarios: new CrudApiService<Usuario>("/api/usuarios"),
   pertenecientes: new CrudApiService<Perteneciente>("/api/pertenecientes"),
   tutores: new CrudApiService<Tutor>("/api/tutores"),

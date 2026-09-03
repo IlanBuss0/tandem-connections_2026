@@ -960,6 +960,19 @@ function formatBackendDate(value?: string | null) {
   return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short' }).format(date);
 }
 
+// Convierte un timestamp ISO (con hora/UTC, ej. "2026-05-21T23:30:00.000Z")
+// a la fecha LOCAL en formato YYYY-MM-DD, usando metodos locales en vez de
+// toISOString() (que devuelve UTC y podria desplazar el dia).
+function backendDateToLocalISO(value?: string | null): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 async function fetchBackendAchievementDashboard(userId: string): Promise<AchievementDashboard> {
   const idUsuario = Number(userId);
   const [pertenecientes, saldos, avatares, configs] = await Promise.all([
@@ -1175,12 +1188,18 @@ export async function registerUser(
 }
 
 export async function loginWithGoogle(
-  payload: { idToken: string } & Partial<import('@/services/api').RegisterRequest>,
+  payload: { accessToken: string } & Partial<import('@/services/api').RegisterRequest>,
 ): Promise<User | Tutor | Professional | Admin> {
   const auth = await tandemApi.auth.google(payload);
   storeAuthToken();
   const avatarUrl = auth.user?.id ? await fetchUserAvatarUrl(auth.user.id) : null;
   return toLegacyUser(auth.user, avatarUrl);
+}
+
+export async function searchRefepsProfessional(
+  matricula: string,
+): Promise<import('@/services/api').RefepsSearchResult> {
+  return tandemApi.refeps.searchByMatricula(matricula);
 }
 
 export async function verifyEmailToken(token: string): Promise<{ verified: boolean }> {
@@ -1729,6 +1748,65 @@ function toBackendCalendarPayload(data: Partial<CalendarEvent>) {
   };
 }
 
+// Convierte las actividades asignadas (por tutor/profesional) PENDIENTES del
+// usuario en "eventos" derivados de calendario, anclados al dia LOCAL de su
+// fecha de asignacion. Asi Inicio, Actividades y Calendario representan la
+// misma informacion con la misma fuente. Los eventos se marcan con
+// assignedActivityId para distinguirlos de los eventos manuales y evitar
+// duplicados. Guarda silencio (devuelve []) si algo falla, como el resto de
+// los cargadores del calendar.
+async function fetchPendingAssignedActivitiesAsCalendarEvents(userId: string): Promise<CalendarEvent[]> {
+  if (!isBackendUserId(userId)) return [];
+  try {
+    const numericUserId = Number(userId);
+    const pertenecientes = await tandemApi.pertenecientes.getAll();
+    const perteneciente = (pertenecientes as DbPerteneciente[]).find(item => Number(item.id_usuario) === numericUserId);
+    if (!perteneciente) return [];
+
+    const [actividades, estados, asignadas, actividadesPersonalizadas] = await Promise.all([
+      tandemApi.actividades.getAll(),
+      tandemApi.estadosActividades.getAll(),
+      fetchAssignedActivitiesByPerteneciente(Number(perteneciente.id)),
+      fetchCustomActivitiesByPerteneciente(Number(perteneciente.id)),
+    ]);
+
+    const customById = new Map((actividadesPersonalizadas as DbActividadPersonalizada[]).map(a => [Number(a.id), a]));
+    const activityById = new Map((actividades as DbActividad[]).map(a => [Number(a.id), a]));
+    const statusById = new Map((estados as DbEstadoActividad[]).map(e => [Number(e.id), e]));
+
+    return (asignadas as DbActividadAsignada[])
+      .filter(a => Number(a.id_perteneciente) === Number(perteneciente.id))
+      .filter(a =>
+        Boolean(a.id_actividad && activityById.has(Number(a.id_actividad))) ||
+        Boolean(a.id_actividad_personalizada && customById.has(Number(a.id_actividad_personalizada)))
+      )
+      .filter(a => {
+        const status = a.id_estado_actividad ? statusById.get(Number(a.id_estado_actividad)) : undefined;
+        return !isCompletedStatus(status, a);
+      })
+      .map(a => {
+        const base = a.id_actividad ? activityById.get(Number(a.id_actividad)) : undefined;
+        const custom = a.id_actividad_personalizada ? customById.get(Number(a.id_actividad_personalizada)) : undefined;
+        const date = backendDateToLocalISO(a.fecha_asignacion);
+        if (!date) return null;
+        return {
+          id: `asignada-${a.id}`,
+          title: activityDisplayTitle(base?.titulo || custom?.titulo || `Actividad #${a.id}`),
+          description: activityDisplayDescription(base?.descripcion || custom?.descripcion) || 'Actividad asignada desde el equipo de apoyo.',
+          date,
+          time: '',
+          type: 'actividad',
+          userId,
+          color: calendarTypeColor('actividad'),
+          assignedActivityId: String(a.id),
+        } as CalendarEvent;
+      })
+      .filter((e): e is CalendarEvent => Boolean(e));
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchCalendarEventsForUser(userId: string): Promise<CalendarEvent[]> {
   if (isBackendUserId(userId)) {
     const rows = await apiRequest<BackendCalendarEventRow[]>(`/api/eventos-calendario/usuario/${encodeURIComponent(String(Number(userId)))}`);
@@ -1745,7 +1823,12 @@ export async function fetchCalendarEventsForUser(userId: string): Promise<Calend
       professionalSessionEvents = [];
     }
 
-    return [...events, ...professionalSessionEvents]
+    // Actividades asignadas (tutor/profesional) pendientes, ancladas al dia de
+    // su asignacion. Se mezclan con los eventos manuales: mismas fuente y
+    // criterio de fecha en Inicio, Actividades y Calendario.
+    const assignedActivities = await fetchPendingAssignedActivitiesAsCalendarEvents(userId);
+
+    return [...events, ...professionalSessionEvents, ...assignedActivities]
       .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
   }
 
