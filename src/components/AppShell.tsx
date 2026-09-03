@@ -197,7 +197,7 @@ export default function AppShell() {
       case "professional-directory":
         return <ProfessionalDirectory />;
       case "profile":
-        return <UserProfile onOpenShop={() => goToTab("shop")} />;
+        return <UserProfile onOpenSettings={() => goToTab("profile-settings")} onOpenShop={() => goToTab("shop")} />;
       case "profile-settings":
         return <UserProfileSettings onBack={() => goToTab("profile")} />;
       case "about":
