@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   askAboutPatient, deleteProfessionalSession, downloadPatientHistoryPdf, fetchActivitiesForUser,
@@ -73,6 +73,7 @@ export default function ProfessionalDashboard() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
+  const mainRef = useRef<HTMLElement>(null);
   useSyncMobileMenuOpen(menuOpen || profileOpen || quickOpen);
   useEffect(() => { setSelectedPatient(routePatientId); setSelectedNotificationChatId(routeChatId); }, [routePatientId, routeChatId]);
   const [linkedUsers, setLinkedUsers] = useState<User[]>([]);
@@ -279,26 +280,29 @@ export default function ProfessionalDashboard() {
 
   const navigate = (next: ProfessionalTab) => {
     navigateRoute(next); setSelectedPatient(null); setMenuOpen(false); setProfileOpen(false); setQuickOpen(false);
-    window.scrollTo({ top: 0, behavior: 'auto' });
+    mainRef.current?.scrollTo({ top: 0, behavior: 'auto' });
   };
   const openPatient = (userId: string) => {
     navigateRoute('patients', { patientId: userId }); setSelectedPatient(userId); setPatientTab('overview'); setMenuOpen(false); setProfileOpen(false); setQuickOpen(false);
-    window.scrollTo({ top: 0, behavior: 'auto' });
+    mainRef.current?.scrollTo({ top: 0, behavior: 'auto' });
   };
   return (
-    <div className="professional-surface min-h-dvh overflow-x-hidden bg-[radial-gradient(circle_at_88%_4%,rgba(220,203,245,0.42),transparent_24rem),linear-gradient(180deg,#fbf9ff_0%,#f8f7fc_100%)] pb-24 lg:pb-0">
+    <div className="professional-surface flex h-dvh flex-col overflow-hidden bg-[radial-gradient(circle_at_88%_4%,rgba(220,203,245,0.42),transparent_24rem),linear-gradient(180deg,#fbf9ff_0%,#f8f7fc_100%)] pb-24 lg:pb-0">
       <a href="#professional-main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-[100] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2">Saltar al contenido</a>
       <AppHeader
         onMenuClick={() => { setProfileOpen(false); setQuickOpen(false); setMenuOpen(true); }}
         onLogoClick={() => navigate('home')}
         centerLogoMobile
         rightSlot={
-          <div className="flex items-center gap-2"><NotificationBellButton count={unreadCount} onClick={() => { setMenuOpen(false); setProfileOpen(false); navigate('notifications'); }} className="border-0 bg-transparent text-primary hover:bg-primary/10" /><ProfessionalAccountMenu open={profileOpen} onOpenChange={(open) => { setProfileOpen(open); if (open) { setMenuOpen(false); setQuickOpen(false); } }} user={user} onNavigate={navigate} onLogout={logout} /></div>
+          <div className="flex items-center gap-2">
+            <NotificationBellButton count={unreadCount} onClick={() => { setMenuOpen(false); setProfileOpen(false); navigate('notifications'); }} className="border-0 bg-transparent text-primary hover:bg-primary/10" />
+            <ProfessionalAccountMenu open={profileOpen} onOpenChange={(open) => { setProfileOpen(open); if (open) { setMenuOpen(false); setQuickOpen(false); } }} user={user} onNavigate={navigate} onLogout={logout} />
+          </div>
         }
       />
 
       <ProfessionalDrawer open={menuOpen} active={tab} permissions={navigationPermissions} onClose={() => setMenuOpen(false)} onNavigate={navigate} onLogout={logout} />
-      <main id="professional-main" tabIndex={-1} className="mx-auto w-full max-w-[1536px] space-y-5 px-4 py-6 max-lg:pb-28 sm:px-6 lg:px-8 lg:py-9 xl:px-10">
+      <main ref={mainRef} id="professional-main" tabIndex={-1} className="mx-auto min-h-0 w-full max-w-[1536px] flex-1 space-y-5 overflow-y-auto px-4 py-6 max-lg:pb-28 sm:px-6 lg:px-8 lg:py-9 xl:px-10">
         {tab === 'home' && loadingPatients && <ProfessionalHomeSkeleton />}
         {tab === 'home' && !loadingPatients && patientsError && <div role="alert" className="rounded-3xl border border-destructive/20 bg-white p-6 text-sm text-destructive shadow-sm">{patientsError}<Button type="button" variant="outline" className="ml-3" onClick={reloadPatients}>Reintentar</Button></div>}
         {tab === 'home' && !loadingPatients && !patientsError && <ProfessionalHome professionalName={user.name} patients={linkedUsers} sessions={sessions} activitiesByUser={activitiesByUser} emotionsByUser={emotionsByUser} notesByUser={notesByUser} patientPertenecienteIds={Object.fromEntries(linkedUsers.map(patient => [patient.id, Number(linkForUser(patient.id)?.perteneciente.id)]))} onNavigate={navigate} onOpenPatient={openPatient} />}
@@ -743,7 +747,7 @@ export default function ProfessionalDashboard() {
         )}
 
       </main>
-      <BelongingMobileBottomNav activeTab={tab} onNavigate={(next) => navigate(next as ProfessionalTab)} destinations={mobileDestinations} forceExpanded={quickOpen} center={(compactProgress) => <ProfessionalQuickMenu open={quickOpen} onOpenChange={setQuickOpen} compactProgress={compactProgress} permissions={navigationPermissions} onAction={(action: ProfessionalQuickAction) => {
+      <BelongingMobileBottomNav activeTab={tab} onNavigate={(next) => navigate(next as ProfessionalTab)} destinations={mobileDestinations} forceExpanded={quickOpen} scrollContainerRef={mainRef} center={(compactProgress) => <ProfessionalQuickMenu open={quickOpen} onOpenChange={setQuickOpen} compactProgress={compactProgress} permissions={navigationPermissions} onAction={(action: ProfessionalQuickAction) => {
         if (action === 'activity') navigate('create');
         if (action === 'resources') navigate('resources');
         if (action === 'documents') navigate('documents');
