@@ -376,7 +376,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     const dni = matricula.replace(/\D/g, '');
     const searchIsValid = profSearchMode === 'dni' ? /^\d{7,8}$/.test(dni) : MATRICULA_REGEX.test(matricula);
     if (!searchIsValid) {
-      setRefepsError('La matrícula debe tener al menos 4 dígitos y solo números.');
+      setRefepsError(profSearchMode === 'dni' ? 'El DNI debe tener 7 u 8 dígitos.' : 'La matrícula debe tener al menos 4 dígitos y solo números.');
       return;
     }
 
@@ -385,7 +385,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
       const result = profSearchMode === 'dni' ? await searchRefepsByDni(dni) : await searchRefepsProfessional(matricula);
       setRefepsData(result);
       if (!result.found) {
-        setRefepsError('No encontramos ninguna matrícula con ese número. Revisalo e intentá de nuevo.');
+        setRefepsError(profSearchMode === 'dni' ? 'No encontramos ningún profesional con ese DNI.' : 'No encontramos ninguna matrícula con ese número. Revisalo e intentá de nuevo.');
         return;
       }
       // Resultado único: lo seleccionamos y abrimos el modal de preview.
@@ -907,7 +907,7 @@ function ProfessionalFlow({
               label={profSearchMode === 'dni' ? 'DNI' : 'Matrícula'}
               value={profMatricula}
               onChange={e => setProfMatricula(e.target.value)}
-              placeholder="Tu número de matrícula"
+              placeholder={profSearchMode === 'dni' ? 'Tu número de DNI' : 'Tu número de matrícula'}
               autoComplete="off"
               inputMode="numeric"
               pattern="[0-9]*"
@@ -922,7 +922,7 @@ function ProfessionalFlow({
 
             {!profSearching && refepsError && <Feedback message={refepsError} />}
             {!profSearching && profMatricula.length > 0 && !matriculaReady && !refepsError && (
-              <Feedback message="La matrícula debe tener al menos 4 dígitos." />
+              <Feedback message={profSearchMode === 'dni' ? 'El DNI debe tener 7 u 8 dígitos.' : 'La matrícula debe tener al menos 4 dígitos.'} />
             )}
             {!profSearching && error && <Feedback message={error} />}
 
