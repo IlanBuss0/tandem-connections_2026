@@ -16,7 +16,6 @@ import { createPersonalNote, fetchPertenecienteHome, PertenecienteHomeData, Pert
 import EventPictogram from '@/components/EventPictogram';
 import { useCalendarPictograms } from '@/hooks/useCalendarPictograms';
 import BelongingHomeSecondaryAccess from '@/components/belonging/BelongingHomeSecondaryAccess';
-import BelongingUpcomingActivityCard from '@/components/belonging/BelongingUpcomingActivityCard';
 import { useEmotions } from '@/contexts/EmotionsContext';
 import { useWallet } from '@/contexts/WalletContext';
 import { ACTIVITY_STATUS_CHANGED_EVENT } from '@/lib/activityEvents';
@@ -54,6 +53,13 @@ function fmt(d: Date) {
 
 const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+function statusStyle(status: string): string {
+  const s = status.toLowerCase();
+  if (s.includes('complet')) return 'bg-emerald-100 text-emerald-700';
+  if (s.includes('progreso') || s.includes('en curso')) return 'bg-blue-100 text-blue-700';
+  return 'bg-amber-100 text-amber-700';
+}
 
 const CARD_GAP = 16;
 const primarySaveButtonClass = 'rounded-xl bg-[#6f4ca6] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#5a3c8a] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45';
@@ -550,11 +556,20 @@ export default function UserHome({ onNavigate }: Props) {
               className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3 pr-[12%] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:pr-[8%] lg:pr-6"
             >
               {pendingActivities.slice(0, 6).map((activity) => (
-                <BelongingUpcomingActivityCard
+                <button
                   key={activity.id}
-                  activity={activity}
-                  onOpen={() => openActivity(activity.id)}
-                />
+                  type="button"
+                  onClick={() => openActivity(activity.id)}
+                  aria-label={`Abrir actividad: ${activity.title}`}
+                  className="flex min-h-[180px] min-w-[82%] cursor-pointer snap-start flex-col rounded-[20px] border border-[#ece3f8] bg-[#fcf9ff] p-5 text-left shadow-sm transition-[transform,box-shadow,border-color,background-color] duration-200 hover:-translate-y-0.5 hover:border-[#d9c7ed] hover:bg-[#faf5ff] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed] focus-visible:ring-offset-2 sm:min-w-[46%] lg:min-w-[31%]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${statusStyle(activity.status)}`}>{activity.status}</span>
+                    <span className="text-[10px] font-medium text-[#8b7aa0]">{activity.assignedAt}</span>
+                  </div>
+                  <h4 className="mt-5 break-words text-base font-bold leading-6 text-[#3f3153]">{activity.title}</h4>
+                  <p className="mt-2 line-clamp-3 break-words text-sm leading-5 text-[#756a82]">{activity.description}</p>
+                </button>
               ))}
             </div>
           )}
