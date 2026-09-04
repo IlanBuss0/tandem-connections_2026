@@ -120,6 +120,41 @@ export type RefepsSearchResult = {
   results: RefepsProfessional[];
 };
 
+export type ProfessionalDniVerificationStatus =
+  | "PENDING"
+  | "VERIFIED"
+  | "MANUAL_REVIEW"
+  | "NOT_FOUND"
+  | "DATA_MISMATCH"
+  | "EXPIRED_DOCUMENT"
+  | "VERIFICATION_ERROR";
+
+export type ProfessionalDniVerificationResult = {
+  status: ProfessionalDniVerificationStatus;
+  reviewStatus: ProfessionalDniVerificationStatus;
+  verified: boolean;
+  reason: string | null;
+  messageCode: string;
+  dni?: {
+    nombre: string | null;
+    apellido: string | null;
+    dni: string | null;
+    nombreCompleto?: string | null;
+    fechaVencimiento?: string | null;
+    confidence: number;
+    structureScore?: number;
+    detectedFields?: string[];
+  } | null;
+};
+
+export type ProfessionalDniVerificationRequest = {
+  nombre: string;
+  apellido: string;
+  matricula: string;
+  dniFrente: File;
+  pdf417Raw?: string;
+};
+
 export interface TutorAccount {
   id: number;
   id_tutor: number;
@@ -233,6 +268,14 @@ export const authApi = {
     return unwrapApiData(response);
   },
 
+  async verifyProfessionalDni(payload: ProfessionalDniVerificationRequest): Promise<ProfessionalDniVerificationResult> {
+    const response = await apiUploadFile<ApiEnvelope<ProfessionalDniVerificationResult>>(
+      "/api/auth/verify-professional-dni",
+      authFormData(payload),
+    );
+    return unwrapApiData(response);
+  },
+
   async verifyEmail(token: string): Promise<{ verified: boolean }> {
     const response = await apiRequest<ApiEnvelope<{ verified: boolean }>>(
       `/api/auth/verify-email?token=${encodeURIComponent(token)}`,
@@ -316,6 +359,13 @@ class RefepsApiService {
       method: "POST",
       body: { matricula },
       cacheTtlMs: 0,
+    });
+    return unwrapApiData(response?.data ?? response);
+  }
+
+  async searchByDni(dni: string): Promise<RefepsSearchResult> {
+    const response = await apiRequest<{ ok: boolean; data: RefepsSearchResult }>("/api/refeps/search-refeps", {
+      method: "POST", body: { dni }, cacheTtlMs: 0,
     });
     return unwrapApiData(response?.data ?? response);
   }

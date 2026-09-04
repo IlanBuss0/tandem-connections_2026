@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, CalendarDays, CheckCircle2, ChevronRight, Clock,
   Heart, Image, Link2, MessageCircle, Sparkles, Users,
 } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
-import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
 import BelongingMobileBottomNav from '@/components/belonging/BelongingMobileBottomNav';
 import ActivityManager from '@/components/ActivityManager';
@@ -18,7 +17,7 @@ import UserNotifications from '@/pages/user/UserNotifications';
 import UserPictograms from '@/pages/user/UserPictograms';
 import AboutTandem from '@/pages/AboutTandem';
 import { aggregateTutorEvents, type TutorAggregateEvent } from '@/lib/tutorEventAggregation';
-import { TutorDrawer, TutorProfileDrawer, TutorQuickMenu, type TutorTab } from '@/components/tutor/TutorNavigation';
+import { TutorAccountMenu, TutorDrawer, TutorQuickMenu, type TutorTab } from '@/components/tutor/TutorNavigation';
 import TutorLinkedDetail from '@/components/tutor/TutorLinkedDetail';
 import TutorHome from '@/components/tutor/TutorHome';
 import TutorAccountSettings from '@/components/tutor/TutorAccountSettings';
@@ -63,6 +62,7 @@ export default function TutorExperience() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
   const [selectedNotificationChatId, setSelectedNotificationChatId] = useState<string | undefined>();
+  const mainRef = useRef<HTMLElement>(null);
   const { unreadCount, setUnreadCount } = useUnreadNotifications(user?.role === 'tutor' ? { id: String(user.id) } : null);
   useSyncMobileMenuOpen(menuOpen || profileOpen || quickOpen);
 
@@ -102,14 +102,14 @@ export default function TutorExperience() {
 
   if (!user || user.role !== 'tutor') return null;
 
-  const navigate = (next: TutorTab, context?: { detailUserId?: string | null; chatId?: string }) => { setMenuOpen(false); setProfileOpen(false); setQuickOpen(false); navigateRoute(next, context); };
+  const navigate = (next: TutorTab, context?: { detailUserId?: string | null; chatId?: string }) => { setMenuOpen(false); setProfileOpen(false); setQuickOpen(false); mainRef.current?.scrollTo({ top: 0 }); navigateRoute(next, context); };
   const openDetail = (id: string) => navigate('detail', { detailUserId: id });
   const chatProfiles = [{ id: String(user.id), name: user.name, avatar: user.avatar, label: 'Tutor' }, ...linkedUsers.map(item => ({ id: item.id, name: item.name, avatar: item.avatar, label: 'Perteneciente' }))];
   const detailOwner = linkedUsers.find(item => item.id === detailUserId);
   const pageTitle = tab === 'detail' ? detailOwner?.name || 'Detalle' : tutorPageLabels[tab] || 'TÁNDEM';
 
   return (
-    <div className="min-h-dvh overflow-x-hidden bg-[radial-gradient(circle_at_88%_4%,rgba(220,203,245,0.48),transparent_24rem),linear-gradient(180deg,#fbf9ff_0%,#f8f7fc_100%)] pb-24 lg:pb-0">
+    <div className="flex h-dvh flex-col overflow-hidden bg-[radial-gradient(circle_at_88%_4%,rgba(220,203,245,0.48),transparent_24rem),linear-gradient(180deg,#fbf9ff_0%,#f8f7fc_100%)] pb-24 lg:pb-0">
       <a href="#tutor-main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-[100] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2">Saltar al contenido</a>
       <AppHeader
         onMenuClick={() => setMenuOpen(true)}
@@ -120,14 +120,13 @@ export default function TutorExperience() {
         menuButtonClassName="invisible pointer-events-none lg:visible lg:pointer-events-auto"
         rightSlot={<div className="flex items-center gap-2">
           <NotificationBellButton count={unreadCount} onClick={() => navigate('notifications')} className="border-0 bg-transparent" />
-          <button type="button" onClick={() => setProfileOpen(true)} aria-label="Abrir perfil y cuenta" className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><HeaderUserAvatar avatar={user.avatar} name={user.name} /></button>
+          <TutorAccountMenu open={profileOpen} onOpenChange={(open) => { setProfileOpen(open); if (open) { setMenuOpen(false); setQuickOpen(false); } }} user={user} onNavigate={navigate} onLogout={logout} />
         </div>}
       />
 
       <TutorDrawer open={menuOpen} active={tab} onClose={() => setMenuOpen(false)} onNavigate={navigate} onLogout={logout} />
-      <TutorProfileDrawer open={profileOpen} user={user} onClose={() => setProfileOpen(false)} onNavigate={navigate} onLogout={logout} />
 
-      <main id="tutor-main" tabIndex={-1} className="mx-auto w-full max-w-[1280px] px-4 py-6 sm:px-6 lg:px-8 lg:py-9">
+      <main ref={mainRef} id="tutor-main" tabIndex={-1} className="mx-auto min-h-0 w-full max-w-[1280px] flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 lg:py-9">
         {tab !== 'home' && <TutorBreadcrumb current={pageTitle} parent={tab === 'detail' ? 'Personas vinculadas' : undefined} onBack={() => goBack('home')} />}
         {loading ? <TutorSkeleton /> : error ? <ErrorState message={error} onRetry={load} /> : (
           <TutorContent
@@ -146,6 +145,7 @@ export default function TutorExperience() {
         activeTab={tab === 'home' ? 'home' : tab}
         onNavigate={(id) => navigate(id as TutorTab)}
         forceExpanded={quickOpen}
+        scrollContainerRef={mainRef}
         center={(compactProgress) => <TutorQuickMenu open={quickOpen} onOpenChange={setQuickOpen} compactProgress={compactProgress} onAction={(action) => {
           if (action === 'activity') navigate('activities');
           if (action === 'event') navigate('calendar');

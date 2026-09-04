@@ -34,6 +34,7 @@ export interface ContactPerson {
   avatar: string;
   role: 'user' | 'tutor' | 'profesional';
   subtitle?: string;
+  phone?: string;
 }
 
 interface Ctx {

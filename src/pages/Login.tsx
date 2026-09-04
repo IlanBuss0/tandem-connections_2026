@@ -3,13 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
   BadgeCheck,
-  Camera,
   Check,
   Eye,
   EyeOff,
   HeartHandshake,
-  Image as ImageIcon,
   Lock,
+  Loader2,
   RotateCcw,
   Search,
   Sparkles,
@@ -28,8 +27,9 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import type { RegisterRole, RefepsProfessional, RefepsSearchResult } from '@/services/api';
-import { searchRefepsProfessional } from '@/data/api';
+import type { ProfessionalDniVerificationResult, RegisterRole, RefepsProfessional, RefepsSearchResult } from '@/services/api';
+import { searchRefepsByDni, searchRefepsProfessional, verifyProfessionalDni } from '@/data/api';
+import { DniScanner } from '@/components/auth/DniScanner';
 
 type AuthView = 'welcome' | 'login' | 'register';
 type RegisterStep = 'role' | 'details';
@@ -37,10 +37,16 @@ type RegisterStep = 'role' | 'details';
 // Flujo profesional: 3 pasos más la previsualización de REFEPS (modal).
 type ProfStep = 'matricula' | 'identity' | 'account';
 type ProfProgress = 1 | 2 | 3;
+type DniVerificationState =
+  | { status: 'idle'; message: string }
+  | { status: 'processing'; message: string }
+  | { status: 'verified'; message: string; result: ProfessionalDniVerificationResult }
+  | { status: 'invalid_dni' | 'expired_document' | 'data_mismatch' | 'manual_review' | 'technical_error'; message: string; result?: ProfessionalDniVerificationResult };
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Misma regla que el backend: 8+ caracteres, al menos una letra y un numero.
 const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+const MATRICULA_REGEX = /^\d{4,}$/;
 
 const ROLE_OPTIONS: { value: RegisterRole; title: string; description: string; icon: typeof UserIcon }[] = [
   {
@@ -79,6 +85,50 @@ const TANDEM_SPECIALTIES = [
 
 const authGradient = 'linear-gradient(90deg, #6F518E 0%, #C9A7EB 100%)';
 
+function toDniVerificationState(result: ProfessionalDniVerificationResult): DniVerificationState {
+  if (result.status === 'VERIFIED') {
+    return { status: 'verified', message: '✓ DNI verificado', result };
+  }
+  if (result.status === 'DATA_MISMATCH') {
+    return {
+      status: 'data_mismatch',
+      message: 'Los datos del DNI no coinciden con el registro profesional seleccionado.',
+      result,
+    };
+  }
+  if (result.status === 'EXPIRED_DOCUMENT') {
+    return { status: 'expired_document', message: 'Tu DNI no está vigente. Para continuar necesitás utilizar un DNI vigente.', result };
+  }
+  if (result.reason === 'NOT_ARGENTINE_DNI' || result.reason === 'MISSING_FIELDS') {
+    return {
+      status: 'invalid_dni',
+      message: 'No pudimos reconocer un DNI. Asegurate de mostrar el frente correctamente.',
+      result,
+    };
+  }
+  if (result.status === 'MANUAL_REVIEW') {
+    return {
+      status: 'manual_review',
+      message: result.reason === 'OCR_TIMEOUT' || result.reason === 'OCR_ERROR'
+        ? 'No pudimos leer el DNI. Intentá nuevamente manteniéndolo quieto y con buena iluminación.'
+        : 'No pudimos reconocer un DNI. Asegurate de mostrar el frente correctamente.',
+      result,
+    };
+  }
+  return {
+    status: 'technical_error',
+    message: 'No pudimos verificar tu DNI en este momento. Intentá nuevamente.',
+    result,
+  };
+}
+
+function professionalDisplayName(professional: RefepsProfessional): string {
+  const nombre = String(professional?.nombre || '').trim();
+  const apellido = String(professional?.apellido || '').trim();
+  const fullName = [nombre, apellido].filter(Boolean).join(' ');
+  return fullName ? `Lic. ${fullName}` : 'Lic. Profesional';
+}
+
 type LoginProps = {
   initialView?: Exclude<AuthView, 'welcome'>;
   onBackToLanding?: () => void;
@@ -105,6 +155,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
   // Flujo profesional por pasos.
   const [profStep, setProfStep] = useState<ProfStep>('matricula');
   const [profMatricula, setProfMatricula] = useState('');
+  const [profSearchMode, setProfSearchMode] = useState<'matricula' | 'dni'>('matricula');
   const [profSearching, setProfSearching] = useState(false);
   const [refepsData, setRefepsData] = useState<RefepsSearchResult | null>(null);
   const [selectedProfessional, setSelectedProfessional] = useState<RefepsProfessional | null>(null);
@@ -115,7 +166,10 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
   // DNI (paso 2).
   const [registerDniFrente, setRegisterDniFrente] = useState<File | null>(null);
   const [registerDniPreview, setRegisterDniPreview] = useState<string | null>(null);
-  const [dniModalOpen, setDniModalOpen] = useState(false);
+  const [dniVerification, setDniVerification] = useState<DniVerificationState>({
+    status: 'idle',
+    message: 'Ubicá el frente de tu DNI dentro del recuadro.',
+  });
 
   const [registerLoading, setRegisterLoading] = useState(false);
   // Access token de Google en espera de que el usuario elija su rol (cuenta
@@ -147,12 +201,47 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     if (registerDniPreview) URL.revokeObjectURL(registerDniPreview);
     setRegisterDniFrente(file);
     setRegisterDniPreview(file ? URL.createObjectURL(file) : null);
-    if (file) setDniModalOpen(false);
+    setDniVerification({ status: 'idle', message: 'Ubicá el frente de tu DNI dentro del recuadro.' });
+  };
+
+  const updateAndVerifyDniFrente = (file: File | null, pdf417Raw?: string) => {
+    updateDniFrente(file);
+    if (!file) return;
+
+    if (!selectedProfessional?.nombre || !selectedProfessional?.apellido || !selectedProfessional?.matricula) {
+      setDniVerification({
+        status: 'technical_error',
+        message: 'No pudimos verificar tu DNI en este momento. Intentá nuevamente.',
+      });
+      return;
+    }
+
+    void verifyDniFrente(file, selectedProfessional, pdf417Raw);
+  };
+
+  const verifyDniFrente = async (file: File, professional: RefepsProfessional, pdf417Raw?: string) => {
+    setDniVerification({ status: 'processing', message: 'Verificando tu DNI...' });
+    try {
+      const result = await verifyProfessionalDni({
+        dniFrente: file,
+        matricula: String(professional.matricula),
+        nombre: professional.nombre || '',
+        apellido: professional.apellido || '',
+        pdf417Raw,
+      });
+      setDniVerification(toDniVerificationState(result));
+    } catch {
+      setDniVerification({
+        status: 'technical_error',
+        message: 'No pudimos verificar tu DNI en este momento. Intentá nuevamente.',
+      });
+    }
   };
 
   const resetProfessionalFlow = () => {
     setProfStep('matricula');
     setProfMatricula('');
+    setProfSearchMode('matricula');
     setProfSearching(false);
     setRefepsData(null);
     setSelectedProfessional(null);
@@ -285,17 +374,19 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     setError('');
     setRefepsError('');
     const matricula = profMatricula.trim();
-    if (!matricula) {
-      setRefepsError('Ingresá tu número de matrícula para continuar.');
+    const dni = matricula.replace(/\D/g, '');
+    const searchIsValid = profSearchMode === 'dni' ? /^\d{7,8}$/.test(dni) : MATRICULA_REGEX.test(matricula);
+    if (!searchIsValid) {
+      setRefepsError(profSearchMode === 'dni' ? 'El DNI debe tener 7 u 8 dígitos.' : 'La matrícula debe tener al menos 4 dígitos y solo números.');
       return;
     }
 
     setProfSearching(true);
     try {
-      const result = await searchRefepsProfessional(matricula);
+      const result = profSearchMode === 'dni' ? await searchRefepsByDni(dni) : await searchRefepsProfessional(matricula);
       setRefepsData(result);
       if (!result.found) {
-        setRefepsError('No encontramos ninguna matrícula con ese número. Revisalo e intentá de nuevo.');
+        setRefepsError(profSearchMode === 'dni' ? 'No encontramos ningún profesional con ese DNI.' : 'No encontramos ninguna matrícula con ese número. Revisalo e intentá de nuevo.');
         return;
       }
       // Resultado único: lo seleccionamos y abrimos el modal de preview.
@@ -325,6 +416,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
 
   const handleConfirmRefeps = () => {
     setPreviewOpen(false);
+    updateDniFrente(null);
     setProfStep('identity');
   };
 
@@ -343,8 +435,8 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     setError('');
 
     if (pendingGoogleToken) {
-      if (registerRole === 'profesional' && !registerDniFrente) {
-        setError('Subí una foto del frente del DNI para continuar.');
+      if (registerRole === 'profesional' && dniVerification.status !== 'verified') {
+        setError('Verificá el frente del DNI antes de continuar.');
         return;
       }
       await completeGoogleAuth(pendingGoogleToken, registerRole || undefined);
@@ -363,6 +455,11 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
 
     if (registerRole === 'profesional' && (!nombreUsuario || !correo || !registerPassword || !registerConfirmPassword || !registerDniFrente)) {
       setError('Completá los campos y subí la foto del frente del DNI para registrarte');
+      return;
+    }
+
+    if (registerRole === 'profesional' && dniVerification.status !== 'verified') {
+      setError('Verificá el frente del DNI antes de crear la cuenta.');
       return;
     }
 
@@ -548,7 +645,9 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
                 profStep={profStep}
                 profProgress={profProgress[profStep]}
                 profMatricula={profMatricula}
-                setProfMatricula={setProfMatricula}
+                profSearchMode={profSearchMode}
+                onSearchModeChange={mode => { setProfSearchMode(mode); setProfMatricula(''); setRefepsError(''); }}
+                setProfMatricula={value => setProfMatricula(value.replace(/\D/g, ''))}
                 profSearching={profSearching}
                 refepsError={refepsError}
                 onSubmitMatricula={handleSearchMatricula}
@@ -557,9 +656,13 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
                 toggleSpecialty={toggleSpecialty}
                 registerDniPreview={registerDniPreview}
                 registerDniFrente={registerDniFrente}
-                updateDniFrente={updateDniFrente}
-                onOpenDniModal={() => setDniModalOpen(true)}
+                updateDniFrente={updateAndVerifyDniFrente}
+                dniVerification={dniVerification}
                 onGoToAccount={() => setProfStep('account')}
+                onBackToMatricula={() => {
+                  updateDniFrente(null);
+                  setProfStep('matricula');
+                }}
                 onGoogleAuth={handleGoogleAuth}
                 pendingGoogleToken={pendingGoogleToken}
                 registerUsername={registerUsername}
@@ -687,12 +790,6 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
         onNotMe={handleNotMe}
       />
 
-      {/* Modal: opciones de subida del DNI */}
-      <DniUploadModal
-        open={dniModalOpen}
-        onOpenChange={setDniModalOpen}
-        onSelectFile={updateDniFrente}
-      />
     </main>
   );
 }
@@ -704,6 +801,8 @@ function ProfessionalFlow({
   profStep,
   profProgress,
   profMatricula,
+  profSearchMode,
+  onSearchModeChange,
   setProfMatricula,
   profSearching,
   refepsError,
@@ -714,8 +813,9 @@ function ProfessionalFlow({
   registerDniPreview,
   registerDniFrente,
   updateDniFrente,
-  onOpenDniModal,
+  dniVerification,
   onGoToAccount,
+  onBackToMatricula,
   onGoogleAuth,
   pendingGoogleToken,
   registerUsername,
@@ -736,6 +836,8 @@ function ProfessionalFlow({
   profStep: ProfStep;
   profProgress: ProfProgress;
   profMatricula: string;
+  profSearchMode: 'matricula' | 'dni';
+  onSearchModeChange: (mode: 'matricula' | 'dni') => void;
   setProfMatricula: (v: string) => void;
   profSearching: boolean;
   refepsError: string;
@@ -745,9 +847,10 @@ function ProfessionalFlow({
   toggleSpecialty: (name: string) => void;
   registerDniPreview: string | null;
   registerDniFrente: File | null;
-  updateDniFrente: (file: File | null) => void;
-  onOpenDniModal: () => void;
+  updateDniFrente: (file: File | null, pdf417Raw?: string) => void;
+  dniVerification: DniVerificationState;
   onGoToAccount: () => void;
+  onBackToMatricula: () => void;
   onGoogleAuth: () => void;
   pendingGoogleToken: string | null;
   registerUsername: string;
@@ -765,6 +868,15 @@ function ProfessionalFlow({
   onRegister: (e: React.FormEvent) => void;
   error: string;
 }) {
+  const matriculaReady = profSearchMode === 'dni' ? /^\d{7,8}$/.test(profMatricula.replace(/\D/g, '')) : MATRICULA_REGEX.test(profMatricula.trim());
+  const canContinueIdentity = !!registerDniFrente && dniVerification.status === 'verified' && !registerLoading && !googleLoading;
+
+  useEffect(() => {
+    if (!canContinueIdentity) return;
+    const timer = window.setTimeout(onGoToAccount, 1100);
+    return () => window.clearTimeout(timer);
+  }, [canContinueIdentity, onGoToAccount]);
+
   return (
     <div className="space-y-5">
       <ProgressIndicator current={profProgress} />
@@ -787,12 +899,21 @@ function ProfessionalFlow({
               </p>
             </div>
 
+            <div className="grid grid-cols-2 gap-2 rounded-2xl bg-[#C9A7EB]/15 p-1">
+              {(['matricula', 'dni'] as const).map(mode => (
+                <button key={mode} type="button" aria-pressed={profSearchMode === mode} onClick={() => onSearchModeChange(mode)} className={`min-h-10 rounded-xl px-3 text-sm font-bold transition ${profSearchMode === mode ? 'bg-white text-[#6F518E] shadow-sm' : 'text-[#6F518E]/65'}`}>
+                  {mode === 'matricula' ? 'Por matrícula' : 'Por DNI'}
+                </button>
+              ))}
+            </div>
             <AuthField
-              label="Matrícula"
+              label={profSearchMode === 'dni' ? 'DNI' : 'Matrícula'}
               value={profMatricula}
               onChange={e => setProfMatricula(e.target.value)}
-              placeholder="Tu número de matrícula"
+              placeholder={profSearchMode === 'dni' ? 'Tu número de DNI' : 'Tu número de matrícula'}
               autoComplete="off"
+              inputMode="numeric"
+              pattern="[0-9]*"
             />
 
             {profSearching && (
@@ -803,9 +924,12 @@ function ProfessionalFlow({
             )}
 
             {!profSearching && refepsError && <Feedback message={refepsError} />}
+            {!profSearching && profMatricula.length > 0 && !matriculaReady && !refepsError && (
+              <Feedback message={profSearchMode === 'dni' ? 'El DNI debe tener 7 u 8 dígitos.' : 'La matrícula debe tener al menos 4 dígitos.'} />
+            )}
             {!profSearching && error && <Feedback message={error} />}
 
-            <AuthActionButton type="submit" disabled={profSearching || registerLoading || googleLoading}>
+            <AuthActionButton type="submit" disabled={!matriculaReady || profSearching || registerLoading || googleLoading}>
               Continuar
             </AuthActionButton>
           </motion.form>
@@ -820,41 +944,29 @@ function ProfessionalFlow({
             transition={{ duration: 0.25 }}
             className="space-y-5"
           >
-            <div className="space-y-1.5">
+            {dniVerification.status === 'verified' ? <div className="flex min-h-72 flex-col items-center justify-center text-center">
+              <motion.span initial={{ scale: .7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex h-20 w-20 items-center justify-center rounded-full bg-[#6F518E] text-white"><Check size={42} strokeWidth={3} /></motion.span>
+              <h2 className="mt-5 text-2xl font-extrabold text-[#6F518E]">Acceso concedido</h2>
+              <p className="mt-2 text-sm font-medium text-[#6F518E]/70">Tu identidad profesional fue verificada correctamente.</p>
+            </div> : <><div className="space-y-1.5">
               <h2 className="text-xl font-extrabold text-[#6F518E]">Verificá tu identidad</h2>
               <p className="text-sm font-medium text-[#6F518E]/70">
-                Subí una foto del frente de tu DNI para confirmar tus datos.
+                Ubicá el frente de tu DNI dentro del recuadro.
               </p>
             </div>
-
-            {selectedProfessional && (
-              <div className="space-y-3 rounded-2xl border border-[#C9A7EB]/40 bg-white p-4 text-[#6F518E] shadow-sm">
-                <p className="flex items-center gap-1.5 text-xs font-bold text-[#4a8f4e]">
-                  <BadgeCheck size={15} />
-                  Registro verificado por REFEPS
-                </p>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-                  <LockedField label="Nombre" value={selectedProfessional?.nombre || '—'} />
-                  <LockedField label="Apellido" value={selectedProfessional?.apellido || '—'} />
-                  <LockedField label="Profesión" value={selectedProfessional?.profesion || '—'} />
-                  <LockedField label="Matrícula" value={String(selectedProfessional?.matricula ?? '—')} />
-                  <LockedField label="Jurisdicción" value={selectedProfessional?.jurisdiccion || '—'} />
-                </div>
-              </div>
-            )}
 
             <DniFrontField
               fileName={registerDniFrente?.name || null}
               previewUrl={registerDniPreview}
-              onUpload={onOpenDniModal}
+              verification={dniVerification}
+              onCapture={updateDniFrente}
               onClear={() => updateDniFrente(null)}
+              onBackToMatricula={onBackToMatricula}
             />
 
             <Feedback message={error} />
 
-            <AuthActionButton type="button" onClick={onGoToAccount} disabled={!registerDniFrente || registerLoading || googleLoading}>
-              Continuar
-            </AuthActionButton>
+            </>}
           </motion.div>
         )}
 
@@ -956,9 +1068,9 @@ function ProgressIndicator({ current }: { current: ProfProgress }) {
         <span>Paso {current} de 3</span>
         <span>{steps.find(s => s.n === current)?.label}</span>
       </div>
-      <div className="flex items-center gap-1.5">
-        {steps.map(step => (
-          <div key={step.n} className="flex flex-1 flex-col items-center gap-1.5">
+      <div className="grid grid-cols-[auto_1fr_auto_1fr_auto] items-start">
+        {steps.map((step, index) => (<div key={step.n} className="contents">
+          <div className="flex min-w-14 flex-col items-center gap-1.5">
             <span
               className={`flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-extrabold transition ${
                 step.n < current
@@ -974,7 +1086,8 @@ function ProgressIndicator({ current }: { current: ProfProgress }) {
               {step.label}
             </span>
           </div>
-        ))}
+          {index < steps.length - 1 && <span className="mt-3 h-1 overflow-hidden rounded-full bg-[#C9A7EB]/35"><span className={`block h-full bg-[#6F518E] transition-[width] duration-300 ease-out ${step.n < current ? 'w-full' : 'w-0'}`} /></span>}
+        </div>))}
       </div>
     </div>
   );
@@ -1025,17 +1138,17 @@ function RefepsPreviewModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-lg:bottom-0 max-lg:left-0 max-lg:top-auto max-lg:max-h-[90dvh] max-lg:w-full max-lg:translate-x-0 max-lg:translate-y-0 max-lg:rounded-b-none max-lg:rounded-t-3xl max-lg:p-6 sm:max-w-md"
+        className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden max-lg:bottom-4 max-lg:left-4 max-lg:right-4 max-lg:top-4 max-lg:w-auto max-lg:translate-x-0 max-lg:translate-y-0 max-lg:rounded-3xl max-lg:p-6 sm:max-h-[42rem] sm:max-w-md"
         overlayClassName="bg-black/60"
       >
-        <DialogHeader className="text-left">
+        <DialogHeader className="shrink-0 text-left">
           <DialogTitle className="text-lg font-extrabold text-[#6F518E]">Registro encontrado</DialogTitle>
           <DialogDescription className="text-sm font-medium text-[#6F518E]/70">
             Encontramos tus datos profesionales.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="mt-2 space-y-4 overflow-y-auto">
+        <div data-testid="refeps-modal-scroll-area" className="mt-2 min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-1">
           {current ? (
             <>
               <p className="flex items-center gap-1.5 text-xs font-bold text-[#4a8f4e]">
@@ -1096,14 +1209,18 @@ function RefepsPreviewModal({
                         key={idx}
                         type="button"
                         onClick={() => setSelectedProfessional(r)}
-                        className={`flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition ${
+                        className={`flex w-full items-start justify-between gap-3 rounded-xl border px-3 py-3 text-left transition ${
                           selectedProfessional === r
                             ? 'border-[#6F518E] bg-[#C9A7EB]/18'
                             : 'border-[#C9A7EB]/50 bg-white'
                         }`}
                       >
-                        <span className="text-sm font-bold text-[#6F518E]">{r?.profesion || 'Profesional'}</span>
-                        <span className="ml-auto text-xs font-semibold text-[#6F518E]/60">Mat. {String(r?.matricula ?? '')}</span>
+                        <span className="min-w-0 space-y-0.5">
+                          <span className="block truncate text-sm font-bold text-[#6F518E]">{professionalDisplayName(r)}</span>
+                          <span className="block truncate text-xs font-semibold text-[#6F518E]/65">{r?.profesion || 'Profesional'}</span>
+                          <span className="block text-xs font-semibold text-[#6F518E]/55">Matrícula: {String(r?.matricula ?? '')}</span>
+                        </span>
+                        {selectedProfessional === r && <Check size={17} className="mt-0.5 shrink-0 text-[#6F518E]" />}
                       </button>
                     ))}
                   </div>
@@ -1117,7 +1234,7 @@ function RefepsPreviewModal({
           )}
         </div>
 
-        <div className="mt-4 space-y-2">
+        <div data-testid="refeps-modal-actions" className="mt-4 shrink-0 space-y-2">
           <AuthActionButton
             type="button"
             disabled={!current}
@@ -1133,73 +1250,6 @@ function RefepsPreviewModal({
             <X size={16} />
             No soy esta persona
           </button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Modal: subida del DNI (cámara / galería)
-// ---------------------------------------------------------------------------
-function DniUploadModal({
-  open,
-  onOpenChange,
-  onSelectFile,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSelectFile: (file: File | null) => void;
-}) {
-  const [error, setError] = useState('');
-
-  const acceptFile = (file?: File | null) => {
-    if (!file) return;
-    const valid = /image\/(png|jpeg|webp)/.test(file.type);
-    if (!valid) {
-      setError('Formato no válido. Usá una foto PNG, JPG o WebP.');
-      return;
-    }
-    setError('');
-    onSelectFile(file);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="max-lg:bottom-0 max-lg:left-0 max-lg:top-auto max-lg:max-h-[70dvh] max-lg:w-full max-lg:translate-x-0 max-lg:translate-y-0 max-lg:rounded-b-none max-lg:rounded-t-3xl max-lg:p-6 sm:max-w-sm"
-        overlayClassName="bg-black/60"
-      >
-        <DialogHeader className="text-left">
-          <DialogTitle className="text-lg font-extrabold text-[#6F518E]">Subí el frente de tu DNI</DialogTitle>
-          <DialogDescription className="text-sm font-medium text-[#6F518E]/70">
-            Elegí cómo querés subir la foto.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="mt-2 space-y-2">
-          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#6F518E]/20 bg-white p-4 text-sm font-bold text-[#6F518E] shadow-sm transition hover:-translate-y-0.5 hover:border-[#6F518E] hover:shadow-md">
-            <Camera size={18} />
-            Tomar foto con cámara
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              capture="environment"
-              className="sr-only"
-              onChange={e => acceptFile(e.target.files?.[0])}
-            />
-          </label>
-          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#6F518E]/20 bg-white p-4 text-sm font-bold text-[#6F518E] shadow-sm transition hover:-translate-y-0.5 hover:border-[#6F518E] hover:shadow-md">
-            <ImageIcon size={18} />
-            Elegir de galería
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              className="sr-only"
-              onChange={e => acceptFile(e.target.files?.[0])}
-            />
-          </label>
-          {error && <Feedback message={error} />}
         </div>
       </DialogContent>
     </Dialog>
@@ -1238,20 +1288,28 @@ function RoleOption({
 function DniFrontField({
   fileName,
   previewUrl,
-  onUpload,
+  verification,
+  onCapture,
   onClear,
+  onBackToMatricula,
 }: {
   fileName: string | null;
   previewUrl: string | null;
-  onUpload: () => void;
+  verification: DniVerificationState;
+  onCapture: (file: File, pdf417Raw?: string) => void;
   onClear: () => void;
+  onBackToMatricula: () => void;
 }) {
+  const isOk = verification.status === 'verified';
+  const isProcessing = verification.status === 'processing';
+  const isError = !['idle', 'processing', 'verified'].includes(verification.status);
+
   return (
     <div className="space-y-3 rounded-2xl border border-[#C9A7EB]/60 bg-white p-4 text-[#6F518E]">
       <div className="space-y-1">
-        <p className="text-sm font-extrabold">Foto del frente de tu DNI</p>
+        <p className="text-sm font-extrabold">Escaneo del frente de tu DNI</p>
         <p className="text-xs font-medium leading-relaxed text-[#6F518E]/70">
-          Necesitamos una foto del frente de tu DNI para confirmar tu identidad.
+          Vamos a capturar una imagen nítida desde la cámara para confirmar tu identidad.
         </p>
       </div>
 
@@ -1263,15 +1321,8 @@ function DniFrontField({
         />
       )}
 
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <button
-          type="button"
-          onClick={onUpload}
-          className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[10px] bg-[#6F518E] px-3 text-sm font-bold text-white"
-        >
-          <Camera size={18} />
-          {fileName ? 'Cambiar foto' : 'Subir foto'}
-        </button>
+      <div className="flex flex-col gap-2">
+        {!fileName && <DniScanner onCapture={onCapture} disabled={isProcessing} />}
         {fileName && (
           <button
             type="button"
@@ -1279,11 +1330,34 @@ function DniFrontField({
             className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] border border-[#C9A7EB]/60 px-3 text-sm font-bold"
           >
             <RotateCcw size={17} />
-            Quitar
+            Escanear otro DNI
+          </button>
+        )}
+        {verification.status === 'data_mismatch' && (
+          <button
+            type="button"
+            onClick={onBackToMatricula}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] border border-[#C9A7EB]/60 px-3 text-sm font-bold"
+          >
+            <ArrowLeft size={17} />
+            Volver a matrícula
           </button>
         )}
       </div>
       {fileName && <p className="truncate text-xs font-semibold text-[#6F518E]/60">{fileName}</p>}
+      <p
+        className={`flex items-start gap-2 rounded-2xl px-4 py-3 text-sm font-bold ${
+          isOk
+            ? 'bg-[#4a8f4e]/10 text-[#3b7a3f]'
+            : isError
+              ? 'bg-red-50 text-red-700'
+              : 'bg-[#C9A7EB]/18 text-[#6F518E]'
+        }`}
+        role={isProcessing ? 'status' : isError ? 'alert' : undefined}
+      >
+        {isProcessing ? <Loader2 size={16} className="mt-0.5 shrink-0 animate-spin" /> : isOk ? <Check size={16} className="mt-0.5 shrink-0" /> : null}
+        <span>{verification.message}</span>
+      </p>
     </div>
   );
 }
