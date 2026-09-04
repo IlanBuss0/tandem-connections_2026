@@ -19,6 +19,12 @@ vi.mock('@/data/api', () => ({
   verifyProfessionalDni: (...args: unknown[]) => verifyProfessionalDni(...args),
 }));
 
+vi.mock('@/components/auth/DniScanner', () => ({
+  DniScanner: ({ onCapture }: { onCapture: (file: File) => void }) => (
+    <button type="button" onClick={() => onCapture(new File(['dni'], 'dni.jpg', { type: 'image/jpeg' }))}>Escanear DNI</button>
+  ),
+}));
+
 function openProfessionalRegistration() {
   render(<Login initialView="register" />);
   fireEvent.click(screen.getByRole('button', { name: /soy profesional/i }));
@@ -180,13 +186,12 @@ describe('professional registration flow', () => {
     fireEvent.change(screen.getByLabelText(/matrícula/i), { target: { value: '1234' } });
     fireEvent.click(screen.getByRole('button', { name: /continuar/i }));
     fireEvent.click(await screen.findByRole('button', { name: /confirmar datos/i }));
-    fireEvent.click(screen.getByRole('button', { name: /subir foto/i }));
-    fireEvent.change(screen.getByLabelText(/elegir de galería/i), {
-      target: { files: [new File(['not-this-person'], 'dni.jpg', { type: 'image/jpeg' })] },
-    });
+    fireEvent.click(screen.getByRole('button', { name: /escanear dni/i }));
 
     await waitFor(() => expect(verifyProfessionalDni).toHaveBeenCalled());
     expect(await screen.findByText(/los datos del dni no coinciden/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /continuar/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /escanear otro dni/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /volver a matr/i })).toBeInTheDocument();
+    expect(screen.queryByText(/acceso concedido/i)).not.toBeInTheDocument();
   });
 });

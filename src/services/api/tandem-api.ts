@@ -126,6 +126,7 @@ export type ProfessionalDniVerificationStatus =
   | "MANUAL_REVIEW"
   | "NOT_FOUND"
   | "DATA_MISMATCH"
+  | "EXPIRED_DOCUMENT"
   | "VERIFICATION_ERROR";
 
 export type ProfessionalDniVerificationResult = {
@@ -138,6 +139,8 @@ export type ProfessionalDniVerificationResult = {
     nombre: string | null;
     apellido: string | null;
     dni: string | null;
+    nombreCompleto?: string | null;
+    fechaVencimiento?: string | null;
     confidence: number;
     structureScore?: number;
     detectedFields?: string[];

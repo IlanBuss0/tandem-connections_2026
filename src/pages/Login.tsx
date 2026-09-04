@@ -3,12 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
   BadgeCheck,
-  Camera,
   Check,
   Eye,
   EyeOff,
   HeartHandshake,
-  Image as ImageIcon,
   Lock,
   Loader2,
   RotateCcw,
@@ -31,6 +29,7 @@ import {
 } from '@/components/ui/dialog';
 import type { ProfessionalDniVerificationResult, RegisterRole, RefepsProfessional, RefepsSearchResult } from '@/services/api';
 import { searchRefepsProfessional, verifyProfessionalDni } from '@/data/api';
+import { DniScanner } from '@/components/auth/DniScanner';
 
 type AuthView = 'welcome' | 'login' | 'register';
 type RegisterStep = 'role' | 'details';
@@ -42,7 +41,7 @@ type DniVerificationState =
   | { status: 'idle'; message: string }
   | { status: 'processing'; message: string }
   | { status: 'verified'; message: string; result: ProfessionalDniVerificationResult }
-  | { status: 'invalid_dni' | 'data_mismatch' | 'manual_review' | 'technical_error'; message: string; result?: ProfessionalDniVerificationResult };
+  | { status: 'invalid_dni' | 'expired_document' | 'data_mismatch' | 'manual_review' | 'technical_error'; message: string; result?: ProfessionalDniVerificationResult };
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Misma regla que el backend: 8+ caracteres, al menos una letra y un numero.
@@ -97,17 +96,22 @@ function toDniVerificationState(result: ProfessionalDniVerificationResult): DniV
       result,
     };
   }
+  if (result.status === 'EXPIRED_DOCUMENT') {
+    return { status: 'expired_document', message: 'Tu DNI no está vigente. Para continuar necesitás utilizar un DNI vigente.', result };
+  }
   if (result.reason === 'NOT_ARGENTINE_DNI' || result.reason === 'MISSING_FIELDS') {
     return {
       status: 'invalid_dni',
-      message: 'No pudimos reconocer un DNI en esta imagen. Subí una foto clara del frente de tu DNI.',
+      message: 'No pudimos reconocer un DNI. Asegurate de mostrar el frente correctamente.',
       result,
     };
   }
   if (result.status === 'MANUAL_REVIEW') {
     return {
       status: 'manual_review',
-      message: 'No pudimos verificar el DNI automáticamente. Subí una foto más clara del frente.',
+      message: result.reason === 'OCR_TIMEOUT' || result.reason === 'OCR_ERROR'
+        ? 'No pudimos leer el DNI. Intentá nuevamente manteniéndolo quieto y con buena iluminación.'
+        : 'No pudimos reconocer un DNI. Asegurate de mostrar el frente correctamente.',
       result,
     };
   }
@@ -161,10 +165,9 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
   // DNI (paso 2).
   const [registerDniFrente, setRegisterDniFrente] = useState<File | null>(null);
   const [registerDniPreview, setRegisterDniPreview] = useState<string | null>(null);
-  const [dniModalOpen, setDniModalOpen] = useState(false);
   const [dniVerification, setDniVerification] = useState<DniVerificationState>({
     status: 'idle',
-    message: 'Subí una foto del frente de tu DNI.',
+    message: 'Ubicá el frente de tu DNI dentro del recuadro.',
   });
 
   const [registerLoading, setRegisterLoading] = useState(false);
@@ -197,8 +200,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     if (registerDniPreview) URL.revokeObjectURL(registerDniPreview);
     setRegisterDniFrente(file);
     setRegisterDniPreview(file ? URL.createObjectURL(file) : null);
-    setDniVerification({ status: 'idle', message: 'Subí una foto del frente de tu DNI.' });
-    if (file) setDniModalOpen(false);
+    setDniVerification({ status: 'idle', message: 'Ubicá el frente de tu DNI dentro del recuadro.' });
   };
 
   const updateAndVerifyDniFrente = (file: File | null) => {
@@ -649,8 +651,11 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
                 registerDniFrente={registerDniFrente}
                 updateDniFrente={updateAndVerifyDniFrente}
                 dniVerification={dniVerification}
-                onOpenDniModal={() => setDniModalOpen(true)}
                 onGoToAccount={() => setProfStep('account')}
+                onBackToMatricula={() => {
+                  updateDniFrente(null);
+                  setProfStep('matricula');
+                }}
                 onGoogleAuth={handleGoogleAuth}
                 pendingGoogleToken={pendingGoogleToken}
                 registerUsername={registerUsername}
@@ -778,12 +783,6 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
         onNotMe={handleNotMe}
       />
 
-      {/* Modal: opciones de subida del DNI */}
-      <DniUploadModal
-        open={dniModalOpen}
-        onOpenChange={setDniModalOpen}
-        onSelectFile={updateAndVerifyDniFrente}
-      />
     </main>
   );
 }
@@ -806,8 +805,8 @@ function ProfessionalFlow({
   registerDniFrente,
   updateDniFrente,
   dniVerification,
-  onOpenDniModal,
   onGoToAccount,
+  onBackToMatricula,
   onGoogleAuth,
   pendingGoogleToken,
   registerUsername,
@@ -839,8 +838,8 @@ function ProfessionalFlow({
   registerDniFrente: File | null;
   updateDniFrente: (file: File | null) => void;
   dniVerification: DniVerificationState;
-  onOpenDniModal: () => void;
   onGoToAccount: () => void;
+  onBackToMatricula: () => void;
   onGoogleAuth: () => void;
   pendingGoogleToken: string | null;
   registerUsername: string;
@@ -860,6 +859,12 @@ function ProfessionalFlow({
 }) {
   const matriculaReady = MATRICULA_REGEX.test(profMatricula.trim());
   const canContinueIdentity = !!registerDniFrente && dniVerification.status === 'verified' && !registerLoading && !googleLoading;
+
+  useEffect(() => {
+    if (!canContinueIdentity) return;
+    const timer = window.setTimeout(onGoToAccount, 1100);
+    return () => window.clearTimeout(timer);
+  }, [canContinueIdentity, onGoToAccount]);
 
   return (
     <div className="space-y-5">
@@ -921,10 +926,14 @@ function ProfessionalFlow({
             transition={{ duration: 0.25 }}
             className="space-y-5"
           >
-            <div className="space-y-1.5">
+            {dniVerification.status === 'verified' ? <div className="flex min-h-72 flex-col items-center justify-center text-center">
+              <motion.span initial={{ scale: .7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex h-20 w-20 items-center justify-center rounded-full bg-[#6F518E] text-white"><Check size={42} strokeWidth={3} /></motion.span>
+              <h2 className="mt-5 text-2xl font-extrabold text-[#6F518E]">Acceso concedido</h2>
+              <p className="mt-2 text-sm font-medium text-[#6F518E]/70">Tu identidad profesional fue verificada correctamente.</p>
+            </div> : <><div className="space-y-1.5">
               <h2 className="text-xl font-extrabold text-[#6F518E]">Verificá tu identidad</h2>
               <p className="text-sm font-medium text-[#6F518E]/70">
-                Subí una foto del frente de tu DNI para confirmar tus datos.
+                Ubicá el frente de tu DNI dentro del recuadro.
               </p>
             </div>
 
@@ -932,15 +941,14 @@ function ProfessionalFlow({
               fileName={registerDniFrente?.name || null}
               previewUrl={registerDniPreview}
               verification={dniVerification}
-              onUpload={onOpenDniModal}
+              onCapture={updateDniFrente}
               onClear={() => updateDniFrente(null)}
+              onBackToMatricula={onBackToMatricula}
             />
 
             <Feedback message={error} />
 
-            <AuthActionButton type="button" onClick={onGoToAccount} disabled={!canContinueIdentity}>
-              Continuar
-            </AuthActionButton>
+            </>}
           </motion.div>
         )}
 
@@ -1042,9 +1050,9 @@ function ProgressIndicator({ current }: { current: ProfProgress }) {
         <span>Paso {current} de 3</span>
         <span>{steps.find(s => s.n === current)?.label}</span>
       </div>
-      <div className="flex items-center gap-1.5">
-        {steps.map(step => (
-          <div key={step.n} className="flex flex-1 flex-col items-center gap-1.5">
+      <div className="grid grid-cols-[auto_1fr_auto_1fr_auto] items-start">
+        {steps.map((step, index) => (<div key={step.n} className="contents">
+          <div className="flex min-w-14 flex-col items-center gap-1.5">
             <span
               className={`flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-extrabold transition ${
                 step.n < current
@@ -1060,7 +1068,8 @@ function ProgressIndicator({ current }: { current: ProfProgress }) {
               {step.label}
             </span>
           </div>
-        ))}
+          {index < steps.length - 1 && <span className="mt-3 h-1 overflow-hidden rounded-full bg-[#C9A7EB]/35"><span className={`block h-full bg-[#6F518E] transition-[width] duration-300 ease-out ${step.n < current ? 'w-full' : 'w-0'}`} /></span>}
+        </div>))}
       </div>
     </div>
   );
@@ -1229,80 +1238,6 @@ function RefepsPreviewModal({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Modal: subida del DNI (cámara / galería)
-// ---------------------------------------------------------------------------
-function DniUploadModal({
-  open,
-  onOpenChange,
-  onSelectFile,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSelectFile: (file: File | null) => void;
-}) {
-  const [error, setError] = useState('');
-
-  const acceptFile = (file?: File | null) => {
-    if (!file) return;
-    const valid = /image\/(png|jpeg|webp)/.test(file.type);
-    if (!valid) {
-      setError('Formato no válido. Usá una foto PNG, JPG o WebP.');
-      return;
-    }
-    setError('');
-    onSelectFile(file);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="max-lg:bottom-0 max-lg:left-0 max-lg:top-auto max-lg:max-h-[70dvh] max-lg:w-full max-lg:translate-x-0 max-lg:translate-y-0 max-lg:rounded-b-none max-lg:rounded-t-3xl max-lg:p-6 sm:max-w-sm"
-        overlayClassName="bg-black/60"
-      >
-        <DialogHeader className="text-left">
-          <DialogTitle className="text-lg font-extrabold text-[#6F518E]">Subí el frente de tu DNI</DialogTitle>
-          <DialogDescription className="text-sm font-medium text-[#6F518E]/70">
-            Elegí cómo querés subir la foto.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="mt-2 space-y-2">
-          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#6F518E]/20 bg-white p-4 text-sm font-bold text-[#6F518E] shadow-sm transition hover:-translate-y-0.5 hover:border-[#6F518E] hover:shadow-md">
-            <Camera size={18} />
-            Tomar foto con cámara
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              capture="environment"
-              className="sr-only"
-              onChange={e => acceptFile(e.target.files?.[0])}
-            />
-          </label>
-          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[#6F518E]/20 bg-white p-4 text-sm font-bold text-[#6F518E] shadow-sm transition hover:-translate-y-0.5 hover:border-[#6F518E] hover:shadow-md">
-            <ImageIcon size={18} />
-            Elegir de galería
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              className="sr-only"
-              onChange={e => acceptFile(e.target.files?.[0])}
-            />
-          </label>
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="flex min-h-11 w-full items-center justify-center rounded-2xl px-4 text-sm font-bold text-[#6F518E]/70 transition hover:bg-[#C9A7EB]/15 hover:text-[#6F518E]"
-          >
-            Cancelar
-          </button>
-          {error && <Feedback message={error} />}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function RoleOption({
   option,
   onSelect,
@@ -1336,14 +1271,16 @@ function DniFrontField({
   fileName,
   previewUrl,
   verification,
-  onUpload,
+  onCapture,
   onClear,
+  onBackToMatricula,
 }: {
   fileName: string | null;
   previewUrl: string | null;
   verification: DniVerificationState;
-  onUpload: () => void;
+  onCapture: (file: File) => void;
   onClear: () => void;
+  onBackToMatricula: () => void;
 }) {
   const isOk = verification.status === 'verified';
   const isProcessing = verification.status === 'processing';
@@ -1352,9 +1289,9 @@ function DniFrontField({
   return (
     <div className="space-y-3 rounded-2xl border border-[#C9A7EB]/60 bg-white p-4 text-[#6F518E]">
       <div className="space-y-1">
-        <p className="text-sm font-extrabold">Foto del frente de tu DNI</p>
+        <p className="text-sm font-extrabold">Escaneo del frente de tu DNI</p>
         <p className="text-xs font-medium leading-relaxed text-[#6F518E]/70">
-          Necesitamos una foto del frente de tu DNI para confirmar tu identidad.
+          Vamos a capturar una imagen nítida desde la cámara para confirmar tu identidad.
         </p>
       </div>
 
@@ -1366,15 +1303,8 @@ function DniFrontField({
         />
       )}
 
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <button
-          type="button"
-          onClick={onUpload}
-          className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[10px] bg-[#6F518E] px-3 text-sm font-bold text-white"
-        >
-          <Camera size={18} />
-          {fileName ? 'Cambiar foto' : 'Subir foto'}
-        </button>
+      <div className="flex flex-col gap-2">
+        {!fileName && <DniScanner onCapture={onCapture} disabled={isProcessing} />}
         {fileName && (
           <button
             type="button"
@@ -1382,7 +1312,17 @@ function DniFrontField({
             className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] border border-[#C9A7EB]/60 px-3 text-sm font-bold"
           >
             <RotateCcw size={17} />
-            Quitar
+            Escanear otro DNI
+          </button>
+        )}
+        {verification.status === 'data_mismatch' && (
+          <button
+            type="button"
+            onClick={onBackToMatricula}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] border border-[#C9A7EB]/60 px-3 text-sm font-bold"
+          >
+            <ArrowLeft size={17} />
+            Volver a matrícula
           </button>
         )}
       </div>
