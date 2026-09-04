@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { Activity, CalendarDays, FileText, FolderOpen, Heart, Info, MessageCircle, Settings, Sparkles, Stethoscope, Users, X } from 'lucide-react';
-import AccountDropdown from '@/components/shared/AccountDropdown';
+import { Activity, CalendarDays, FileText, FolderOpen, Heart, Info, LogOut, MessageCircle, Settings, Sparkles, Stethoscope, UserRound, Users, X } from 'lucide-react';
+import HeaderUserAvatar from '@/components/HeaderUserAvatar';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 export type ProfessionalTab = 'home' | 'calendar' | 'patients' | 'chat' | 'notifications' | 'documents' | 'create' | 'pictograms' | 'pictogramCatalog' | 'resources' | 'recentActivity' | 'emotionalStatus' | 'reports' | 'tools' | 'profile' | 'about';
 type Navigate = (tab: ProfessionalTab) => void;
@@ -23,7 +24,8 @@ export function ProfessionalDrawer({ open, active, permissions, onClose, onNavig
 }
 
 export function ProfessionalAccountMenu({ open, onOpenChange, user, onNavigate, onLogout }: { open: boolean; onOpenChange: (open: boolean) => void; user: { name: string; avatar?: string | null }; onNavigate: Navigate; onLogout: () => void }) {
-  return <AccountDropdown open={open} onOpenChange={onOpenChange} user={user} subtitle="Profesional" items={[{ id: 'profile', label: 'Mi perfil y configuración', icon: Settings, onSelect: () => onNavigate('profile') }, { id: 'about', label: 'Acerca de TÁNDEM', icon: Info, onSelect: () => onNavigate('about') }]} onLogout={onLogout} />;
+  const select = (tab: ProfessionalTab) => { onOpenChange(false); onNavigate(tab); };
+  return <DropdownMenu open={open} onOpenChange={onOpenChange}><DropdownMenuTrigger asChild><button type="button" aria-label="Abrir opciones de cuenta" aria-expanded={open} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><HeaderUserAvatar avatar={user.avatar} name={user.name} /></button></DropdownMenuTrigger><DropdownMenuContent align="end" sideOffset={10} className="z-[80] w-[min(19rem,calc(100vw-2rem))] rounded-2xl border-violet-100 p-2 shadow-xl"><DropdownMenuLabel className="flex items-center gap-3 p-3"><HeaderUserAvatar avatar={user.avatar} name={user.name} /><span className="min-w-0"><span className="block truncate font-bold">{user.name}</span><span className="block text-xs font-normal text-muted-foreground">Profesional</span></span></DropdownMenuLabel><DropdownMenuSeparator /><DropdownMenuItem onSelect={() => select('profile')} className="min-h-11 cursor-pointer rounded-xl text-sm font-semibold focus:bg-primary/10 focus:text-primary"><UserRound className="mr-3 h-5 w-5 text-primary" aria-hidden />Mi perfil</DropdownMenuItem><DropdownMenuItem onSelect={() => select('about')} className="min-h-11 cursor-pointer rounded-xl text-sm font-semibold focus:bg-primary/10 focus:text-primary"><Settings className="mr-3 h-5 w-5 text-primary" aria-hidden />Configuración</DropdownMenuItem><DropdownMenuItem onSelect={() => select('about')} className="min-h-11 cursor-pointer rounded-xl text-sm font-semibold focus:bg-primary/10 focus:text-primary"><Info className="mr-3 h-5 w-5 text-primary" aria-hidden />Acerca de TÁNDEM</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem onSelect={() => { onOpenChange(false); onLogout(); }} className="min-h-11 cursor-pointer rounded-xl text-sm font-semibold text-destructive focus:bg-destructive/10 focus:text-destructive"><LogOut className="mr-3 h-5 w-5" aria-hidden />Cerrar sesión</DropdownMenuItem></DropdownMenuContent></DropdownMenu>;
 }
 
 export type ProfessionalQuickAction = 'activity' | 'resources' | 'documents' | 'pictogram';

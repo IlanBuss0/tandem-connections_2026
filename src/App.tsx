@@ -72,15 +72,6 @@ function AuthGate() {
     return () => window.removeEventListener('popstate', syncPublicView);
   }, []);
 
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    if (['/login', '/signup', '/register'].includes(window.location.pathname)) {
-      window.history.replaceState(null, '', '/');
-      setPublicView('landing');
-    }
-  }, [isAuthenticated]);
-
   // Cuestionario de onboarding (Fase 6): se muestra una sola vez, solo a
   // pertenecientes (role 'user'), y solo despues de que el mail este
   // verificado. "checked" evita el parpadeo de mostrar AppShell y despues
