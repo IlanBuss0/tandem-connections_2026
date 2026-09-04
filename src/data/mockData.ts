@@ -11,6 +11,7 @@ export interface Admin {
   email: string;
   avatar: string;
   clearance: 'developer' | 'superadmin';
+  emailVerified?: boolean;
 }
 
 export const admins: Admin[] = [
@@ -39,6 +40,7 @@ export interface User {
   onboarded?: boolean;
   supportLevel?: 'bajo' | 'medio' | 'alto';
   goals?: string[];
+  emailVerified?: boolean;
 }
 
 const emojiAvatars = ['😊','🧑','👩','👨','🧒','👧','👦','🧔','👩‍🦰','👨‍🦱','👩‍🔬','👨‍⚕️','👩‍💼','🧑‍🏫','👩‍⚕️','🧑‍💻','👨‍🎨','👩‍🎓','🧑‍🔧','👨‍🍳','👩‍🚀','🧑‍🎤'];
@@ -78,6 +80,7 @@ export interface Tutor {
   relation: string;
   linkedUserIds: string[];
   phone: string;
+  emailVerified?: boolean;
 }
 
 export const tutors: Tutor[] = [
@@ -118,6 +121,7 @@ export interface Professional {
   availability: string;
   linkedUserIds: string[];
   phone: string;
+  emailVerified?: boolean;
 }
 
 export const professionals: Professional[] = [
@@ -220,6 +224,16 @@ export interface RoutineItem {
   category: string;
   pictogramLabel?: string;
   reminders?: number[];
+  // Resueltos por el motor de pictogramizacion (o elegidos a mano). Ver
+  // useRoutinePictograms.ts. pictogramResolvedFor es el titulo con el que
+  // se resolvio: mientras coincida con `title`, no se vuelve a pedir, ni
+  // aunque el resultado haya sido "sin pictograma" (evita quemar cuota de
+  // Groq en cada recarga).
+  pictogramId?: string;
+  pictogramImageUrl?: string;
+  pictogramName?: string;
+  pictogramConfidence?: 'alta' | 'media';
+  pictogramResolvedFor?: string;
 }
 
 export const juanDailyRoutine: RoutineItem[] = [
@@ -256,6 +270,34 @@ export interface CalendarEvent {
   userId: string;
   color: string;
   reminders?: number[];
+  // Marca los eventos derivados de actividades asignadas (por ejemplo las
+  // que asigna un tutor/profesional). Es un campo SOLO de frontend: apunta al
+  // id de la actividad asignada (DbActividadAsignada.id) para poder
+  // distinguirlas de los eventos manuales del calendario y evitar duplicados.
+  assignedActivityId?: string | null;
+  // Resueltos por el motor de pictogramizacion (Sesion 3), mismo patron que
+  // RoutineItem. pictogramResolvedFor es el titulo con el que se resolvio:
+  // mientras coincida con `title`, no se vuelve a pedir (evita quemar cuota
+  // de Groq en cada recarga).
+  pictogramId?: string;
+  pictogramImageUrl?: string;
+  pictogramName?: string;
+  pictogramConfidence?: 'alta' | 'media';
+  pictogramResolvedFor?: string;
+  // Sesion 14, item 22 "anticipar la vuelta": que pasa DESPUES de este
+  // evento, no solo la ida. Texto libre y opcional a proposito — no todos
+  // los eventos necesitan esta anticipacion (una clase de rutina no, una
+  // salida al medico si).
+  afterNote?: string;
+  // Sesion 15, item 20 "plan B visual": que hacer si algo sale distinto a
+  // lo planeado. Opcional, texto libre — no todos los eventos lo
+  // necesitan, pero uno con mucha incertidumbre (un viaje, una salida
+  // nueva) si se beneficia de tenerlo escrito de antemano.
+  planB?: string;
+  // Sesion 16, item 21 "preparacion sensorial": avisos concretos de lo que
+  // va a sentir/necesitar ("va a haber ruido, llevá auriculares"). Mismo
+  // patron que afterNote/planB.
+  sensoryNote?: string;
 }
 
 const today = new Date();
@@ -607,6 +649,19 @@ export interface Pictogram {
   favorite?: boolean;
 }
 
+// Migracion de pictogramas a librerias con licencia comercial: un pictograma
+// puede venir de varias fuentes (ARASAAC, Global Symbols, generados con IA),
+// cada una con su propia licencia y obligacion de atribucion.
+export interface PictogramAttribution {
+  source: string;
+  licenseCode: string | null;
+  licenseVersion: string | null;
+  licenseUrl: string | null;
+  attributionText: string | null;
+  sourceUrl: string | null;
+  total: number;
+}
+
 export const pictograms: Pictogram[] = [
   { id: 'pic1', name: 'Contento', emoji: '😊', category: 'emociones', tags: ['feliz','alegre','bien'] },
   { id: 'pic2', name: 'Triste', emoji: '😢', category: 'emociones', tags: ['llorar','pena','mal'] },
@@ -775,6 +830,13 @@ export function getUserById(id: string): User | undefined { return users.find(u 
 export function getTutorById(id: string): Tutor | undefined { return tutors.find(t => t.id === id); }
 export function getProfessionalById(id: string): Professional | undefined { return professionals.find(p => p.id === id); }
 export function getActivitiesForUser(userId: string): Activity[] { return activities.filter(a => a.assignedTo === userId); }
+
+export function completeActivityForUser(activityId: string, userId: string): void {
+  const activity = activities.find(item => item.id === activityId && item.assignedTo === userId);
+  if (!activity) return;
+  activity.status = 'completada';
+  activity.progress = 100;
+}
 export function getEventsForUser(userId: string): CalendarEvent[] { return calendarEvents.filter(e => e.userId === userId); }
 export function getConversationsForUser(userId: string): Conversation[] { return conversations.filter(c => c.participants.includes(userId)); }
 export function getMessagesForConversation(convId: string): ChatMessage[] { return chatMessages.filter(m => m.conversationId === convId); }

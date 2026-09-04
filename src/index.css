@@ -71,9 +71,22 @@
   * {
     @apply border-border;
   }
+  html {
+    @apply bg-background text-foreground;
+    font-family: var(--font-body);
+    height: 100%;
+  }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-body);
+    height: 100%;
+    margin: 0;
+    overscroll-behavior: none;
+  }
+  #root {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-heading);
@@ -96,5 +109,36 @@
   .text-gradient {
     @apply bg-clip-text text-transparent;
     background-image: linear-gradient(135deg, hsl(210 70% 55%), hsl(270 40% 65%));
+  }
+}
+
+@layer components {
+  .professional-surface {
+    --background: 270 100% 99%;
+    --foreground: 264 32% 20%;
+    --card: 0 0% 100%;
+    --card-foreground: 264 32% 20%;
+    --primary: 266 55% 48%;
+    --primary-foreground: 0 0% 100%;
+    --muted: 270 45% 96%;
+    --muted-foreground: 270 12% 46%;
+    --border: 270 38% 91%;
+    --input: 270 38% 91%;
+    --ring: 266 55% 48%;
+  }
+  .professional-surface .bg-card { @apply bg-white; }
+  .professional-surface .rounded-xl { border-radius: 1.5rem; }
+  .professional-surface .border-border { border-color: #ece3f8; }
+  .professional-surface .bg-card.border,
+  .professional-surface .rounded-xl.border { box-shadow: 0 8px 24px #f0e8f8; }
+  .professional-surface input:not([type='checkbox']):not([type='radio']),
+  .professional-surface textarea,
+  .professional-surface select { border-radius: 1rem; }
+  .professional-surface button { transition-duration: 200ms; }
+  .professional-surface .gradient-primary {
+    background: linear-gradient(135deg, #6f4ca6, #8b65bd);
+  }
+  .professional-surface :where(button, a):focus-visible {
+    outline-color: #6f4ca6;
   }
 }

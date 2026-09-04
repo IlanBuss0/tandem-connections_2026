@@ -8,15 +8,15 @@ export const reminderChoices = [
 
 export default function ReminderPicker({ value = [], onChange }: { value?: number[]; onChange: (value: number[]) => void }) {
   return (
-    <div>
-      <p className="mb-2 text-xs text-muted-foreground">Avisarme</p>
+    <div className="space-y-2.5">
+      <p className="text-base font-bold text-[#5f477c]">Avisarme</p>
       <div className="flex flex-wrap gap-2">
         {reminderChoices.map(choice => {
           const selected = value.includes(choice.value);
           return (
             <button key={choice.value} type="button"
               onClick={() => onChange(selected ? value.filter(item => item !== choice.value) : [...value, choice.value].sort((a, b) => a - b))}
-              className={`rounded-xl border px-2.5 py-1.5 text-xs font-medium ${selected ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'}`}>
+              className={`min-h-11 cursor-pointer rounded-xl border px-3 py-2 text-xs font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed] ${selected ? 'border-primary bg-primary/10 text-primary shadow-sm' : 'border-border bg-[#faf8ff] text-muted-foreground hover:border-[#d8c7ef] hover:bg-[#f3eaff] hover:text-[#5b3784]'}`}>
               {choice.label}
             </button>
           );

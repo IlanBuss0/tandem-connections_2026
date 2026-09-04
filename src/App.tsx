@@ -7,24 +7,33 @@ import { RoutinesProvider } from '@/contexts/RoutinesContext';
 import { CalendarProvider } from '@/contexts/CalendarContext';
 import MobileMenuProvider from '@/contexts/MobileMenuProvider';
 import AccessibilityWidget from '@/components/AccessibilityWidget';
+import SwitchScanningOverlay from '@/components/SwitchScanningOverlay';
 import Landing from '@/pages/Landing';
 import Login from '@/pages/Login';
 import InviteLinkHandler from '@/pages/InviteLinkHandler';
 import ProfessionalInviteLinkHandler from '@/pages/ProfessionalInviteLinkHandler';
+import VerifyEmailPage from '@/pages/VerifyEmailPage';
+import PasswordRecoveryPage from '@/pages/PasswordRecoveryPage';
+import EmailVerificationGate from '@/pages/EmailVerificationGate';
+import OnboardingQuestionnaire from '@/pages/OnboardingQuestionnaire';
+import Pdf417TestPage from '@/pages/Pdf417TestPage';
+import NotFoundPage from '@/pages/NotFoundPage';
 import AppShell from '@/components/AppShell';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useEffect, useState } from 'react';
+import { fetchOnboardingStatus } from '@/data/api';
 import '@/styles/accessibility.css';
 
 const queryClient = new QueryClient();
-type PublicView = 'landing' | 'login' | 'register';
+type PublicView = 'landing' | 'login' | 'register' | 'notfound';
 
 function publicViewFromPath(pathname: string): PublicView {
   if (pathname === '/login') return 'login';
   if (pathname === '/signup' || pathname === '/register') return 'register';
-  return 'landing';
+  if (pathname === '/') return 'landing';
+  return 'notfound';
 }
 
 function inviteTokenFromPath(pathname: string): string | null {
@@ -37,22 +46,68 @@ function professionalInviteTokenFromPath(pathname: string): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+function verifyEmailTokenFromPath(pathname: string, search: string): string | null {
+  if (pathname !== '/verificar-email') return null;
+  return new URLSearchParams(search).get('token');
+}
+
 function AuthGate() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const [publicView, setPublicView] = useState<PublicView>(() => publicViewFromPath(window.location.pathname));
   const [inviteToken, setInviteToken] = useState<string | null>(() => inviteTokenFromPath(window.location.pathname));
   const [professionalInviteToken, setProfessionalInviteToken] = useState<string | null>(() => professionalInviteTokenFromPath(window.location.pathname));
+  const [verifyEmailToken, setVerifyEmailToken] = useState<string | null>(() => verifyEmailTokenFromPath(window.location.pathname, window.location.search));
+  const [isVerifyEmailRoute, setIsVerifyEmailRoute] = useState(() => window.location.pathname === '/verificar-email');
+  const [passwordRecoveryPath, setPasswordRecoveryPath] = useState(() => window.location.pathname);
 
   useEffect(() => {
     const syncPublicView = () => {
       setPublicView(publicViewFromPath(window.location.pathname));
       setInviteToken(inviteTokenFromPath(window.location.pathname));
       setProfessionalInviteToken(professionalInviteTokenFromPath(window.location.pathname));
+      setVerifyEmailToken(verifyEmailTokenFromPath(window.location.pathname, window.location.search));
+      setIsVerifyEmailRoute(window.location.pathname === '/verificar-email');
+      setPasswordRecoveryPath(window.location.pathname);
     };
 
     window.addEventListener('popstate', syncPublicView);
     return () => window.removeEventListener('popstate', syncPublicView);
   }, []);
+
+  // Cuestionario de onboarding (Fase 6): se muestra una sola vez, solo a
+  // pertenecientes (role 'user'), y solo despues de que el mail este
+  // verificado. "checked" evita el parpadeo de mostrar AppShell y despues
+  // saltar al cuestionario mientras se resuelve el fetch.
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
+  const [onboardingPending, setOnboardingPending] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const needsCheck = isAuthenticated && user?.role === 'user' && user?.emailVerified !== false;
+
+    if (!needsCheck) {
+      setOnboardingChecked(true);
+      setOnboardingPending(false);
+      return;
+    }
+
+    setOnboardingChecked(false);
+    fetchOnboardingStatus(user.id)
+      .then(status => {
+        if (cancelled) return;
+        setOnboardingPending(!status.done && !status.skipped);
+        setOnboardingChecked(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setOnboardingPending(false);
+        setOnboardingChecked(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, user?.id, user?.role, user?.emailVerified]);
 
   const navigatePublic = (nextView: PublicView) => {
     const path = nextView === 'login' ? '/login' : nextView === 'register' ? '/signup' : '/';
@@ -62,9 +117,18 @@ function AuthGate() {
     }
 
     setPublicView(nextView);
+    setIsVerifyEmailRoute(false);
+    setPasswordRecoveryPath(path);
   };
 
-  const content = isLoading ? (
+  const isPasswordRecoveryRoute = passwordRecoveryPath === '/olvidaste-contrasena' || passwordRecoveryPath === '/restablecer-contrasena';
+  const content = window.location.pathname === '/test/pdf417' ? (
+    <Pdf417TestPage />
+  ) : isPasswordRecoveryRoute ? (
+    <PasswordRecoveryPage isReset={passwordRecoveryPath === '/restablecer-contrasena'} token={new URLSearchParams(window.location.search).get('token')} onGoToLogin={() => navigatePublic('login')} />
+  ) : isVerifyEmailRoute ? (
+    <VerifyEmailPage token={verifyEmailToken} onGoToLogin={() => navigatePublic('login')} />
+  ) : isLoading ? (
     <div className="min-h-screen bg-background flex items-center justify-center text-sm font-medium text-muted-foreground">
       Cargando sesión...
     </div>
@@ -76,10 +140,20 @@ function AuthGate() {
     <InviteLinkHandler token={inviteToken} />
   ) : inviteToken ? (
     <Login initialView="login" />
+  ) : isAuthenticated && user?.emailVerified === false ? (
+    <EmailVerificationGate email={user.email} />
+  ) : isAuthenticated && user?.role === 'user' && !onboardingChecked ? (
+    <div className="min-h-screen bg-background flex items-center justify-center text-sm font-medium text-muted-foreground">
+      Cargando sesión...
+    </div>
+  ) : isAuthenticated && user?.role === 'user' && onboardingPending ? (
+    <OnboardingQuestionnaire onFinish={() => setOnboardingPending(false)} />
   ) : isAuthenticated ? (
     <AppShell />
   ) : publicView === 'landing' ? (
     <Landing onNavigate={navigatePublic} />
+  ) : publicView === 'notfound' ? (
+    <NotFoundPage onGoHome={() => navigatePublic('landing')} onNavigate={navigatePublic} />
   ) : (
     <Login
       initialView={publicView}
@@ -94,6 +168,7 @@ function AuthGate() {
     <>
       <div className="accessibility-content-root">{content}</div>
       <AccessibilityWidget />
+      <SwitchScanningOverlay />
     </>
   );
 }

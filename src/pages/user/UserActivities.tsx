@@ -8,6 +8,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 import ActivityExecution from './ActivityExecution';
+import { useToast } from '@/components/ui/use-toast';
+import { deduplicateActivities, findActivityByNavigationId, getActivityIdentity, moveSelectedActivityFirst } from '@/lib/activityNavigation';
+import { isPendingActivity } from '@/lib/activityStatus';
 
 const categoryEmoji: Record<string, string> = {
   'autonomía personal': '🦸', higiene: '🧼', organización: '📋', escuela: '📚', 'cocina básica': '🍳',
@@ -142,6 +145,7 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
   const { user } = useAuth();
   const { forUser, complete: completeCustomActivity } = useCustomActivities();
   const { context: permissionContext } = usePermissionContext();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('todas');
   const [selectedType, setSelectedType] = useState<ActivityTypeFilter>('todos');
@@ -174,20 +178,30 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
   // Custom activities asignadas a este usuario
   const customForUser = useMemo(() => user ? forUser(user.id) : [], [user, forUser]);
   const merged = useMemo(() => {
-    // Custom siempre van primero (más recientes)
-    const customBackendIds = new Set(customForUser.map(activity => activity.backendId).filter(Boolean));
-    const localWithoutDuplicatedCustom = localActivities.filter(activity => {
-      const backendCustomId = (activity as any).backendCustomActivityId;
-      return !backendCustomId || !customBackendIds.has(Number(backendCustomId));
-    });
-    return [...customForUser, ...localWithoutDuplicatedCustom] as Activity[];
-  }, [customForUser, localActivities, user]);
+    // La asignación del backend va primero porque contiene el id real que usa Inicio.
+    return deduplicateActivities([...localActivities, ...customForUser] as Activity[]);
+  }, [customForUser, localActivities]);
+
+  const availableActivities = useMemo(
+    () => merged.filter(isPendingActivity),
+    [merged],
+  );
 
   useEffect(() => {
     if (!initialAssignedActivityId) return;
-    const activity = merged.find(item => String((item as any).assignedActivityId) === String(initialAssignedActivityId));
-    if (activity) setExpandedId(activity.id);
-  }, [initialAssignedActivityId, merged]);
+    const activity = findActivityByNavigationId(availableActivities, initialAssignedActivityId);
+    if (!activity) return;
+    setSearchTerm('');
+    setRecommendedOnly(false);
+    setDateFilter('all');
+    setSelectedCategory('todas');
+    setSelectedType('todos');
+    setSelectedStatus('todos');
+    setSelectedDifficulty('todos');
+    setSelectedOrigin('todos');
+    setSelectedLauncher('todos');
+    setExpandedId(activity.id);
+  }, [initialAssignedActivityId, availableActivities]);
 
   useEffect(() => {
     const storedId = localStorage.getItem('tandem:execute-activity-id');
@@ -204,18 +218,18 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
       <ActivityExecution
         activity={executingActivity}
         onBack={() => setExecutingActivity(null)}
-        onComplete={(id) => { void completeActivity(id); }}
+        onComplete={(id, score) => { void completeActivity(id, score); }}
       />
     );
   }
 
-  const categories = ['todas', ...Array.from(new Set(merged.map(a => a.category)))];
-  const types: ActivityTypeFilter[] = ['todos', ...Array.from(new Set(merged.map(a => a.type)))] as ActivityTypeFilter[];
-  const statuses: ActivityStatusFilter[] = ['todos', ...Array.from(new Set(merged.map(a => a.status)))] as ActivityStatusFilter[];
-  const difficulties: ActivityDifficultyFilter[] = ['todos', ...Array.from(new Set(merged.map(a => a.difficulty)))] as ActivityDifficultyFilter[];
-  const launchers = ['todos', ...Array.from(new Set(merged.map(getActivityLauncherName).filter(Boolean)))];
+  const categories = ['todas', ...Array.from(new Set(availableActivities.map(a => a.category)))];
+  const types: ActivityTypeFilter[] = ['todos', ...Array.from(new Set(availableActivities.map(a => a.type)))] as ActivityTypeFilter[];
+  const statuses: ActivityStatusFilter[] = ['todos', ...Array.from(new Set(availableActivities.map(a => a.status)))] as ActivityStatusFilter[];
+  const difficulties: ActivityDifficultyFilter[] = ['todos', ...Array.from(new Set(availableActivities.map(a => a.difficulty)))] as ActivityDifficultyFilter[];
+  const launchers = ['todos', ...Array.from(new Set(availableActivities.map(getActivityLauncherName).filter(Boolean)))];
 
-  let filtered = [...merged];
+  let filtered = [...availableActivities];
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
   if (normalizedSearch) {
@@ -257,6 +271,9 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
       .map(({ activity }) => activity);
   }
 
+  const selectedActivity = findActivityByNavigationId(availableActivities, initialAssignedActivityId);
+  filtered = moveSelectedActivityFirst(filtered, selectedActivity);
+
   const activeFilterCount = [
     recommendedOnly,
     dateFilter !== 'all',
@@ -280,20 +297,45 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
     setSelectedLauncher('todos');
   };
 
-  async function completeActivity(id: string) {
+  async function completeActivity(id: string, score?: number) {
     if (!canCompleteActivities) return;
     const activity = merged.find(item => item.id === id);
     if (!activity || !user) return;
-    if ((activity as any).isCustom) {
-      await completeCustomActivity(id, user.id);
-    } else {
-      await completeAssignedActivity(activity, user.id).catch(() => undefined);
+    try {
+      if ((activity as any).isCustom) {
+        await completeCustomActivity(id, user.id, score);
+      } else {
+        await completeAssignedActivity(activity, user.id, score);
+      }
+    } catch (error) {
+      toast({
+        title: 'No pudimos guardar el resultado',
+        description: error instanceof Error ? error.message : 'Intentá nuevamente.',
+        variant: 'destructive',
+      });
+      return;
     }
-    setLocalActivities(prev => prev.map(a => a.id === id ? { ...a, status: 'completada' as const, progress: 100 } : a));
+    const completedIdentity = getActivityIdentity(activity);
+    setLocalActivities(prev => prev.map(item =>
+      getActivityIdentity(item) === completedIdentity
+        ? { ...item, status: 'completada' as const, progress: 100 }
+        : item
+    ));
+    setExpandedId(current => current === id ? null : current);
   }
 
   // Daily challenge
-  const dailyActivity = localActivities.find(a => a.assignedTo === user.id && a.status === 'pendiente' && a.type === 'regulación') || localActivities.find(a => a.assignedTo === user.id && a.status === 'pendiente');
+  const dailyActivity = availableActivities.find(a => a.assignedTo === user.id && a.type === 'regulación')
+    || availableActivities.find(a => a.assignedTo === user.id);
+  const showDailyActivity = Boolean(
+    dailyActivity
+    && !initialAssignedActivityId
+    && !searchTerm.trim()
+    && activeFilterCount === 0
+  );
+  const displayedActivities = showDailyActivity && dailyActivity
+    ? filtered.filter(activity => getActivityIdentity(activity) !== getActivityIdentity(dailyActivity))
+    : filtered;
 
   return (
     <div className="pb-24 lg:pb-6 space-y-6">
@@ -311,41 +353,9 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
           </p>
         </div>
         <span className="text-xs text-[#8b7aa0] font-medium">
-          {filtered.length} de {merged.length} actividades
+          {filtered.length} de {availableActivities.length} actividades
         </span>
       </motion.div>
-
-      {/* Daily challenge — restyled as white card */}
-      {dailyActivity && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full bg-white rounded-3xl shadow-lg border border-[#f0e8f8] p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
-        >
-          <div>
-            <p className="text-xs font-semibold text-[#8b7aa0] uppercase tracking-wide flex items-center gap-1">
-              <Sparkles size={12} /> Actividad del día
-            </p>
-            <p className="text-lg font-bold text-[#6b4c9a] mt-1">{dailyActivity.title}</p>
-            <p className="text-sm text-[#8b7aa0] mt-0.5">{dailyActivity.description.slice(0, 100)}...</p>
-          </div>
-          <button
-            onClick={() => setExecutingActivity(dailyActivity)}
-            disabled={!canCompleteActivities}
-            className="shrink-0 inline-flex items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 transition disabled:opacity-50"
-          >
-            <Play size={15} />
-            Empezar ahora
-          </button>
-        </motion.div>
-      )}
-
-      {/* Warning */}
-      {!canCompleteActivities && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-800">
-          Tu tutor deshabilito completar actividades por ahora.
-        </div>
-      )}
 
       {/* Search + filters — white card like Calendar */}
       <motion.section
@@ -386,7 +396,7 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-foreground">Filtrar actividades</p>
-                  <p className="text-xs text-muted-foreground">{filtered.length} de {merged.length} resultados</p>
+                  <p className="text-xs text-muted-foreground">{filtered.length} de {availableActivities.length} resultados</p>
                 </div>
                 <button onClick={resetFilters} className="text-xs font-medium text-primary hover:underline">
                   Limpiar
@@ -465,9 +475,40 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
       </div>
       </motion.section>
 
+      {/* Daily challenge — shown separately, never duplicated in the list */}
+      {showDailyActivity && dailyActivity && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full bg-white rounded-3xl shadow-lg border border-[#f0e8f8] p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+        >
+          <div>
+            <p className="text-xs font-semibold text-[#8b7aa0] uppercase tracking-wide flex items-center gap-1">
+              <Sparkles size={12} /> Actividad del día
+            </p>
+            <p className="text-lg font-bold text-[#6b4c9a] mt-1">{dailyActivity.title}</p>
+            <p className="text-sm text-[#8b7aa0] mt-0.5">{dailyActivity.description.slice(0, 100)}...</p>
+          </div>
+          <button
+            onClick={() => setExecutingActivity(dailyActivity)}
+            disabled={!canCompleteActivities}
+            className="shrink-0 inline-flex items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 transition disabled:opacity-50"
+          >
+            <Play size={15} />
+            Empezar ahora
+          </button>
+        </motion.div>
+      )}
+
+      {!canCompleteActivities && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-800">
+          Tu tutor deshabilito completar actividades por ahora.
+        </div>
+      )}
+
       {/* Activity cards — same style as Calendar */}
       <div className="space-y-4">
-        {filtered.map((activity, i) => {
+        {displayedActivities.map((activity, i) => {
           const sourceMeta = getSourceMeta(activity);
 
           return (
@@ -577,7 +618,7 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
       </div>
 
       {/* Empty state — same style as Calendar */}
-      {filtered.length === 0 && (
+      {displayedActivities.length === 0 && !showDailyActivity && (
         <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-[#e0d8f0] bg-[#faf8ff] px-6 py-14 text-center shadow-sm">
           <Sparkles size={40} className="text-[#6b4c9a]/60 mb-4" />
           <p className="text-base font-bold text-[#4a4a5a]">No hay actividades</p>

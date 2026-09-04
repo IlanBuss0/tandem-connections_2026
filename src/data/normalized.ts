@@ -79,6 +79,7 @@ for (const u of legacyUsers) {
       u.supportLevel === 'bajo' ? 'Autogestionada' : u.supportLevel === 'alto' ? 'Tutelada' : 'Asistida'),
     puede_autogestionarse: u.supportLevel === 'bajo',
     observacion_general: u.bio ?? null,
+    nivel_apoyo_sugerido: false,
   });
 }
 

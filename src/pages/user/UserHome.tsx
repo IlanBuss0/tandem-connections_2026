@@ -1,33 +1,43 @@
-import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
-import { useGSAP } from '@gsap/react';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { useAuth } from '@/contexts/AuthContext';
-import { useCalendar, typeEmoji } from '@/contexts/CalendarContext';
+import { useEffect, useMemo, useState } from "react";
 import {
-  MessageCircle,
-  Calendar,
-  FileText,
-  ChevronLeft,
+  Check,
+  CheckCircle2,
   ChevronRight,
-  Sparkles,
-  Smile,
-  Paperclip,
-  Send,
-} from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
-import { fetchPertenecienteHome, PertenecienteHomeData, PertenecienteHomeActivity } from '@/data/api';
+  Circle,
+  Lightbulb,
+  ListTodo,
+  Plus,
+  Trophy,
+  UserRound,
+} from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRoutines } from "@/contexts/RoutinesContext";
+import { useWallet } from "@/contexts/WalletContext";
+import { useCalendar } from "@/contexts/CalendarContext";
+import EmotionEntryDialog from "@/components/EmotionEntryDialog";
+import EventPictogram from "@/components/EventPictogram";
+import {
+  fetchPertenecienteHome,
+  type PertenecienteHomeActivity,
+  type PertenecienteHomeData,
+} from "@/data/api";
+import { ACTIVITY_STATUS_CHANGED_EVENT } from "@/lib/activityEvents";
+import { isPendingActivity } from "@/lib/activityStatus";
+import {
+  isPermissionEnabled,
+  PERTENECIENTE_PERMISSIONS,
+  usePermissionContext,
+} from "@/hooks/usePermissions";
+import { useCalendarPictograms } from "@/hooks/useCalendarPictograms";
 
 interface Props {
-  onNavigate?: (tab: string) => void;
+  onNavigate?: (tab: string, params?: Record<string, string>) => void;
 }
-
-
 
 const emptyHome: PertenecienteHomeData = {
   perteneciente: null,
-  supportLevel: 'Sin registrar',
-  autonomy: 'Sin registrar',
+  supportLevel: "Sin registrar",
+  autonomy: "Sin registrar",
   canSelfManage: false,
   points: 0,
   level: 1,
@@ -36,449 +46,663 @@ const emptyHome: PertenecienteHomeData = {
   notifications: [],
 };
 
-function startOfWeek(d: Date) {
-  const r = new Date(d);
-  const day = (r.getDay() + 6) % 7;
-  r.setDate(r.getDate() - day);
-  r.setHours(0, 0, 0, 0);
-  return r;
+const emotions = [
+  { label: "Feliz", emoji: "😄" },
+  { label: "Contento", emoji: "😊" },
+  { label: "Tranquilo", emoji: "😌" },
+  { label: "Triste", emoji: "😢" },
+  { label: "Preocupado", emoji: "😟" },
+  { label: "Enojado", emoji: "😠" },
+] as const;
+
+const homeRequests = new Map<string, Promise<PertenecienteHomeData>>();
+const weekDayLabels = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+const monthLabels = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+];
+
+function dateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
-function fmt(d: Date) {
-  return d.toISOString().split('T')[0];
+function currentWeek() {
+  const start = new Date();
+  const offset = (start.getDay() + 6) % 7;
+  start.setDate(start.getDate() - offset);
+  start.setHours(0, 0, 0, 0);
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return date;
+  });
 }
 
-const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-
-function activityEmoji(title: string): string {
-  const t = title.toLowerCase();
-  if (t.includes('mochila') || t.includes('bolso')) return '🎒';
-  if (t.includes('diente') || t.includes('duchar') || t.includes('higiene')) return '🧼';
-  if (t.includes('dormir') || t.includes('cama')) return '🛏️';
-  if (t.includes('escritorio') || t.includes('orden') || t.includes('clasif')) return '📋';
-  if (t.includes('cocina') || t.includes('merienda') || t.includes('desayuno') || t.includes('comida')) return '🍳';
-  if (t.includes('compra') || t.includes('dinero') || t.includes('vuelto')) return '🛒';
-  if (t.includes('respirac') || t.includes('calmar') || t.includes('relaj')) return '🧘';
-  if (t.includes('emocion') || t.includes('sentir') || t.includes('reconocer')) return '💭';
-  if (t.includes('saludar') || t.includes('presentarse') || t.includes('invitar')) return '👥';
-  if (t.includes('transporte') || t.includes('viaje') || t.includes('salir')) return '🚌';
-  if (t.includes('escuela') || t.includes('estudio') || t.includes('tarea')) return '📚';
-  if (t.includes('ropa') || t.includes('vestir')) return '👕';
-  if (t.includes('seguridad') || t.includes('peligro') || t.includes('avisa')) return '🛡️';
-  if (t.includes('cambio') || t.includes('plan') || t.includes('anticip')) return '🔄';
-  if (t.includes('ayuda') || t.includes('pedir')) return '🤝';
-  if (t.includes('microondas')) return '🔥';
-  return '📋';
+function loadPertenecienteHome(
+  userId: string,
+  onActivitiesReady: (activities: PertenecienteHomeActivity[]) => void,
+) {
+  const existing = homeRequests.get(userId);
+  if (existing) return existing;
+  const request = fetchPertenecienteHome(userId, {
+    onActivitiesReady,
+    skipProfileLookups: true,
+  }).finally(() => homeRequests.delete(userId));
+  homeRequests.set(userId, request);
+  return request;
 }
 
-function statusStyle(status: string): string {
-  const s = status.toLowerCase();
-  if (s.includes('complet')) return 'bg-emerald-100 text-emerald-700';
-  if (s.includes('progreso') || s.includes('en curso')) return 'bg-blue-100 text-blue-700';
-  return 'bg-amber-100 text-amber-700';
+function isImageAvatar(value: string) {
+  return (
+    /^(https?:|data:image\/|\/|\.\/|\.\.\/)/.test(value) ||
+    /\.(png|jpe?g|webp|gif|svg)$/i.test(value)
+  );
 }
 
-const CARD_GAP = 16;
+function HomeAvatar({
+  avatar,
+  name,
+  compact = false,
+}: {
+  avatar?: string;
+  name: string;
+  compact?: boolean;
+}) {
+  const cleanAvatar = avatar?.trim();
+  return (
+    <div
+      className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/80 bg-white/75 shadow-sm ${compact ? "h-16 w-16 sm:h-20 sm:w-20 lg:h-24 lg:w-24" : "h-24 w-24 sm:h-28 sm:w-28 lg:h-36 lg:w-36"}`}
+      aria-label={`Avatar de ${name}`}
+    >
+      {cleanAvatar && isImageAvatar(cleanAvatar) ? (
+        <img src={cleanAvatar} alt="" className="h-full w-full object-cover" />
+      ) : cleanAvatar ? (
+        <span
+          className={
+            compact
+              ? "text-4xl sm:text-5xl"
+              : "text-6xl sm:text-7xl lg:text-8xl"
+          }
+          aria-hidden
+        >
+          {cleanAvatar}
+        </span>
+      ) : (
+        <UserRound className="h-1/2 w-1/2 text-[#7b5fa6]" aria-hidden />
+      )}
+    </div>
+  );
+}
 
-gsap.registerPlugin(ScrollTrigger);
+function statusLabel(status: string) {
+  const normalized = status.toLowerCase();
+  if (normalized.includes("progreso") || normalized.includes("curso"))
+    return "En progreso";
+  if (normalized.includes("pendiente")) return "Pendiente";
+  return status || "Para hacer";
+}
 
 export default function UserHome({ onNavigate }: Props) {
   const { user } = useAuth();
+  const { todayRoutine } = useRoutines();
+  const { state: wallet } = useWallet();
   const { events, eventsOn } = useCalendar();
+  const { context: permissionContext } = usePermissionContext();
   const [home, setHome] = useState<PertenecienteHomeData>(emptyHome);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
-  const [selectedDay, setSelectedDay] = useState(() => fmt(new Date()));
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(true);
-  const [note, setNote] = useState('');
-  const [saved, setSaved] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const panelRefs = useRef<Array<HTMLElement | null>>([]);
+  const [error, setError] = useState("");
+  const [selectedEmotion, setSelectedEmotion] = useState<string | null>(null);
+  const [selectedDay, setSelectedDay] = useState(() => dateKey(new Date()));
+  const weekDays = useMemo(currentWeek, []);
+  const selectedDayEvents = useMemo(
+    () => events.filter((event) => event.date === selectedDay),
+    [events, selectedDay],
+  );
+  useCalendarPictograms(selectedDayEvents);
 
-  useGSAP(() => {
-    const container = containerRef.current;
-    if (!container) return;
+  const canRegisterEmotions = isPermissionEnabled(
+    permissionContext?.perteneciente?.permisos_efectivos?.permisos,
+    PERTENECIENTE_PERMISSIONS.REGISTRAR_EMOCIONES,
+    true,
+  );
 
-    const heroItems = Array.from(container.querySelectorAll<HTMLElement>('[data-hero-animate]'));
-    const revealSections = Array.from(container.querySelectorAll<HTMLElement>('[data-reveal-section]'));
-
-    const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
-
-    tl.from(heroItems, {
-      y: 30,
-      duration: 0.7,
-      stagger: 0.18,
-      clearProps: 'all',
-    });
-
-    revealSections.forEach(section => {
-      gsap.from(section, {
-        y: 24,
-        duration: 0.75,
-        ease: 'power3.out',
-        scrollTrigger: {
-          trigger: section,
-          start: 'top 80%',
-          once: true,
-          toggleActions: 'play none none none',
-        },
-        clearProps: 'transform',
-      });
-    });
-  }, { scope: containerRef, dependencies: [loading] });
-
-  const handlePanelEnter = useCallback((index: number) => {
-    const panel = panelRefs.current[index];
-    if (panel) {
-      gsap.to(panel, { y: -4, scale: 1.01, duration: 0.24, ease: 'power2.out' });
-    }
-  }, []);
-
-  const handlePanelLeave = useCallback((index: number) => {
-    const panel = panelRefs.current[index];
-    if (panel) {
-      gsap.to(panel, { y: 0, scale: 1, duration: 0.24, ease: 'power2.out', clearProps: 'transform' });
-    }
-  }, []);
-
-  const handleSaveNote = () => {
-    if (!note.trim()) return;
-    // TODO: connect to backend
-    setSaved(true);
-    setNote('');
-    setTimeout(() => setSaved(false), 2500);
+  const openEmotion = (emotion: string) => {
+    if (canRegisterEmotions) setSelectedEmotion(emotion);
+    else onNavigate?.("emotions");
   };
 
   useEffect(() => {
     let mounted = true;
-    if (!user || user.role !== 'user') return;
-
-    setLoading(true);
-    setError('');
-    fetchPertenecienteHome(user.id)
-      .then(data => {
-        if (!mounted) return;
-        setHome(data);
+    if (!user || user.role !== "user") return;
+    const refresh = () => {
+      setLoading(true);
+      setError("");
+      void loadPertenecienteHome(user.id, (activities) => {
+        if (mounted) setHome((current) => ({ ...current, activities }));
       })
-      .catch(() => {
-        if (!mounted) return;
-        setHome(emptyHome);
-        setError('No pude cargar tus datos del backend local.');
-      })
-      .finally(() => {
-        if (mounted) setLoading(false);
-      });
-
-    return () => { mounted = false; };
+        .then((data) => {
+          if (mounted) setHome(data);
+        })
+        .catch(() => {
+          if (mounted) {
+            setHome(emptyHome);
+            setError(
+              "No pudimos cargar todos tus datos. Intentá nuevamente en unos minutos.",
+            );
+          }
+        })
+        .finally(() => {
+          if (mounted) setLoading(false);
+        });
+    };
+    refresh();
+    window.addEventListener(ACTIVITY_STATUS_CHANGED_EVENT, refresh);
+    return () => {
+      mounted = false;
+      window.removeEventListener(ACTIVITY_STATUS_CHANGED_EVENT, refresh);
+    };
   }, [user]);
 
-  const firstName = user?.name.split(' ')[0] || user?.username || '';
-  const today = new Date();
-  const todayKey = fmt(today);
-
-  const pendingActivities = useMemo(() => {
-    const real = home.activities.filter(a => !a.completed);
-    if (real.length > 0 || loading) return real;
-    const demoCompleted = localStorage.getItem('tandem:demo-completed') === 'true';
-    if (demoCompleted) return [];
-    return [{
-      id: `demo-pictogramas-${user?.id || 'anon'}`,
-      title: 'Preparar una merienda con pictogramas',
-      description: 'Usar apoyos visuales para seguir una rutina simple',
-      status: 'Pendiente',
-      completed: false,
-      assignedAt: 'Hoy',
-    }] as PertenecienteHomeActivity[];
-  }, [home.activities, loading, user]);
-
-  const weekDays = useMemo(() =>
-    Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(weekStart);
-      d.setDate(d.getDate() + i);
-      return d;
-    }),
-    [weekStart]
+  const pendingActivities = useMemo(
+    () => home.activities.filter(isPendingActivity),
+    [home.activities],
   );
+  const routineItems = todayRoutine?.items ?? [];
+  const completedRoutineItems = routineItems.filter(
+    (item) => item.completed,
+  ).length;
+  const dayProgress = routineItems.length
+    ? Math.round((completedRoutineItems / routineItems.length) * 100)
+    : home.activities.length
+      ? Math.round(
+          (home.activities.filter((activity) => activity.completed).length /
+            home.activities.length) *
+            100,
+        )
+      : 0;
+  const visibleRoutineItems = routineItems
+    .filter((item) => !item.completed)
+    .slice(0, 3);
+  const visibleActivities = pendingActivities.slice(
+    0,
+    Math.max(0, 3 - visibleRoutineItems.length),
+  );
+  const goalSteps = routineItems.slice(0, 5);
+  const points = wallet.balance || home.points;
 
-  const monthLabel = `${MONTHS[weekStart.getMonth()]} ${weekStart.getFullYear()}`;
-
-  const updateScrollButtons = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    setCanScrollLeft(el.scrollLeft > 4);
-    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 4);
-  }, []);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.addEventListener('scroll', updateScrollButtons, { passive: true });
-    updateScrollButtons();
-    const ro = new ResizeObserver(updateScrollButtons);
-    ro.observe(el);
-    return () => {
-      el.removeEventListener('scroll', updateScrollButtons);
-      ro.disconnect();
-    };
-  }, [pendingActivities, updateScrollButtons]);
-
-  const scrollCarousel = useCallback((dir: 'left' | 'right') => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const firstChild = el.querySelector(':scope > *') as HTMLElement | null;
-    if (!firstChild) return;
-    const cardWidth = firstChild.offsetWidth;
-    const scrollAmount = dir === 'left' ? -(cardWidth + CARD_GAP) : (cardWidth + CARD_GAP);
-    el.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-  }, []);
-
-  if (!user || user.role !== 'user') return null;
+  if (!user || user.role !== "user") return null;
+  const firstName = user.name.split(" ")[0] || user.username;
+  const level = "level" in user ? user.level : home.level;
 
   return (
-    <div ref={containerRef} className="min-h-screen px-4 pb-6 pt-2 sm:px-6 lg:px-8">
-      <div className="relative left-1/2 right-1/2 w-screen -translate-x-1/2 -mt-6 sm:-mt-8">
-        <div className="w-full rounded-[24px] border border-[#e8dcf8] bg-gradient-to-br from-[#f9f4ff] via-[#f4ebff] to-[#eef8fb] py-5 shadow-[0_10px_30px_#eadff6] sm:py-7">
-          <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8">
-            <div className="mx-auto flex max-w-3xl flex-col items-center gap-6">
-              <div data-hero-animate className="inline-flex items-center rounded-full border border-[#dbcdf5] bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7b5fa6] shadow-sm">
-                Resumen de hoy
-              </div>
-              <h1 data-hero-animate className="text-4xl font-black leading-[0.95] tracking-[-0.02em] text-[#2e2344] sm:text-5xl">
-                Hola, {firstName}
-              </h1>
-              <p data-hero-animate className="max-w-2xl text-base leading-7 text-[#675a78] sm:text-lg">
-                Tu día se ve más claro cuando tenés lo importante a mano.
-              </p>
-            </div>
-
-            <div data-hero-animate className="flex flex-wrap justify-center gap-2 mt-6">
-              {[
-                { id: 'chat', label: 'Chat', icon: MessageCircle, tone: 'bg-white text-[#5c3f7f]' },
-                { id: 'calendar', label: 'Calendario', icon: Calendar, tone: 'bg-[#6f4ca6] text-white' },
-                { id: 'notes', label: 'Notas', icon: FileText, tone: 'bg-[#fffafc] text-[#7b5fa6]' },
-              ].map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => onNavigate?.(item.id)}
-                  className={`inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-semibold shadow-sm transition duration-200 hover:translate-y-[-1px] hover:scale-[1.02] ${item.tone}`}
-                >
-                  <item.icon size={16} />
-                  {item.label}
-                </button>
-              ))}
-            </div>
+    <main className="min-h-screen bg-[#faf8ff] px-4 pb-8 pt-2 text-left sm:px-6 sm:pb-10 sm:pt-3 lg:px-10 lg:pb-12">
+      <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-4 sm:gap-5 lg:gap-6">
+        <section className="relative flex min-h-[140px] items-center overflow-hidden rounded-[24px] border border-[#dfcff1] bg-gradient-to-br from-[#f7f2ff] via-[#f2e9ff] to-[#eaf7fb] px-5 py-5 shadow-[0_10px_30px_rgba(82,55,120,0.11)] sm:min-h-[160px] sm:px-8 sm:py-6 lg:min-h-[190px] lg:px-10">
+          <span
+            className="absolute -left-12 -top-16 h-40 w-40 rounded-full bg-white/55 blur-sm"
+            aria-hidden
+          />
+          <span
+            className="absolute -bottom-20 right-[18%] h-44 w-44 rounded-full bg-[#d8c5f2]/35 blur-md"
+            aria-hidden
+          />
+          <span
+            className="absolute bottom-0 left-0 h-1 w-2/5 rounded-r-full bg-gradient-to-r from-[#6f4ca6] to-[#9b7bc5]"
+            aria-hidden
+          />
+          <div className="relative z-10 min-w-0 flex-1 pr-2 sm:pr-6">
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#7b5fa6] sm:text-xs">
+              Tu espacio de hoy
+            </p>
+            <h1 className="text-[24px] font-extrabold leading-tight text-[#2e2344] sm:text-[28px] lg:text-[32px]">
+              ¡Hola, {firstName}! <span aria-hidden>👋</span>
+            </h1>
+            <p className="mt-3 max-w-xl text-[13px] font-medium leading-5 text-[#675a78] sm:text-[15px] sm:leading-6 lg:text-base">
+              Cada día es una nueva oportunidad para crecer y disfrutar.
+            </p>
           </div>
-        </div>
-      </div>
+          <div className="flex w-[36%] max-w-[180px] justify-center sm:w-[30%] lg:w-[26%]">
+            <HomeAvatar avatar={user.avatar} name={user.name} />
+          </div>
+          <span
+            className="absolute right-[30%] top-5 text-xl text-[#c9aef0]"
+            aria-hidden
+          >
+            ♥
+          </span>
+          <span
+            className="absolute bottom-4 right-5 text-sm text-[#d9c5f4]"
+            aria-hidden
+          >
+            ✦
+          </span>
+        </section>
 
-      <div className="mx-auto mt-8 sm:mt-10 flex w-full max-w-5xl flex-col space-y-3">
-        <section
-          data-reveal-section
-          ref={el => { panelRefs.current[0] = el; }}
-          onMouseEnter={() => handlePanelEnter(0)}
-          onMouseLeave={() => handlePanelLeave(0)}
-          className="rounded-[24px] border border-[#ece3f8] bg-white p-4 shadow-[0_8px_24px_#f0e8f8] sm:p-5"
-        >
-          <div className="mb-3 flex items-center justify-between gap-3">
+        <section className="rounded-[20px] border border-[#e9def5] bg-white p-4 shadow-[0_6px_20px_rgba(75,50,110,0.07)] sm:p-5">
+          <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-[0.24em] text-[#7b5fa6]">{monthLabel}</p>
-              <h2 className="text-lg sm:text-xl font-bold text-[#2e2344]">Mi semana</h2>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#7b5fa6] sm:text-xs">
+                {monthLabels[weekDays[0].getMonth()]}{" "}
+                {weekDays[0].getFullYear()}
+              </p>
+              <h2 className="text-[18px] font-bold text-[#2e2344] sm:text-[20px]">
+                Mi semana
+              </h2>
             </div>
             <button
-              onClick={() => onNavigate?.('calendar')}
-              className="text-sm font-semibold text-[#6f4ca6] transition hover:text-[#2e2344]"
+              type="button"
+              onClick={() => onNavigate?.("calendar")}
+              className="text-xs font-bold text-[#6f4ca6] transition hover:text-[#2e2344] sm:text-sm"
             >
               Ver calendario
             </button>
           </div>
 
-          <div translate="no" className="notranslate flex justify-between gap-1 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {weekDays.map((d, i) => {
-              const key = fmt(d);
-              const isToday = key === todayKey;
-              const isSelected = key === selectedDay;
-              const dayEvs = eventsOn(key);
-              const hasEvents = dayEvs.length > 0;
-
-              return (
-                <button
-                  key={i}
-                  onClick={() => setSelectedDay(key)}
-                  className={`flex flex-1 flex-col items-center rounded-2xl border px-1 py-2.5 transition-all duration-200 ${
-                    isToday
-                      ? 'border-[#6f4ca6] bg-[#6f4ca6] text-white shadow-sm'
-                      : isSelected
-                        ? 'border-[#e7daf7] bg-[#f8f2ff] text-[#2e2344]'
-                        : hasEvents
-                          ? 'border-transparent bg-[#f3eaff] text-[#6f4ca6]'
-                          : 'border-transparent text-[#6b6380] hover:bg-[#f8f2ff]'
-                  }`}
-                >
-                  <span translate="no" className={`notranslate text-[11px] sm:text-xs font-semibold ${isToday ? 'text-[#efe8ff]' : 'text-[#7b5fa6]'}`}>
-                    {diasSemana[d.getDay()]}
-                  </span>
-                  <span className={`text-xl sm:text-2xl font-extrabold mt-1 leading-none ${isToday ? '' : 'text-[#4a3a6a]'}`}>
-                    {d.getDate()}
-                  </span>
-                  {hasEvents && (
-                    <div className={`mt-1.5 flex gap-1 ${isToday ? 'text-[#efe8ff]' : ''}`}>
-                      {dayEvs.slice(0, 3).map(e => (
+          <div className="mt-4 grid gap-4">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2">
+              {weekDays.map((day) => {
+                const key = dateKey(day);
+                const dayEvents = eventsOn(key);
+                const isToday = key === dateKey(new Date());
+                const isSelected = key === selectedDay;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setSelectedDay(key)}
+                    className={`flex min-h-[66px] flex-col items-center justify-center rounded-[14px] border px-1 py-2 transition sm:min-h-[76px] ${isToday ? "border-[#6f4ca6] bg-[#6f4ca6] text-white shadow-sm" : isSelected ? "border-[#d9c7ed] bg-[#f5f0ff] text-[#3f3153]" : "border-transparent bg-[#fcfaff] text-[#675a78] hover:bg-[#f5f0ff]"}`}
+                  >
+                    <span
+                      className={`text-[10px] font-bold sm:text-xs ${isToday ? "text-white/80" : "text-[#7b5fa6]"}`}
+                    >
+                      {weekDayLabels[day.getDay()]}
+                    </span>
+                    <span className="mt-1 text-lg font-extrabold leading-none sm:text-xl">
+                      {day.getDate()}
+                    </span>
+                    <span className="mt-1.5 flex h-1.5 gap-1" aria-hidden>
+                      {dayEvents.slice(0, 3).map((event) => (
                         <span
-                          key={e.id}
-                          className="h-1.5 w-1.5 rounded-full"
-                          style={{ backgroundColor: isToday ? 'currentColor' : '#6f4ca6' }}
+                          key={event.id}
+                          className={`h-1.5 w-1.5 rounded-full ${isToday ? "bg-white/80" : "bg-[#8b65bd]"}`}
                         />
                       ))}
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
 
-          {selectedDay && eventsOn(selectedDay).length > 0 && (
-            <div className="mt-5 space-y-2 rounded-[20px] border border-[#efe8f8] bg-[#fcf9ff] p-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#7b5fa6]">
-                {selectedDay === todayKey
-                  ? 'Hoy'
-                  : new Date(selectedDay + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric' })}
+            <div className="min-h-[76px] rounded-[16px] border border-[#eee5f7] bg-[#fcfaff] px-3 py-2.5">
+              <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[#7b5fa6]">
+                {selectedDay === dateKey(new Date())
+                  ? "Hoy"
+                  : new Date(`${selectedDay}T12:00:00`).toLocaleDateString(
+                      "es-AR",
+                      { weekday: "long", day: "numeric" },
+                    )}
               </p>
-              {eventsOn(selectedDay).slice(0, 3).map(e => (
-                <div key={e.id} className="flex items-center gap-2.5 border-b border-[#f1e8fb] px-1 py-2 last:border-b-0">
-                  <span className="text-lg">{typeEmoji[e.type]}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-[#4a4a5a]">{e.title}</p>
-                  </div>
-                  <span className="text-xs font-medium text-[#7b5fa6]">{e.time}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr] items-start py-8">
-          {/* Column izquierda: Estado emocional (editorial) */}
-          <section
-            data-reveal-section
-            ref={el => { panelRefs.current[2] = el; }}
-            onMouseEnter={() => handlePanelEnter(2)}
-            onMouseLeave={() => handlePanelLeave(2)}
-            className="rounded-[24px] border border-[#ece3f8] bg-white p-6 shadow-[0_8px_24px_#f0e8f8]"
-          >
-            <div className="mb-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#7b5fa6]">Estado emocional</p>
-              <h3 className="text-2xl sm:text-3xl font-bold text-[#2e2344]">¿Cómo te sentiste hoy?</h3>
-            </div>
-
-            <textarea
-              value={note}
-              onChange={e => { setNote(e.target.value); setSaved(false); }}
-              placeholder="Escribí acá lo que sentís o pensás..."
-              rows={3}
-              className="mt-4 w-full resize-none rounded-2xl border border-[#efe8f8] bg-[#fcf9ff] p-3 text-sm text-[#4a4a5a] placeholder:text-[#8b7aa0] outline-none transition focus:ring-0"
-            />
-
-            <div className="mt-4 flex items-center justify-between">
-              <div className="flex items-center gap-3 text-[#8b7aa0]">
-                <Smile size={18} className="cursor-pointer transition hover:text-[#6f4ca6]" />
-                <Paperclip size={16} className="cursor-pointer transition hover:text-[#6f4ca6]" />
-              </div>
-
-              <div className="flex items-center gap-3">
-                {saved && (
-                  <span className="text-xs font-medium text-emerald-600">Nota guardada</span>
-                )}
+              {selectedDayEvents.length ? (
+                selectedDayEvents.slice(0, 2).map((event) => (
+                  <button
+                    key={event.id}
+                    type="button"
+                    onClick={() => onNavigate?.("calendar")}
+                    className="flex min-h-9 w-full items-center gap-2 border-b border-[#eee5f7] text-left last:border-0"
+                  >
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center">
+                      <EventPictogram event={event} size="sm" />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-xs font-bold text-[#4a3a6a] sm:text-sm">
+                      {event.title}
+                    </span>
+                    <span className="text-[10px] font-semibold text-[#7b5fa6] sm:text-xs">
+                      {event.time}
+                    </span>
+                  </button>
+                ))
+              ) : (
                 <button
-                  onClick={handleSaveNote}
-                  disabled={!note.trim()}
-                  className="text-sm font-semibold text-[#6f4ca6] transition disabled:text-[#b5a8c8]"
+                  type="button"
+                  onClick={() => onNavigate?.("calendar")}
+                  className="flex min-h-10 w-full items-center text-left text-xs text-[#756a82]"
                 >
-                  Guardar nota
+                  No hay eventos para este día.
                 </button>
-              </div>
+              )}
             </div>
-          </section>
-
-          {/* Column derecha: Próximas acciones como Timeline */}
-          <section
-            data-reveal-section
-            ref={el => { panelRefs.current[1] = el; }}
-            onMouseEnter={() => handlePanelEnter(1)}
-            onMouseLeave={() => handlePanelLeave(1)}
-            className="rounded-[24px] border border-[#ece3f8] bg-white p-6 shadow-[0_8px_24px_#f0e8f8]"
-          >
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#7b5fa6]">Tablero emocional</p>
-                <h3 className="text-lg font-semibold text-[#2e2344]">Elige cómo te sentís</h3>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mt-4">
-              {[
-                { id: 'tranquilo', label: 'Tranquilo', emoji: '😌' },
-                { id: 'contento', label: 'Contento', emoji: '😊' },
-                { id: 'animado', label: 'Animado', emoji: '🎉' },
-                { id: 'ansioso', label: 'Ansioso', emoji: '😟' },
-                { id: 'frustrado', label: 'Frustrado', emoji: '😤' },
-                { id: 'motivado', label: 'Motivado', emoji: '💪' },
-              ].map(e => (
-                <button
-                  key={e.id}
-                  aria-label={e.label}
-                  aria-pressed={note === e.label}
-                  onClick={() => { setNote(e.label); setSaved(false); }}
-                  className="flex min-h-14 items-center justify-center rounded-lg border border-[#efe8f8] bg-[#fcf9ff] px-3 py-3 transition hover:bg-[#f8f2ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6f4ca6] focus-visible:ring-offset-2"
-                >
-                  <span className="inline-flex h-10 w-10 items-center justify-center text-2xl leading-none" aria-hidden="true">{e.emoji}</span>
-                </button>
-              ))}
-            </div>
-          </section>
-        </div>
-
-        {/* Próximas acciones debajo de todo, fondo transparente para integrarse */}
-        <section
-          data-reveal-section
-          ref={el => { panelRefs.current[1] = el; }}
-          className="mt-6 rounded-[24px] border border-[#ece3f8] bg-white p-6 shadow-[0_8px_24px_#f0e8f8]"
-        >
-          <div className="mb-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#7b5fa6]">Próximas acciones</p>
-            <h3 className="text-lg font-semibold text-[#2e2344]">Lo que sigue</h3>
           </div>
+        </section>
 
-          {loading ? (
-            <div className="py-4 text-sm text-[#4a4a5a]">Cargando actividades...</div>
-          ) : pendingActivities.length === 0 ? (
-            <div className="py-4 text-sm text-[#4a4a5a]">No tenés actividades pendientes.</div>
-          ) : (
-            <div className="relative pl-6">
-              <div className="absolute left-3 top-0 bottom-0 w-px bg-[#efe8f8]" aria-hidden />
-              {pendingActivities.slice(0, 6).map((activity, idx) => (
-                <div key={activity.id} className="relative mb-8 pl-6">
-                  <span className="absolute left-0 top-1.5 h-3 w-3 -translate-x-1/2 rounded-full bg-indigo-500" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-[#4a4a5a]">{activity.title}</p>
-                    <p className="mt-1 text-xs text-[#8b7aa0]">{activity.description}</p>
-                    <div className="mt-1 text-[10px] text-[#8b7aa0]">{activity.assignedAt}</div>
-                  </div>
-                </div>
+        <div className="grid gap-4 sm:gap-5 lg:grid-cols-[0.72fr_1.28fr] lg:items-stretch lg:gap-6">
+          <section className="mx-auto w-full max-w-[900px] rounded-[20px] border border-[#e9def5] bg-white p-4 shadow-[0_6px_20px_rgba(75,50,110,0.07)] sm:p-5 lg:h-full lg:max-w-none">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-[18px] font-bold leading-tight text-[#2e2344] sm:text-[19px] lg:text-[21px]">
+                  ¿Cómo te sentís hoy?
+                </h2>
+                <p className="mt-1 text-xs text-[#756a82] sm:text-[13px]">
+                  Elegí el emoji que mejor te represente
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigate?.("emotions")}
+                aria-label="Abrir registro personal"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#7c3aed] text-white transition hover:bg-[#6f4ca6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed] focus-visible:ring-offset-2"
+              >
+                <Plus size={20} aria-hidden />
+              </button>
+            </div>
+            <div className="mt-3 grid grid-cols-6 gap-1 sm:gap-3 lg:grid-cols-3 [&>button:nth-child(1)]:bg-[#fff7dc] [&>button:nth-child(2)]:bg-[#edf8e9] [&>button:nth-child(3)]:bg-[#eef5ff] [&>button:nth-child(4)]:bg-[#f0edff] [&>button:nth-child(5)]:bg-[#fff1e8] [&>button:nth-child(6)]:bg-[#ffeded]">
+              {emotions.map((emotion) => (
+                <button
+                  key={emotion.label}
+                  type="button"
+                  onClick={() => openEmotion(emotion.label)}
+                  aria-label={`Me siento ${emotion.label}`}
+                  className="flex min-h-12 items-center justify-center rounded-[14px] text-[30px] leading-none transition hover:-translate-y-0.5 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed] sm:min-h-[58px] sm:text-[34px] lg:text-[38px]"
+                >
+                  <span aria-hidden>{emotion.emoji}</span>
+                </button>
               ))}
             </div>
-          )}
-        </section>
-      </div>
+          </section>
 
-      {error && (
-        <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
-          {error}
+          <section
+            aria-labelledby="next-today-title"
+            className="mx-auto w-full max-w-[950px] lg:max-w-none"
+          >
+            <div className="mb-3 flex items-center justify-between gap-4 px-1">
+              <h2
+                id="next-today-title"
+                className="text-[18px] font-bold text-[#2e2344] sm:text-[19px] lg:text-[21px]"
+              >
+                Lo que sigue hoy
+              </h2>
+              <button
+                type="button"
+                onClick={() =>
+                  onNavigate?.(todayRoutine ? "calendar" : "activities")
+                }
+                className="text-xs font-bold text-[#6f4ca6] transition hover:text-[#2e2344] sm:text-sm"
+              >
+                Ver todo
+              </button>
+            </div>
+            <div className="overflow-hidden rounded-[20px] border border-[#e9def5] bg-gradient-to-r from-[#fcfaff] via-white to-white px-4 py-2 shadow-[0_7px_22px_rgba(75,50,110,0.07)] sm:px-5">
+              {loading && routineItems.length === 0 ? (
+                <p className="py-5 text-sm text-[#756a82]">
+                  Cargando tus actividades...
+                </p>
+              ) : visibleRoutineItems.length === 0 &&
+                visibleActivities.length === 0 ? (
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.("activities")}
+                  className="flex min-h-16 w-full items-center gap-3 text-left text-sm font-medium text-[#675a78]"
+                >
+                  <span className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-[#f5f0ff] text-[#6f4ca6]">
+                    <CheckCircle2 size={21} />
+                  </span>
+                  No tenés actividades pendientes para hoy.
+                  <ChevronRight className="ml-auto" size={18} />
+                </button>
+              ) : (
+                <div>
+                  {visibleRoutineItems.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() =>
+                        onNavigate?.("calendar", {
+                          routineId: todayRoutine!.id,
+                          itemId: item.id,
+                        })
+                      }
+                      className="group grid min-h-[64px] w-full grid-cols-[44px_1px_44px_minmax(0,1fr)_20px] items-center gap-2 border-b border-[#f1e9f8] text-left last:border-0 sm:min-h-[70px] sm:grid-cols-[58px_1px_50px_minmax(0,1fr)_24px] sm:gap-3 lg:min-h-[76px]"
+                    >
+                      <span className="text-[11px] font-bold text-[#4a3a6a] sm:text-xs">
+                        {item.time || "Hoy"}
+                      </span>
+                      <span
+                        className="relative h-full bg-[#ded0f1]"
+                        aria-hidden
+                      >
+                        <span className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#7c3aed]" />
+                      </span>
+                      <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-[14px] bg-[#f5f0ff] text-2xl">
+                        {item.pictogramImageUrl ? (
+                          <img
+                            src={item.pictogramImageUrl}
+                            alt=""
+                            className="h-full w-full object-contain p-1"
+                          />
+                        ) : (
+                          <span aria-hidden>{item.icon || "📌"}</span>
+                        )}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-bold text-[#3f3153] sm:text-[15px]">
+                          {item.title}
+                        </span>
+                        <span className="mt-0.5 block text-[11px] text-[#7b7185] sm:text-xs">
+                          Pendiente
+                        </span>
+                      </span>
+                      <ChevronRight
+                        size={18}
+                        className="text-[#9b8aaa] transition group-hover:translate-x-0.5 group-hover:text-[#6f4ca6]"
+                        aria-hidden
+                      />
+                    </button>
+                  ))}
+                  {visibleActivities.map((activity) => (
+                    <button
+                      key={activity.id}
+                      type="button"
+                      onClick={() =>
+                        onNavigate?.("activities", { activityId: activity.id })
+                      }
+                      className="group grid min-h-[64px] w-full grid-cols-[44px_1px_44px_minmax(0,1fr)_20px] items-center gap-2 border-b border-[#f1e9f8] text-left last:border-0 sm:min-h-[70px] sm:grid-cols-[58px_1px_50px_minmax(0,1fr)_24px] sm:gap-3 lg:min-h-[76px]"
+                    >
+                      <span className="text-[11px] font-bold text-[#4a3a6a] sm:text-xs">
+                        {activity.assignedAt || "Hoy"}
+                      </span>
+                      <span
+                        className="relative h-full bg-[#ded0f1]"
+                        aria-hidden
+                      >
+                        <span className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#7c3aed]" />
+                      </span>
+                      <span className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-[#f5f0ff] text-[#6f4ca6]">
+                        <ListTodo size={21} aria-hidden />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-bold text-[#3f3153] sm:text-[15px]">
+                          {activity.title}
+                        </span>
+                        <span className="mt-0.5 block text-[11px] text-[#7b7185] sm:text-xs">
+                          {statusLabel(activity.status)}
+                        </span>
+                      </span>
+                      <ChevronRight
+                        size={18}
+                        className="text-[#9b8aaa] transition group-hover:translate-x-0.5 group-hover:text-[#6f4ca6]"
+                        aria-hidden
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
         </div>
-      )}
-    </div>
+
+        <div className="grid gap-4 sm:gap-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(260px,0.65fr)] lg:items-stretch lg:gap-6">
+          <section className="relative overflow-hidden rounded-[24px] border border-[#ddccf0] bg-gradient-to-br from-white via-[#fdfbff] to-[#eee5fa] p-4 shadow-[0_10px_28px_rgba(75,50,110,0.10)] sm:p-6 lg:p-7">
+            <span
+              className="absolute -right-16 -top-20 h-52 w-52 rounded-full border-[28px] border-white/55"
+              aria-hidden
+            />
+            <span
+              className="absolute left-0 top-0 h-full w-1 bg-gradient-to-b from-[#7c3aed] via-[#a987d0] to-[#7fc997]"
+              aria-hidden
+            />
+            <div className="relative">
+              <h2 className="text-[18px] font-bold text-[#2e2344] sm:text-[20px] lg:text-[22px]">
+                Mi día: un paso más cerca
+              </h2>
+              <p className="mt-1 text-xs text-[#756a82] sm:text-sm">
+                Estás avanzando muy bien hoy
+              </p>
+            </div>
+            <div className="relative mt-5 grid grid-cols-[minmax(100px,0.72fr)_minmax(0,1.45fr)] items-center gap-4 sm:grid-cols-[0.7fr_1.65fr_auto] sm:gap-6 lg:grid-cols-[0.65fr_1.8fr_auto] lg:gap-10">
+              <div className="flex flex-col items-center">
+                <div
+                  className="relative flex h-24 w-24 items-center justify-center rounded-full sm:h-28 sm:w-28"
+                  style={{
+                    background: `conic-gradient(#6f4ca6 0 ${dayProgress}%, #7fc997 ${dayProgress}% ${Math.min(100, dayProgress + 10)}%, #e7dcf5 ${Math.min(100, dayProgress + 10)}% 100%)`,
+                  }}
+                >
+                  <div className="flex h-[74px] w-[74px] items-center justify-center rounded-full bg-white text-xl font-extrabold text-[#4a3a6a] sm:h-[86px] sm:w-[86px] sm:text-2xl">
+                    {dayProgress}%
+                  </div>
+                </div>
+                <p className="mt-2 text-center text-[11px] font-bold text-[#4a3a6a] sm:text-xs">
+                  Mi día en equilibrio
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  todayRoutine &&
+                  onNavigate?.("calendar", { routineId: todayRoutine.id })
+                }
+                disabled={!todayRoutine}
+                className="min-w-0 rounded-[18px] border border-white/80 bg-white/65 p-3 text-left shadow-sm backdrop-blur-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed] disabled:cursor-default sm:p-4"
+              >
+                <span className="flex items-center gap-2 text-xs font-bold text-[#6f4ca6] sm:text-sm">
+                  <span aria-hidden>🎯</span> Mi próxima meta
+                </span>
+                <span className="mt-1.5 block text-sm font-extrabold leading-5 text-[#3f3153] sm:text-base">
+                  {todayRoutine?.name || "Tu próxima rutina aparecerá acá"}
+                </span>
+                <span className="mt-1 block text-[11px] font-semibold text-[#7b7185] sm:text-xs">
+                  {routineItems.length
+                    ? `${completedRoutineItems}/${routineItems.length} pasos`
+                    : "Sin pasos para hoy"}
+                </span>
+                <span className="mt-3 block h-2 overflow-hidden rounded-full bg-[#e8ddf5]">
+                  <span
+                    className="block h-full rounded-full bg-[#7c3aed] transition-[width]"
+                    style={{ width: `${dayProgress}%` }}
+                  />
+                </span>
+              </button>
+              <div className="col-span-2 flex justify-center sm:col-auto">
+                <HomeAvatar avatar={user.avatar} name={user.name} compact />
+              </div>
+            </div>
+            {goalSteps.length > 0 && (
+              <button
+                type="button"
+                onClick={() =>
+                  onNavigate?.("calendar", { routineId: todayRoutine!.id })
+                }
+                className="relative mt-5 grid w-full grid-cols-5 gap-2 rounded-[18px] border border-white/80 bg-white/55 px-2 py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed] sm:gap-3 sm:px-4"
+              >
+                {goalSteps.map((item) => (
+                  <span key={item.id} className="min-w-0 text-center">
+                    <span
+                      className={`mx-auto flex h-7 w-7 items-center justify-center rounded-full ${item.completed ? "bg-[#dff3e6] text-[#3f9b61]" : "bg-[#f1ebf8] text-[#9b8aaa]"}`}
+                    >
+                      {item.completed ? (
+                        <Check size={16} strokeWidth={3} />
+                      ) : (
+                        <Circle size={13} />
+                      )}
+                    </span>
+                    <span className="mt-1.5 block truncate text-[9px] font-semibold text-[#675a78] sm:text-[11px]">
+                      {item.title}
+                    </span>
+                  </span>
+                ))}
+              </button>
+            )}
+          </section>
+
+          <section className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-5 lg:grid-cols-1 lg:content-stretch">
+            <button
+              type="button"
+              onClick={() => onNavigate?.("emotions")}
+              className="group flex min-h-[82px] items-center gap-4 rounded-[18px] border border-[#e5d8f3] bg-gradient-to-r from-[#f7f1ff] to-white p-4 text-left shadow-[0_6px_18px_rgba(75,50,110,0.07)] transition hover:-translate-y-0.5 hover:border-[#d3bfe9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"
+            >
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#7c3aed] text-white">
+                <Lightbulb size={22} aria-hidden />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold text-[#2e2344] sm:text-base">
+                  Consejo del día
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-[#675a78] sm:text-[13px]">
+                  Respirá profundo, tomate tu tiempo y hacé lo mejor que puedas.
+                </span>
+              </span>
+              <ChevronRight
+                size={18}
+                className="shrink-0 text-[#9b8aaa] transition group-hover:translate-x-0.5"
+                aria-hidden
+              />
+            </button>
+            {points > 0 && (
+              <button
+                type="button"
+                onClick={() => onNavigate?.("achievements")}
+                className="flex min-h-[82px] items-center gap-3 rounded-[18px] border border-[#ece3f8] bg-white px-5 py-4 text-left shadow-[0_4px_16px_rgba(75,50,110,0.05)] transition hover:border-[#d9c7ed] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed] sm:min-w-[190px] lg:min-w-0"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-[#fff6df] text-[#b88018]">
+                  <Trophy size={20} aria-hidden />
+                </span>
+                <span>
+                  <span className="block text-xs font-semibold text-[#756a82]">
+                    Puntos · Nivel {level}
+                  </span>
+                  <span className="mt-0.5 block text-base font-extrabold text-[#3f3153]">
+                    {points} pts
+                  </span>
+                </span>
+              </button>
+            )}
+          </section>
+        </div>
+
+        {error && (
+          <p
+            role="alert"
+            className="rounded-[16px] border border-red-100 bg-red-50 p-3 text-sm text-red-700"
+          >
+            {error}
+          </p>
+        )}
+        <EmotionEntryDialog
+          emotion={selectedEmotion}
+          onClose={() => setSelectedEmotion(null)}
+        />
+      </div>
+    </main>
   );
 }

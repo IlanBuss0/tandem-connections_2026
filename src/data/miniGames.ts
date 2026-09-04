@@ -13,7 +13,13 @@ export type GameType =
   | 'matching-pairs'    // unir A↔B (palabra ↔ pictograma)
   | 'category-sort'     // arrastrar a la categoría correcta
   | 'sound-match'       // ¿qué emoji hace este sonido? (texto onomatopéyico)
-  | 'tap-correct';      // tocar todas las opciones correctas (selección múltiple)
+  | 'tap-correct'       // tocar todas las opciones correctas (selección múltiple)
+  | 'routine-sequence'  // familia compartida de secuencias y rutinas
+  | 'resource-scenario'; // compra con presupuesto; conserva escenarios ramificados anteriores
+
+import type { RoutineSequenceData, RoutineSequenceResult } from './routineSequence';
+import type { ResourceScenarioData, ShoppingBudgetScenarioData } from './resourceScenario';
+export type MiniGameResult = RoutineSequenceResult | { gameType: GameType; score: number };
 
 // Una "ronda" o ítem dentro del juego
 export interface MCItem { prompt: string; image: string; options: string[]; correct: number; }
@@ -53,6 +59,8 @@ export interface GameData {
   category?: CategorySortItem;
   sound?: SoundMatchItem[];
   tap?: TapCorrectItem[];
+  routineSequence?: RoutineSequenceData;
+  resourceScenario?: ResourceScenarioData;
 }
 
 // ===== Plantillas de mini-juegos =====
@@ -161,9 +169,13 @@ export const GAME_TEMPLATES: GameTemplate[] = [
     gameData: { wheel: {
       settings: { segments: 6, initialSpeed: 3, speedIncrease: true },
       rounds: [
-        { targetWord: 'MANZANA', image: 'https://static.arasaac.org/pictograms/13645/13645_300.png', options: ['https://static.arasaac.org/pictograms/13645/13645_300.png','https://static.arasaac.org/pictograms/10218/10218_300.png','https://static.arasaac.org/pictograms/2483/2483_300.png','https://static.arasaac.org/pictograms/2561/2561_300.png','https://static.arasaac.org/pictograms/3247/3247_300.png','https://static.arasaac.org/pictograms/3022/3022_300.png'], correct: 0 },
-        { targetWord: 'BANANA', image: 'https://static.arasaac.org/pictograms/10218/10218_300.png', options: ['https://static.arasaac.org/pictograms/2561/2561_300.png','https://static.arasaac.org/pictograms/10218/10218_300.png','https://static.arasaac.org/pictograms/3247/3247_300.png','https://static.arasaac.org/pictograms/13645/13645_300.png','https://static.arasaac.org/pictograms/3022/3022_300.png','https://static.arasaac.org/pictograms/2483/2483_300.png'], correct: 1 },
-        { targetWord: 'NARANJA', image: 'https://static.arasaac.org/pictograms/2483/2483_300.png', options: ['https://static.arasaac.org/pictograms/3022/3022_300.png','https://static.arasaac.org/pictograms/3247/3247_300.png','https://static.arasaac.org/pictograms/2483/2483_300.png','https://static.arasaac.org/pictograms/10218/10218_300.png','https://static.arasaac.org/pictograms/2561/2561_300.png','https://static.arasaac.org/pictograms/13645/13645_300.png'], correct: 2 },
+        // Antes usaba pictogramas de Blissymbolics (simbolos abstractos que se
+        // sacaron del catalogo por ilegibles para CAA, ver
+        // license-whitelist.js GLOBAL_SYMBOLS_BLOCKED_SETS). Se reemplaza por
+        // emoji, igual que el resto de los juegos de este archivo.
+        { targetWord: 'MANZANA', image: '🍎', options: ['🍎','🍌','🍊','🍇','🍉','🍓'], correct: 0 },
+        { targetWord: 'BANANA', image: '🍌', options: ['🍇','🍌','🍉','🍎','🍓','🍊'], correct: 1 },
+        { targetWord: 'NARANJA', image: '🍊', options: ['🍓','🍉','🍊','🍌','🍇','🍎'], correct: 2 },
       ],
     } },
   },
@@ -403,4 +415,71 @@ export const GAME_TEMPLATES: GameTemplate[] = [
       ],
     },
   },
+  ...buildRoutineSequenceTemplates(),
+  ...buildShoppingBudgetTemplates(),
 ];
+
+function buildShoppingBudgetTemplates(): GameTemplate[] {
+  const make = (id: string, name: string, emoji: string, objective: string, data: ShoppingBudgetScenarioData): GameTemplate => ({
+    id,
+    name,
+    emoji,
+    category: 'compras',
+    type: 'juego',
+    difficulty: 'fácil',
+    duration: '8 min',
+    objective,
+    description: 'Buscá los productos de la lista y cuidá el presupuesto.',
+    steps: ['Revisar la lista', 'Elegir productos', 'Revisar el presupuesto'],
+    stepIcons: ['📝', '🛒', '💰'],
+    points: 80,
+    completionMessage: '¡Muy bien! Completaste la compra.',
+    tags: ['compras', 'presupuesto', 'supermercado', 'comida'],
+    gameType: 'resource-scenario',
+    gameData: { resourceScenario: data },
+  });
+
+  return [
+    make('gtpl-shopping-basic', 'Compra básica en el supermercado', '🛒', 'Encontrar los productos de una lista sin superar el presupuesto', {
+      kind: 'shopping-budget', schemaVersion: 1, prompt: 'Comprá pan, leche y manzanas sin superar el presupuesto.', currencySymbol: '$', budget: 10,
+      products: [
+        { id: 'basic-bread', name: 'Pan', image: '🍞', price: 3, required: true },
+        { id: 'basic-milk', name: 'Leche', image: '🥛', price: 3, required: true },
+        { id: 'basic-apples', name: 'Manzanas', image: '🍎', price: 2, required: true },
+        { id: 'basic-cookies', name: 'Galletitas', image: '🍪', price: 3, required: false },
+        { id: 'basic-soda', name: 'Gaseosa', image: '🥤', price: 4, required: false },
+        { id: 'basic-soap', name: 'Jabón', image: '🧼', price: 2, required: false },
+      ],
+    }),
+    make('gtpl-shopping-pancakes', 'Ingredientes para preparar panqueques', '🥞', 'Encontrar los ingredientes de una receta cuidando el presupuesto', {
+      kind: 'shopping-budget', schemaVersion: 1, prompt: 'Comprá los ingredientes necesarios para preparar panqueques.', currencySymbol: '$', budget: 12,
+      products: [
+        { id: 'pancakes-flour', name: 'Harina', image: '🌾', price: 3, required: true },
+        { id: 'pancakes-milk', name: 'Leche', image: '🥛', price: 3, required: true },
+        { id: 'pancakes-eggs', name: 'Huevos', image: '🥚', price: 4, required: true },
+        { id: 'pancakes-tomato', name: 'Tomate', image: '🍅', price: 2, required: false },
+        { id: 'pancakes-rice', name: 'Arroz', image: '🍚', price: 3, required: false },
+        { id: 'pancakes-cheese', name: 'Queso', image: '🧀', price: 4, required: false },
+      ],
+    }),
+  ];
+}
+
+function buildRoutineSequenceTemplates(): GameTemplate[] {
+  const make = (id: string, name: string, emoji: string, mode: RoutineSequenceData['mode'], texts: string[], extras: Partial<RoutineSequenceData> = {}): GameTemplate => {
+    const cards = texts.map((text, index) => ({ id: `${id}-step-${index + 1}`, text, emoji: ['⏰','🚿','👕','🥣','🎒','✅','🌧️','🤝'][index] || '📌', accessibleLabel: text }));
+    const stepIds = cards.slice(0, Math.min(8, Math.max(3, cards.length))).map(card => card.id);
+    const data: RoutineSequenceData = { schemaVersion: 1, mode, prompt: name, supportLevel: mode === 'order' ? 'initial' : 'intermediate', cards, stepIds, acceptedOrders: [stepIds], hintsEnabled: true, ...extras };
+    return { id, name, emoji, category: mode === 'plan-b' ? 'anticipación de cambios' : 'autonomía personal', type: 'juego', difficulty: mode === 'order' ? 'fácil' : 'medio', duration: '5 min', objective: name, description: 'Actividad visual de secuencias y rutinas.', steps: ['Resolver la secuencia'], stepIcons: [emoji], points: 60, completionMessage: '¡Muy bien! Practicaste esta rutina.', tags: ['rutina', mode], gameType: 'routine-sequence', gameData: { routineSequence: data } };
+  };
+  const morning = make('gtpl-routine-morning', 'Armá tu rutina de la mañana', '🌅', 'order', ['Despertarse','Lavarse la cara','Vestirse','Desayunar']);
+  const dental = make('gtpl-routine-dental', '¿Qué viene después al lavarse los dientes?', '🪥', 'next', ['Buscar el cepillo','Poner pasta dental','Cepillarse','Enjuagarse'], { rounds: [{ id: 'dental-round-1', sequenceIds: ['gtpl-routine-dental-step-1'], optionIds: ['gtpl-routine-dental-step-2','gtpl-routine-dental-step-4'], acceptedIds: ['gtpl-routine-dental-step-2'] }] });
+  const backpack = make('gtpl-routine-backpack', 'Encontrá el paso que falta', '🎒', 'missing', ['Mirar el horario','Buscar los útiles','Guardarlos en la mochila','Cerrar la mochila'], { rounds: [{ id: 'backpack-round-1', sequenceIds: ['gtpl-routine-backpack-step-1','gtpl-routine-backpack-step-3','gtpl-routine-backpack-step-4'], optionIds: ['gtpl-routine-backpack-step-2','gtpl-routine-backpack-step-4'], acceptedIds: ['gtpl-routine-backpack-step-2'] }] });
+  const detective = make('gtpl-routine-detective', 'Detective de rutinas', '🕵️', 'detective', ['Abrir la canilla','Mojarse las manos','Tocar el enchufe con las manos mojadas','Secarse las manos','Pedir ayuda a una persona de confianza'], { rounds: [{ id: 'detective-round-1', sequenceIds: ['gtpl-routine-detective-step-1','gtpl-routine-detective-step-2','gtpl-routine-detective-step-3','gtpl-routine-detective-step-4'], conflictId: 'gtpl-routine-detective-step-3', conflictIds: ['gtpl-routine-detective-step-3'], optionIds: [], acceptedIds: [] }] });
+  const planB = make('gtpl-routine-plan-b', 'Plan B para un día de lluvia', '🌧️', 'plan-b', ['Preparar la salida','Revisar el clima','Salir a la plaza','Volver a casa','Guardar la mochila'], { rounds: [{ id: 'rain-round-1', changedStepId: 'gtpl-routine-plan-b-step-3', optionIds: ['gtpl-routine-plan-b-alt-1','gtpl-routine-plan-b-alt-2'], acceptedIds: ['gtpl-routine-plan-b-alt-1'], explanation: 'Jugar bajo techo permite adaptar el plan cuando llueve.' }] });
+  planB.gameData.routineSequence.cards.push(
+    { id: 'gtpl-routine-plan-b-alt-1', text: 'Jugar bajo techo', emoji: '🏠', accessibleLabel: 'Jugar bajo techo' },
+    { id: 'gtpl-routine-plan-b-alt-2', text: 'Salir sin protección bajo la lluvia', emoji: '🌧️', accessibleLabel: 'Salir sin protección bajo la lluvia' },
+  );
+  return [morning, dental, backpack, detective, planB];
+}

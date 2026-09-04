@@ -11,6 +11,7 @@ import {
   Search,
   X,
   Gamepad2,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,12 @@ import {
   STEP_ICON_OPTIONS,
 } from "@/data/activityTemplates";
 import { GAME_TEMPLATES, GameTemplate } from "@/data/miniGames";
+import {
+  ACTIVITY_GAME_TYPES,
+  emptyGameData,
+  gameTypeOrder,
+  isGameTypeAvailable,
+} from "@/data/activityGameTypes";
 import {
   fetchLinkedPertenecientesForSupportUser,
   fetchPictograms,
@@ -48,6 +55,16 @@ import {
 } from "@/data/memoryGame";
 import { useToast } from "@/components/ui/use-toast";
 import { aiPictogramsApi } from "@/services/ai-pictograms";
+import RoutineSequenceEditor from "@/components/RoutineSequenceEditor";
+import { emptyRoutineSequence, validateRoutineSequence } from "@/data/routineSequence";
+import ResourceScenarioEditor from "@/components/ResourceScenarioEditor";
+import { emptyResourceScenario, isShoppingBudgetScenario, validateResourceScenario } from "@/data/resourceScenario";
+import {
+  dragAnswerLetters,
+  dragAnswerWords,
+  normalizeDragAnswer,
+  normalizeDragAnswerInput,
+} from "@/data/dragWord";
 
 const CATEGORIES: ActivityCategory[] = [
   "autonomía personal",
@@ -371,7 +388,7 @@ function VisualValue({
     );
   }
 
-  return <span className={className}>{value || "Soltá un pictograma"}</span>;
+  return <span className={className}>{value || "Agregar pictograma"}</span>;
 }
 
 const PICTOGRAM_PAGE_SIZE = 24;
@@ -1338,9 +1355,8 @@ function DragWordSandbox({
   };
 
   const previewLetters = useMemo(() => {
-    const chars = (current.correct || "").split("");
+    const chars = dragAnswerLetters(current.correct);
     return shuffleArray(chars);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current.correct]);
 
   return (
@@ -1416,17 +1432,16 @@ function DragWordSandbox({
           {/* Palabra correcta */}
           <div>
             <label className="text-xs font-semibold text-muted-foreground">
-              Palabra correcta
+              Palabra o frase correcta
             </label>
             <Input
               value={current.correct}
               onChange={(e) => {
-                const next = e.target.value
-                  .toLowerCase()
-                  .replace(/[^a-záéíóúñü]/g, "");
+                const next = normalizeDragAnswerInput(e.target.value);
                 updateRound({ correct: next, letters: [] });
               }}
-              placeholder="ej: manzana"
+              onBlur={() => updateRound({ correct: normalizeDragAnswer(current.correct), letters: [] })}
+              placeholder="ej: manzana roja"
             />
             <p className="mt-1 text-[10px] text-muted-foreground">
               Las fichas se auto-generan de esta palabra. Editalas abajo si
@@ -1454,39 +1469,40 @@ function DragWordSandbox({
               </Button>
             </div>
             {current.correct.trim() ? (
-              <div className="flex flex-wrap gap-2">
-                {current.correct.split("").map((ch, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1"
-                  >
-                    <Input
-                      value={ch}
-                      onChange={(e) => {
-                        const next = current.correct.split("");
-                        next[idx] =
-                          e.target.value
-                            .toLowerCase()
-                            .replace(/[^a-záéíóúñü]/g, "") || "a";
-                        updateRound({ correct: next.join(""), letters: [] });
-                      }}
-                      className="h-7 w-10 min-w-0 px-1 text-center text-sm font-bold"
-                      maxLength={1}
-                    />
-                    <button
-                      onClick={() => {
-                        if (current.correct.length <= 1) return;
-                        const next = current.correct.split("");
-                        next.splice(idx, 1);
-                        updateRound({ correct: next.join(""), letters: [] });
-                      }}
-                      className="text-destructive hover:bg-destructive/10 rounded p-0.5"
-                      disabled={current.correct.length <= 1}
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                ))}
+              <div className="flex flex-wrap items-center gap-2">
+                {current.correct.split("").map((ch, idx) =>
+                  ch === " " ? (
+                    <div key={idx} className="mx-1 flex h-9 w-5 items-center justify-center border-x border-dashed border-primary/30" aria-label="Espacio entre palabras" title="Espacio entre palabras">
+                      <span aria-hidden="true" className="text-[9px] text-muted-foreground">·</span>
+                    </div>
+                  ) : (
+                    <div key={idx} className="flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1">
+                      <Input
+                        value={ch}
+                        onChange={(e) => {
+                          const next = current.correct.split("");
+                          next[idx] = normalizeDragAnswer(e.target.value).slice(0, 1) || "a";
+                          updateRound({ correct: next.join(""), letters: [] });
+                        }}
+                        className="h-7 w-10 min-w-0 px-1 text-center text-sm font-bold"
+                        maxLength={1}
+                      />
+                      <button
+                        onClick={() => {
+                          if (dragAnswerLetters(current.correct).length <= 1) return;
+                          const next = current.correct.split("");
+                          next.splice(idx, 1);
+                          updateRound({ correct: normalizeDragAnswer(next.join("")), letters: [] });
+                        }}
+                        className="text-destructive hover:bg-destructive/10 rounded p-0.5"
+                        disabled={dragAnswerLetters(current.correct).length <= 1}
+                        aria-label="Eliminar letra"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ),
+                )}
                 <Button
                   size="sm"
                   variant="ghost"
@@ -1506,8 +1522,9 @@ function DragWordSandbox({
             <div className="text-[10px] text-muted-foreground">
               {current.correct.trim() && (
                 <span>
-                  {current.correct.length} letra
-                  {current.correct.length !== 1 ? "s" : ""} — los slots se
+                  {dragAnswerLetters(current.correct).length} letra
+                  {dragAnswerLetters(current.correct).length !== 1 ? "s" : ""}
+                  {` · ${dragAnswerWords(current.correct).length} ${dragAnswerWords(current.correct).length === 1 ? "palabra" : "palabras"}`} — los slots se
                   sincronizan automáticamente
                 </span>
               )}
@@ -1526,15 +1543,19 @@ function DragWordSandbox({
                   className={isImageValue(current.image) ? "h-20 w-20" : ""}
                 />
               </div>
-              <div className="mb-3 flex flex-wrap justify-center gap-1">
-                {(current.correct || "?????").split("").map((_, idx) => (
-                  <div
-                    key={idx}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/40 bg-muted/30 text-xs text-muted-foreground"
-                  >
-                    {idx + 1}
-                  </div>
-                ))}
+              <div className="mb-3 flex flex-wrap justify-center gap-x-5 gap-y-2">
+                {(dragAnswerWords(current.correct).length ? dragAnswerWords(current.correct) : ["?????"]).map((word, wordIndex, words) => {
+                  const offset = words.slice(0, wordIndex).reduce((total, item) => total + item.length, 0);
+                  return (
+                    <div key={`${wordIndex}-${word}`} className="flex gap-1" data-testid="drag-word-preview-group">
+                      {word.split("").map((_, charIndex) => (
+                        <div key={charIndex} className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/40 bg-muted/30 text-xs text-muted-foreground">
+                          {offset + charIndex + 1}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
               <div className="flex flex-wrap justify-center gap-1.5">
                 {(previewLetters.length ? previewLetters : ["?", "?", "?"]).map(
@@ -1730,6 +1751,29 @@ export default function ActivityBuilder({
     setStep(1);
   };
 
+  const applyEmptyGameType = (gameType: GameType) => {
+    if (!isGameTypeAvailable(gameType)) return;
+    const nextGameData = emptyGameData(gameType);
+    setForm((prev) => ({
+      ...prev,
+      title: "",
+      category: gameType === "routine-sequence" ? "autonomía personal" : gameType === "resource-scenario" ? "compras" : "comunicación",
+      type: "juego",
+      difficulty: "fácil",
+      duration: "5 min",
+      objective: "",
+      description: "",
+      steps: [""],
+      stepIcons: ["📌"],
+      points: 30,
+      completionMessage: "¡Bien hecho!",
+      gameType,
+      gameData: nextGameData,
+    }));
+    setGameContentText(serializeGameContent(gameType, nextGameData));
+    setStep(1);
+  };
+
   const updateStep = (i: number, value: string) =>
     setForm((prev) => ({
       ...prev,
@@ -1788,6 +1832,28 @@ export default function ActivityBuilder({
   const canNext = !errors[step];
 
   const persist = async (publishNow: boolean) => {
+    if (publishNow && form.gameType === "resource-scenario") {
+      const scenarioError = validateResourceScenario(form.gameData?.resourceScenario);
+      if (scenarioError) {
+        toast({ title: isShoppingBudgetScenario(form.gameData?.resourceScenario) ? "La compra está incompleta" : "La simulación está incompleta", description: scenarioError, variant: "destructive" });
+        setStep(2);
+        return;
+      }
+    }
+    if (publishNow && form.gameType === "routine-sequence") {
+      const routineError = validateRoutineSequence(form.gameData?.routineSequence);
+      if (routineError) {
+        toast({ title: "La actividad de rutina está incompleta", description: routineError, variant: "destructive" });
+        setStep(2);
+        return;
+      }
+      const sourceUserId = form.gameData?.routineSequence?.sourceRoutine?.sourceUserId;
+      if (sourceUserId && (form.assignedToIds.length !== 1 || form.assignedToIds[0] !== sourceUserId)) {
+        toast({ title: "Esta instantánea es privada", description: "Sólo puede asignarse al perteneciente cuya rutina fue copiada.", variant: "destructive" });
+        setStep(3);
+        return;
+      }
+    }
     if (publishNow && form.gameType === "wheel") {
       const wheelError = wheelValidationError(form.gameData?.wheel);
       if (wheelError) {
@@ -1943,7 +2009,10 @@ export default function ActivityBuilder({
   const filteredGameTpls = GAME_TEMPLATES.filter(
     (t) =>
       t.name.toLowerCase().includes(q) || t.tags.some((tag) => tag.includes(q)),
-  );
+  ).sort((a, b) => {
+    const availability = Number(isGameTypeAvailable(b.gameType)) - Number(isGameTypeAvailable(a.gameType));
+    return availability || gameTypeOrder(a.gameType) - gameTypeOrder(b.gameType);
+  });
 
   const stepsLabels = [
     "Plantilla",
@@ -1954,8 +2023,8 @@ export default function ActivityBuilder({
   ];
 
   return (
-    <div className="fixed inset-0 z-[60] bg-background/95 backdrop-blur-sm overflow-y-auto">
-      <div className="max-w-3xl mx-auto p-4 sm:p-6">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/70 p-3 backdrop-blur-sm sm:p-6">
+      <div className="max-h-[calc(100dvh-1.5rem)] w-full max-w-xl overflow-y-auto rounded-2xl border border-border bg-background p-3 shadow-2xl [zoom:.9] sm:max-h-[calc(100dvh-3rem)] sm:p-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -2021,6 +2090,56 @@ export default function ActivityBuilder({
                     🎮.
                   </p>
                 </div>
+
+                <section className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+                  <div className="mb-3">
+                    <h3 className="font-heading text-base font-semibold text-foreground">
+                      ¿Qué actividad quieres crear?
+                    </h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Elegí un tipo disponible para comenzar con una actividad vacía.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {ACTIVITY_GAME_TYPES.map((option) => (
+                      <button
+                        key={option.type}
+                        type="button"
+                        disabled={!option.available}
+                        onClick={() => applyEmptyGameType(option.type)}
+                        className={`relative flex min-h-24 gap-3 rounded-xl border p-3 text-left transition ${
+                          option.available
+                            ? "border-primary/30 bg-card hover:-translate-y-0.5 hover:border-primary hover:shadow-sm"
+                            : "cursor-not-allowed border-border bg-muted/60 text-muted-foreground opacity-75"
+                        }`}
+                      >
+                        <span className={`text-2xl ${option.available ? "" : "grayscale"}`} aria-hidden="true">
+                          {option.emoji}
+                        </span>
+                        <span className="min-w-0 pr-16">
+                          <span className="block text-sm font-semibold text-foreground">{option.label}</span>
+                          <span className="mt-1 block text-[10px] leading-relaxed text-muted-foreground">
+                            {option.description}
+                          </span>
+                        </span>
+                        {option.available ? (
+                          <span className="absolute right-2 top-2 rounded-full bg-primary/10 px-2 py-0.5 text-[9px] font-bold text-primary">
+                            Disponible
+                          </span>
+                        ) : (
+                          <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full border border-primary/15 bg-background px-2 py-0.5 text-[9px] font-bold text-muted-foreground">
+                            <Lock size={9} /> Próximamente
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+
+                <div className="border-t border-border pt-4">
+                  <h3 className="font-heading text-sm font-semibold text-foreground">Actividades precreadas</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">También podés partir de una actividad con contenido de ejemplo.</p>
+                </div>
                 <div className="relative">
                   <Search
                     size={14}
@@ -2050,8 +2169,14 @@ export default function ActivityBuilder({
                       {filteredGameTpls.map((tpl) => (
                         <button
                           key={tpl.id}
+                          type="button"
+                          disabled={!isGameTypeAvailable(tpl.gameType)}
                           onClick={() => applyTemplate(tpl)}
-                          className="text-left p-3 rounded-lg border border-primary/30 bg-gradient-to-br from-primary/5 to-accent/10 hover:border-primary transition-colors flex gap-3"
+                          className={`relative flex gap-3 rounded-lg border p-3 text-left transition-colors ${
+                            isGameTypeAvailable(tpl.gameType)
+                              ? "border-primary/30 bg-gradient-to-br from-primary/5 to-accent/10 hover:border-primary"
+                              : "cursor-not-allowed border-border bg-muted/60 opacity-70"
+                          }`}
                         >
                           <span className="text-2xl shrink-0">{tpl.emoji}</span>
                           <div className="min-w-0">
@@ -2070,6 +2195,11 @@ export default function ActivityBuilder({
                               {tpl.description}
                             </p>
                           </div>
+                          {!isGameTypeAvailable(tpl.gameType) && (
+                            <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-background px-2 py-0.5 text-[9px] font-bold text-muted-foreground shadow-sm">
+                              <Lock size={9} /> Próximamente
+                            </span>
+                          )}
                         </button>
                       ))}
                     </div>
@@ -2087,8 +2217,9 @@ export default function ActivityBuilder({
                       {filteredTpls.map((tpl) => (
                         <button
                           key={tpl.id}
-                          onClick={() => applyTemplate(tpl)}
-                          className="text-left p-3 rounded-lg border border-border hover:border-primary/40 hover:bg-muted/40 transition-colors flex gap-3"
+                          type="button"
+                          disabled
+                          className="relative flex cursor-not-allowed gap-3 rounded-lg border border-border bg-muted/60 p-3 text-left opacity-70"
                         >
                           <span className="text-2xl shrink-0">{tpl.emoji}</span>
                           <div className="min-w-0">
@@ -2102,6 +2233,9 @@ export default function ActivityBuilder({
                               {tpl.description || "Empezar desde cero"}
                             </p>
                           </div>
+                          <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-background px-2 py-0.5 text-[9px] font-bold text-muted-foreground shadow-sm">
+                            <Lock size={9} /> Próximamente
+                          </span>
                         </button>
                       ))}
                     </div>
@@ -2313,11 +2447,33 @@ export default function ActivityBuilder({
                     }}
                   />
                 )}
+                {form.gameType === "routine-sequence" && (
+                  <RoutineSequenceEditor
+                    value={form.gameData?.routineSequence || emptyRoutineSequence()}
+                    assignableUsers={assignableUsers}
+                    onSourceUserChange={(sourceUserId) => {
+                      if (sourceUserId) setForm((prev) => ({ ...prev, assignedToIds: [sourceUserId] }));
+                    }}
+                    onChange={(routineSequence) => setForm((prev) => ({ ...prev, gameData: { ...(prev.gameData || {}), routineSequence } }))}
+                  />
+                )}
+                {form.gameType === "resource-scenario" && (
+                  <ResourceScenarioEditor
+                    value={form.gameData?.resourceScenario || emptyResourceScenario()}
+                    targetUsuarioId={form.assignedToIds[0]}
+                    onChange={(resourceScenario) => setForm((prev) => ({
+                      ...prev,
+                      gameData: { ...(prev.gameData || {}), resourceScenario },
+                    }))}
+                  />
+                )}
                 {form.gameType &&
                   form.gameType !== "multiple-choice" &&
                   form.gameType !== "drag-word" &&
                   form.gameType !== "wheel" &&
-                  form.gameType !== "memory" && (
+                  form.gameType !== "memory" &&
+                  form.gameType !== "routine-sequence" &&
+                  form.gameType !== "resource-scenario" && (
                     <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <div>
@@ -2453,11 +2609,15 @@ export default function ActivityBuilder({
                       .filter((u) => linkedUserIds.includes(u.id))
                       .map((u) => {
                         const checked = form.assignedToIds.includes(u.id);
+                        const sourceUserId = form.gameData?.routineSequence?.sourceRoutine?.sourceUserId;
+                        const sourceLocked = Boolean(sourceUserId && sourceUserId !== u.id);
                         return (
                           <button
                             key={u.id}
+                            type="button"
+                            disabled={sourceLocked}
                             onClick={() => toggleAssign(u.id)}
-                            className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${checked ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"}`}
+                            className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left disabled:cursor-not-allowed disabled:opacity-40 ${checked ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"}`}
                           >
                             <span className="text-2xl">{u.avatar}</span>
                             <div className="flex-1 min-w-0">

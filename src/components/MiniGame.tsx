@@ -2,14 +2,20 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Check, X, RotateCcw, Trophy } from 'lucide-react';
-import type { GameType, GameData } from '@/data/miniGames';
+import type { GameType, GameData, MiniGameResult } from '@/data/miniGames';
+import RoutineSequenceGame from '@/components/RoutineSequenceGame';
+import { normalizeLegacySequence } from '@/data/routineSequence';
 import { normalizeWheel, selectedWheelSegment, wheelMotion, wheelScore, wheelSegmentAngles } from '@/data/wheelPrecision';
 import { memoryScore, normalizeMemory } from '@/data/memoryGame';
+import { dragAnswerLetters, dragAnswerWords } from '@/data/dragWord';
+import ResourceScenarioGame from '@/components/ResourceScenarioGame';
+import ShoppingBudgetGame from '@/components/ShoppingBudgetGame';
+import { isShoppingBudgetScenario } from '@/data/resourceScenario';
 
 interface Props {
   gameType: GameType;
   gameData: GameData;
-  onFinish: (scorePct: number) => void;
+  onFinish: (scorePct: number, details?: MiniGameResult) => void;
 }
 
 // Helper UI
@@ -111,7 +117,14 @@ function shuffleArray<T>(arr: T[]): T[] {
 }
 
 function autoLetters(word: string): string[] {
-  return word.toLowerCase().replace(/[^a-záéíóúñü]/g, '').split('');
+  return dragAnswerLetters(word);
+}
+
+function availableLetterTiles(correct: string, configured: string[]): string[] {
+  const tiles = configured
+    .map((value) => dragAnswerLetters(value)[0])
+    .filter(Boolean);
+  return tiles.length ? tiles : autoLetters(correct);
 }
 
 function DragWord({ data, onFinish }: { data: GameData; onFinish: (n: number) => void }) {
@@ -122,7 +135,7 @@ function DragWord({ data, onFinish }: { data: GameData; onFinish: (n: number) =>
   const [letters, setLetters] = useState<string[]>(() => {
     const r = (data.dragRounds || [])[0];
     if (!r) return [];
-    const src = r.letters.length ? r.letters : autoLetters(r.correct);
+    const src = availableLetterTiles(r.correct, r.letters);
     return shuffleArray(src);
   });
   const [usedIndices, setUsedIndices] = useState<Set<number>>(new Set());
@@ -132,6 +145,7 @@ function DragWord({ data, onFinish }: { data: GameData; onFinish: (n: number) =>
   if (!r) return null;
 
   const correctLetters = autoLetters(r.correct);
+  const correctWords = dragAnswerWords(r.correct);
 
   const tryLetter = (letterIdx: number) => {
     if (flash !== null) return;
@@ -153,7 +167,7 @@ function DragWord({ data, onFinish }: { data: GameData; onFinish: (n: number) =>
             setPlaced(0);
             setUsedIndices(new Set());
             const next = rounds[i + 1];
-            const src = next.letters.length ? next.letters : autoLetters(next.correct);
+            const src = availableLetterTiles(next.correct, next.letters);
             setLetters(shuffleArray(src));
           }
         }
@@ -180,25 +194,36 @@ function DragWord({ data, onFinish }: { data: GameData; onFinish: (n: number) =>
         </div>
       </div>
 
-      {/* Slots de letras */}
-      <div className="flex flex-wrap justify-center gap-2">
-        {correctLetters.map((ch, idx) => {
-          const isFilled = idx < placed;
-          const isActive = idx === placed;
+      {/* Los espacios separan grupos; nunca son fichas arrastrables. */}
+      <p className="text-center text-xs text-muted-foreground" aria-live="polite">
+        {correctWords.length > 1 ? `Frase de ${correctWords.length} palabras` : 'Una palabra'}
+      </p>
+      <div className="flex flex-wrap justify-center gap-x-6 gap-y-3" aria-label={`${correctWords.length} ${correctWords.length === 1 ? 'palabra' : 'palabras'}`}>
+        {correctWords.map((word, wordIndex) => {
+          const offset = correctWords.slice(0, wordIndex).reduce((total, item) => total + item.length, 0);
           return (
-            <div
-              key={idx}
-              className={`flex h-14 w-14 items-center justify-center rounded-xl border-2 text-xl font-bold transition-all ${
-                isFilled
-                  ? 'border-green-500 bg-green-50 text-green-700'
-                  : isActive
-                    ? flash === 'incorrect'
-                      ? 'border-red-500 bg-red-50'
-                      : 'border-primary bg-primary/10 text-muted-foreground ring-2 ring-primary/30'
-                    : 'border-dashed border-muted-foreground/40 bg-muted/30 text-muted-foreground/50'
-              }`}
-            >
-              {isFilled ? ch : isActive ? '_' : idx + 1}
+            <div key={`${wordIndex}-${word}`} className="flex gap-2" data-testid="drag-word-group">
+              {word.split('').map((ch, charIndex) => {
+                const idx = offset + charIndex;
+                const isFilled = idx < placed;
+                const isActive = idx === placed;
+                return (
+                  <div
+                    key={idx}
+                    className={`flex h-14 w-14 items-center justify-center rounded-xl border-2 text-xl font-bold transition-all ${
+                      isFilled
+                        ? 'border-green-500 bg-green-50 text-green-700'
+                        : isActive
+                          ? flash === 'incorrect'
+                            ? 'border-red-500 bg-red-50'
+                            : 'border-primary bg-primary/10 text-muted-foreground ring-2 ring-primary/30'
+                          : 'border-dashed border-muted-foreground/40 bg-muted/30 text-muted-foreground/50'
+                    }`}
+                  >
+                    {isFilled ? ch : isActive ? '_' : idx + 1}
+                  </div>
+                );
+              })}
             </div>
           );
         })}
@@ -1006,7 +1031,16 @@ export default function MiniGame({ gameType, gameData, onFinish }: Props) {
     case 'drag-word': return <DragWord key={'dw-' + (gameData.dragRounds || []).map(r => r.correct).join(',')} data={gameData} onFinish={onFinish} />;
     case 'wheel': return <Wheel data={gameData} onFinish={onFinish} />;
     case 'memory': return <Memory data={gameData} onFinish={onFinish} />;
-    case 'sequence-order': return <SequenceOrder data={gameData} onFinish={onFinish} />;
+    case 'sequence-order': {
+      const legacy = normalizeLegacySequence(gameData.sequence);
+      return legacy ? <RoutineSequenceGame data={legacy} onFinish={onFinish} /> : <p className="text-sm text-destructive">Secuencia incompleta</p>;
+    }
+    case 'routine-sequence': return <RoutineSequenceGame data={gameData.routineSequence!} onFinish={onFinish} />;
+    case 'resource-scenario': return gameData.resourceScenario
+      ? isShoppingBudgetScenario(gameData.resourceScenario)
+        ? <ShoppingBudgetGame data={gameData.resourceScenario} onFinish={onFinish} />
+        : <ResourceScenarioGame data={gameData.resourceScenario} onFinish={onFinish} />
+      : <p className="text-sm text-destructive">Compra incompleta</p>;
     case 'true-false': return <TrueFalse data={gameData} onFinish={onFinish} />;
     case 'count-objects': return <CountObjects data={gameData} onFinish={onFinish} />;
     case 'fill-blank': return <FillBlank data={gameData} onFinish={onFinish} />;

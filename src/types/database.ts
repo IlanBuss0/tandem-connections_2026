@@ -187,6 +187,7 @@ export interface Usuario {
   fecha_nacimiento: string | null;   // ISO date
   fecha_ingreso: string;             // ISO date
   activo: boolean;
+  email_verificado: boolean;
 }
 
 export interface Perteneciente {
@@ -196,6 +197,10 @@ export interface Perteneciente {
   id_autonomia_operativa: number;
   puede_autogestionarse: boolean;
   observacion_general: string | null;
+  // true cuando el nivel/autonomia lo puso el cuestionario de onboarding y
+  // todavia nadie con permiso de edicion sensible lo confirmo. Es solo
+  // informativo: nunca condiciona permisos ni bloquea funciones.
+  nivel_apoyo_sugerido: boolean;
 }
 
 export interface Tutor {
@@ -428,6 +433,20 @@ export interface ActividadAsignada {
   id_estado_actividad: number;
   fecha_asignacion: string;
   fecha_completada: string | null;
+  puntaje_ultimo: number | null;
+  puntaje_mejor: number | null;
+  fecha_ultimo_intento: string | null;
+}
+
+export interface ResultadoActividadPersonalizada {
+  id_actividad_asignada: number;
+  id_perteneciente: number;
+  id_usuario_perteneciente: number;
+  nombre: string;
+  completada: boolean;
+  puntaje_ultimo: number | null;
+  puntaje_mejor: number | null;
+  fecha_ultimo_intento: string | null;
 }
 
 export interface FavoritoActividad {

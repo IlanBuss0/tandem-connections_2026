@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { DayRoutine as ApiDayRoutine, fetchRoutinesForUser, RoutineItem, saveRoutinesForUser, CustomCategory, fetchCustomCategoriesForUser, saveCustomCategoriesForUser } from '@/data/api';
+import { logUsageEvent } from '@/data/usageApi';
 
 // Day of the week index: 0 = Domingo ... 6 = Sábado. -1 = "default/today"
 export type DayKey = 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -14,8 +15,7 @@ export interface DayRoutine {
 }
 
 export const predefinedCategories = ['mañana', 'escuela', 'mediodía', 'tarde', 'noche'];
-export const predefinedLabels: Record<string, string> = { mañana: '🌅 Mañana', escuela: '📚 Escuela', mediodía: '☀️ Mediodía', tarde: '🌤️ Tarde', noche: '🌙 Noche' };
-export const iconChoices = ['⏰','🛏️','🚿','👕','🥣','🪥','🎒','🚶','📚','🍽️','🎮','✏️','⭐','🥪','🧠','🎧','👔','🍝','💭','🌙','🏃','🎵','📖','🧘','🐶','🛁','💊','🥗','🌳','🎨'];
+export const predefinedLabels: Record<string, string> = { mañana: 'Mañana', escuela: 'Escuela', mediodía: 'Mediodía', tarde: 'Tarde', noche: 'Noche' };
 
 const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
@@ -154,9 +154,22 @@ export function RoutinesProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toggleItem: Ctx['toggleItem'] = useCallback((routineId, itemId) => {
-    setRoutines(prev => prev.map(r => r.id === routineId ? {
-      ...r, items: r.items.map(it => it.id === itemId ? { ...it, completed: !it.completed } : it),
-    } : r));
+    setRoutines(prev => prev.map(r => {
+      if (r.id !== routineId) return r;
+      return {
+        ...r,
+        items: r.items.map(it => {
+          if (it.id !== itemId) return it;
+          const nextCompleted = !it.completed;
+          // Solo se registra la transicion a "completado": destildar no es
+          // un uso real, es corregir un click. Sesion 9 (registro de uso).
+          if (nextCompleted) {
+            void logUsageEvent({ tipoEvento: 'rutina_paso_completado', entidadTipo: 'rutina_item', entidadId: itemId, valor: { title: it.title } });
+          }
+          return { ...it, completed: nextCompleted };
+        }),
+      };
+    }));
   }, []);
 
   const addCustomCategory = useCallback((name: string, icon: string) => {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ComponentType, type MutableRefObject, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentType, type MutableRefObject, type PointerEvent, type ReactNode } from 'react';
 import {
   Accessibility,
   AlignLeft,
@@ -22,7 +22,9 @@ import {
   Pause,
   Play,
   Plus,
+  Radio,
   RotateCcw,
+  ShieldCheck,
   SlidersHorizontal,
   Sun,
   Target,
@@ -36,11 +38,13 @@ import {
   DEFAULT_SETTINGS,
   isColorBlindnessMode,
   nextColorBlindnessMode,
+  type AccessibilityWidgetPosition,
   type AccessibilitySettings,
   type ColorFilter,
   useAccessibility,
 } from '@/contexts/AccessibilityContext';
 import { useMobileMenu } from '@/contexts/MobileMenuState';
+import { useAuth } from '@/contexts/AuthContext';
 
 type IconComponent = ComponentType<{ size?: number; className?: string }>;
 
@@ -72,14 +76,34 @@ const PROFILE_ICONS: Record<string, IconComponent> = {
   target: Target,
 };
 
+const MOBILE_WIDGET_SIZE = { width: 144, height: 44 };
+const MOBILE_WIDGET_MARGIN = 8;
+const MOBILE_WIDGET_EDGE_VISIBLE_WIDTH = 36;
+const MOBILE_WIDGET_EDGE_SNAP_DISTANCE = 28;
+
+type DragState = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  didDrag: boolean;
+};
+
 export default function AccessibilityWidget() {
-  const { settings, update, applyProfile, reset, toggle } = useAccessibility();
+  const { settings, update, updateWidgetPosition, applyProfile, reset, toggle } = useAccessibility();
   const { isMobileMenuOpen } = useMobileMenu();
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [resetNotice, setResetNotice] = useState(false);
   const [informationTooltip, setInformationTooltip] = useState<InformationTooltip | null>(null);
+  const [mobileWidgetPosition, setMobileWidgetPosition] = useState<AccessibilityWidgetPosition | null>(settings.mobileWidgetPosition);
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const mobileDragRef = useRef<DragState | null>(null);
+  const ignoreMobileClickRef = useRef(false);
   const activeCount = countActive(settings);
+
+  useEffect(() => {
+    setMobileWidgetPosition(settings.mobileWidgetPosition);
+  }, [settings.mobileWidgetPosition]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -91,6 +115,12 @@ export default function AccessibilityWidget() {
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  useEffect(() => {
+    const openAccessibility = () => setOpen(true);
+    window.addEventListener('tandem:open-accessibility', openAccessibility);
+    return () => window.removeEventListener('tandem:open-accessibility', openAccessibility);
   }, []);
 
   useEffect(() => {
@@ -210,6 +240,55 @@ export default function AccessibilityWidget() {
     setResetNotice(true);
     window.setTimeout(() => setResetNotice(false), 2000);
   };
+
+  const handleMobileWidgetPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
+    if (event.isPrimary === false) return;
+    mobileDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      didDrag: false,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const handleMobileWidgetPointerMove = (event: PointerEvent<HTMLButtonElement>) => {
+    const drag = mobileDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+    if (!drag.didDrag && distance < 6) return;
+
+    drag.didDrag = true;
+    ignoreMobileClickRef.current = true;
+    event.preventDefault();
+    setMobileWidgetPosition(getConstrainedMobileWidgetPosition(event.clientX, event.clientY));
+  };
+
+  const handleMobileWidgetPointerUp = (event: PointerEvent<HTMLButtonElement>) => {
+    const drag = mobileDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    mobileDragRef.current = null;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+
+    if (drag.didDrag) {
+      event.preventDefault();
+      updateWidgetPosition(getConstrainedMobileWidgetPosition(event.clientX, event.clientY));
+    }
+  };
+
+  const handleMobileWidgetClick = () => {
+    if (ignoreMobileClickRef.current) {
+      ignoreMobileClickRef.current = false;
+      return;
+    }
+    setOpen(true);
+  };
+
+  const mobileWidgetMoved = Boolean(mobileWidgetPosition);
+  const visibleMobileWidgetPosition = mobileWidgetPosition ? constrainMobileWidgetPosition(mobileWidgetPosition) : null;
+  const mobileWidgetEdge = visibleMobileWidgetPosition ? getMobileWidgetEdge(visibleMobileWidgetPosition) : null;
 
   const tools = useMemo(
     () => ({
@@ -464,6 +543,42 @@ export default function AccessibilityWidget() {
           onClick: () => toggle('simplifiedNavigation'),
         },
         {
+          id: 'high-contrast-pictograms',
+          label: 'Pictogramas de alto contraste',
+          description: 'Prioriza pictogramas de alto contraste en vez de los aprendidos por uso.',
+          icon: Contrast,
+          active: settings.highContrastPictograms,
+          onClick: () => toggle('highContrastPictograms'),
+        },
+        {
+          id: 'pictogram-size',
+          label: 'Tamaño de pictogramas',
+          description: 'Chico, mediano o grande en toda la app.',
+          icon: ImageIcon,
+          active: settings.pictogramSize !== 'md',
+          value: settings.pictogramSize === 'sm' ? 'Chico' : settings.pictogramSize === 'lg' ? 'Grande' : 'Mediano',
+          onClick: () => {
+            const next = settings.pictogramSize === 'sm' ? 'md' : settings.pictogramSize === 'md' ? 'lg' : 'sm';
+            update('pictogramSize', next);
+          },
+        },
+        {
+          id: 'switch-scanning',
+          label: 'Barrido de switch access',
+          description: 'Recorre las opciones de a una; activar con espacio o el botón flotante selecciona.',
+          icon: Radio,
+          active: settings.switchScanningEnabled,
+          onClick: () => toggle('switchScanningEnabled'),
+        },
+        {
+          id: 'accidental-touch-protection',
+          label: 'Proteger de toques accidentales',
+          description: 'Ignora un segundo toque en el mismo botón si llega demasiado rápido.',
+          icon: ShieldCheck,
+          active: settings.accidentalTouchProtection,
+          onClick: () => toggle('accidentalTouchProtection'),
+        },
+        {
           id: 'page-reader',
           label: 'Lectura de página',
           description: 'Lee el contenido principal de la pantalla actual.',
@@ -505,19 +620,51 @@ export default function AccessibilityWidget() {
       )}
 
       {!isMobileMenuOpen && (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label="Abrir menu de accesibilidad"
-          className="a11y-widget fixed bottom-5 left-5 z-[9998] flex h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-[#2357ff] text-white shadow-2xl shadow-blue-900/25 transition hover:-translate-y-0.5 hover:bg-[#5b35d5] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#b9a7ff] sm:bottom-6 sm:left-6"
-        >
-          <Accessibility size={28} />
-          {activeCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full border-2 border-white bg-[#7b2ff2] px-1 text-xs font-bold text-white">
-              {activeCount}
-            </span>
+        <>
+          {(user?.role === 'user' || user?.role === 'tutor') && (
+            <button
+              type="button"
+              onPointerDown={handleMobileWidgetPointerDown}
+              onPointerMove={handleMobileWidgetPointerMove}
+              onPointerUp={handleMobileWidgetPointerUp}
+              onPointerCancel={handleMobileWidgetPointerUp}
+              onClick={handleMobileWidgetClick}
+              aria-label="Abrir opciones de accesibilidad"
+              className={`a11y-widget fixed z-[9998] flex h-11 w-36 touch-none select-none items-center gap-2 border border-white/80 bg-[#6b4c9a] px-2.5 text-sm font-bold text-white opacity-90 shadow-[0_3px_10px_rgba(73,48,103,0.18)] transition-[opacity,box-shadow] duration-200 ease-out hover:opacity-100 hover:shadow-[0_4px_12px_rgba(73,48,103,0.22)] focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#b9a7ff] focus-visible:ring-offset-2 motion-reduce:transition-none lg:hidden ${
+                mobileWidgetMoved
+                  ? mobileWidgetEdge === 'left'
+                    ? 'flex-row-reverse rounded-r-2xl border-l-0'
+                    : mobileWidgetEdge === 'right'
+                      ? 'rounded-l-2xl border-r-0'
+                      : 'rounded-2xl'
+                  : 'bottom-[calc(14rem+env(safe-area-inset-bottom))] -right-[7.25rem] rounded-l-2xl border-r-0 hover:right-2 focus:right-2'
+              }`}
+              style={visibleMobileWidgetPosition ? { left: visibleMobileWidgetPosition.x, top: visibleMobileWidgetPosition.y } : undefined}
+            >
+              <Accessibility size={23} className="shrink-0" aria-hidden />
+              <span className="whitespace-nowrap">Accesibilidad</span>
+              {activeCount > 0 && (
+                <span className="absolute -left-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-[#7b2ff2] px-1 text-[10px] font-bold text-white">
+                  {activeCount}
+                </span>
+              )}
+            </button>
           )}
-        </button>
+
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-label="Abrir menu de accesibilidad"
+            className={`a11y-widget fixed left-5 z-[9998] h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-[#6b4c9a] text-white shadow-2xl shadow-purple-900/25 transition hover:-translate-y-0.5 hover:bg-[#5b35d5] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#b9a7ff] sm:left-6 ${user?.role === 'professional' ? 'bottom-[calc(6.5rem+env(safe-area-inset-bottom))] lg:bottom-5' : 'bottom-5 sm:bottom-6'} ${user?.role === 'user' || user?.role === 'tutor' ? 'hidden lg:flex' : 'flex'}`}
+          >
+            <Accessibility size={28} />
+            {activeCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full border-2 border-white bg-[#7b2ff2] px-1 text-xs font-bold text-white">
+                {activeCount}
+              </span>
+            )}
+          </button>
+        </>
       )}
 
       {open && (
@@ -529,16 +676,16 @@ export default function AccessibilityWidget() {
             onClick={() => setOpen(false)}
           />
 
-          <aside className="accessibility-panel absolute bottom-0 left-0 top-0 flex w-full max-w-[440px] flex-col overflow-hidden bg-white text-slate-950 shadow-2xl sm:w-[420px]">
-            <header className="bg-gradient-to-br from-[#2357ff] via-[#5b35d5] to-[#7b2ff2] px-5 pb-5 pt-4 text-white">
+          <aside className="accessibility-panel absolute bottom-0 left-0 top-0 flex w-[min(92vw,390px)] flex-col overflow-hidden rounded-r-3xl bg-white text-slate-950 shadow-2xl md:w-[410px]">
+            <header className="bg-gradient-to-br from-[#2357ff] via-[#5b35d5] to-[#7b2ff2] px-4 pb-3 pt-3 text-white sm:px-5 sm:pb-4 sm:pt-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3">
-                  <span className="mt-1 flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25">
-                    <Accessibility size={26} />
+                  <span className="mt-1 flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25 sm:h-11 sm:w-11 sm:rounded-2xl">
+                    <Accessibility size={24} />
                   </span>
                   <div>
-                    <h2 className="text-xl font-extrabold leading-tight">Menu de Accesibilidad</h2>
-                    <p className="mt-1 text-sm text-white/85">CTRL + U</p>
+                    <h2 className="text-lg font-extrabold leading-tight sm:text-xl">Menu de Accesibilidad</h2>
+                    <p className="text-xs text-white/85 sm:mt-1 sm:text-sm">CTRL + U</p>
                   </div>
                 </div>
                 <button
@@ -551,13 +698,13 @@ export default function AccessibilityWidget() {
                 </button>
               </div>
 
-              <div className="mt-4 rounded-2xl bg-white/12 p-3 ring-1 ring-white/20">
+              <div className="mt-2 rounded-xl bg-white/12 px-3 py-2 ring-1 ring-white/20 sm:mt-4 sm:rounded-2xl sm:p-3">
                 <p className="text-xs uppercase tracking-[0.08em] text-white/70">Estado actual</p>
                 <p className="mt-1 text-sm font-bold">{profileLabel}</p>
               </div>
             </header>
 
-            <div className="accessibility-panel-scroll flex-1 overflow-y-auto px-4 py-5">
+            <div className="accessibility-panel-scroll flex-1 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4">
               <Section title="Perfiles predeterminados" description="Activan combinaciones de herramientas. Luego podes ajustar cada opcion manualmente.">
                 <div className="grid gap-3">
                   {ACCESSIBILITY_PROFILES.map(profile => {
@@ -572,7 +719,7 @@ export default function AccessibilityWidget() {
                         key={profile.id}
                         type="button"
                         onClick={() => applyProfile(profile.id)}
-                        className={`group flex min-h-[88px] w-full items-start gap-3 rounded-2xl border-2 p-3 text-left transition ${
+                        className={`group flex min-h-[76px] w-full items-start gap-2 rounded-xl border-2 p-2.5 text-left transition sm:min-h-[88px] sm:gap-3 sm:rounded-2xl sm:p-3 ${
                           active
                             ? 'border-[#2357ff] bg-[#eef3ff] shadow-sm'
                             : 'border-slate-200 bg-white hover:border-[#8067f0] hover:bg-slate-50'
@@ -618,7 +765,7 @@ export default function AccessibilityWidget() {
               </Section>
             </div>
 
-            <footer className="border-t border-slate-200 bg-slate-50 px-4 py-4">
+            <footer className="border-t border-slate-200 bg-slate-50 px-3 py-2.5 sm:px-4 sm:py-3">
               {resetNotice && <p className="mb-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">Configuración restablecida.</p>}
               <button
                 type="button"
@@ -638,10 +785,10 @@ export default function AccessibilityWidget() {
 
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
-    <section className="mb-6">
-      <div className="mb-3">
-        <h3 className="text-base font-extrabold text-slate-950">{title}</h3>
-        {description && <p className="mt-1 text-sm leading-5 text-slate-600">{description}</p>}
+    <section className="mb-4 sm:mb-5">
+      <div className="mb-2 sm:mb-3">
+        <h3 className="text-sm font-extrabold text-slate-950 sm:text-base">{title}</h3>
+        {description && <p className="mt-1 text-xs leading-4 text-slate-600 sm:text-sm sm:leading-5">{description}</p>}
       </div>
       {children}
     </section>
@@ -650,7 +797,7 @@ function Section({ title, description, children }: { title: string; description?
 
 function ToolGrid({ tools }: { tools: ToolAction[] }) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div className="grid grid-cols-2 gap-2 sm:gap-3">
       {tools.map(tool => (
         <ToolButton key={tool.id} tool={tool} />
       ))}
@@ -665,7 +812,7 @@ function ToolButton({ tool }: { tool: ToolAction }) {
     <button
       type="button"
       onClick={tool.onClick}
-      className={`relative flex min-h-[126px] flex-col rounded-2xl border-2 p-3 text-left transition focus:outline-none focus-visible:ring-4 focus-visible:ring-[#b9a7ff] ${
+      className={`relative flex min-h-[112px] flex-col rounded-xl border-2 p-2.5 text-left transition focus:outline-none focus-visible:ring-4 focus-visible:ring-[#b9a7ff] sm:min-h-[126px] sm:rounded-2xl sm:p-3 ${
         tool.active ? 'border-[#2357ff] bg-[#eef3ff]' : 'border-slate-200 bg-white hover:border-[#8067f0] hover:bg-slate-50'
       }`}
     >
@@ -675,8 +822,8 @@ function ToolButton({ tool }: { tool: ToolAction }) {
         </span>
         <ActiveMark active={tool.active} />
       </span>
-      <span className="mt-3 block text-sm font-extrabold leading-5 text-slate-950">{tool.label}</span>
-      <span className="mt-1 block flex-1 text-xs leading-5 text-slate-600">{tool.description}</span>
+      <span className="mt-2 block text-xs font-extrabold leading-4 text-slate-950 sm:mt-3 sm:text-sm sm:leading-5">{tool.label}</span>
+      <span className="mt-1 block flex-1 text-[11px] leading-4 text-slate-600 sm:text-xs sm:leading-5">{tool.description}</span>
       {tool.value && <span className="mt-2 text-xs font-bold text-[#2357ff]">{tool.value}</span>}
     </button>
   );
@@ -768,7 +915,7 @@ function isColorBlindnessFilter(filter: ColorFilter) {
 function countActive(settings: AccessibilitySettings) {
   let count = 0;
   (Object.keys(DEFAULT_SETTINGS) as (keyof AccessibilitySettings)[]).forEach(key => {
-    if (key === 'activeProfile') return;
+    if (key === 'activeProfile' || key === 'mobileWidgetPosition') return;
     if (settings[key] !== DEFAULT_SETTINGS[key]) count += 1;
   });
   return count;
@@ -780,4 +927,49 @@ function clamp(value: number, min: number, max: number) {
 
 function round(value: number) {
   return Number(value.toFixed(2));
+}
+
+function getConstrainedMobileWidgetPosition(clientX: number, clientY: number): AccessibilityWidgetPosition {
+  return snapMobileWidgetPosition({
+    x: clientX - MOBILE_WIDGET_SIZE.width / 2,
+    y: clientY - MOBILE_WIDGET_SIZE.height / 2,
+  });
+}
+
+function snapMobileWidgetPosition(position: AccessibilityWidgetPosition): AccessibilityWidgetPosition {
+  const constrained = constrainMobileWidgetPosition(position);
+  const maxX = getMobileWidgetMaxX();
+
+  if (constrained.x <= MOBILE_WIDGET_MARGIN + MOBILE_WIDGET_EDGE_SNAP_DISTANCE) {
+    return { ...constrained, x: -(MOBILE_WIDGET_SIZE.width - MOBILE_WIDGET_EDGE_VISIBLE_WIDTH) };
+  }
+
+  if (constrained.x >= maxX - MOBILE_WIDGET_EDGE_SNAP_DISTANCE) {
+    return { ...constrained, x: window.innerWidth - MOBILE_WIDGET_EDGE_VISIBLE_WIDTH };
+  }
+
+  return constrained;
+}
+
+function constrainMobileWidgetPosition(position: AccessibilityWidgetPosition): AccessibilityWidgetPosition {
+  const maxY = Math.max(MOBILE_WIDGET_MARGIN, window.innerHeight - MOBILE_WIDGET_SIZE.height - MOBILE_WIDGET_MARGIN);
+
+  return {
+    x: clamp(
+      position.x,
+      -(MOBILE_WIDGET_SIZE.width - MOBILE_WIDGET_EDGE_VISIBLE_WIDTH),
+      window.innerWidth - MOBILE_WIDGET_EDGE_VISIBLE_WIDTH,
+    ),
+    y: clamp(position.y, MOBILE_WIDGET_MARGIN, maxY),
+  };
+}
+
+function getMobileWidgetMaxX() {
+  return Math.max(MOBILE_WIDGET_MARGIN, window.innerWidth - MOBILE_WIDGET_SIZE.width - MOBILE_WIDGET_MARGIN);
+}
+
+function getMobileWidgetEdge(position: AccessibilityWidgetPosition): 'left' | 'right' | null {
+  if (position.x < MOBILE_WIDGET_MARGIN) return 'left';
+  if (position.x > getMobileWidgetMaxX()) return 'right';
+  return null;
 }

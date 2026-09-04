@@ -3,12 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { ContactPerson, useChat } from '@/contexts/ChatContext';
 import { ChatMessage, Conversation, fetchConversationsForUser, fetchMessagesForConversationAsUser, fetchPermissionContext, type PermissionContext } from '@/data/api';
-import { ArrowLeft, Send, Plus, Search, X, MessageCircle, Pencil, Trash2, Check, Users, ImageIcon, FileIcon, Loader2, Camera } from 'lucide-react';
+import { ArrowLeft, Send, Plus, Search, X, MessageCircle, Pencil, Trash2, Check, Users, ImageIcon, FileIcon, Loader2, Camera, LayoutTemplate, Phone } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import { isPermissionEnabled, PROFESIONAL_PERMISSIONS } from '@/hooks/usePermissions';
+import ChatMessagePictograms from '@/components/ChatMessagePictograms';
+import ChatPictogramComposer from '@/components/ChatPictogramComposer';
 
 const quickReplies = [
   '👍 ¡Dale!', '✅ Llegué bien', '🙋 Necesito ayuda', '⏰ Ya salgo', '😊 Estoy bien', '🔄 Hubo un cambio'
@@ -87,6 +89,8 @@ export default function ChatScreen({
   const [canSendMessages, setCanSendMessages] = useState(true);
   const [permissionContext, setPermissionContext] = useState<PermissionContext | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const historyRef = useRef<HTMLDivElement | null>(null);
+  const isNearBottomRef = useRef(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -98,6 +102,13 @@ export default function ChatScreen({
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarUploadProgress, setAvatarUploadProgress] = useState(0);
   const typingStopTimeoutRef = useRef<number | null>(null);
+  const [showQuickReplies, setShowQuickReplies] = useState(false);
+  const [confirmDeleteConv, setConfirmDeleteConv] = useState<Conversation | null>(null);
+  const [deletingConv, setDeletingConv] = useState(false);
+  const [showPhoneContact, setShowPhoneContact] = useState(false);
+  const [newPhoneName, setNewPhoneName] = useState('');
+  const [newPhoneNumber, setNewPhoneNumber] = useState('');
+  const [phoneContacts, setPhoneContacts] = useState<ContactPerson[]>([]);
 
   const resolvedProfileId = activeProfileId || user?.id || '';
   const activeProfile = useMemo(() => (
@@ -229,10 +240,23 @@ export default function ChatScreen({
 
   useEffect(() => {
     if (!selectedConv) return;
+    isNearBottomRef.current = true;
     requestAnimationFrame(() => {
-      messagesEndRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+      const el = historyRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
     });
-  }, [selectedConv, selectedMessages.length]);
+  }, [selectedConv?.id]);
+
+  useEffect(() => {
+    if (!selectedConv) return;
+    const el = historyRef.current;
+    if (!el) return;
+    if (isNearBottomRef.current) {
+      requestAnimationFrame(() => {
+        el.scrollTop = el.scrollHeight;
+      });
+    }
+  }, [selectedMessages.length, selectedConv?.id]);
 
   useEffect(() => {
     setActiveConversation(selectedConv?.id || null);
@@ -453,6 +477,91 @@ export default function ChatScreen({
     }
   };
 
+  const requestDeleteConversation = (c: Conversation) => {
+    setConfirmDeleteConv(c);
+  };
+
+  const cancelDeleteConversation = () => {
+    if (deletingConv) return;
+    setConfirmDeleteConv(null);
+  };
+
+  const confirmDeleteConversation = async () => {
+    if (!confirmDeleteConv || deletingConv) return;
+    setDeletingConv(true);
+    try {
+      await hideConversation(confirmDeleteConv.id);
+      if (selectedConv && sameId(selectedConv.id, confirmDeleteConv.id)) {
+        setSelectedId(null);
+      }
+      setConfirmDeleteConv(null);
+    } catch (error) {
+      toast({
+        title: 'No se pudo borrar la conversación',
+        description: error instanceof Error ? error.message : 'Intenta de nuevo.',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingConv(false);
+    }
+  };
+
+  const handleAddPhoneContact = () => {
+    const name = newPhoneName.replace(/\s+/g, ' ').trim();
+    const digits = newPhoneNumber.replace(/\D/g, '');
+    if (name.length < 2) {
+      toast({ title: 'Nombre requerido', description: 'Escribí un nombre para el contacto.', variant: 'destructive' });
+      return;
+    }
+    if (digits.length < 6) {
+      toast({ title: 'Teléfono inválido', description: 'Ingresá un número de al menos 6 dígitos.', variant: 'destructive' });
+      return;
+    }
+
+    const normalized = digits.replace(/^54/, '');
+    const matched = allContacts().find(c => {
+      const phone = (c.phone || '').replace(/\D/g, '').replace(/^54/, '');
+      if (!phone) return false;
+      return normalized.endsWith(phone) || phone.endsWith(normalized);
+    });
+
+    if (matched) {
+      setNewPhoneName('');
+      setNewPhoneNumber('');
+      setShowPhoneContact(false);
+      toast({
+        title: 'Contacto encontrado',
+        description: `${matched.name} ya tiene ese número registrado en TÁNDEM.`,
+      });
+      void startWith(matched.id);
+      return;
+    }
+
+    const newContact: ContactPerson = {
+      id: `phone-${digits}-${Date.now()}`,
+      name,
+      avatar: '📞',
+      role: 'user',
+      subtitle: `Teléfono · +${digits}`,
+    };
+    setPhoneContacts(prev => [newContact, ...prev]);
+    setNewPhoneName('');
+    setNewPhoneNumber('');
+    setShowPhoneContact(false);
+    toast({
+      title: 'Contacto guardado',
+      description: `Guardamos ${name} como contacto local. Para chatear, esa persona deberá estar registrada en TÁNDEM.`,
+    });
+  };
+
+  const startWithPhoneContact = (c: ContactPerson) => {
+    setShowNew(false);
+    toast({
+      title: 'Contacto por teléfono aún no disponible',
+      description: 'El número no está asociado a una cuenta TÁNDEM registrada todavía, por lo que no se puede iniciar un chat real.',
+    });
+  };
+
   const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedConv) return;
@@ -528,7 +637,7 @@ export default function ChatScreen({
     });
   };
 
-  const contacts = allContacts().filter(c => c.id !== user.id);
+  const contacts = [...phoneContacts, ...allContacts().filter(c => c.id !== user.id)];
   const filteredContacts = contacts.filter(c => {
     if (filterRole !== 'all' && c.role !== filterRole) return false;
     const q = newSearch.toLowerCase().trim();
@@ -552,30 +661,30 @@ export default function ChatScreen({
       .filter(Boolean);
 
     return (
-      <div className="flex flex-col h-[calc(100vh-9rem)] lg:h-[calc(100vh-3rem)]">
+      <div className="flex flex-col h-[calc(100dvh-11rem)] sm:h-[calc(100dvh-11rem)] lg:h-[calc(100dvh-8rem)] overflow-hidden">
         <div className="flex items-center gap-3 pb-3 border-b border-[#f0e8f8]">
-          <button onClick={() => setSelectedId(null)} className="text-[#8b7aa0] hover:text-[#6b4c9a]" aria-label="Volver"><ArrowLeft size={20} /></button>
+          <button onClick={() => setSelectedId(null)} className="p-1.5 -ml-1.5 text-[#8b7aa0] hover:text-[#6b4c9a]" aria-label="Volver"><ArrowLeft size={20} /></button>
           <HeaderUserAvatar avatar={isGroup ? selectedConv.avatar : (other?.avatar || selectedConv.avatar)} name={chatTitle} />
           <div className="min-w-0 flex-1">
             <p className="font-semibold text-sm text-[#6b4c9a] truncate">{chatTitle}</p>
             <p className="text-[10px] text-[#8b7aa0] truncate">{chatSubtitle}</p>
           </div>
-          <span className="hidden sm:inline-flex h-7 items-center rounded-md border border-[#ede4f8] px-2 text-[10px] font-semibold text-[#8b7aa0]">
-            {connectionStatus === 'connected' ? 'conectado' : connectionStatus === 'syncing' ? 'sincronizando' : connectionStatus === 'reconnecting' ? 'reconectando' : 'sin conexion'}
-          </span>
           {canActAsCurrentUser && isGroup && isCurrentUserAdmin && (
             <button type="button" onClick={() => setShowManage(true)} className="p-2 rounded-md text-[#8b7aa0] hover:bg-[#ede4f8] hover:text-[#6b4c9a]" aria-label="Administrar grupo">
               <Users size={17} />
             </button>
           )}
-          {canActAsCurrentUser && (
-            <button type="button" onClick={hideSelectedConversation} className="p-2 rounded-md text-[#8b7aa0] hover:bg-red-50 hover:text-red-600" aria-label={isGroup ? 'Salir del grupo' : 'Eliminar chat para mi'}>
-              <Trash2 size={17} />
-            </button>
-          )}
         </div>
 
-        <div className="flex-1 overflow-y-auto py-4 space-y-3">
+        <div
+          ref={historyRef}
+          onScroll={() => {
+            const el = historyRef.current;
+            if (el) isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 160;
+          }}
+          className="flex-1 min-h-0 overflow-y-auto py-4 space-y-3 overscroll-contain"
+          aria-live="polite"
+        >
           {msgs.length === 0 && (
             <p className="text-center text-xs text-[#8b7aa0] mt-8">Empezá la conversación 👋</p>
           )}
@@ -651,6 +760,9 @@ export default function ChatScreen({
                         </div>
                       )}
                       {msg.text && <p className="whitespace-pre-wrap break-words">{visibleText}</p>}
+                      {!isMine && msg.text && (!msg.type || msg.type === 'text') && (
+                        <ChatMessagePictograms text={msg.text} />
+                      )}
                     </>
                   )}
                   {!isEditing && isLong && (
@@ -693,13 +805,15 @@ export default function ChatScreen({
 
         {canActAsCurrentUser && canSendInSelectedConversation && (
         <>
-        <div className="flex gap-1.5 overflow-x-auto py-2 -mx-1 px-1">
-          {quickReplies.map(qr => (
-            <button key={qr} onClick={() => sendNow(qr)} className="whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] bg-[#ede4f8] text-[#8b7aa0] border border-[#f0e8f8] hover:border-[#6b4c9a]/30">{qr}</button>
-          ))}
-        </div>
+        {showQuickReplies && (
+          <div className="flex gap-1.5 overflow-x-auto py-2 -mx-1 px-1">
+            {quickReplies.map(qr => (
+              <button key={qr} onClick={() => sendNow(qr)} className="whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] bg-[#ede4f8] text-[#8b7aa0] border border-[#f0e8f8] hover:border-[#6b4c9a]/30">{qr}</button>
+            ))}
+          </div>
+        )}
 
-        <div className="space-y-2 pt-2 border-t border-border">
+        <div className={`space-y-2 pt-2 ${showQuickReplies ? 'border-t border-border' : ''}`}>
           {(uploadPreview || pendingFileId || pendingFileName) && (
             <div className="flex items-center gap-2 px-1">
               <div className="relative">
@@ -728,9 +842,20 @@ export default function ChatScreen({
           )}
           <div className="flex gap-2 items-center">
             <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp,application/pdf" className="hidden" onChange={handleFileSelect} />
-            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="w-9 h-9 rounded-full hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground shrink-0 transition-colors" aria-label="Adjuntar archivo">
+            <button
+              type="button"
+              onClick={() => setShowQuickReplies(prev => !prev)}
+              className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-colors ${showQuickReplies ? 'bg-[#6b4c9a] text-white' : 'hover:bg-muted text-muted-foreground hover:text-foreground'}`}
+              aria-label="Mensajes predeterminados"
+              aria-pressed={showQuickReplies}
+              title="Mensajes predeterminados"
+            >
+              <LayoutTemplate size={15} />
+            </button>
+            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="w-9 h-9 rounded-full hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground shrink-0 transition-colors" aria-label="Subir imagen o archivo" title="Subir imagen o archivo">
               {uploading ? <Loader2 size={15} className="animate-spin" /> : <ImageIcon size={15} />}
             </button>
+            <ChatPictogramComposer onAppend={(word) => handleDraftChange(draft ? `${draft} ${word}` : word)} />
             <Input value={draft} onChange={e => handleDraftChange(e.target.value)} onKeyDown={e => e.key === 'Enter' && !uploading && sendNow(undefined, pendingFileId)} placeholder="Escribí un mensaje..." className="flex-1" />
             <button onClick={() => sendNow(undefined, pendingFileId)} disabled={uploading} className="w-10 h-10 rounded-full gradient-primary text-primary-foreground flex items-center justify-center shrink-0 disabled:opacity-50" aria-label="Enviar"><Send size={16} /></button>
           </div>
@@ -904,8 +1029,8 @@ export default function ChatScreen({
     <div className="space-y-4 pb-20 lg:pb-6">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <h2 className="text-2xl font-heading font-bold text-[#6b4c9a]">Chat</h2>
-          <p className="text-[#8b7aa0] text-sm">Tus conversaciones</p>
+          <h2 className="text-3xl sm:text-4xl font-heading font-bold text-[#6b4c9a]">Conversaciones</h2>
+          <p className="text-[#8b7aa0] text-sm">Tus chats</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="hidden sm:inline-flex h-9 items-center rounded-xl border border-[#f0e8f8] bg-white px-3 text-[10px] font-semibold text-[#8b7aa0]">
@@ -957,7 +1082,16 @@ export default function ChatScreen({
           const other = getPersonById(otherId);
           const title = isGroup ? conv.title || 'Grupo' : other?.name || conv.participantNames.find(n => n !== user.name) || 'Chat';
           return (
-            <motion.button key={conv.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} onClick={() => handleSelect(conv)} className="w-full flex items-center gap-3 p-4 rounded-xl bg-white border border-[#f0e8f8] hover:border-[#6b4c9a]/30 transition-all text-left">
+            <motion.div
+              key={conv.id}
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              onClick={() => handleSelect(conv)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelect(conv); } }}
+              className="w-full flex items-center gap-3 p-4 rounded-xl bg-white border border-[#f0e8f8] hover:border-[#6b4c9a]/30 transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6b4c9a]/30"
+            >
               <HeaderUserAvatar avatar={isGroup ? conv.avatar : (other?.avatar || conv.avatar)} name={title} />
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-center gap-2">
@@ -975,7 +1109,16 @@ export default function ChatScreen({
                 <p className="text-xs text-[#8b7aa0] truncate mt-0.5">{conv.lastMessage}</p>
               </div>
               {conv.unreadCount > 0 && <span className="w-5 h-5 rounded-full bg-[#6b4c9a] text-white text-[10px] font-bold flex items-center justify-center">{conv.unreadCount}</span>}
-            </motion.button>
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); requestDeleteConversation(conv); }}
+                className="p-2 rounded-md text-[#8b7aa0] hover:bg-red-50 hover:text-red-600 shrink-0 transition-colors"
+                aria-label={`Borrar conversación ${title}`}
+                title={`Borrar conversación ${title}`}
+              >
+                <Trash2 size={16} />
+              </button>
+            </motion.div>
           );
         })}
       </div>
@@ -1023,28 +1166,54 @@ export default function ChatScreen({
                     </button>
                   ))}
                 </div>
+                {newMode === 'direct' && (
+                  <div className="space-y-2 border-t border-[#f0e8f8] pt-3">
+                    <button type="button" onClick={() => setShowPhoneContact(prev => !prev)} className="w-full inline-flex items-center gap-2 rounded-2xl border border-dashed border-[#b8b0c8] px-4 py-2.5 text-xs font-semibold text-[#6b4c9a] hover:bg-[#ede4f8]/40 transition-colors" aria-expanded={showPhoneContact}>
+                      <Phone size={14} /> {showPhoneContact ? 'Ocultar' : 'Agregar número de teléfono'}
+                    </button>
+                    {showPhoneContact && (
+                      <div className="space-y-2 rounded-xl border border-[#ede4f8] bg-[#faf8ff] p-3">
+                        <input value={newPhoneName} onChange={e => setNewPhoneName(e.target.value)} placeholder="Nombre del contacto" className="w-full rounded-xl border border-[#ede4f8] bg-white px-3 py-2.5 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]" />
+                        <input value={newPhoneNumber} onChange={e => setNewPhoneNumber(e.target.value)} inputMode="tel" placeholder="Número de teléfono" className="w-full rounded-xl border border-[#ede4f8] bg-white px-3 py-2.5 text-sm text-[#4a4a5a] outline-none focus:border-[#6b4c9a]/30 focus:ring-2 focus:ring-[#6b4c9a]/20 placeholder:text-[#b8b0c8]" />
+                        <button type="button" onClick={handleAddPhoneContact} className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#6b4c9a] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[#5a3c8a] transition-colors">
+                          <Check size={14} /> Agregar contacto
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="overflow-y-auto p-2">
                 {filteredContacts.length === 0 && (
                   <p className="text-center text-xs text-[#8b7aa0] py-6">Sin resultados</p>
                 )}
-                {filteredContacts.map(c => (
-                  <button key={c.id} onClick={() => newMode === 'group' ? toggleGroupParticipant(c.id) : startWith(c.id)} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-[#ede4f8]/50 transition-colors text-left">
-                    {newMode === 'group' && (
-                      <span className={`w-5 h-5 rounded border flex items-center justify-center text-[10px] ${groupParticipantIds.includes(c.id) ? 'bg-[#6b4c9a] text-white border-[#6b4c9a]' : 'border-[#f0e8f8]'}`}>
-                        {groupParticipantIds.includes(c.id) ? '✓' : ''}
-                      </span>
-                    )}
-                    <HeaderUserAvatar avatar={c.avatar} name={c.name} />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm text-[#6b4c9a] truncate">{c.name}</p>
-                      <p className="text-[11px] text-[#8b7aa0] truncate">ID {c.id}{c.subtitle ? ` | ${c.subtitle}` : ''}</p>
-                    </div>
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full whitespace-nowrap ${c.role === 'profesional' ? 'bg-purple-100 text-purple-700' : c.role === 'tutor' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                      {c.role === 'profesional' ? 'Profesional' : c.role === 'tutor' ? 'Tutor' : 'Usuario'}
-                    </span>
-                  </button>
-                ))}
+                {filteredContacts.map(c => {
+                  const isPhone = c.id.startsWith('phone-');
+                  return (
+                    <button key={c.id} onClick={() => {
+                      if (isPhone) { startWithPhoneContact(c); return; }
+                      if (newMode === 'group') { toggleGroupParticipant(c.id); } else { startWith(c.id); }
+                    }} className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-[#ede4f8]/50 transition-colors text-left">
+                      {newMode === 'group' && (
+                        <span className={`w-5 h-5 rounded border flex items-center justify-center text-[10px] ${groupParticipantIds.includes(c.id) ? 'bg-[#6b4c9a] text-white border-[#6b4c9a]' : 'border-[#f0e8f8]'}`}>
+                          {groupParticipantIds.includes(c.id) ? '✓' : ''}
+                        </span>
+                      )}
+                      <HeaderUserAvatar avatar={c.avatar} name={c.name} />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-[#6b4c9a] truncate">{c.name}</p>
+                        <p className="text-[11px] text-[#8b7aa0] truncate">{isPhone ? (c.subtitle || c.id) : `ID ${c.id}${c.subtitle ? ` | ${c.subtitle}` : ''}`}</p>
+                      </div>
+                      {isPhone ? (
+                        <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full whitespace-nowrap bg-slate-100 text-slate-600"><Phone size={10} /> Teléfono</span>
+                      ) : (
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full whitespace-nowrap ${c.role === 'profesional' ? 'bg-purple-100 text-purple-700' : c.role === 'tutor' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                          {c.role === 'profesional' ? 'Profesional' : c.role === 'tutor' ? 'Tutor' : 'Usuario'}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
               {newMode === 'group' && (
                 <div className="p-4 border-t border-[#f0e8f8]">
@@ -1058,6 +1227,44 @@ export default function ChatScreen({
                   </button>
                 </div>
               )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal confirmar borrado de conversacion */}
+      <AnimatePresence>
+        {confirmDeleteConv && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] bg-foreground/40 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={cancelDeleteConversation}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-sm bg-white rounded-2xl border border-[#f0e8f8] shadow-xl p-5"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 shrink-0 rounded-full bg-red-50 text-red-600 flex items-center justify-center">
+                  <Trash2 size={18} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-heading font-bold text-[#6b4c9a]">¿Estás seguro de que querés borrar esta conversación?</h3>
+                  <p className="text-xs text-[#8b7aa0] mt-1">
+                    Se va a eliminar la conversación <span className="font-semibold text-[#6b4c9a]">{confirmDeleteConv.title || 'privada'}</span> para vos. Esta acción no se puede deshacer.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-5 flex gap-2">
+                <button type="button" onClick={cancelDeleteConversation} disabled={deletingConv} className="flex-1 h-11 inline-flex items-center justify-center rounded-xl border border-[#ede4f8] text-sm font-semibold text-[#6b4c9a] hover:bg-[#ede4f8]/40 transition-colors disabled:opacity-50">
+                  Cancelar
+                </button>
+                <button type="button" onClick={confirmDeleteConversation} disabled={deletingConv} className="flex-1 h-11 inline-flex items-center justify-center gap-1.5 rounded-xl bg-red-600 text-sm font-semibold text-white hover:bg-red-700 transition-colors disabled:opacity-50">
+                  {deletingConv && <Loader2 size={15} className="animate-spin" />}
+                  Borrar conversación
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

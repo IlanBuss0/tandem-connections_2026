@@ -1,16 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   CalendarDays,
-  Clock,
-  FileText,
   Loader2,
-  Pencil,
   Plus,
   Save,
-  Trash2,
-  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -22,6 +26,10 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import ProfessionalPrivateNote from "@/components/ProfessionalPrivateNote";
+import SessionCard from "@/components/SessionCard";
+import SessionSeriesFolder from "@/components/SessionSeriesFolder";
+import { recurrenceLabels } from "@/lib/sessionRecurrence";
+import { findOverlappingSession } from "@/lib/sessionOverlap";
 import {
   createProfessionalSession,
   deleteProfessionalSession,
@@ -41,6 +49,7 @@ type SessionForm = {
   hora: string;
   duracion_minutos: string;
   estado: ProfessionalSession["estado"];
+  motivo_cancelacion: string;
   recurrence_frequency:
     | "none"
     | "weekly"
@@ -57,17 +66,16 @@ const emptyForm = (): SessionForm => ({
   hora: "09:00",
   duracion_minutos: "60",
   estado: "programada",
+  motivo_cancelacion: "",
   recurrence_frequency: "none",
   recurrence_count: "8",
 });
 
-const recurrenceLabels: Record<SessionForm["recurrence_frequency"], string> = {
-  none: "No se repite",
-  weekly: "Una vez por semana",
-  twice_weekly: "Dos veces por semana",
-  biweekly: "Una vez cada 2 semanas",
-  monthly: "Una vez por mes",
-};
+type AgendaItem =
+  | { type: "series"; groupId: string; sessions: ProfessionalSession[]; sortDate: string }
+  | { type: "single"; session: ProfessionalSession; sortDate: string };
+
+type TimeFilter = "upcoming" | "past" | "all";
 
 export default function ProfessionalAgenda({
   patients,
@@ -84,6 +92,10 @@ export default function ProfessionalAgenda({
   const [noteSession, setNoteSession] = useState<ProfessionalSession | null>(
     null,
   );
+  const [patientFilter, setPatientFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("upcoming");
+  const [search, setSearch] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -99,6 +111,14 @@ export default function ProfessionalAgenda({
     load();
   }, []);
 
+  useEffect(() => {
+    if (initialPatientId) {
+      setForm({ ...emptyForm(), id_perteneciente: String(initialPatientId) });
+    }
+    // Solo se dispara cuando llega un paciente preseleccionado (p.ej. desde
+    // "Proponer sesion" en el detalle del paciente) — no en cada render.
+  }, [initialPatientId]);
+
   const patientById = useMemo(
     () =>
       new Map(patients.map((patient) => [patient.pertenecienteId, patient])),
@@ -107,6 +127,84 @@ export default function ProfessionalAgenda({
   const visibleSessions = sessions.filter((session) =>
     patientById.has(Number(session.id_perteneciente)),
   );
+
+  const agendaItems = useMemo<AgendaItem[]>(() => {
+    const seriesMap = new Map<string, ProfessionalSession[]>();
+    const standalone: ProfessionalSession[] = [];
+    for (const session of visibleSessions) {
+      if (session.recurrence_group_id) {
+        const list = seriesMap.get(session.recurrence_group_id) || [];
+        list.push(session);
+        seriesMap.set(session.recurrence_group_id, list);
+      } else {
+        standalone.push(session);
+      }
+    }
+    const items: AgendaItem[] = [];
+    for (const [groupId, list] of seriesMap) {
+      const sorted = [...list].sort((a, b) =>
+        a.fecha_sesion.localeCompare(b.fecha_sesion),
+      );
+      items.push({ type: "series", groupId, sessions: sorted, sortDate: sorted[0].fecha_sesion });
+    }
+    for (const session of standalone) {
+      items.push({ type: "single", session, sortDate: session.fecha_sesion });
+    }
+    return items.sort((a, b) => a.sortDate.localeCompare(b.sortDate));
+  }, [visibleSessions]);
+
+  const sessionMatchesFilters = (session: ProfessionalSession, now: number) => {
+    if (patientFilter !== "all" && String(session.id_perteneciente) !== patientFilter) return false;
+    if (statusFilter !== "all" && session.estado !== statusFilter) return false;
+    if (timeFilter === "upcoming" && new Date(session.fecha_sesion).getTime() < now) return false;
+    if (timeFilter === "past" && new Date(session.fecha_sesion).getTime() >= now) return false;
+    if (search.trim()) {
+      const patientName = patientById.get(Number(session.id_perteneciente))?.name || "";
+      const haystack = `${session.titulo} ${patientName}`.toLowerCase();
+      if (!haystack.includes(search.trim().toLowerCase())) return false;
+    }
+    return true;
+  };
+
+  const filteredAgendaItems = useMemo(() => {
+    const now = Date.now();
+    return agendaItems.filter((item) =>
+      item.type === "single"
+        ? sessionMatchesFilters(item.session, now)
+        : item.sessions.some((session) => sessionMatchesFilters(session, now)),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agendaItems, patientFilter, statusFilter, timeFilter, search, patientById]);
+
+  const summary = useMemo(() => {
+    const now = Date.now();
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const weekAhead = now + 7 * 24 * 60 * 60 * 1000;
+    const active = visibleSessions.filter((session) => session.estado !== "cancelada");
+    const today = active.filter((session) => session.fecha_sesion.slice(0, 10) === todayStr).length;
+    const week = active.filter((session) => {
+      const time = new Date(session.fecha_sesion).getTime();
+      return time >= now && time <= weekAhead;
+    }).length;
+    const next = active
+      .filter((session) => session.estado === "programada" && new Date(session.fecha_sesion).getTime() >= now)
+      .sort((a, b) => a.fecha_sesion.localeCompare(b.fecha_sesion))[0];
+    return { today, week, next };
+  }, [visibleSessions]);
+
+  const handleDelete = async (session: ProfessionalSession) => {
+    if (!window.confirm("¿Eliminar esta sesion?")) return;
+    try {
+      await deleteProfessionalSession(session.id);
+      await load();
+    } catch (error) {
+      toast({
+        title: "No se pudo eliminar la sesion",
+        description: error instanceof Error ? error.message : undefined,
+        variant: "destructive",
+      });
+    }
+  };
 
   const openCreate = () =>
     setForm({
@@ -123,6 +221,7 @@ export default function ProfessionalAgenda({
       hora: date.toTimeString().slice(0, 5),
       duracion_minutos: String(session.duracion_minutos),
       estado: session.estado,
+      motivo_cancelacion: session.motivo_cancelacion || "",
       recurrence_frequency: "none",
       recurrence_count: "1",
     });
@@ -132,23 +231,34 @@ export default function ProfessionalAgenda({
     if (!form?.id_perteneciente || !form.titulo.trim()) return;
     setSaving(true);
     try {
-      const payload = {
+      const basePayload = {
         id_perteneciente: Number(form.id_perteneciente),
         titulo: form.titulo.trim(),
         fecha_sesion: new Date(`${form.fecha}T${form.hora}:00`).toISOString(),
         duracion_minutos: Number(form.duracion_minutos),
         estado: form.estado,
+        motivo_cancelacion: form.estado === "cancelada" ? form.motivo_cancelacion.trim() || null : null,
         recordatorios: [],
-        recurrence_rule:
-          form.id || form.recurrence_frequency === "none"
-            ? { frequency: "none" as const }
-            : {
-                frequency: form.recurrence_frequency,
-                count: Number(form.recurrence_count),
-              },
       };
-      if (form.id) await updateProfessionalSession(form.id, payload);
-      else await createProfessionalSession(payload);
+      if (form.id) {
+        // No mandar recurrence_rule al editar: el backend preserva la
+        // recurrencia existente cuando el campo viene ausente. Si se
+        // manda {frequency:"none"} acá, pisa la serie real (bug: el
+        // badge de recurrencia queda mostrando "No se repite" en una
+        // sesion que sigue perteneciendo a una serie).
+        await updateProfessionalSession(form.id, basePayload);
+      } else {
+        await createProfessionalSession({
+          ...basePayload,
+          recurrence_rule:
+            form.recurrence_frequency === "none"
+              ? { frequency: "none" as const }
+              : {
+                  frequency: form.recurrence_frequency,
+                  count: Number(form.recurrence_count),
+                },
+        });
+      }
       toast({
         title: form.id
           ? "Sesion actualizada"
@@ -184,15 +294,26 @@ export default function ProfessionalAgenda({
             vos podés leer esta nota.
           </p>
         </div>
-        <ProfessionalPrivateNote session={noteSession} />
+        <ProfessionalPrivateNote
+          session={noteSession}
+          patientName={patientById.get(Number(noteSession.id_perteneciente))?.name}
+        />
       </div>
     );
+
+  const overlapSession = form && form.fecha && form.hora
+    ? findOverlappingSession(sessions, {
+        id: form.id,
+        fecha_sesion: new Date(`${form.fecha}T${form.hora}:00`).toISOString(),
+        duracion_minutos: Number(form.duracion_minutos) || 0,
+      })
+    : undefined;
 
   return (
     <div className="space-y-5">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <h2 className="font-heading text-xl font-bold">Agenda y sesiones</h2>
+          <h2 className="font-heading text-xl font-bold">Gestión de sesiones</h2>
           <p className="text-sm text-muted-foreground">
             Sesiones vinculadas a pacientes autorizados
           </p>
@@ -203,17 +324,25 @@ export default function ProfessionalAgenda({
         </Button>
       </div>
 
-      {form && (
-        <div className="rounded-xl border border-primary/30 bg-card p-4 space-y-4">
-          <div className="flex justify-between">
-            <h3 className="font-semibold">
-              {form.id ? "Editar sesion" : "Programar sesion"}
-            </h3>
-            <button onClick={() => setForm(null)}>
-              <X size={16} />
-            </button>
-          </div>
+      <Dialog open={Boolean(form)} onOpenChange={(open) => !open && setForm(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {form?.id ? "Editar sesion" : "Programar sesion"}
+            </DialogTitle>
+          </DialogHeader>
+          {form && (
           <div className="grid gap-4 sm:grid-cols-2">
+            {overlapSession && (
+              <Alert className="sm:col-span-2 border-amber-300 bg-amber-50 text-amber-900">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <AlertDescription>
+                  Se superpone con "{overlapSession.titulo}" de{" "}
+                  {patientById.get(Number(overlapSession.id_perteneciente))?.name || "otro paciente"} a las{" "}
+                  {new Date(overlapSession.fecha_sesion).toTimeString().slice(0, 5)}.
+                </AlertDescription>
+              </Alert>
+            )}
             <div className="space-y-2 sm:col-span-2">
               <Label>Paciente</Label>
               <Select
@@ -318,9 +447,25 @@ export default function ProfessionalAgenda({
                   <SelectItem value="programada">Programada</SelectItem>
                   <SelectItem value="completada">Completada</SelectItem>
                   <SelectItem value="cancelada">Cancelada</SelectItem>
+                  <SelectItem value="ausente">Ausente (no se presento)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {form.estado === "cancelada" && (
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Motivo de la cancelacion (opcional)</Label>
+                <Input
+                  value={form.motivo_cancelacion}
+                  maxLength={240}
+                  onChange={(event) =>
+                    setForm(
+                      (prev) => prev && { ...prev, motivo_cancelacion: event.target.value },
+                    )
+                  }
+                  placeholder="Ej: el paciente reprogramo por enfermedad"
+                />
+              </div>
+            )}
             {!form.id && (
               <>
                 <div className="space-y-2">
@@ -375,14 +520,86 @@ export default function ProfessionalAgenda({
               </>
             )}
           </div>
-          <Button
-            className="w-full"
-            onClick={submit}
-            disabled={saving || !form.id_perteneciente}
-          >
-            <Save size={15} className="mr-2" />
-            {saving ? "Guardando..." : "Guardar sesion"}
-          </Button>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setForm(null)} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={submit}
+              disabled={saving || !form?.id_perteneciente}
+            >
+              <Save size={15} className="mr-2" />
+              {saving ? "Guardando..." : "Guardar sesion"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {!loading && visibleSessions.length > 0 && (
+        <div className="grid grid-cols-3 gap-2 rounded-xl border bg-muted/30 p-3 text-center sm:grid-cols-3">
+          <div>
+            <p className="text-lg font-bold">{summary.today}</p>
+            <p className="text-xs text-muted-foreground">Hoy</p>
+          </div>
+          <div>
+            <p className="text-lg font-bold">{summary.week}</p>
+            <p className="text-xs text-muted-foreground">Esta semana</p>
+          </div>
+          <div>
+            <p className="text-sm font-semibold">
+              {summary.next
+                ? `${new Date(summary.next.fecha_sesion).toTimeString().slice(0, 5)} · ${patientById.get(Number(summary.next.id_perteneciente))?.name || "Paciente"}`
+                : "-"}
+            </p>
+            <p className="text-xs text-muted-foreground">Próxima sesion</p>
+          </div>
+        </div>
+      )}
+
+      {!loading && visibleSessions.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <Select value={patientFilter} onValueChange={setPatientFilter}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Paciente" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los pacientes</SelectItem>
+              {patients.map((patient) => (
+                <SelectItem key={patient.pertenecienteId} value={String(patient.pertenecienteId)}>
+                  {patient.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Estado" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los estados</SelectItem>
+              <SelectItem value="programada">Programada</SelectItem>
+              <SelectItem value="completada">Completada</SelectItem>
+              <SelectItem value="cancelada">Cancelada</SelectItem>
+              <SelectItem value="ausente">Ausente</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={timeFilter} onValueChange={(value) => setTimeFilter(value as TimeFilter)}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Periodo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="upcoming">Próximas</SelectItem>
+              <SelectItem value="past">Pasadas</SelectItem>
+              <SelectItem value="all">Todas</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Buscar por titulo o paciente"
+            className="flex-1 min-w-[180px]"
+          />
         </div>
       )}
 
@@ -391,7 +608,7 @@ export default function ProfessionalAgenda({
           <Loader2 className="mr-2 animate-spin" size={18} />
           Cargando sesiones...
         </div>
-      ) : visibleSessions.length === 0 ? (
+      ) : agendaItems.length === 0 ? (
         <div className="rounded-xl border border-dashed p-8 text-center">
           <CalendarDays className="mx-auto mb-2 text-primary" />
           <p className="font-medium">Todavia no hay sesiones programadas</p>
@@ -399,76 +616,39 @@ export default function ProfessionalAgenda({
             Crea una sesion para un paciente con permiso de agenda.
           </p>
         </div>
+      ) : filteredAgendaItems.length === 0 ? (
+        <div className="rounded-xl border border-dashed p-8 text-center">
+          <CalendarDays className="mx-auto mb-2 text-primary" />
+          <p className="font-medium">Ninguna sesion coincide con los filtros</p>
+          <p className="text-sm text-muted-foreground">
+            Probá cambiar el periodo o limpiar la busqueda.
+          </p>
+        </div>
       ) : (
         <div className="space-y-3">
-          {visibleSessions.map((session) => {
-            const patient = patientById.get(Number(session.id_perteneciente));
-            const date = new Date(session.fecha_sesion);
-            const recurrenceLabel =
-              session.recurrence_group_id && session.recurrence_rule?.frequency
-                ? recurrenceLabels[session.recurrence_rule.frequency]
-                : null;
-            return (
-              <div key={session.id} className="rounded-xl border bg-card p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <Clock size={20} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold">{session.titulo}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {patient?.name} ·{" "}
-                      {date.toLocaleString("es-AR", {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })}{" "}
-                      · {session.duracion_minutos} min
-                    </p>
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      <span className="inline-block rounded-full bg-muted px-2 py-0.5 text-[10px] capitalize">
-                        {session.estado}
-                      </span>
-                      {recurrenceLabel && (
-                        <span className="inline-block rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
-                          {recurrenceLabel} · #
-                          {Number(session.recurrence_index || 0) + 1}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setNoteSession(session)}
-                    >
-                      <FileText size={14} className="mr-2" />
-                      Nota privada
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => openEdit(session)}
-                    >
-                      <Pencil size={14} />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-destructive"
-                      onClick={async () => {
-                        if (!window.confirm("¿Eliminar esta sesion?")) return;
-                        await deleteProfessionalSession(session.id);
-                        await load();
-                      }}
-                    >
-                      <Trash2 size={14} />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {filteredAgendaItems.map((item) =>
+            item.type === "series" ? (
+              <SessionSeriesFolder
+                key={item.groupId}
+                groupId={item.groupId}
+                sessions={item.sessions}
+                patientName={patientById.get(Number(item.sessions[0].id_perteneciente))?.name}
+                onOpenNote={setNoteSession}
+                onEditSession={openEdit}
+                onDeleteSession={handleDelete}
+                onSeriesChanged={load}
+              />
+            ) : (
+              <SessionCard
+                key={item.session.id}
+                session={item.session}
+                patientName={patientById.get(Number(item.session.id_perteneciente))?.name}
+                onOpenNote={() => setNoteSession(item.session)}
+                onEdit={() => openEdit(item.session)}
+                onDelete={() => handleDelete(item.session)}
+              />
+            ),
+          )}
         </div>
       )}
     </div>

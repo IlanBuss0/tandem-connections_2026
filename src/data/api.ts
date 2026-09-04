@@ -1,6 +1,7 @@
 import * as legacy from './mockData';
 import { tandemApi } from '@/services/api';
 import { API_BASE_URL, ApiError, apiRequest, clearDefaultAuthToken, unwrapApiData } from '@/services/api/client';
+import { activityDisplayDescription, activityDisplayTitle } from '@/lib/activityDescription';
 import type { GameData, GameType } from '@/data/miniGames';
 import type {
   Actividad as DbActividad,
@@ -29,6 +30,8 @@ import type {
   VinculoTutorPerteneciente as DbVinculoTutorPerteneciente,
   ZonaSegura as DbZonaSegura,
 } from '@/types/database';
+import { isCompletedActivityStatus } from '@/lib/activityStatus';
+import { notifyActivityStatusChanged } from '@/lib/activityEvents';
 
 export type UserRole = legacy.UserRole;
 export type User = legacy.User;
@@ -54,18 +57,18 @@ export interface ProfessionalSession {
   fecha_sesion: string;
   titulo: string;
   duracion_minutos: number;
-  estado: 'programada' | 'completada' | 'cancelada';
+  estado: 'programada' | 'completada' | 'cancelada' | 'ausente';
   recordatorios: number[];
   recurrence_group_id?: string | null;
   recurrence_rule?: { frequency: 'none' | 'weekly' | 'twice_weekly' | 'biweekly' | 'monthly'; count?: number } | null;
   recurrence_index?: number;
+  motivo_cancelacion?: string | null;
+  has_note?: boolean;
 }
 
 export interface PrivateProfessionalNote {
   id: number;
   id_sesion_profesional: number;
-  contenido: { type: 'doc'; content: unknown[] };
-  version: number;
   fecha_actualizacion: string;
   documento_drive?: {
     id: number;
@@ -77,7 +80,7 @@ export interface PrivateProfessionalNote {
   } | null;
 }
 
-function professionalSessionToCalendarEvent(session: ProfessionalSession, userId: string): CalendarEvent {
+function professionalSessionToCalendarEvent(session: ProfessionalSession, userId: string, pictogram?: Pictogram | null): CalendarEvent {
   const date = new Date(session.fecha_sesion);
   return {
     id: `professional-session-${session.id}`,
@@ -89,7 +92,22 @@ function professionalSessionToCalendarEvent(session: ProfessionalSession, userId
     userId,
     color: calendarTypeColor('terapia'),
     reminders: session.recordatorios || [],
+    pictogramId: pictogram?.id,
+    pictogramImageUrl: pictogram?.imageUrl,
+    pictogramName: pictogram?.name,
+    pictogramConfidence: pictogram ? 'alta' : undefined,
+    pictogramResolvedFor: session.titulo || 'Sesion profesional',
   };
+}
+
+let professionalSessionPictogramPromise: Promise<Pictogram | null> | null = null;
+function getProfessionalSessionPictogram(): Promise<Pictogram | null> {
+  if (!professionalSessionPictogramPromise) {
+    professionalSessionPictogramPromise = fetchPictograms({ search: 'terapia profesional', language: 'es', limit: 1 })
+      .then((items) => items[0] || null)
+      .catch(() => null);
+  }
+  return professionalSessionPictogramPromise;
 }
 
 export interface ProfessionalPublicProfile {
@@ -127,11 +145,19 @@ export type ChatMessage = legacy.ChatMessage & {
 };
 export type Notification = legacy.Notification;
 export type EmotionalRecord = legacy.EmotionalRecord;
+export interface PersonalNote {
+  id: string;
+  userId: string;
+  content: string;
+  title?: string;
+  createdAt: string;
+}
 export type Achievement = legacy.Achievement;
 export type Objective = legacy.Objective;
 export type Location = legacy.Location;
 export type Recommendation = legacy.Recommendation;
 export type Pictogram = legacy.Pictogram;
+export type PictogramAttribution = legacy.PictogramAttribution;
 export type Resource = legacy.Resource;
 export type PricingPlan = legacy.PricingPlan;
 
@@ -141,6 +167,7 @@ export interface ChatContact {
   avatar: string;
   role: 'user' | 'tutor' | 'profesional';
   subtitle?: string;
+  phone?: string;
 }
 
 export type EffectivePermission = {
@@ -329,6 +356,7 @@ function toLegacyUser(user: Partial<Usuario>, avatarUrl?: string | null): User |
     name: [user.nombre, user.apellido].filter(Boolean).join(' ') || user.nombre_usuario || user.correo || 'Usuario',
     email: user.correo ?? '',
     avatar: avatarUrl || '🙂',
+    emailVerified: user.email_verificado ?? undefined,
   };
 
   if (role === 'admin') {
@@ -422,18 +450,6 @@ function extractCustomSteps(description?: string | null): string[] {
   return steps.length > 0 ? steps : [description || 'Completar la actividad asignada.'];
 }
 
-function customDescriptionWithoutMetadata(description?: string | null): string {
-  return (description || '')
-    .split('\n')
-    .filter(line =>
-      !line.trim().startsWith('Objetivo:') &&
-      !line.trim().startsWith('Pasos:') &&
-      !line.trim().startsWith('Juego:')
-    )
-    .join('\n')
-    .trim();
-}
-
 function parseActivityGameMetadata(description?: string | null): { gameType?: GameType; gameData?: GameData } {
   const line = (description || '').split('\n').find(item => item.trim().startsWith('Juego:'));
   if (!line) return {};
@@ -466,7 +482,7 @@ function toAssignedLegacyActivity(
     activa: activity.activa,
   }, userId);
   const completed = isCompletedStatus(status, assignment);
-  const customDescription = 'id_actividad_base' in activity ? customDescriptionWithoutMetadata(activity.descripcion) : '';
+  const customDescription = 'id_actividad_base' in activity ? activityDisplayDescription(activity.descripcion) : '';
   const customSteps = 'id_actividad_base' in activity ? extractCustomSteps(activity.descripcion) : null;
   const gameMetadata = parseActivityGameMetadata(activity.descripcion);
 
@@ -563,7 +579,7 @@ export function clearStoredAuthToken(): void {
   clearDefaultAuthToken();
 }
 
-async function fetchPertenecienteByUsuarioId(userId: string | number): Promise<DbPerteneciente | null> {
+export async function fetchPertenecienteByUsuarioId(userId: string | number): Promise<DbPerteneciente | null> {
   try {
     return await apiRequest<DbPerteneciente>(`/api/pertenecientes/usuario/${encodeURIComponent(String(userId))}`);
   } catch (error) {
@@ -880,6 +896,24 @@ function parseEmotionConfig(config: ConfiguracionUsuario): EmotionalRecord | nul
   }
 }
 
+function parsePersonalNoteConfig(config: ConfiguracionUsuario): PersonalNote | null {
+  if (!config.clave?.startsWith('personal-note:')) return null;
+
+  try {
+    const value = JSON.parse(config.valor || '{}') as Partial<PersonalNote>;
+    if (!value.content?.trim()) return null;
+    return {
+      id: String(config.id),
+      userId: String(config.id_usuario),
+      content: value.content.trim(),
+      title: value.title?.trim() || undefined,
+      createdAt: value.createdAt || config.fecha_modificacion,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function daysAgoLabel(date?: string | null): string | undefined {
   if (!date) return undefined;
   const then = new Date(date);
@@ -917,8 +951,7 @@ function buildAchievement(
 }
 
 function isCompletedStatus(status?: DbEstadoActividad, assigned?: DbActividadAsignada) {
-  const name = (status?.nombre || '').toLowerCase();
-  return Boolean(assigned?.fecha_completada || name.includes('complet') || name.includes('finaliz'));
+  return Boolean(assigned?.fecha_completada || isCompletedActivityStatus(status?.nombre));
 }
 
 function formatBackendDate(value?: string | null) {
@@ -928,16 +961,28 @@ function formatBackendDate(value?: string | null) {
   return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short' }).format(date);
 }
 
+// Convierte un timestamp ISO (con hora/UTC, ej. "2026-05-21T23:30:00.000Z")
+// a la fecha LOCAL en formato YYYY-MM-DD, usando metodos locales en vez de
+// toISOString() (que devuelve UTC y podria desplazar el dia).
+function backendDateToLocalISO(value?: string | null): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 async function fetchBackendAchievementDashboard(userId: string): Promise<AchievementDashboard> {
   const idUsuario = Number(userId);
-  const [pertenecientes, saldos, avatares, configs] = await Promise.all([
-    tandemApi.pertenecientes.getAll(),
+  const [perteneciente, saldos, avatares, configs] = await Promise.all([
+    fetchPertenecienteByUsuarioId(idUsuario),
     tandemApi.saldosPuntos.getAll(),
     tandemApi.avatares.getAll(),
-    tandemApi.configuracionesUsuarios.getAll(),
+    fetchUserConfigs(idUsuario),
   ]);
 
-  const perteneciente = pertenecientes.find((item) => item.id_usuario === idUsuario);
   const idPerteneciente = perteneciente?.id;
   const assignedForUser = idPerteneciente ? await fetchAssignedActivitiesByPerteneciente(idPerteneciente) : [];
   const completed = assignedForUser.filter((item) => item.fecha_completada || item.id_estado_actividad === 3);
@@ -954,7 +999,7 @@ async function fetchBackendAchievementDashboard(userId: string): Promise<Achieve
     : undefined;
   const emotionDays = new Set(
     configs
-      .filter((config) => config.id_usuario === idUsuario && config.clave.startsWith('emotion:'))
+      .filter((config) => config.clave.startsWith('emotion:'))
       .map((config) => parseEmotionConfig(config)?.date || config.fecha_modificacion.split('T')[0])
       .filter(Boolean)
   ).size;
@@ -1012,7 +1057,7 @@ async function fetchBackendUserProfileDashboard(userId: string): Promise<UserPro
   const idUsuario = Number(userId);
   const [
     usuarios,
-    pertenecientes,
+    perteneciente,
     nivelesApoyo,
     autonomias,
     saldos,
@@ -1025,7 +1070,7 @@ async function fetchBackendUserProfileDashboard(userId: string): Promise<UserPro
     planes,
   ] = await Promise.all([
     tandemApi.usuarios.getAll(),
-    tandemApi.pertenecientes.getAll(),
+    fetchPertenecienteByUsuarioId(idUsuario),
     tandemApi.nivelesApoyos.getAll(),
     tandemApi.autonomiasOperativas.getAll(),
     tandemApi.saldosPuntos.getAll(),
@@ -1039,7 +1084,6 @@ async function fetchBackendUserProfileDashboard(userId: string): Promise<UserPro
   ]);
 
   const usuario = usuarios.find((item) => Number(item.id) === idUsuario) || null;
-  const perteneciente = (pertenecientes as DbPerteneciente[]).find((item) => Number(item.id_usuario) === idUsuario) || null;
 
   if (!perteneciente) {
     return {
@@ -1120,17 +1164,60 @@ async function fetchBackendUserProfileDashboard(userId: string): Promise<UserPro
 
 async function fetchUserAvatarUrl(userId: number): Promise<string | null> {
   try {
-    const [pertenecientes, avatares] = await Promise.all([
-      tandemApi.pertenecientes.getAll(),
+    const [pp, avatares] = await Promise.all([
+      fetchPertenecienteByUsuarioId(userId),
       tandemApi.avatares.getAll(),
     ]);
-    const pp = (pertenecientes as DbPerteneciente[]).find(p => Number(p.id_usuario) === userId);
     if (!pp) return null;
     const avatar = (avatares as DbAvatar[]).find(a => Number(a.id_perteneciente) === Number(pp.id));
     return avatar?.avatar_imagen_url || avatar?.avatar_imagen_origen_url || null;
   } catch {
     return null;
   }
+}
+
+export async function registerUser(
+  payload: import('@/services/api').RegisterRequest,
+): Promise<User | Tutor | Professional | Admin> {
+  const auth = await tandemApi.auth.register(payload);
+  storeAuthToken();
+  const avatarUrl = auth.user?.id ? await fetchUserAvatarUrl(auth.user.id) : null;
+  return toLegacyUser(auth.user, avatarUrl);
+}
+
+export async function loginWithGoogle(
+  payload: { accessToken: string } & Partial<import('@/services/api').RegisterRequest>,
+): Promise<User | Tutor | Professional | Admin> {
+  const auth = await tandemApi.auth.google(payload);
+  storeAuthToken();
+  const avatarUrl = auth.user?.id ? await fetchUserAvatarUrl(auth.user.id) : null;
+  return toLegacyUser(auth.user, avatarUrl);
+}
+
+export async function searchRefepsProfessional(
+  matricula: string,
+): Promise<import('@/services/api').RefepsSearchResult> {
+  return tandemApi.refeps.searchByMatricula(matricula);
+}
+
+export async function searchRefepsByDni(
+  dni: string,
+): Promise<import('@/services/api').RefepsSearchResult> {
+  return tandemApi.refeps.searchByDni(dni);
+}
+
+export async function verifyProfessionalDni(
+  payload: import('@/services/api').ProfessionalDniVerificationRequest,
+): Promise<import('@/services/api').ProfessionalDniVerificationResult> {
+  return tandemApi.auth.verifyProfessionalDni(payload);
+}
+
+export async function verifyEmailToken(token: string): Promise<{ verified: boolean }> {
+  return tandemApi.auth.verifyEmail(token);
+}
+
+export async function resendVerificationEmail(): Promise<{ sent: boolean }> {
+  return tandemApi.auth.resendVerification();
 }
 
 export async function findUser(username: string, password: string): Promise<User | Tutor | Professional | Admin | null> {
@@ -1242,7 +1329,13 @@ export interface TutorHomeData {
   }>;
 }
 
-export async function fetchPertenecienteHome(userId: string): Promise<PertenecienteHomeData> {
+export async function fetchPertenecienteHome(
+  userId: string,
+  options?: {
+    onActivitiesReady?: (activities: PertenecienteHomeActivity[]) => void;
+    skipProfileLookups?: boolean;
+  },
+): Promise<PertenecienteHomeData> {
   if (!isBackendUserId(userId)) {
     const user = legacy.getUserById(userId);
     const activities = legacy.getActivitiesForUser(userId);
@@ -1266,6 +1359,12 @@ export async function fetchPertenecienteHome(userId: string): Promise<Pertenecie
     };
   }
 
+  // Estos catálogos no dependen del id del perteneciente: se empiezan mientras
+  // se resuelve su perfil para evitar una segunda ronda de red en Inicio.
+  const activityCatalogsRequest = Promise.all([
+    tandemApi.actividades.getAll(),
+    tandemApi.estadosActividades.getAll(),
+  ]);
   const perteneciente = await fetchPertenecienteByUsuarioId(userId);
   if (!perteneciente) {
     return {
@@ -1281,31 +1380,49 @@ export async function fetchPertenecienteHome(userId: string): Promise<Pertenecie
     };
   }
 
-  const [
-    asignadas,
-    actividades,
-    actividadesPersonalizadas,
-    estados,
-    notificaciones,
-    saldos,
-    avatares,
-    nivelesApoyo,
-    autonomias,
-  ] = await Promise.all([
+  const activitiesRequest = Promise.all([
     fetchAssignedActivitiesByPerteneciente(Number(perteneciente.id)),
-    tandemApi.actividades.getAll(),
     fetchCustomActivitiesByPerteneciente(Number(perteneciente.id)),
-    tandemApi.estadosActividades.getAll(),
-    tandemApi.notificaciones.getMine(),
-    tandemApi.saldosPuntos.getAll(),
-    tandemApi.avatares.getAll(),
-    tandemApi.nivelesApoyos.getAll(),
-    tandemApi.autonomiasOperativas.getAll(),
+    activityCatalogsRequest,
   ]);
+  const profileRequest = options?.skipProfileLookups
+    ? Promise.resolve([[], [], [], []] as [DbSaldoPuntos[], DbAvatar[], DbNivelApoyo[], DbAutonomiaOperativa[]])
+    : Promise.all([
+        tandemApi.saldosPuntos.getAll(),
+        tandemApi.avatares.getAll(),
+        tandemApi.nivelesApoyos.getAll(),
+        tandemApi.autonomiasOperativas.getAll(),
+      ]);
+
+  const [asignadas, actividadesPersonalizadas, [actividades, estados]] = await activitiesRequest;
 
   const activitiesById = new Map((actividades as DbActividad[]).map(a => [Number(a.id), a]));
   const customById = new Map((actividadesPersonalizadas as DbActividadPersonalizada[]).map(a => [Number(a.id), a]));
   const statusById = new Map((estados as DbEstadoActividad[]).map(e => [Number(e.id), e]));
+  const homeActivities = (asignadas as DbActividadAsignada[])
+    .filter(a => Number(a.id_perteneciente) === Number(perteneciente.id))
+    .filter(a =>
+      Boolean(a.id_actividad && activitiesById.has(Number(a.id_actividad))) ||
+      Boolean(a.id_actividad_personalizada && customById.has(Number(a.id_actividad_personalizada)))
+    )
+    .map(a => {
+      const base = a.id_actividad ? activitiesById.get(Number(a.id_actividad)) : undefined;
+      const custom = a.id_actividad_personalizada ? customById.get(Number(a.id_actividad_personalizada)) : undefined;
+      const status = a.id_estado_actividad ? statusById.get(Number(a.id_estado_actividad)) : undefined;
+      return {
+        id: String(a.id),
+        title: activityDisplayTitle(base?.titulo || custom?.titulo || `Actividad #${a.id}`),
+        description: activityDisplayDescription(base?.descripcion || custom?.descripcion) || 'Actividad asignada desde el equipo de apoyo.',
+        status: status?.nombre || (a.fecha_completada ? 'Completada' : 'Pendiente'),
+        completed: isCompletedStatus(status, a),
+        assignedAt: formatBackendDate(a.fecha_asignacion),
+      };
+    });
+  options?.onActivitiesReady?.(homeActivities);
+
+  const [saldos, avatares, nivelesApoyo, autonomias] = await profileRequest;
+  // Inicio no renderiza notificaciones; se cargan desde su contexto/pantalla dedicada.
+  const notificaciones: DbNotificacion[] = [];
   const saldo = (saldos as DbSaldoPuntos[]).find(s => Number(s.id_perteneciente) === Number(perteneciente.id));
   const avatar = (avatares as DbAvatar[]).find(a => Number(a.id_perteneciente) === Number(perteneciente.id));
   const supportLevel = (nivelesApoyo as DbNivelApoyo[]).find(n => Number(n.id) === Number(perteneciente.id_nivel_apoyo));
@@ -1331,8 +1448,8 @@ export async function fetchPertenecienteHome(userId: string): Promise<Pertenecie
         const status = a.id_estado_actividad ? statusById.get(Number(a.id_estado_actividad)) : undefined;
         return {
           id: String(a.id),
-          title: base?.titulo || custom?.titulo || `Actividad #${a.id}`,
-          description: base?.descripcion || custom?.descripcion || 'Actividad asignada desde el equipo de apoyo.',
+          title: activityDisplayTitle(base?.titulo || custom?.titulo || `Actividad #${a.id}`),
+          description: activityDisplayDescription(base?.descripcion || custom?.descripcion) || 'Actividad asignada desde el equipo de apoyo.',
           status: status?.nombre || (a.fecha_completada ? 'Completada' : 'Pendiente'),
           completed: isCompletedStatus(status, a),
           assignedAt: formatBackendDate(a.fecha_asignacion),
@@ -1458,7 +1575,7 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
         return {
           id: String(item.id),
           title: base?.titulo || custom?.titulo || `Actividad #${item.id}`,
-          description: base?.descripcion || custom?.descripcion || 'Actividad asignada desde el equipo de apoyo.',
+          description: activityDisplayDescription(base?.descripcion || custom?.descripcion) || 'Actividad asignada desde el equipo de apoyo.',
           category: custom ? 'Personalizada' : 'Integrada',
           difficulty: 'Medio',
           points: pointName ? pointsByName[pointName] ?? 10 : 10,
@@ -1505,12 +1622,11 @@ export async function fetchActivitiesForUser(userId: string): Promise<Activity[]
 
   try {
     const numericUserId = Number(userId);
-    const [pertenecientes, actividades, estados] = await Promise.all([
-      tandemApi.pertenecientes.getAll(),
+    const [perteneciente, actividades, estados] = await Promise.all([
+      fetchPertenecienteByUsuarioId(numericUserId),
       tandemApi.actividades.getAll(),
       tandemApi.estadosActividades.getAll(),
     ]);
-    const perteneciente = pertenecientes.find(item => Number(item.id_usuario) === numericUserId);
     if (!perteneciente) return [];
 
     const [asignadas, actividadesPersonalizadas] = await Promise.all([
@@ -1538,14 +1654,18 @@ export async function fetchActivitiesForUser(userId: string): Promise<Activity[]
   }
 }
 
-export async function completeAssignedActivity(activity: Activity, userId: string): Promise<void> {
+export async function completeAssignedActivity(activity: Activity, userId: string, score?: number): Promise<void> {
+  if (!isBackendUserId(userId)) {
+    legacy.completeActivityForUser(activity.id, userId);
+    notifyActivityStatusChanged(activity.id);
+    return;
+  }
   let assignedActivityId = Number((activity as any).assignedActivityId || activity.id);
   if (!Number.isFinite(assignedActivityId)) {
     const numericUserId = Number(userId);
     const backendCustomActivityId = Number((activity as any).backendCustomActivityId || (activity as any).backendId);
     const backendActivityId = Number((activity as any).backendActivityId);
-    const pertenecientes = await tandemApi.pertenecientes.getAll();
-    const perteneciente = pertenecientes.find(item => Number(item.id_usuario) === numericUserId);
+    const perteneciente = await fetchPertenecienteByUsuarioId(numericUserId);
     const asignadas = perteneciente ? await fetchAssignedActivitiesByPerteneciente(Number(perteneciente.id)) : [];
     const assignment = asignadas.find(item =>
       (
@@ -1557,20 +1677,8 @@ export async function completeAssignedActivity(activity: Activity, userId: strin
   }
   if (!Number.isFinite(assignedActivityId)) return;
 
-  const token = getStoredAuthToken();
-  const [assignment, estados] = await Promise.all([
-    tandemApi.actividadesAsignadas.getById(assignedActivityId, { token }),
-    tandemApi.estadosActividades.getAll(),
-  ]);
-  const completedStatus = (estados as DbEstadoActividad[]).find(item =>
-    item.nombre.toLowerCase().includes('complet')
-  );
-
-  await tandemApi.actividadesAsignadas.update(assignedActivityId, {
-    ...assignment,
-    id_estado_actividad: completedStatus?.id || 3,
-    fecha_completada: new Date().toISOString(),
-  }, { token });
+  await tandemApi.actividadesAsignadas.complete(assignedActivityId, score);
+  notifyActivityStatusChanged(assignedActivityId);
 }
 
 export async function fetchMyNotifications(userId?: string): Promise<Notification[]> {
@@ -1604,32 +1712,130 @@ export async function fetchObjectivesForUser(userId: string): Promise<Objective[
   return apiFetchWithFallback<Objective[]>([`/objectives?userId=${encodeURIComponent(userId)}`, `/users/${encodeURIComponent(userId)}/objectives`]);
 }
 
+// Fila cruda que devuelve /api/eventos-calendario (Sesion 24 — migracion
+// de configuraciones_usuarios/JSON a tabla real). Columnas en español,
+// igual que el resto de las tablas del backend.
+interface BackendCalendarEventRow {
+  id: string; id_usuario: number; titulo: string; fecha: string; hora: string; tipo: string;
+  descripcion?: string | null; color?: string | null; reminders?: number[] | null;
+  id_pictograma?: string | null; pictograma_url?: string | null; pictograma_nombre?: string | null;
+  pictograma_confianza?: 'alta' | 'media' | null; pictograma_resuelto_para?: string | null;
+  after_note?: string | null; plan_b?: string | null; sensory_note?: string | null;
+}
+
+function mapBackendCalendarEvent(row: BackendCalendarEventRow, userId: string): CalendarEvent {
+  return {
+    id: row.id,
+    userId,
+    title: row.titulo,
+    date: row.fecha,
+    time: row.hora,
+    type: row.tipo,
+    description: row.descripcion || '',
+    color: row.color || calendarTypeColor(row.tipo),
+    reminders: Array.isArray(row.reminders) ? row.reminders : [],
+    pictogramId: row.id_pictograma || undefined,
+    pictogramImageUrl: row.pictograma_url || undefined,
+    pictogramName: row.pictograma_nombre || undefined,
+    pictogramConfidence: row.pictograma_confianza || undefined,
+    pictogramResolvedFor: row.pictograma_resuelto_para || undefined,
+    afterNote: row.after_note || undefined,
+    planB: row.plan_b || undefined,
+    sensoryNote: row.sensory_note || undefined,
+  };
+}
+
+function toBackendCalendarPayload(data: Partial<CalendarEvent>) {
+  return {
+    titulo: data.title, fecha: data.date, hora: data.time, tipo: data.type,
+    descripcion: data.description, color: data.color,
+    reminders: data.reminders, idPictograma: data.pictogramId, pictogramaUrl: data.pictogramImageUrl,
+    pictogramaNombre: data.pictogramName, pictogramaConfianza: data.pictogramConfidence,
+    pictogramaResueltoPara: data.pictogramResolvedFor, afterNote: data.afterNote,
+    planB: data.planB, sensoryNote: data.sensoryNote,
+  };
+}
+
+// Convierte las actividades asignadas (por tutor/profesional) PENDIENTES del
+// usuario en "eventos" derivados de calendario, anclados al dia LOCAL de su
+// fecha de asignacion. Asi Inicio, Actividades y Calendario representan la
+// misma informacion con la misma fuente. Los eventos se marcan con
+// assignedActivityId para distinguirlos de los eventos manuales y evitar
+// duplicados. Guarda silencio (devuelve []) si algo falla, como el resto de
+// los cargadores del calendar.
+async function fetchPendingAssignedActivitiesAsCalendarEvents(userId: string): Promise<CalendarEvent[]> {
+  if (!isBackendUserId(userId)) return [];
+  try {
+    const numericUserId = Number(userId);
+    const perteneciente = await fetchPertenecienteByUsuarioId(numericUserId);
+    if (!perteneciente) return [];
+
+    const [actividades, estados, asignadas, actividadesPersonalizadas] = await Promise.all([
+      tandemApi.actividades.getAll(),
+      tandemApi.estadosActividades.getAll(),
+      fetchAssignedActivitiesByPerteneciente(Number(perteneciente.id)),
+      fetchCustomActivitiesByPerteneciente(Number(perteneciente.id)),
+    ]);
+
+    const customById = new Map((actividadesPersonalizadas as DbActividadPersonalizada[]).map(a => [Number(a.id), a]));
+    const activityById = new Map((actividades as DbActividad[]).map(a => [Number(a.id), a]));
+    const statusById = new Map((estados as DbEstadoActividad[]).map(e => [Number(e.id), e]));
+
+    return (asignadas as DbActividadAsignada[])
+      .filter(a => Number(a.id_perteneciente) === Number(perteneciente.id))
+      .filter(a =>
+        Boolean(a.id_actividad && activityById.has(Number(a.id_actividad))) ||
+        Boolean(a.id_actividad_personalizada && customById.has(Number(a.id_actividad_personalizada)))
+      )
+      .filter(a => {
+        const status = a.id_estado_actividad ? statusById.get(Number(a.id_estado_actividad)) : undefined;
+        return !isCompletedStatus(status, a);
+      })
+      .map(a => {
+        const base = a.id_actividad ? activityById.get(Number(a.id_actividad)) : undefined;
+        const custom = a.id_actividad_personalizada ? customById.get(Number(a.id_actividad_personalizada)) : undefined;
+        const date = backendDateToLocalISO(a.fecha_asignacion);
+        if (!date) return null;
+        return {
+          id: `asignada-${a.id}`,
+          title: activityDisplayTitle(base?.titulo || custom?.titulo || `Actividad #${a.id}`),
+          description: activityDisplayDescription(base?.descripcion || custom?.descripcion) || 'Actividad asignada desde el equipo de apoyo.',
+          date,
+          time: '',
+          type: 'actividad',
+          userId,
+          color: calendarTypeColor('actividad'),
+          assignedActivityId: String(a.id),
+        } as CalendarEvent;
+      })
+      .filter((e): e is CalendarEvent => Boolean(e));
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchCalendarEventsForUser(userId: string): Promise<CalendarEvent[]> {
   if (isBackendUserId(userId)) {
-    const configs = await getUserCalendarConfigs(Number(userId));
-    const events = configs.flatMap(config => {
-      if (!config.valor) return [];
-      try {
-        const parsed = JSON.parse(config.valor);
-        return config.clave === CALENDAR_CONFIG_KEY
-          ? normalizeCalendarEventsPayload(parsed, userId)
-          : normalizeCalendarEventsPayload([parsed], userId);
-      } catch {
-        return [];
-      }
-    });
+    const rows = await apiRequest<BackendCalendarEventRow[]>(`/api/eventos-calendario/usuario/${encodeURIComponent(String(Number(userId)))}`);
+    const events = rows.map(row => mapBackendCalendarEvent(row, userId));
 
     let professionalSessionEvents: CalendarEvent[] = [];
     try {
       const sessions = await fetchProfessionalSessions();
+      const sessionPictogram = sessions.length > 0 ? await getProfessionalSessionPictogram() : null;
       professionalSessionEvents = sessions
         .filter(session => session.estado !== 'cancelada')
-        .map(session => professionalSessionToCalendarEvent(session, userId));
+        .map(session => professionalSessionToCalendarEvent(session, userId, sessionPictogram));
     } catch {
       professionalSessionEvents = [];
     }
 
-    return [...events, ...professionalSessionEvents]
+    // Actividades asignadas (tutor/profesional) pendientes, ancladas al dia de
+    // su asignacion. Se mezclan con los eventos manuales: mismas fuente y
+    // criterio de fecha en Inicio, Actividades y Calendario.
+    const assignedActivities = await fetchPendingAssignedActivitiesAsCalendarEvents(userId);
+
+    return [...events, ...professionalSessionEvents, ...assignedActivities]
       .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
   }
 
@@ -1638,13 +1844,11 @@ export async function fetchCalendarEventsForUser(userId: string): Promise<Calend
 
 export async function createCalendarEvent(userId: string, data: Omit<CalendarEvent, 'id' | 'userId'>): Promise<CalendarEvent> {
   if (isBackendUserId(userId)) {
-    const created: CalendarEvent = {
-      ...data,
-      color: data.color || calendarTypeColor(data.type),
-      id: `ce-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      userId,
-    };
-    await saveCalendarEventForUser(userId, created);
+    const row = await apiRequest<BackendCalendarEventRow>('/api/eventos-calendario', {
+      method: 'POST',
+      body: { idUsuario: Number(userId), ...toBackendCalendarPayload({ ...data, color: data.color || calendarTypeColor(data.type) }) },
+    });
+    const created = mapBackendCalendarEvent(row, userId);
     syncCalendarReminders(userId);
     return created;
   }
@@ -1652,28 +1856,31 @@ export async function createCalendarEvent(userId: string, data: Omit<CalendarEve
   return apiFetchWithFallback<CalendarEvent>([`/calendar/events`, `/users/${encodeURIComponent(userId)}/calendar/events`], { method: 'POST', body: JSON.stringify({ ...data, userId }) });
 }
 
+// CalendarContext.tsx llama a updateEvent(id, patch)/deleteEvent(id) sin
+// pasar el userId dueño del evento — se resuelve con un GET puntual antes
+// de escribir, en vez del scan de TODAS las configs de TODOS los usuarios
+// que hacia findCalendarConfigByEventId contra el blob viejo.
+async function fetchBackendCalendarEventById(eventId: string): Promise<BackendCalendarEventRow | null> {
+  try {
+    return await apiRequest<BackendCalendarEventRow>(`/api/eventos-calendario/${encodeURIComponent(eventId)}`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
 export async function updateCalendarEvent(eventId: string, patch: Partial<CalendarEvent>): Promise<CalendarEvent> {
-  const config = await findCalendarConfigByEventId(eventId);
-  if (config) {
-    const userId = String(config.id_usuario);
-    const parsed = JSON.parse(config.valor || (config.clave === CALENDAR_CONFIG_KEY ? '[]' : '{}'));
-    const events = config.clave === CALENDAR_CONFIG_KEY
-      ? normalizeCalendarEventsPayload(parsed, userId)
-      : normalizeCalendarEventsPayload([parsed], userId);
-    const previous = events.find(event => event.id === eventId);
-    if (!previous) throw new Error(`No se encontro el evento ${eventId}.`);
-    const updated = {
-      ...previous,
-      ...patch,
-      color: patch.color || (patch.type ? calendarTypeColor(patch.type) : previous.color),
-      id: previous.id,
-      userId: previous.userId,
-    };
-    if (config.clave === CALENDAR_CONFIG_KEY) {
-      await saveCalendarEventsForUser(userId, events.map(event => event.id === eventId ? updated : event));
-    } else {
-      await saveCalendarEventForUser(userId, updated, config);
-    }
+  const existing = await fetchBackendCalendarEventById(eventId);
+  if (existing) {
+    const userId = String(existing.id_usuario);
+    const row = await apiRequest<BackendCalendarEventRow>(`/api/eventos-calendario/${encodeURIComponent(eventId)}`, {
+      method: 'PUT',
+      body: {
+        idUsuario: existing.id_usuario,
+        ...toBackendCalendarPayload({ ...patch, color: patch.color || (patch.type ? calendarTypeColor(patch.type) : undefined) }),
+      },
+    });
+    const updated = mapBackendCalendarEvent(row, userId);
     syncCalendarReminders(userId);
     return updated;
   }
@@ -1682,15 +1889,10 @@ export async function updateCalendarEvent(eventId: string, patch: Partial<Calend
 }
 
 export async function deleteCalendarEvent(eventId: string): Promise<void> {
-  const config = await findCalendarConfigByEventId(eventId);
-  if (config) {
-    const userId = String(config.id_usuario);
-    if (config.clave === CALENDAR_CONFIG_KEY) {
-      const events = normalizeCalendarEventsPayload(JSON.parse(config.valor || '[]'), userId);
-      await saveCalendarEventsForUser(userId, events.filter(event => event.id !== eventId));
-    } else {
-      await tandemApi.configuracionesUsuarios.delete(config.id);
-    }
+  const existing = await fetchBackendCalendarEventById(eventId);
+  if (existing) {
+    const userId = String(existing.id_usuario);
+    await apiRequest(`/api/eventos-calendario/${encodeURIComponent(eventId)}?idUsuario=${existing.id_usuario}`, { method: 'DELETE' });
     syncCalendarReminders(userId);
     return;
   }
@@ -1698,14 +1900,22 @@ export async function deleteCalendarEvent(eventId: string): Promise<void> {
   await apiFetchWithFallback<unknown>([`/calendar/events/${encodeURIComponent(eventId)}`], { method: 'DELETE' });
 }
 
+// Trae las configuraciones de un usuario puntual desde el endpoint que ya
+// filtra server-side (con permiso validado y cache en backend), en vez de
+// traer la tabla completa de configuraciones_usuarios y filtrar en el cliente.
+async function fetchUserConfigs(userId: number): Promise<ConfiguracionUsuario[]> {
+  return apiRequest<ConfiguracionUsuario[]>(
+    `/api/configuraciones-usuarios/usuario/${encodeURIComponent(String(userId))}`,
+  );
+}
+
 export async function fetchEmotionRecordsForUser(userId: string): Promise<EmotionalRecord[]> {
   if (isBackendUserId(userId)) {
     try {
-      const idUsuario = Number(userId);
-      const configs = await tandemApi.configuracionesUsuarios.getAll();
+      const configs = await fetchUserConfigs(Number(userId));
 
       return configs
-        .filter((config) => config.id_usuario === idUsuario && config.clave.startsWith('emotion:'))
+        .filter((config) => config.clave.startsWith('emotion:'))
         .map(parseEmotionConfig)
         .filter((record): record is EmotionalRecord => Boolean(record))
         .sort((a, b) => `${b.date} ${b.timestamp}`.localeCompare(`${a.date} ${a.timestamp}`));
@@ -1751,8 +1961,34 @@ export async function deleteEmotionRecord(recordId: string): Promise<void> {
   await apiFetchWithFallback<unknown>([`/emotions/${encodeURIComponent(recordId)}`], { method: 'DELETE' });
 }
 
-const CALENDAR_CONFIG_KEY = 'calendar.events';
-const CALENDAR_EVENT_KEY_PREFIX = 'calendar.event:';
+export async function fetchPersonalNotesForUser(userId: string): Promise<PersonalNote[]> {
+  if (!isBackendUserId(userId)) return [];
+
+  const configs = await fetchUserConfigs(Number(userId));
+  return configs
+    .filter((config) => config.clave.startsWith('personal-note:'))
+    .map(parsePersonalNoteConfig)
+    .filter((note): note is PersonalNote => Boolean(note))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function createPersonalNote(userId: string, content: string, title?: string): Promise<PersonalNote> {
+  if (!isBackendUserId(userId)) throw new Error('Las notas personales requieren un usuario del backend.');
+
+  const now = new Date().toISOString();
+  const value = { content: content.trim(), title: title?.trim() || undefined, createdAt: now };
+  const result = await tandemApi.configuracionesUsuarios.create({
+    id_usuario: Number(userId),
+    clave: `personal-note:${now}`,
+    valor: JSON.stringify(value),
+    fecha_modificacion: now,
+  });
+  return { id: String(result.id), userId, ...value };
+}
+
+export async function deletePersonalNote(noteId: string): Promise<void> {
+  await tandemApi.configuracionesUsuarios.delete(noteId);
+}
 
 async function getUserConfig(userId: number, key: string): Promise<ConfiguracionUsuario | undefined> {
   try {
@@ -1765,40 +2001,6 @@ async function getUserConfig(userId: number, key: string): Promise<Configuracion
   }
 }
 
-async function getUserCalendarConfigs(userId: number): Promise<ConfiguracionUsuario[]> {
-  const rows = await apiRequest<ConfiguracionUsuario[]>(
-    `/api/configuraciones-usuarios/usuario/${encodeURIComponent(String(userId))}`,
-  );
-  return rows.filter(row => row.clave === CALENDAR_CONFIG_KEY || row.clave.startsWith(CALENDAR_EVENT_KEY_PREFIX));
-}
-
-function normalizeCalendarEventsPayload(payload: unknown, userId: string): CalendarEvent[] {
-  if (!Array.isArray(payload)) return [];
-  return payload
-    .map((item, index) => {
-      const event = item as Partial<CalendarEvent>;
-      const type = event.type || 'personal';
-      const date = event.date || '';
-      const time = event.time || '09:00';
-      const title = event.title || '';
-
-      if (!date || !title) return null;
-
-      return {
-        id: String(event.id || `ce-${Date.now()}-${index}`),
-        userId: String(event.userId || userId),
-        title: String(title),
-        date: String(date),
-        time: String(time),
-        type,
-        description: String(event.description || ''),
-        color: String(event.color || calendarTypeColor(type)),
-        reminders: Array.isArray(event.reminders) ? event.reminders.map(Number).filter(Number.isFinite) : [],
-      } as CalendarEvent;
-    })
-    .filter((event): event is CalendarEvent => Boolean(event));
-}
-
 function calendarTypeColor(type: CalendarEvent['type']): string {
   const colors: Partial<Record<CalendarEvent['type'] | string, string>> = {
     terapia: 'hsl(270 40% 75%)',
@@ -1806,66 +2008,10 @@ function calendarTypeColor(type: CalendarEvent['type']): string {
     personal: 'hsl(30 80% 60%)',
     médico: 'hsl(0 72% 55%)',
     medico: 'hsl(0 72% 55%)',
-    'mÃ©dico': 'hsl(0 72% 55%)',
     social: 'hsl(150 60% 45%)',
     actividad: 'hsl(45 90% 55%)',
   };
   return colors[type] || colors.personal;
-}
-
-async function saveCalendarEventsForUser(userId: string, events: CalendarEvent[]): Promise<void> {
-  const numericUserId = Number(userId);
-  const payload = {
-    id_usuario: numericUserId,
-    clave: CALENDAR_CONFIG_KEY,
-    valor: JSON.stringify(events),
-    fecha_modificacion: new Date().toISOString(),
-  };
-  const config = await getUserConfig(numericUserId, CALENDAR_CONFIG_KEY);
-  if (config?.id) {
-    await tandemApi.configuracionesUsuarios.update(config.id, payload);
-    return;
-  }
-
-  try {
-    await tandemApi.configuracionesUsuarios.create(payload);
-  } catch (error) {
-    const latestConfig = await getUserConfig(numericUserId, CALENDAR_CONFIG_KEY);
-    if (!latestConfig?.id) throw error;
-    await tandemApi.configuracionesUsuarios.update(latestConfig.id, payload);
-  }
-}
-
-async function findCalendarConfigByEventId(eventId: string): Promise<ConfiguracionUsuario | undefined> {
-  const rows = await tandemApi.configuracionesUsuarios.getAll();
-  return rows.find(row => {
-    if ((!row.clave.startsWith(CALENDAR_EVENT_KEY_PREFIX) && row.clave !== CALENDAR_CONFIG_KEY) || !row.valor) return false;
-    try {
-      const parsed = JSON.parse(row.valor);
-      const payload = row.clave === CALENDAR_CONFIG_KEY ? parsed : [parsed];
-      return normalizeCalendarEventsPayload(payload, String(row.id_usuario))
-        .some(event => event.id === eventId);
-    } catch {
-      return false;
-    }
-  });
-}
-
-async function saveCalendarEventForUser(userId: string, event: CalendarEvent, existingConfig?: ConfiguracionUsuario): Promise<void> {
-  const numericUserId = Number(userId);
-  const payload = {
-    id_usuario: numericUserId,
-    clave: `${CALENDAR_EVENT_KEY_PREFIX}${event.id}`,
-    valor: JSON.stringify(event),
-    fecha_modificacion: new Date().toISOString(),
-  };
-
-  if (existingConfig?.id) {
-    await tandemApi.configuracionesUsuarios.update(existingConfig.id, payload);
-    return;
-  }
-
-  await tandemApi.configuracionesUsuarios.create(payload);
 }
 
 async function syncCalendarReminders(userId: string): Promise<void> {
@@ -1885,43 +2031,17 @@ async function syncCalendarReminders(userId: string): Promise<void> {
 }
 
 export interface DayRoutine { id: string; name: string; dayOfWeek: number | null; items: RoutineItem[]; date?: string }
-const ROUTINES_CONFIG_KEY = 'routines.mi-dia';
 
-function normalizeRoutinesPayload(payload: unknown): DayRoutine[] {
-  if (!Array.isArray(payload)) return [];
-  return payload.map((routine, index) => {
-    const r = routine as Partial<DayRoutine>;
-    return {
-      id: String(r.id || `dr-${Date.now()}-${index}`),
-      name: String(r.name || 'Mi dÃ­a'),
-      dayOfWeek: typeof r.dayOfWeek === 'number' ? r.dayOfWeek : null,
-      date: typeof r.date === 'string' ? r.date : undefined,
-      items: Array.isArray(r.items)
-        ? r.items.map((item, itemIndex) => {
-            const it = item as Partial<RoutineItem>;
-            return {
-              id: String(it.id || `i-${Date.now()}-${index}-${itemIndex}`),
-              time: String(it.time || '08:00'),
-              title: String(it.title || ''),
-              icon: String(it.icon || 'â­'),
-              completed: Boolean(it.completed),
-              reminders: Array.isArray(it.reminders) ? it.reminders.map(Number).filter(Number.isFinite) : [],
-              category: String(it.category || 'maÃ±ana'),
-            };
-          })
-        : [],
-    };
-  });
-}
-
+// /api/rutinas (Sesion 24 -- migracion de configuraciones_usuarios/JSON a
+// tablas reales rutinas + rutina_items) ya devuelve el shape tipado
+// completo, con los mismos defaults que antes aplicaba normalizeRoutinesPayload
+// (ver RoutineService.js del backend) -- no hace falta normalizar de nuevo
+// del lado del cliente.
 export async function fetchRoutinesForUser(userId: string): Promise<DayRoutine[]> {
   if (!isBackendUserId(userId)) return [];
 
   try {
-    const numericUserId = Number(userId);
-    const config = await getUserConfig(numericUserId, ROUTINES_CONFIG_KEY);
-    if (!config?.valor) return [];
-    return normalizeRoutinesPayload(JSON.parse(config.valor));
+    return await apiRequest<DayRoutine[]>(`/api/rutinas/usuario/${encodeURIComponent(String(Number(userId)))}`);
   } catch {
     return [];
   }
@@ -1931,21 +2051,15 @@ export async function saveRoutinesForUser(userId: string, routines: DayRoutine[]
   if (!isBackendUserId(userId)) return routines;
 
   try {
-    const numericUserId = Number(userId);
-    const payload = {
-      id_usuario: numericUserId,
-      clave: ROUTINES_CONFIG_KEY,
-      valor: JSON.stringify(routines),
-      fecha_modificacion: new Date().toISOString(),
-    };
-    const config = await getUserConfig(numericUserId, ROUTINES_CONFIG_KEY);
-    if (config?.id) await tandemApi.configuracionesUsuarios.update(config.id, payload);
-    else await tandemApi.configuracionesUsuarios.create(payload);
+    const saved = await apiRequest<DayRoutine[]>(`/api/rutinas/usuario/${encodeURIComponent(String(Number(userId)))}`, {
+      method: 'PUT',
+      body: { routines },
+    });
     await apiRequest('/api/routine-reminders/sync', {
       method: 'PUT',
       body: { routines, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
     });
-    return routines;
+    return saved;
   } catch (error) {
     throw error instanceof Error ? error : new Error('No se pudieron guardar las rutinas.');
   }
@@ -2370,6 +2484,7 @@ export async function fetchChatContacts(): Promise<ChatContact[]> {
       avatar: avatarByUsuarioId.get(usuario.id) || (role === 'professional' ? '👩‍⚕️' : role === 'tutor' ? '👩' : '🙂'),
       role: role === 'professional' ? 'profesional' : role === 'tutor' ? 'tutor' : 'user',
       subtitle: `${role === 'professional' ? 'Profesional' : role === 'tutor' ? 'Tutor/a' : 'Usuario'} · @${usuario.nombre_usuario || usuario.correo || usuario.id} · ID ${usuario.id}`,
+      phone: usuario.telefono ? String(usuario.telefono) : undefined,
     };
   });
 }
@@ -2512,19 +2627,138 @@ export interface PictogramCategory {
   total: number;
 }
 
-export async function fetchPictograms(query?: { category?: string; search?: string; language?: string; limit?: number; targetPertenecienteId?: string }): Promise<Pictogram[]> {
+export async function fetchPictograms(query?: { category?: string; search?: string; language?: string; limit?: number; targetPertenecienteId?: string; boostForUsuarioId?: string }): Promise<Pictogram[]> {
   const params = new URLSearchParams();
   if (query?.category && query.category !== 'todas') params.set('category', query.category);
   if (query?.search) params.set('search', query.search);
   if (query?.language) params.set('language', query.language);
   if (query?.limit) params.set('limit', String(query.limit));
   if (query?.targetPertenecienteId) params.set('targetPertenecienteId', query.targetPertenecienteId);
+  // Sesion 25 (perfil de memoria), arreglo de consistencia: cuando quien
+  // busca ya conoce el usuario destino directo (no un id de perteneciente,
+  // ej. el picker de correccion de pasos) igual puede pedir el boost de
+  // "lo que mas usa" sin tener que resolver el id de perteneciente primero.
+  if (query?.boostForUsuarioId) params.set('boostForUsuarioId', query.boostForUsuarioId);
   const q = params.toString();
   return apiFetchWithFallback<Pictogram[]>([q ? `/api/pictograms?${q}` : '/api/pictograms', q ? `/pictograms?${q}` : '/pictograms']);
 }
 
+export interface PictogramPage {
+  items: Pictogram[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface PictogramFilterOption {
+  id: string;
+  name: string;
+  total: number;
+}
+
+// Los 3 ejes del panel de filtros, con el conteo real de cada opcion. Vienen
+// del backend (no hardcodeados) para que no se desactualicen con cada sync del
+// catalogo y para que nunca se ofrezca un filtro que da cero resultados.
+export interface PictogramFilters {
+  categories: PictogramFilterOption[];
+  styles: PictogramFilterOption[];
+  collections: PictogramFilterOption[];
+}
+
+export async function fetchPictogramFilters(): Promise<PictogramFilters> {
+  return apiFetchWithFallback<PictogramFilters>(['/api/pictograms/filters', '/pictograms/filters']);
+}
+
+// Mismo endpoint que fetchPictograms, pero mandando `page` el backend
+// devuelve el objeto con el total (GET /api/pictograms?page=N) en vez del
+// array pelado, para poder mostrar "pagina X de Y" y botones de avanzar.
+// `style` y `collection` aceptan varios valores separados por coma.
+export async function fetchPictogramsPage(query: {
+  category?: string;
+  style?: string;
+  collection?: string;
+  search?: string;
+  language?: string;
+  limit?: number;
+  page?: number;
+  targetPertenecienteId?: string;
+}): Promise<PictogramPage> {
+  const params = new URLSearchParams();
+  if (query.category && query.category !== 'todas') params.set('category', query.category);
+  if (query.style) params.set('style', query.style);
+  if (query.collection) params.set('collection', query.collection);
+  if (query.search) params.set('search', query.search);
+  if (query.language) params.set('language', query.language);
+  if (query.limit) params.set('limit', String(query.limit));
+  params.set('page', String(query.page || 1));
+  if (query.targetPertenecienteId) params.set('targetPertenecienteId', query.targetPertenecienteId);
+  const q = params.toString();
+  return apiFetchWithFallback<PictogramPage>([`/api/pictograms?${q}`, `/pictograms?${q}`]);
+}
+
+export interface PictogramizedPhrase {
+  id: string;
+  text: string;
+  concepts: string[];
+  pictogram: { id: string; name: string; imageUrl: string; source: string } | null;
+  confidence: 'alta' | 'media' | 'ninguna';
+  matchedOn: string | null;
+}
+
+// Espeja el limite del backend (MAX_PHRASES_PER_REQUEST en
+// concept-extraction.js): se corta ANTES de mandar la request, para que el
+// traductor manual (Sesion 4) avise en la UI en vez de recibir un 400.
+export const MAX_TRANSLATOR_PHRASES = 60;
+
+// Motor de pictogramizacion (Sesion 1): frase -> pictograma, sin que nadie
+// tenga que escribir ni elegir nada a mano. Devuelve [] si falla (nunca
+// propaga la excepcion): el llamador siempre puede caer al emoji que el
+// paso ya tenia, no hay caso en que este fetch deba bloquear la pantalla.
+export async function pictogramizePhrases(
+  phrases: { id: string; text: string }[],
+  options?: { minConfidence?: 'alta' | 'media'; language?: string; targetPertenecienteId?: string; preferredStyleOverride?: string; throwOnError?: boolean },
+): Promise<PictogramizedPhrase[]> {
+  if (phrases.length === 0) return [];
+  const { throwOnError, ...bodyOptions } = options ?? {};
+  try {
+    const result = await apiRequest<{ results: PictogramizedPhrase[] }>('/api/pictograms/pictogramize', {
+      method: 'POST',
+      body: { phrases, ...bodyOptions },
+    });
+    return result.results;
+  } catch (error) {
+    if (throwOnError) throw error;
+    return [];
+  }
+}
+
+// Recuerda a mano un pictograma elegido para un texto de paso exacto.
+// La proxima vez que /pictogramize vea ese mismo texto lo devuelve directo,
+// sin gastar Groq. Nunca propaga la excepcion: es un extra, no bloquea el guardado.
+//
+// `targetUsuarioId` (Sesion 8): un tutor puede corregir el pictograma de un
+// perteneciente que tutela en vez del suyo propio — el backend autoriza y
+// avisa al perteneciente. Sin este parametro, el comportamiento es igual
+// que antes (corrige el vocabulario de quien esta logueado).
+export async function rememberPictogramChoice(text: string, pictogramId: string, targetUsuarioId?: string): Promise<void> {
+  try {
+    await apiRequest('/api/pictograms/vocabulary', { method: 'POST', body: { text, pictogramId, targetUsuarioId } });
+  } catch {
+    // silencioso: el paso ya se guardo igual, esto es solo para acelerar la proxima vez
+  }
+}
+
 export async function fetchPictogramCategories(): Promise<PictogramCategory[]> {
   return apiFetchWithFallback<PictogramCategory[]>(['/api/pictograms/categories', '/pictograms/categories']);
+}
+
+// Migracion de pictogramas a librerias con licencia comercial: agrupa por
+// licencia/atribucion lo que la app esta mostrando ahora mismo (respeta
+// PICTOGRAM_COMMERCIAL_MODE del lado del backend), para la pantalla de
+// "Licencias y atribuciones".
+export async function fetchPictogramAttributions(): Promise<PictogramAttribution[]> {
+  return apiFetchWithFallback<PictogramAttribution[]>(['/api/pictograms/attributions', '/pictograms/attributions']);
 }
 
 export async function fetchFavoritePictograms(userId: string): Promise<Pictogram[]> {
@@ -2573,6 +2807,19 @@ export async function deleteProfessionalSession(id: number): Promise<void> {
   await apiRequest(`/api/sesiones-profesionales/${id}`, { method: 'DELETE', token: getStoredAuthToken() });
 }
 
+export interface ResizeSessionSeriesResult {
+  sessions: ProfessionalSession[];
+  deletedSessionIds: number[];
+  deletedNotesCount: number;
+  completedSessionIds: number[];
+}
+
+export async function resizeSessionSeries(groupId: string, payload: { titulo?: string; count?: number; markPastAsCompleted?: boolean }): Promise<ResizeSessionSeriesResult> {
+  return apiRequest(`/api/sesiones-profesionales/series/${encodeURIComponent(groupId)}`, {
+    method: 'PUT', token: getStoredAuthToken(), body: payload,
+  });
+}
+
 export async function fetchPrivateProfessionalNote(idSession: number): Promise<PrivateProfessionalNote | null> {
   try {
     return await apiRequest(`/api/sesiones-profesionales/${idSession}/private-note`, { token: getStoredAuthToken() });
@@ -2580,12 +2827,6 @@ export async function fetchPrivateProfessionalNote(idSession: number): Promise<P
     if (error instanceof ApiError && error.status === 404) return null;
     throw error;
   }
-}
-
-export async function savePrivateProfessionalNote(idSession: number, contenido: PrivateProfessionalNote['contenido']): Promise<PrivateProfessionalNote> {
-  return apiRequest(`/api/sesiones-profesionales/${idSession}/private-note`, {
-    method: 'PUT', token: getStoredAuthToken(), body: { contenido },
-  });
 }
 
 export async function linkPrivateNoteDriveDocument(idSession: number, document: { google_file_id: string; nombre: string }): Promise<NonNullable<PrivateProfessionalNote['documento_drive']>> {
@@ -2600,6 +2841,118 @@ export async function unlinkPrivateNoteDriveDocument(idSession: number): Promise
 
 export async function fetchProfessionalOwnProfile(): Promise<ProfessionalOwnProfile> {
   return apiRequest('/api/perfiles-profesionales/mine', { token: getStoredAuthToken() });
+}
+
+export interface GeneratedReport {
+  id: number;
+  id_profesional: number;
+  id_perteneciente: number;
+  titulo: string;
+  contenido: string;
+  id_tipo: 'manual' | 'programado';
+  fecha_generacion: string;
+  enviado_al_tutor: boolean;
+  fecha_envio: string | null;
+  profesional_nombre?: string;
+  paciente_nombre?: string;
+}
+
+export async function generatePatientReport(payload: {
+  id_perteneciente: number;
+  sesiones: { id: number; fecha_sesion: string; titulo: string; estado?: string; notas_texto?: string }[];
+}): Promise<GeneratedReport> {
+  return apiRequest('/api/reportes-profesionales', { method: 'POST', token: getStoredAuthToken(), body: payload });
+}
+
+export async function sendReportToTutor(reportId: number): Promise<GeneratedReport> {
+  return apiRequest(`/api/reportes-profesionales/${reportId}/send`, { method: 'POST', token: getStoredAuthToken() });
+}
+
+export async function fetchProfessionalReports(idPerteneciente?: number): Promise<GeneratedReport[]> {
+  const query = idPerteneciente ? `?id_perteneciente=${idPerteneciente}` : '';
+  return apiRequest(`/api/reportes-profesionales${query}`, { token: getStoredAuthToken() });
+}
+
+export async function fetchTutorReports(): Promise<GeneratedReport[]> {
+  return apiRequest('/api/reportes-profesionales/tutor', { token: getStoredAuthToken() });
+}
+
+export async function downloadMonthlyReportPdf(anio: number, mes: number): Promise<Blob> {
+  const url = `${API_BASE_URL.replace(/\/$/, '')}/api/reportes-profesionales/pdf-mensual?anio=${anio}&mes=${mes}`;
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) throw new Error('No se pudo generar el PDF.');
+  return res.blob();
+}
+
+export interface ScheduledReportTask {
+  id: number;
+  id_profesional: number;
+  id_perteneciente: number;
+  frecuencia: 'diario' | 'semanal' | 'mensual';
+  proxima_ejecucion: string;
+  enviar_automatico: boolean;
+  activo: boolean;
+}
+
+export async function fetchScheduledReportTasks(): Promise<ScheduledReportTask[]> {
+  return apiRequest('/api/reportes-profesionales/tareas-programadas', { token: getStoredAuthToken() });
+}
+
+export async function upsertScheduledReportTask(payload: {
+  id_perteneciente: number;
+  frecuencia: 'diario' | 'semanal' | 'mensual';
+  enviar_automatico: boolean;
+  activo?: boolean;
+}): Promise<ScheduledReportTask> {
+  return apiRequest('/api/reportes-profesionales/tareas-programadas', { method: 'PUT', token: getStoredAuthToken(), body: payload });
+}
+
+export async function deactivateScheduledReportTask(taskId: number): Promise<{ rowsAffected: number }> {
+  return apiRequest(`/api/reportes-profesionales/tareas-programadas/${taskId}`, { method: 'DELETE', token: getStoredAuthToken() });
+}
+
+export interface SessionPrepSummary {
+  titulo: string;
+  contenido: string;
+}
+
+export async function prepareSessionSummary(payload: {
+  id_perteneciente: number;
+  sesion_objetivo: { titulo: string; fecha_sesion: string };
+  sesiones_pasadas: { id: number; fecha_sesion: string; titulo: string; estado?: string; notas_texto?: string }[];
+}): Promise<SessionPrepSummary> {
+  return apiRequest('/api/reportes-profesionales/preparar-sesion', { method: 'POST', token: getStoredAuthToken(), body: payload });
+}
+
+export async function askAboutPatient(payload: {
+  id_perteneciente: number;
+  pregunta: string;
+  sesiones: { id: number; fecha_sesion: string; titulo: string; estado?: string; notas_texto?: string }[];
+}): Promise<{ respuesta: string }> {
+  return apiRequest('/api/reportes-profesionales/preguntar', { method: 'POST', token: getStoredAuthToken(), body: payload });
+}
+
+export async function downloadPatientHistoryPdf(idPerteneciente: number): Promise<Blob> {
+  const url = `${API_BASE_URL.replace(/\/$/, '')}/api/reportes-profesionales/pdf-paciente/${idPerteneciente}`;
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) throw new Error('No se pudo generar el PDF.');
+  return res.blob();
+}
+
+export async function fetchNoteTemplateFavorites(): Promise<string[]> {
+  return apiRequest('/api/note-template-favorites', { token: getStoredAuthToken() });
+}
+
+export async function saveNoteTemplateFavorite(templateId: string): Promise<void> {
+  await apiRequest(`/api/note-template-favorites/${encodeURIComponent(templateId)}`, {
+    method: 'POST', token: getStoredAuthToken(),
+  });
+}
+
+export async function deleteNoteTemplateFavorite(templateId: string): Promise<void> {
+  await apiRequest(`/api/note-template-favorites/${encodeURIComponent(templateId)}`, {
+    method: 'DELETE', token: getStoredAuthToken(),
+  });
 }
 
 export async function saveProfessionalOwnProfile(payload: Record<string, unknown>): Promise<ProfessionalOwnProfile> {
@@ -2806,6 +3159,47 @@ export async function fetchAccessibilitySettings<T extends object>(userId: strin
 export async function saveAccessibilitySettings(userId: string, settings: object): Promise<void> {
   if (!isBackendUserId(userId)) return;
   await upsertAccessibilityConfig(Number(userId), ACCESSIBILITY_SETTINGS_KEY, settings);
+}
+
+// --- Onboarding del perteneciente (Fase 6) ----------------------------------
+// Cuestionario que se muestra una sola vez despues del registro: sugiere un
+// nivel de apoyo y adapta la interfaz, pero nunca bloquea ninguna funcion.
+// El estado "ya lo completo / lo salteo" se guarda con el mismo sistema
+// generico de configuraciones_usuarios que usan las preferencias de perfil.
+const ONBOARDING_STATUS_KEY = 'onboarding.autonomia';
+
+export interface OnboardingStatus {
+  done: boolean;
+  skipped: boolean;
+}
+
+const defaultOnboardingStatus: OnboardingStatus = { done: false, skipped: false };
+
+export async function fetchOnboardingStatus(userId: string): Promise<OnboardingStatus> {
+  if (!isBackendUserId(userId)) return defaultOnboardingStatus;
+  const config = await getUserConfig(Number(userId), ONBOARDING_STATUS_KEY);
+  return parseJsonConfig(config?.valor, defaultOnboardingStatus);
+}
+
+export async function markOnboardingStatus(userId: string, status: OnboardingStatus): Promise<void> {
+  if (!isBackendUserId(userId)) return;
+  await upsertUserConfig(Number(userId), ONBOARDING_STATUS_KEY, status);
+}
+
+/**
+ * Guarda la sugerencia del cuestionario de onboarding. A diferencia de
+ * saveUserProfileSettings (pensado para que un tutor/profesional edite el
+ * perfil), este endpoint solo lo puede llamar el propio perteneciente sobre
+ * si mismo — el backend lo valida independientemente del front.
+ */
+export async function submitOnboardingSuggestion(
+  pertenecienteId: number,
+  payload: { id_nivel_apoyo?: number; id_autonomia_operativa?: number },
+): Promise<void> {
+  await apiRequest(`/api/pertenecientes/${encodeURIComponent(String(pertenecienteId))}/onboarding`, {
+    method: 'PUT',
+    body: payload,
+  });
 }
 
 export async function fetchLegacyPricingPlans(): Promise<PricingPlan[]> {

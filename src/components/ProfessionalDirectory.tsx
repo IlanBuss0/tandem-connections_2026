@@ -112,7 +112,11 @@ export default function ProfessionalDirectory() {
             <div className="mt-4 flex gap-2">
               {profile.correo_contacto && (
                 <Button size="sm" variant="outline" className="flex-1" asChild>
-                  <a href={`mailto:${profile.correo_contacto}`}>
+                  <a
+                    href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(profile.correo_contacto)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     <Mail size={14} className="mr-2" />
                     Email
                   </a>

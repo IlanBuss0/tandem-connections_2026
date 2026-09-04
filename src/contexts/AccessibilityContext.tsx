@@ -6,6 +6,7 @@ export type ContrastMode = 'normal' | 'high' | 'inverted' | 'dark' | 'light';
 export type ColorBlindnessMode = 'none' | 'deuteranopia' | 'protanopia' | 'tritanopia';
 export type ColorFilter = ColorBlindnessMode | 'desaturate' | 'monochrome';
 export type CursorMode = 'normal' | 'big' | 'reading-mask' | 'reading-guide';
+export type AccessibilityWidgetPosition = { x: number; y: number };
 
 export interface AccessibilitySettings {
   fontScale: number;
@@ -40,6 +41,27 @@ export interface AccessibilitySettings {
   simplifiedNavigation: boolean;
   contentSpacing: number;
   activeProfile: string | null;
+  // Sesion 10, item 47: tamaño de los pictogramas en toda la app (no del
+  // texto general, eso ya lo cubre fontScale). item 48: cuando es true, se
+  // le pide al motor pictogramas de estilo "alto contraste" en vez del
+  // aprendido por uso — es una necesidad de accesibilidad, no una
+  // preferencia que se pueda ignorar.
+  pictogramSize: 'sm' | 'md' | 'lg';
+  highContrastPictograms: boolean;
+  // Sesion 21, item 46: cuando esta activo, un segundo toque en el mismo
+  // boton que llega demasiado rapido (temblor, espasticidad, apoyar la mano
+  // sin querer) se ignora en vez de disparar la accion dos veces. Logica
+  // pura en src/lib/touchGuard.ts. Apagado por defecto: no todos lo
+  // necesitan, y agregar una demora minima a CADA toque no deberia ser la
+  // experiencia por defecto de nadie.
+  accidentalTouchProtection: boolean;
+  // Sesion 22, item 45: barrido de switch access. Recorre automaticamente
+  // los `[role="group"]` de la pantalla (contrato fijado en PictogramGrid,
+  // Sesion 10) y sus items, resaltando de a uno; activar con espacio o el
+  // boton flotante selecciona. Apagado por defecto — activarlo cambia
+  // como se interactua con TODA la app, no es un ajuste menor.
+  switchScanningEnabled: boolean;
+  mobileWidgetPosition: AccessibilityWidgetPosition | null;
 }
 
 export const DEFAULT_SETTINGS: AccessibilitySettings = {
@@ -75,6 +97,11 @@ export const DEFAULT_SETTINGS: AccessibilitySettings = {
   simplifiedNavigation: false,
   contentSpacing: 1,
   activeProfile: null,
+  pictogramSize: 'md',
+  highContrastPictograms: false,
+  accidentalTouchProtection: false,
+  switchScanningEnabled: false,
+  mobileWidgetPosition: null,
 };
 
 export interface AccessibilityProfile {
@@ -211,7 +238,11 @@ export function isColorBlindnessMode(filter: ColorFilter): filter is Exclude<Col
 }
 
 function normalize(raw: Partial<AccessibilitySettings> | null | undefined): AccessibilitySettings {
-  const normalized = { ...DEFAULT_SETTINGS, ...(raw ?? {}) };
+  const normalized = {
+    ...DEFAULT_SETTINGS,
+    ...(raw ?? {}),
+    mobileWidgetPosition: normalizeWidgetPosition(raw?.mobileWidgetPosition),
+  };
 
   // Migrate the former dyslexia preset, which stored generic spacing values and
   // unrelated animation/content-spacing changes, to the five isolated tools.
@@ -233,6 +264,12 @@ function normalize(raw: Partial<AccessibilitySettings> | null | undefined): Acce
   }
 
   return normalized;
+}
+
+function normalizeWidgetPosition(value: unknown): AccessibilityWidgetPosition | null {
+  if (!value || typeof value !== 'object') return null;
+  const { x, y } = value as Partial<AccessibilityWidgetPosition>;
+  return Number.isFinite(x) && Number.isFinite(y) ? { x: Number(x), y: Number(y) } : null;
 }
 
 function load(uid: string): AccessibilitySettings {
@@ -257,8 +294,10 @@ interface AccessibilityContextValue {
   settings: AccessibilitySettings;
   update: <K extends keyof AccessibilitySettings>(key: K, value: AccessibilitySettings[K]) => void;
   applyProfile: (profileId: string) => void;
+  applyPatch: (patch: Partial<AccessibilitySettings>) => void;
   reset: () => void;
   toggle: (key: keyof AccessibilitySettings) => void;
+  updateWidgetPosition: (position: AccessibilityWidgetPosition | null) => void;
 }
 
 const AccessibilityContext = createContext<AccessibilityContextValue | null>(null);
@@ -332,6 +371,10 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
     setSettings(prev => ({ ...prev, [key]: !prev[key], activeProfile: null } as AccessibilitySettings));
   }, []);
 
+  const updateWidgetPosition = useCallback((position: AccessibilityWidgetPosition | null) => {
+    setSettings(prev => ({ ...prev, mobileWidgetPosition: position }));
+  }, []);
+
   const applyProfile = useCallback((profileId: string) => {
     const profile = ACCESSIBILITY_PROFILES.find(item => item.id === profileId);
     if (!profile) return;
@@ -359,8 +402,17 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
 
   const reset = useCallback(() => setSettings(DEFAULT_SETTINGS), []);
 
+  // A diferencia de applyProfile (que resetea todo a DEFAULT_SETTINGS y le
+  // aplica el patch), esto combina el patch sobre lo que ya esta configurado
+  // — pensado para el cuestionario de onboarding, que va sumando respuestas
+  // una por una sin pisar ajustes previos del usuario.
+  const applyPatch = useCallback((patch: Partial<AccessibilitySettings>) => {
+    if (!patch || Object.keys(patch).length === 0) return;
+    setSettings(prev => ({ ...prev, ...patch, activeProfile: null }));
+  }, []);
+
   return (
-    <AccessibilityContext.Provider value={{ settings, update, applyProfile, reset, toggle }}>
+    <AccessibilityContext.Provider value={{ settings, update, applyProfile, applyPatch, reset, toggle, updateWidgetPosition }}>
       {children}
     </AccessibilityContext.Provider>
   );

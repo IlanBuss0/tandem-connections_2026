@@ -49,6 +49,7 @@ import type {
   PermisoOtorgadoProfesional,
   PlanSuscripcion,
   Profesional,
+  ResultadoActividadPersonalizada,
   PuntoOtorgado,
   ReporteUsuario,
   ResenaProfesional,
@@ -84,6 +85,11 @@ export type AuthPayload = {
   token?: string;
   accessToken?: string;
   expiresAt?: string;
+  professionalVerification?: {
+    status: string;
+    reviewStatus: string;
+    messageCode: string;
+  };
 };
 
 export type LoginRequest = {
@@ -92,9 +98,104 @@ export type LoginRequest = {
   contrasena: string;
 };
 
-export type RegisterRequest = Partial<Usuario> & {
-  contrasena?: string;
+export type RegisterRole = "perteneciente" | "tutor" | "profesional";
+
+export type RefepsProfessional =
+  | {
+      nombre: string | null;
+      apellido: string | null;
+      dni: string | null;
+      matricula: string | number;
+      profesion: string | null;
+      jurisdiccion: string | null;
+      habilitado: boolean;
+      estado: string | null;
+      especialidades: string[];
+    }
+  | Record<string, never>;
+
+export type RefepsSearchResult = {
+  found: boolean;
+  ambiguous: boolean;
+  results: RefepsProfessional[];
 };
+
+export type ProfessionalDniVerificationStatus =
+  | "PENDING"
+  | "VERIFIED"
+  | "MANUAL_REVIEW"
+  | "NOT_FOUND"
+  | "DATA_MISMATCH"
+  | "EXPIRED_DOCUMENT"
+  | "VERIFICATION_ERROR";
+
+export type ProfessionalDniVerificationResult = {
+  status: ProfessionalDniVerificationStatus;
+  reviewStatus: ProfessionalDniVerificationStatus;
+  verified: boolean;
+  reason: string | null;
+  messageCode: string;
+  dni?: {
+    nombre: string | null;
+    apellido: string | null;
+    dni: string | null;
+    nombreCompleto?: string | null;
+    fechaVencimiento?: string | null;
+    confidence: number;
+    structureScore?: number;
+    detectedFields?: string[];
+  } | null;
+};
+
+export type ProfessionalDniVerificationRequest = {
+  nombre: string;
+  apellido: string;
+  matricula: string;
+  dniFrente: File;
+  pdf417Raw?: string;
+};
+
+export interface TutorAccount {
+  id: number;
+  id_tutor: number;
+  nombre_usuario: string;
+  nombre: string;
+  apellido: string;
+  correo: string;
+  telefono: string | number | null;
+  parentesco: string | null;
+  email_verificado: boolean;
+}
+
+export type RegisterRequest = Pick<
+  Usuario,
+  "nombre_usuario" | "nombre" | "apellido" | "correo"
+> &
+  Partial<Pick<Usuario, "telefono" | "fecha_nacimiento">> & {
+    contrasena: string;
+    rol: RegisterRole;
+    // Solo para rol "tutor"
+    parentesco?: string;
+    // Solo para rol "profesional"
+    profesion?: string;
+    matricula?: string;
+    especialidad?: string;
+    institucion?: string;
+    dniFrente?: File;
+  };
+
+function authFormData(payload: Partial<RegisterRequest> & { accessToken?: string }): FormData {
+  const formData = new FormData();
+  Object.entries(payload).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    if (key === "dniFrente" && value instanceof File) {
+      formData.append("dni_frente", value);
+      return;
+    }
+    formData.append(key, String(value));
+  });
+  return formData;
+}
 
 export const authApi = {
   async login(payload: LoginRequest): Promise<AuthPayload> {
@@ -108,6 +209,14 @@ export const authApi = {
   },
 
   async register(payload: RegisterRequest): Promise<AuthPayload> {
+    if (payload.rol === "profesional") {
+      const response = await apiUploadFile<ApiEnvelope<AuthPayload>>(
+        "/api/auth/register",
+        authFormData(payload),
+      );
+      return unwrapApiData(response);
+    }
+
     const response = await apiRequest<ApiEnvelope<AuthPayload>>("/api/auth/register", {
       method: "POST",
       body: payload,
@@ -141,6 +250,86 @@ export const authApi = {
 
     return unwrapApiData(response);
   },
+
+  async google(payload: { accessToken: string; rol?: RegisterRole } & Partial<RegisterRequest>): Promise<AuthPayload> {
+    if (payload.rol === "profesional") {
+      const response = await apiUploadFile<ApiEnvelope<AuthPayload>>(
+        "/api/auth/google",
+        authFormData(payload),
+      );
+      return unwrapApiData(response);
+    }
+
+    const response = await apiRequest<ApiEnvelope<AuthPayload>>("/api/auth/google", {
+      method: "POST",
+      body: payload,
+    });
+
+    return unwrapApiData(response);
+  },
+
+  async verifyProfessionalDni(payload: ProfessionalDniVerificationRequest): Promise<ProfessionalDniVerificationResult> {
+    const response = await apiUploadFile<ApiEnvelope<ProfessionalDniVerificationResult>>(
+      "/api/auth/verify-professional-dni",
+      authFormData(payload),
+    );
+    return unwrapApiData(response);
+  },
+
+  async verifyEmail(token: string): Promise<{ verified: boolean }> {
+    const response = await apiRequest<ApiEnvelope<{ verified: boolean }>>(
+      `/api/auth/verify-email?token=${encodeURIComponent(token)}`,
+    );
+
+    return unwrapApiData(response);
+  },
+
+  async resendVerification(): Promise<{ sent: boolean }> {
+    const response = await apiRequest<ApiEnvelope<{ sent: boolean }>>("/api/auth/resend-verification", {
+      method: "POST",
+    });
+
+    return unwrapApiData(response);
+  },
+
+  async forgotPassword(correo: string): Promise<{ sent: boolean }> {
+    const response = await apiRequest<ApiEnvelope<{ sent: boolean }>>("/api/auth/forgot-password", { method: "POST", body: { correo } });
+    return unwrapApiData(response);
+  },
+
+  async resetPassword(payload: { token: string; contrasena_nueva: string }): Promise<{ changed: boolean }> {
+    const response = await apiRequest<ApiEnvelope<{ changed: boolean }>>("/api/auth/reset-password", { method: "POST", body: payload });
+    return unwrapApiData(response);
+  },
+
+  async getTutorAccount(): Promise<TutorAccount> {
+    const response = await apiRequest<ApiEnvelope<TutorAccount>>("/api/auth/tutor-account");
+    return unwrapApiData(response);
+  },
+
+  async updateTutorAccount(payload: Pick<TutorAccount, "nombre" | "apellido" | "correo" | "telefono" | "parentesco"> & { contrasena_actual?: string }): Promise<TutorAccount> {
+    const response = await apiRequest<ApiEnvelope<TutorAccount>>("/api/auth/tutor-account", {
+      method: "PATCH",
+      body: payload,
+    });
+    return unwrapApiData(response);
+  },
+
+  async changePassword(payload: { contrasena_actual: string; contrasena_nueva: string }): Promise<{ changed: boolean }> {
+    const response = await apiRequest<ApiEnvelope<{ changed: boolean }>>("/api/auth/password", {
+      method: "PATCH",
+      body: payload,
+    });
+    return unwrapApiData(response);
+  },
+
+  async changeEmail(payload: { contrasena_actual: string; correo_nuevo: string }): Promise<{ correo: string; email_verificado: boolean }> {
+    const response = await apiRequest<ApiEnvelope<{ correo: string; email_verificado: boolean }>>("/api/auth/email", {
+      method: "PATCH",
+      body: payload,
+    });
+    return unwrapApiData(response);
+  },
 };
 
 class NotificationApiService {
@@ -157,6 +346,42 @@ class NotificationApiService {
   async markAllRead(): Promise<void> {
     await apiRequest("/api/notificaciones/read-all", {
       method: "PATCH",
+    });
+  }
+}
+
+class RefepsApiService {
+  async searchByMatricula(matricula: string): Promise<RefepsSearchResult> {
+    const response = await apiRequest<{
+      ok: boolean;
+      data: RefepsSearchResult;
+    }>("/api/refeps/search-refeps", {
+      method: "POST",
+      body: { matricula },
+      cacheTtlMs: 0,
+    });
+    return unwrapApiData(response?.data ?? response);
+  }
+
+  async searchByDni(dni: string): Promise<RefepsSearchResult> {
+    const response = await apiRequest<{ ok: boolean; data: RefepsSearchResult }>("/api/refeps/search-refeps", {
+      method: "POST", body: { dni }, cacheTtlMs: 0,
+    });
+    return unwrapApiData(response?.data ?? response);
+  }
+}
+
+class CustomActivityApiService extends CrudApiService<ActividadPersonalizada> {
+  getResults(id: number): Promise<ResultadoActividadPersonalizada[]> {
+    return apiRequest<ResultadoActividadPersonalizada[]>(`/api/actividades-personalizadas/${encodeURIComponent(String(id))}/resultados`);
+  }
+}
+
+class AssignedActivityApiService extends CrudApiService<ActividadAsignada> {
+  complete(id: number, score?: number): Promise<ActividadAsignada> {
+    return apiRequest<ActividadAsignada>(`/api/actividades-asignadas/${encodeURIComponent(String(id))}/completar`, {
+      method: 'POST',
+      body: score === undefined ? {} : { puntaje: score },
     });
   }
 }
@@ -182,13 +407,14 @@ class FileApiService extends CrudApiService<Archivo> {
 
 export const tandemApi = {
   auth: authApi,
+  refeps: new RefepsApiService(),
   usuarios: new CrudApiService<Usuario>("/api/usuarios"),
   pertenecientes: new CrudApiService<Perteneciente>("/api/pertenecientes"),
   tutores: new CrudApiService<Tutor>("/api/tutores"),
   profesionales: new CrudApiService<Profesional>("/api/profesionales"),
   actividades: new CrudApiService<Actividad>("/api/actividades"),
-  actividadesPersonalizadas: new CrudApiService<ActividadPersonalizada>("/api/actividades-personalizadas"),
-  actividadesAsignadas: new CrudApiService<ActividadAsignada>("/api/actividades-asignadas"),
+  actividadesPersonalizadas: new CustomActivityApiService("/api/actividades-personalizadas"),
+  actividadesAsignadas: new AssignedActivityApiService("/api/actividades-asignadas"),
   favoritosActividades: new CrudApiService<FavoritoActividad>("/api/favoritos-actividades"),
   calificacionesActividades: new CrudApiService<CalificacionActividad>("/api/calificaciones-actividades"),
   avatares: new CrudApiService<Avatar>("/api/avatares"),
