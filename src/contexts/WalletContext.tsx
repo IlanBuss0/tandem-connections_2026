@@ -65,7 +65,7 @@ const KEY = (userId: string) => `tandem:wallet:${userId}`;
 
 const TYPE_BY_CATEGORY: Record<ShopCategory, string> = {
   pelo: 'Sombrero',
-  accenorio: 'Accenorio',
+  accesorio: 'Accenorio',
   ropa: 'Ropa',
   fondo: 'Fondo',
   mascota: 'Mascota',
@@ -326,7 +326,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       return () => window.cancelIdleCallback(idleId);
     }
 
-    const timer = window.setTimeout(run, 1200);
+    const timer = setTimeout(run, 1200);
     return () => window.clearTimeout(timer);
   }, [refresh, seedPoints, user, userId]);
 
@@ -498,7 +498,7 @@ async function ensureShopTypes(currentTypes: TipoItemAvatar[]) {
   const next = [...currentTypes];
   for (const typeName of Array.from(new Set(Object.values(TYPE_BY_CATEGORY)))) {
     if (next.some(type => type.nombre === typeName)) continue;
-    const created = await tandemApi.tiposItemsAvatares.create({ nombre: typeName, orden: next.length + 1 });
+    const created = await tandemApi.tiposItemsAvatares.create({ nombre: typeName as TipoItemAvatar['nombre'], orden: next.length + 1});
     next.push({ id: Number(created.id), nombre: typeName as TipoItemAvatar['nombre'], orden: next.length + 1 });
   }
   return next;
