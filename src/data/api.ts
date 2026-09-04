@@ -986,14 +986,13 @@ function backendDateToLocalISO(value?: string | null): string | null {
 
 async function fetchBackendAchievementDashboard(userId: string): Promise<AchievementDashboard> {
   const idUsuario = Number(userId);
-  const [pertenecientes, saldos, avatares, configs] = await Promise.all([
-    tandemApi.pertenecientes.getAll(),
+  const [perteneciente, saldos, avatares, configs] = await Promise.all([
+    fetchPertenecienteByUsuarioId(idUsuario),
     tandemApi.saldosPuntos.getAll(),
     tandemApi.avatares.getAll(),
     fetchUserConfigs(idUsuario),
   ]);
 
-  const perteneciente = pertenecientes.find((item) => item.id_usuario === idUsuario);
   const idPerteneciente = perteneciente?.id;
   const assignedForUser = idPerteneciente ? await fetchAssignedActivitiesByPerteneciente(idPerteneciente) : [];
   const completed = assignedForUser.filter((item) => item.fecha_completada || item.id_estado_actividad === 3);
@@ -1068,7 +1067,7 @@ async function fetchBackendUserProfileDashboard(userId: string): Promise<UserPro
   const idUsuario = Number(userId);
   const [
     usuarios,
-    pertenecientes,
+    perteneciente,
     nivelesApoyo,
     autonomias,
     saldos,
@@ -1081,7 +1080,7 @@ async function fetchBackendUserProfileDashboard(userId: string): Promise<UserPro
     planes,
   ] = await Promise.all([
     tandemApi.usuarios.getAll(),
-    tandemApi.pertenecientes.getAll(),
+    fetchPertenecienteByUsuarioId(idUsuario),
     tandemApi.nivelesApoyos.getAll(),
     tandemApi.autonomiasOperativas.getAll(),
     tandemApi.saldosPuntos.getAll(),
@@ -1095,7 +1094,6 @@ async function fetchBackendUserProfileDashboard(userId: string): Promise<UserPro
   ]);
 
   const usuario = usuarios.find((item) => Number(item.id) === idUsuario) || null;
-  const perteneciente = (pertenecientes as DbPerteneciente[]).find((item) => Number(item.id_usuario) === idUsuario) || null;
 
   if (!perteneciente) {
     return {
@@ -1176,11 +1174,10 @@ async function fetchBackendUserProfileDashboard(userId: string): Promise<UserPro
 
 async function fetchUserAvatarUrl(userId: number): Promise<string | null> {
   try {
-    const [pertenecientes, avatares] = await Promise.all([
-      tandemApi.pertenecientes.getAll(),
+    const [pp, avatares] = await Promise.all([
+      fetchPertenecienteByUsuarioId(userId),
       tandemApi.avatares.getAll(),
     ]);
-    const pp = (pertenecientes as DbPerteneciente[]).find(p => Number(p.id_usuario) === userId);
     if (!pp) return null;
     const avatar = (avatares as DbAvatar[]).find(a => Number(a.id_perteneciente) === Number(pp.id));
     return avatar?.avatar_imagen_url || avatar?.avatar_imagen_origen_url || null;
@@ -1211,6 +1208,12 @@ export async function searchRefepsProfessional(
   matricula: string,
 ): Promise<import('@/services/api').RefepsSearchResult> {
   return tandemApi.refeps.searchByMatricula(matricula);
+}
+
+export async function searchRefepsByDni(
+  dni: string,
+): Promise<import('@/services/api').RefepsSearchResult> {
+  return tandemApi.refeps.searchByDni(dni);
 }
 
 export async function verifyProfessionalDni(
@@ -1629,12 +1632,11 @@ export async function fetchActivitiesForUser(userId: string): Promise<Activity[]
 
   try {
     const numericUserId = Number(userId);
-    const [pertenecientes, actividades, estados] = await Promise.all([
-      tandemApi.pertenecientes.getAll(),
+    const [perteneciente, actividades, estados] = await Promise.all([
+      fetchPertenecienteByUsuarioId(numericUserId),
       tandemApi.actividades.getAll(),
       tandemApi.estadosActividades.getAll(),
     ]);
-    const perteneciente = pertenecientes.find(item => Number(item.id_usuario) === numericUserId);
     if (!perteneciente) return [];
 
     const [asignadas, actividadesPersonalizadas] = await Promise.all([
@@ -1673,8 +1675,7 @@ export async function completeAssignedActivity(activity: Activity, userId: strin
     const numericUserId = Number(userId);
     const backendCustomActivityId = Number((activity as any).backendCustomActivityId || (activity as any).backendId);
     const backendActivityId = Number((activity as any).backendActivityId);
-    const pertenecientes = await tandemApi.pertenecientes.getAll();
-    const perteneciente = pertenecientes.find(item => Number(item.id_usuario) === numericUserId);
+    const perteneciente = await fetchPertenecienteByUsuarioId(numericUserId);
     const asignadas = perteneciente ? await fetchAssignedActivitiesByPerteneciente(Number(perteneciente.id)) : [];
     const assignment = asignadas.find(item =>
       (
@@ -1776,8 +1777,7 @@ async function fetchPendingAssignedActivitiesAsCalendarEvents(userId: string): P
   if (!isBackendUserId(userId)) return [];
   try {
     const numericUserId = Number(userId);
-    const pertenecientes = await tandemApi.pertenecientes.getAll();
-    const perteneciente = (pertenecientes as DbPerteneciente[]).find(item => Number(item.id_usuario) === numericUserId);
+    const perteneciente = await fetchPertenecienteByUsuarioId(numericUserId);
     if (!perteneciente) return [];
 
     const [actividades, estados, asignadas, actividadesPersonalizadas] = await Promise.all([

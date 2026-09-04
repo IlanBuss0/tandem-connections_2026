@@ -16,6 +16,7 @@ import VerifyEmailPage from '@/pages/VerifyEmailPage';
 import PasswordRecoveryPage from '@/pages/PasswordRecoveryPage';
 import EmailVerificationGate from '@/pages/EmailVerificationGate';
 import OnboardingQuestionnaire from '@/pages/OnboardingQuestionnaire';
+import Pdf417TestPage from '@/pages/Pdf417TestPage';
 import AppShell from '@/components/AppShell';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -128,7 +129,9 @@ function AuthGate() {
   };
 
   const isPasswordRecoveryRoute = passwordRecoveryPath === '/olvidaste-contrasena' || passwordRecoveryPath === '/restablecer-contrasena';
-  const content = isPasswordRecoveryRoute ? (
+  const content = window.location.pathname === '/test/pdf417' ? (
+    <Pdf417TestPage />
+  ) : isPasswordRecoveryRoute ? (
     <PasswordRecoveryPage isReset={passwordRecoveryPath === '/restablecer-contrasena'} token={new URLSearchParams(window.location.search).get('token')} onGoToLogin={() => navigatePublic('login')} />
   ) : isVerifyEmailRoute ? (
     <VerifyEmailPage token={verifyEmailToken} onGoToLogin={() => navigatePublic('login')} />

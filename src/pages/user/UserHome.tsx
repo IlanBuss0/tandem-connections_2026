@@ -10,10 +10,6 @@ import {
   FileText,
   ChevronLeft,
   ChevronRight,
-  Sparkles,
-  Smile,
-  Paperclip,
-  Send,
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { createPersonalNote, fetchPertenecienteHome, PertenecienteHomeData, PertenecienteHomeActivity } from '@/data/api';
@@ -357,7 +353,7 @@ export default function UserHome({ onNavigate }: Props) {
         </div>
       </div>
 
-      <div className="mx-auto mt-8 sm:mt-10 flex w-full max-w-5xl flex-col space-y-3">
+      <div className="mx-auto mt-8 sm:mt-10 flex w-full max-w-6xl flex-col space-y-3">
         <section
           data-reveal-section
           ref={el => { panelRefs.current[0] = el; }}
@@ -470,12 +466,7 @@ export default function UserHome({ onNavigate }: Props) {
               className="mt-4 w-full resize-none rounded-2xl border border-[#efe8f8] bg-[#fcf9ff] p-3 text-sm text-[#4a4a5a] placeholder:text-[#8b7aa0] outline-none transition focus:ring-0"
             />
 
-            <div className="mt-4 flex items-center justify-between">
-              <div className="flex items-center gap-3 text-[#8b7aa0]">
-                <Smile size={18} className="cursor-pointer transition hover:text-[#6f4ca6]" />
-                <Paperclip size={16} className="cursor-pointer transition hover:text-[#6f4ca6]" />
-              </div>
-
+            <div className="mt-4 flex items-center justify-end">
               <div className="flex items-center gap-3">
                 {saved && (
                   <span className="text-xs font-medium text-emerald-600">Nota guardada</span>
@@ -506,23 +497,24 @@ export default function UserHome({ onNavigate }: Props) {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mt-4">
+            <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 sm:gap-3 mt-4">
               {[
-                { id: 'tranquilo', label: 'Tranquilo', emoji: '😌' },
-                { id: 'contento', label: 'Contento', emoji: '😊' },
-                { id: 'animado', label: 'Animado', emoji: '🎉' },
-                { id: 'ansioso', label: 'Ansioso', emoji: '😟' },
-                { id: 'frustrado', label: 'Frustrado', emoji: '😤' },
-                { id: 'motivado', label: 'Motivado', emoji: '💪' },
+                { id: 'tranquilo', label: 'Tranquilo', emoji: '😌', bg: 'bg-[#eaf8f4] border-[#cde8dc]' },
+                { id: 'contento', label: 'Contento', emoji: '😊', bg: 'bg-[#fff7dc] border-[#f2e3ac]' },
+                { id: 'animado', label: 'Animado', emoji: '🎉', bg: 'bg-[#eef5ff] border-[#cddef5]' },
+                { id: 'ansioso', label: 'Ansioso', emoji: '😟', bg: 'bg-[#eef3fb] border-[#d3e1f0]' },
+                { id: 'frustrado', label: 'Frustrado', emoji: '😤', bg: 'bg-[#ffeded] border-[#f5cfcf]' },
+                { id: 'motivado', label: 'Motivado', emoji: '💪', bg: 'bg-[#f0edff] border-[#ddd6f2]' },
               ].map(e => (
                 <button
                   key={e.id}
                   aria-label={e.label}
                   aria-pressed={selectedBoardEmotion?.label === e.label}
                   onClick={() => { setSelectedBoardEmotion({ label: e.label, emoji: e.emoji }); setBoardEmotionSaved(false); }}
-                  className={`flex min-h-14 items-center justify-center rounded-lg border px-3 py-3 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6f4ca6] focus-visible:ring-offset-2 ${selectedBoardEmotion?.label === e.label ? 'border-[#6f4ca6] bg-[#f1e8ff] ring-2 ring-[#6f4ca6]/20' : 'border-[#efe8f8] bg-[#fcf9ff] hover:bg-[#f8f2ff]'}`}
+                  className={`flex min-h-[76px] flex-col items-center justify-center gap-1 rounded-2xl border-2 p-2.5 transition duration-200 hover:-translate-y-0.5 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6f4ca6] focus-visible:ring-offset-2 ${e.bg} ${selectedBoardEmotion?.label === e.label ? 'ring-2 ring-[#6f4ca6]/30 scale-[1.03]' : ''}`}
                 >
-                  <span className="inline-flex h-10 w-10 items-center justify-center text-2xl leading-none" aria-hidden="true">{e.emoji}</span>
+                  <span className="text-[30px] leading-none sm:text-[34px]" aria-hidden="true">{e.emoji}</span>
+                  <span className={`text-[11px] font-semibold leading-tight ${selectedBoardEmotion?.label === e.label ? 'text-[#6f4ca6]' : 'text-[#5b4c6e]'}`}>{e.label}</span>
                 </button>
               ))}
             </div>

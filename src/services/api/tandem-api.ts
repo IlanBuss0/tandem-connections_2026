@@ -361,6 +361,13 @@ class RefepsApiService {
     });
     return unwrapApiData(response?.data ?? response);
   }
+
+  async searchByDni(dni: string): Promise<RefepsSearchResult> {
+    const response = await apiRequest<{ ok: boolean; data: RefepsSearchResult }>("/api/refeps/search-refeps", {
+      method: "POST", body: { dni }, cacheTtlMs: 0,
+    });
+    return unwrapApiData(response?.data ?? response);
+  }
 }
 
 class CustomActivityApiService extends CrudApiService<ActividadPersonalizada> {
