@@ -979,7 +979,7 @@ async function fetchBackendAchievementDashboard(userId: string): Promise<Achieve
     tandemApi.pertenecientes.getAll(),
     tandemApi.saldosPuntos.getAll(),
     tandemApi.avatares.getAll(),
-    tandemApi.configuracionesUsuarios.getAll(),
+    fetchUserConfigs(idUsuario),
   ]);
 
   const perteneciente = pertenecientes.find((item) => item.id_usuario === idUsuario);
@@ -999,7 +999,7 @@ async function fetchBackendAchievementDashboard(userId: string): Promise<Achieve
     : undefined;
   const emotionDays = new Set(
     configs
-      .filter((config) => config.id_usuario === idUsuario && config.clave.startsWith('emotion:'))
+      .filter((config) => config.clave.startsWith('emotion:'))
       .map((config) => parseEmotionConfig(config)?.date || config.fecha_modificacion.split('T')[0])
       .filter(Boolean)
   ).size;
@@ -1899,14 +1899,22 @@ export async function deleteCalendarEvent(eventId: string): Promise<void> {
   await apiFetchWithFallback<unknown>([`/calendar/events/${encodeURIComponent(eventId)}`], { method: 'DELETE' });
 }
 
+// Trae las configuraciones de un usuario puntual desde el endpoint que ya
+// filtra server-side (con permiso validado y cache en backend), en vez de
+// traer la tabla completa de configuraciones_usuarios y filtrar en el cliente.
+async function fetchUserConfigs(userId: number): Promise<ConfiguracionUsuario[]> {
+  return apiRequest<ConfiguracionUsuario[]>(
+    `/api/configuraciones-usuarios/usuario/${encodeURIComponent(String(userId))}`,
+  );
+}
+
 export async function fetchEmotionRecordsForUser(userId: string): Promise<EmotionalRecord[]> {
   if (isBackendUserId(userId)) {
     try {
-      const idUsuario = Number(userId);
-      const configs = await tandemApi.configuracionesUsuarios.getAll();
+      const configs = await fetchUserConfigs(Number(userId));
 
       return configs
-        .filter((config) => config.id_usuario === idUsuario && config.clave.startsWith('emotion:'))
+        .filter((config) => config.clave.startsWith('emotion:'))
         .map(parseEmotionConfig)
         .filter((record): record is EmotionalRecord => Boolean(record))
         .sort((a, b) => `${b.date} ${b.timestamp}`.localeCompare(`${a.date} ${a.timestamp}`));
@@ -1955,9 +1963,9 @@ export async function deleteEmotionRecord(recordId: string): Promise<void> {
 export async function fetchPersonalNotesForUser(userId: string): Promise<PersonalNote[]> {
   if (!isBackendUserId(userId)) return [];
 
-  const configs = await tandemApi.configuracionesUsuarios.getAll();
+  const configs = await fetchUserConfigs(Number(userId));
   return configs
-    .filter((config) => config.id_usuario === Number(userId) && config.clave.startsWith('personal-note:'))
+    .filter((config) => config.clave.startsWith('personal-note:'))
     .map(parsePersonalNoteConfig)
     .filter((note): note is PersonalNote => Boolean(note))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
