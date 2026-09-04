@@ -152,6 +152,7 @@ export type ProfessionalDniVerificationRequest = {
   apellido: string;
   matricula: string;
   dniFrente: File;
+  pdf417Raw?: string;
 };
 
 export interface TutorAccount {

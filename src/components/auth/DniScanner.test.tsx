@@ -3,8 +3,19 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DniScanner } from './DniScanner';
 
+const zxing = vi.hoisted(() => ({ callback: null as ((result: { getText: () => string } | undefined) => void) | null, stop: vi.fn() }));
+
+vi.mock('@zxing/browser', () => ({
+  BrowserPDF417Reader: class {
+    async decodeFromVideoElement(_video: HTMLVideoElement, callback: (result: { getText: () => string } | undefined) => void) {
+      zxing.callback = callback;
+      return { stop: zxing.stop };
+    }
+  },
+}));
+
 describe('DniScanner', () => {
-  afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
+  afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); zxing.callback = null; zxing.stop.mockReset(); });
 
   it('solicita la cámara trasera y muestra el video', async () => {
     const getUserMedia = vi.fn().mockResolvedValue({ getTracks: () => [{ stop: vi.fn() }] });
@@ -41,5 +52,23 @@ describe('DniScanner', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(1000); }); expect(screen.getByRole('status')).toHaveTextContent('1s');
     await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
     expect(onCapture).toHaveBeenCalledTimes(1); expect(stop).toHaveBeenCalled();
+  });
+
+  it('conserva el texto PDF417 detectado para enviarlo junto a la captura', async () => {
+    vi.useFakeTimers();
+    const onCapture = vi.fn();
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: vi.fn().mockResolvedValue({ getTracks: () => [{ stop: vi.fn() }] }) } });
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage: vi.fn(), getImageData: vi.fn(() => ({ data: Uint8ClampedArray.from({ length: 160 * 100 * 4 }, (_, index) => { const pixel = Math.floor(index / 4); const x = pixel % 160; const y = Math.floor(pixel / 160); const value = x < 5 || x > 154 || y < 5 || y > 94 ? 125 : (x + y) % 2 ? 50 : 200; return value; }) })) } as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(callback => callback(new Blob(['dni'], { type: 'image/jpeg' })));
+    render(<DniScanner onCapture={onCapture} />);
+    fireEvent.click(screen.getByRole('button', { name: /escanear dni/i }));
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    await act(async () => { zxing.callback?.({ getText: () => 'PDF417-REAL' }); });
+    expect(screen.getAllByText(/pdf417 detectado/i)).not.toHaveLength(0);
+    const video = screen.getByLabelText(/c.mara para escanear/i);
+    Object.defineProperties(video, { readyState: { value: 4 }, videoWidth: { value: 1280 }, videoHeight: { value: 720 } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
+    expect(onCapture).toHaveBeenCalledWith(expect.any(File), 'PDF417-REAL');
   });
 });

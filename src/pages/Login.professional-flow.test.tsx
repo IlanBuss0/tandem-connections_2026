@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Login from './Login';
 
 const searchRefepsProfessional = vi.fn();
+const searchRefepsByDni = vi.fn();
 const verifyProfessionalDni = vi.fn();
 
 vi.mock('@/contexts/AuthContext', () => ({
@@ -16,6 +17,7 @@ vi.mock('@/contexts/AuthContext', () => ({
 
 vi.mock('@/data/api', () => ({
   searchRefepsProfessional: (...args: unknown[]) => searchRefepsProfessional(...args),
+  searchRefepsByDni: (...args: unknown[]) => searchRefepsByDni(...args),
   verifyProfessionalDni: (...args: unknown[]) => verifyProfessionalDni(...args),
 }));
 
@@ -69,6 +71,7 @@ function expectScrollableRefepsModal() {
 describe('professional registration flow', () => {
   beforeEach(() => {
     searchRefepsProfessional.mockReset();
+    searchRefepsByDni.mockReset();
     verifyProfessionalDni.mockReset();
     URL.createObjectURL = vi.fn(() => 'blob:dni-preview');
     URL.revokeObjectURL = vi.fn();
@@ -109,6 +112,19 @@ describe('professional registration flow', () => {
     expect(await screen.findByText('Lic. Juan Perez')).toBeInTheDocument();
     expect(screen.getByText('Lic. Maria Gonzalez')).toBeInTheDocument();
     expect(screen.getAllByText('Psicología')).toHaveLength(2);
+  });
+
+  it('switches to DNI search and queries the public DNI lookup', async () => {
+    searchRefepsByDni.mockResolvedValueOnce({ found: true, ambiguous: false, results: buildRefepsResults(1) });
+    openProfessionalRegistration();
+
+    fireEvent.click(screen.getByRole('button', { name: /por dni/i }));
+    expect(screen.getByRole('button', { name: /por dni/i })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.change(screen.getByLabelText(/^dni$/i), { target: { value: '30123456' } });
+    fireEvent.click(screen.getByRole('button', { name: /continuar/i }));
+
+    await waitFor(() => expect(searchRefepsByDni).toHaveBeenCalledWith('30123456'));
+    expect(searchRefepsProfessional).not.toHaveBeenCalled();
   });
 
   it('keeps the professional selection modal scrollable with one result', async () => {
