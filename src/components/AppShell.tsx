@@ -313,7 +313,7 @@ export default function AppShell() {
 
         {/* Main content */}
         <main ref={mainRef} className="flex-1 min-w-0 overflow-y-auto">
-          <div className="max-w-7xl mx-auto p-3 pb-24 sm:p-4 sm:pb-24 lg:p-6">
+          <div className="max-w-7xl mx-auto p-3 pb-24 sm:p-4 sm:pb-24 lg:p-6 lg:pb-8">
             <Suspense fallback={<ScreenFallback />}>{renderContent()}</Suspense>
           </div>
         </main>
