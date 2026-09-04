@@ -28,7 +28,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import type { ProfessionalDniVerificationResult, RegisterRole, RefepsProfessional, RefepsSearchResult } from '@/services/api';
-import { searchRefepsProfessional, verifyProfessionalDni } from '@/data/api';
+import { searchRefepsByDni, searchRefepsProfessional, verifyProfessionalDni } from '@/data/api';
 import { DniScanner } from '@/components/auth/DniScanner';
 
 type AuthView = 'welcome' | 'login' | 'register';
@@ -155,6 +155,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
   // Flujo profesional por pasos.
   const [profStep, setProfStep] = useState<ProfStep>('matricula');
   const [profMatricula, setProfMatricula] = useState('');
+  const [profSearchMode, setProfSearchMode] = useState<'matricula' | 'dni'>('matricula');
   const [profSearching, setProfSearching] = useState(false);
   const [refepsData, setRefepsData] = useState<RefepsSearchResult | null>(null);
   const [selectedProfessional, setSelectedProfessional] = useState<RefepsProfessional | null>(null);
@@ -203,7 +204,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     setDniVerification({ status: 'idle', message: 'Ubicá el frente de tu DNI dentro del recuadro.' });
   };
 
-  const updateAndVerifyDniFrente = (file: File | null) => {
+  const updateAndVerifyDniFrente = (file: File | null, pdf417Raw?: string) => {
     updateDniFrente(file);
     if (!file) return;
 
@@ -215,10 +216,10 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
       return;
     }
 
-    void verifyDniFrente(file, selectedProfessional);
+    void verifyDniFrente(file, selectedProfessional, pdf417Raw);
   };
 
-  const verifyDniFrente = async (file: File, professional: RefepsProfessional) => {
+  const verifyDniFrente = async (file: File, professional: RefepsProfessional, pdf417Raw?: string) => {
     setDniVerification({ status: 'processing', message: 'Verificando tu DNI...' });
     try {
       const result = await verifyProfessionalDni({
@@ -226,6 +227,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
         matricula: String(professional.matricula),
         nombre: professional.nombre || '',
         apellido: professional.apellido || '',
+        pdf417Raw,
       });
       setDniVerification(toDniVerificationState(result));
     } catch {
@@ -239,6 +241,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
   const resetProfessionalFlow = () => {
     setProfStep('matricula');
     setProfMatricula('');
+    setProfSearchMode('matricula');
     setProfSearching(false);
     setRefepsData(null);
     setSelectedProfessional(null);
@@ -371,17 +374,19 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     setError('');
     setRefepsError('');
     const matricula = profMatricula.trim();
-    if (!MATRICULA_REGEX.test(matricula)) {
-      setRefepsError('La matrícula debe tener al menos 4 dígitos y solo números.');
+    const dni = matricula.replace(/\D/g, '');
+    const searchIsValid = profSearchMode === 'dni' ? /^\d{7,8}$/.test(dni) : MATRICULA_REGEX.test(matricula);
+    if (!searchIsValid) {
+      setRefepsError(profSearchMode === 'dni' ? 'El DNI debe tener 7 u 8 dígitos.' : 'La matrícula debe tener al menos 4 dígitos y solo números.');
       return;
     }
 
     setProfSearching(true);
     try {
-      const result = await searchRefepsProfessional(matricula);
+      const result = profSearchMode === 'dni' ? await searchRefepsByDni(dni) : await searchRefepsProfessional(matricula);
       setRefepsData(result);
       if (!result.found) {
-        setRefepsError('No encontramos ninguna matrícula con ese número. Revisalo e intentá de nuevo.');
+        setRefepsError(profSearchMode === 'dni' ? 'No encontramos ningún profesional con ese DNI.' : 'No encontramos ninguna matrícula con ese número. Revisalo e intentá de nuevo.');
         return;
       }
       // Resultado único: lo seleccionamos y abrimos el modal de preview.
@@ -640,6 +645,8 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
                 profStep={profStep}
                 profProgress={profProgress[profStep]}
                 profMatricula={profMatricula}
+                profSearchMode={profSearchMode}
+                onSearchModeChange={mode => { setProfSearchMode(mode); setProfMatricula(''); setRefepsError(''); }}
                 setProfMatricula={value => setProfMatricula(value.replace(/\D/g, ''))}
                 profSearching={profSearching}
                 refepsError={refepsError}
@@ -794,6 +801,8 @@ function ProfessionalFlow({
   profStep,
   profProgress,
   profMatricula,
+  profSearchMode,
+  onSearchModeChange,
   setProfMatricula,
   profSearching,
   refepsError,
@@ -827,6 +836,8 @@ function ProfessionalFlow({
   profStep: ProfStep;
   profProgress: ProfProgress;
   profMatricula: string;
+  profSearchMode: 'matricula' | 'dni';
+  onSearchModeChange: (mode: 'matricula' | 'dni') => void;
   setProfMatricula: (v: string) => void;
   profSearching: boolean;
   refepsError: string;
@@ -836,7 +847,7 @@ function ProfessionalFlow({
   toggleSpecialty: (name: string) => void;
   registerDniPreview: string | null;
   registerDniFrente: File | null;
-  updateDniFrente: (file: File | null) => void;
+  updateDniFrente: (file: File | null, pdf417Raw?: string) => void;
   dniVerification: DniVerificationState;
   onGoToAccount: () => void;
   onBackToMatricula: () => void;
@@ -857,7 +868,7 @@ function ProfessionalFlow({
   onRegister: (e: React.FormEvent) => void;
   error: string;
 }) {
-  const matriculaReady = MATRICULA_REGEX.test(profMatricula.trim());
+  const matriculaReady = profSearchMode === 'dni' ? /^\d{7,8}$/.test(profMatricula.replace(/\D/g, '')) : MATRICULA_REGEX.test(profMatricula.trim());
   const canContinueIdentity = !!registerDniFrente && dniVerification.status === 'verified' && !registerLoading && !googleLoading;
 
   useEffect(() => {
@@ -888,11 +899,18 @@ function ProfessionalFlow({
               </p>
             </div>
 
+            <div className="grid grid-cols-2 gap-2 rounded-2xl bg-[#C9A7EB]/15 p-1">
+              {(['matricula', 'dni'] as const).map(mode => (
+                <button key={mode} type="button" aria-pressed={profSearchMode === mode} onClick={() => onSearchModeChange(mode)} className={`min-h-10 rounded-xl px-3 text-sm font-bold transition ${profSearchMode === mode ? 'bg-white text-[#6F518E] shadow-sm' : 'text-[#6F518E]/65'}`}>
+                  {mode === 'matricula' ? 'Por matrícula' : 'Por DNI'}
+                </button>
+              ))}
+            </div>
             <AuthField
-              label="Matrícula"
+              label={profSearchMode === 'dni' ? 'DNI' : 'Matrícula'}
               value={profMatricula}
               onChange={e => setProfMatricula(e.target.value)}
-              placeholder="Tu número de matrícula"
+              placeholder={profSearchMode === 'dni' ? 'Tu número de DNI' : 'Tu número de matrícula'}
               autoComplete="off"
               inputMode="numeric"
               pattern="[0-9]*"
@@ -907,7 +925,7 @@ function ProfessionalFlow({
 
             {!profSearching && refepsError && <Feedback message={refepsError} />}
             {!profSearching && profMatricula.length > 0 && !matriculaReady && !refepsError && (
-              <Feedback message="La matrícula debe tener al menos 4 dígitos." />
+              <Feedback message={profSearchMode === 'dni' ? 'El DNI debe tener 7 u 8 dígitos.' : 'La matrícula debe tener al menos 4 dígitos.'} />
             )}
             {!profSearching && error && <Feedback message={error} />}
 
@@ -1278,7 +1296,7 @@ function DniFrontField({
   fileName: string | null;
   previewUrl: string | null;
   verification: DniVerificationState;
-  onCapture: (file: File) => void;
+  onCapture: (file: File, pdf417Raw?: string) => void;
   onClear: () => void;
   onBackToMatricula: () => void;
 }) {

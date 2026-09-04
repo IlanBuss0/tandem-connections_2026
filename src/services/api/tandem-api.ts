@@ -152,6 +152,7 @@ export type ProfessionalDniVerificationRequest = {
   apellido: string;
   matricula: string;
   dniFrente: File;
+  pdf417Raw?: string;
 };
 
 export interface TutorAccount {
@@ -358,6 +359,13 @@ class RefepsApiService {
       method: "POST",
       body: { matricula },
       cacheTtlMs: 0,
+    });
+    return unwrapApiData(response?.data ?? response);
+  }
+
+  async searchByDni(dni: string): Promise<RefepsSearchResult> {
+    const response = await apiRequest<{ ok: boolean; data: RefepsSearchResult }>("/api/refeps/search-refeps", {
+      method: "POST", body: { dni }, cacheTtlMs: 0,
     });
     return unwrapApiData(response?.data ?? response);
   }
