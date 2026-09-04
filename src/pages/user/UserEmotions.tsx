@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { AlertCircle, Check, Heart, Loader2 } from "lucide-react";
+import { AlertCircle, Check, Heart, Loader2, StickyNote } from "lucide-react";
 import { useEmotions, emotionOptions } from "@/contexts/EmotionsContext";
+import { fetchPersonalNotesForUser, type PersonalNote } from "@/data/api";
+import { useAuth } from "@/contexts/AuthContext";
 import EmotionCauseQuickPicker from "@/components/EmotionCauseQuickPicker";
 import PermissionBlocked from "@/components/PermissionBlocked";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -64,6 +66,7 @@ function emotionSelectedBg(label: string) {
 
 export default function UserEmotions() {
   const { context: permissionContext } = usePermissionContext();
+  const { user } = useAuth();
   const { records, loading, error, add } = useEmotions();
   const [selectedEmotion, setSelectedEmotion] = useState<string | null>(null);
   const [intensity, setIntensity] = useState(3);
@@ -71,6 +74,19 @@ export default function UserEmotions() {
   const [context, setContext] = useState("");
   const [whatHelped, setWhatHelped] = useState("");
   const [saving, setSaving] = useState(false);
+  const [notes, setNotes] = useState<PersonalNote[]>([]);
+  const [notesLoading, setNotesLoading] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!user) return;
+    setNotesLoading(true);
+    fetchPersonalNotesForUser(user.id)
+      .then((data) => { if (mounted) setNotes(data); })
+      .catch(() => { if (mounted) setNotes([]); })
+      .finally(() => { if (mounted) setNotesLoading(false); });
+    return () => { mounted = false; };
+  }, [user]);
 
   const selectedOption = emotionOptions.find(
     (emotion) => emotion.label === selectedEmotion,
@@ -347,6 +363,43 @@ export default function UserEmotions() {
                     {record.date} · {record.timestamp}
                   </p>
                 </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Notas de estado emocional */}
+      <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 shadow-lg sm:p-5">
+        <h3 className="mb-3 flex items-center gap-2 font-semibold text-[#6b4c9a]">
+          <StickyNote size={18} className="text-[#6b4c9a]" />
+          Notas de estado emocional
+        </h3>
+        {notesLoading ? (
+          <div className="flex items-center gap-2 py-4 text-sm text-[#8b7aa0]">
+            <Loader2 size={16} className="animate-spin" />
+            Cargando notas...
+          </div>
+        ) : notes.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-[#e0d8f0] bg-[#faf8ff] px-5 py-8 text-center text-sm text-[#8b7aa0]">
+            Todavía no escribiste ninguna nota desde el inicio.
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {[...notes].reverse().map((note) => (
+              <article
+                key={note.id}
+                className="rounded-2xl border border-[#f0e8f8] bg-[#faf8ff] p-3"
+              >
+                <p className="text-sm text-[#4a4a5a]">{note.content}</p>
+                <p className="mt-1.5 text-xs text-[#8b7aa0]">
+                  {note.createdAt
+                    ? new Date(note.createdAt).toLocaleDateString("es-AR", {
+                        day: "numeric",
+                        month: "long",
+                      })
+                    : ""}
+                </p>
               </article>
             ))}
           </div>
