@@ -167,6 +167,7 @@ export interface ChatContact {
   avatar: string;
   role: 'user' | 'tutor' | 'profesional';
   subtitle?: string;
+  phone?: string;
 }
 
 export type EffectivePermission = {
@@ -2483,6 +2484,7 @@ export async function fetchChatContacts(): Promise<ChatContact[]> {
       avatar: avatarByUsuarioId.get(usuario.id) || (role === 'professional' ? '👩‍⚕️' : role === 'tutor' ? '👩' : '🙂'),
       role: role === 'professional' ? 'profesional' : role === 'tutor' ? 'tutor' : 'user',
       subtitle: `${role === 'professional' ? 'Profesional' : role === 'tutor' ? 'Tutor/a' : 'Usuario'} · @${usuario.nombre_usuario || usuario.correo || usuario.id} · ID ${usuario.id}`,
+      phone: usuario.telefono ? String(usuario.telefono) : undefined,
     };
   });
 }
@@ -2715,16 +2717,18 @@ export const MAX_TRANSLATOR_PHRASES = 60;
 // paso ya tenia, no hay caso en que este fetch deba bloquear la pantalla.
 export async function pictogramizePhrases(
   phrases: { id: string; text: string }[],
-  options?: { minConfidence?: 'alta' | 'media'; language?: string; targetPertenecienteId?: string; preferredStyleOverride?: string },
+  options?: { minConfidence?: 'alta' | 'media'; language?: string; targetPertenecienteId?: string; preferredStyleOverride?: string; throwOnError?: boolean },
 ): Promise<PictogramizedPhrase[]> {
   if (phrases.length === 0) return [];
+  const { throwOnError, ...bodyOptions } = options ?? {};
   try {
     const result = await apiRequest<{ results: PictogramizedPhrase[] }>('/api/pictograms/pictogramize', {
       method: 'POST',
-      body: { phrases, ...options },
+      body: { phrases, ...bodyOptions },
     });
     return result.results;
-  } catch {
+  } catch (error) {
+    if (throwOnError) throw error;
     return [];
   }
 }
