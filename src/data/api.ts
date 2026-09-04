@@ -1827,27 +1827,66 @@ async function fetchPendingAssignedActivitiesAsCalendarEvents(userId: string): P
 
 export async function fetchCalendarEventsForUser(userId: string): Promise<CalendarEvent[]> {
   if (isBackendUserId(userId)) {
-    const rows = await apiRequest<BackendCalendarEventRow[]>(`/api/eventos-calendario/usuario/${encodeURIComponent(String(Number(userId)))}`);
-    const events = rows.map(row => mapBackendCalendarEvent(row, userId));
-
-    let professionalSessionEvents: CalendarEvent[] = [];
     try {
-      const sessions = await fetchProfessionalSessions();
-      const sessionPictogram = sessions.length > 0 ? await getProfessionalSessionPictogram() : null;
-      professionalSessionEvents = sessions
-        .filter(session => session.estado !== 'cancelada')
-        .map(session => professionalSessionToCalendarEvent(session, userId, sessionPictogram));
+      const configs = await fetchUserConfigs(Number(userId));
+      const eventsFromConfigs: CalendarEvent[] = [];
+
+      for (const cfg of configs) {
+        try {
+          if (cfg.clave === 'calendar.events') {
+            const parsed = JSON.parse(cfg.valor || '[]');
+            if (Array.isArray(parsed)) {
+              for (const e of parsed) {
+                eventsFromConfigs.push({
+                  id: String(cfg.id),
+                  userId: String(cfg.id_usuario),
+                  title: e.title || '',
+                  date: e.date,
+                  time: e.time || '00:00',
+                  type: e.type || 'actividad',
+                  description: e.description || '',
+                  color: e.color || calendarTypeColor(e.type),
+                  reminders: Array.isArray(e.reminders) ? e.reminders : [],
+                });
+              }
+            }
+          } else if (cfg.clave && cfg.clave.startsWith('calendar.event:')) {
+            const parsed = JSON.parse(cfg.valor || '{}');
+            eventsFromConfigs.push({
+              id: String(cfg.id),
+              userId: String(cfg.id_usuario),
+              title: parsed.title || '',
+              date: parsed.date,
+              time: parsed.time || '00:00',
+              type: parsed.type || 'actividad',
+              description: parsed.description || '',
+              color: parsed.color || calendarTypeColor(parsed.type),
+              reminders: Array.isArray(parsed.reminders) ? parsed.reminders : [],
+            });
+          }
+        } catch (e) {
+          // ignore malformed config value
+        }
+      }
+
+      let professionalSessionEvents: CalendarEvent[] = [];
+      try {
+        const sessions = await fetchProfessionalSessions();
+        const sessionPictogram = sessions.length > 0 ? await getProfessionalSessionPictogram() : null;
+        professionalSessionEvents = sessions
+          .filter(session => session.estado !== 'cancelada')
+          .map(session => professionalSessionToCalendarEvent(session, userId, sessionPictogram));
+      } catch {
+        professionalSessionEvents = [];
+      }
+
+      const assignedActivities = await fetchPendingAssignedActivitiesAsCalendarEvents(userId);
+
+      return [...eventsFromConfigs, ...professionalSessionEvents, ...assignedActivities]
+        .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
     } catch {
-      professionalSessionEvents = [];
+      return [];
     }
-
-    // Actividades asignadas (tutor/profesional) pendientes, ancladas al dia de
-    // su asignacion. Se mezclan con los eventos manuales: mismas fuente y
-    // criterio de fecha en Inicio, Actividades y Calendario.
-    const assignedActivities = await fetchPendingAssignedActivitiesAsCalendarEvents(userId);
-
-    return [...events, ...professionalSessionEvents, ...assignedActivities]
-      .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
   }
 
   return legacy.getEventsForUser(userId);
@@ -1855,11 +1894,28 @@ export async function fetchCalendarEventsForUser(userId: string): Promise<Calend
 
 export async function createCalendarEvent(userId: string, data: Omit<CalendarEvent, 'id' | 'userId'>): Promise<CalendarEvent> {
   if (isBackendUserId(userId)) {
-    const row = await apiRequest<BackendCalendarEventRow>('/api/eventos-calendario', {
-      method: 'POST',
-      body: { idUsuario: Number(userId), ...toBackendCalendarPayload({ ...data, color: data.color || calendarTypeColor(data.type) }) },
-    });
-    const created = mapBackendCalendarEvent(row, userId);
+    const now = new Date().toISOString();
+    const key = `calendar.event:${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`;
+    const payload = {
+      id_usuario: Number(userId),
+      clave: key,
+      valor: JSON.stringify({ ...data, createdAt: now }),
+      fecha_modificacion: now,
+    };
+
+    const result = await apiRequest<{ id?: number }>('/api/configuraciones-usuarios', { method: 'POST', body: payload });
+    const createdId = result && (result as any).id ? String((result as any).id) : String(Date.now());
+    const created: CalendarEvent = {
+      id: createdId,
+      userId,
+      title: data.title,
+      date: data.date,
+      time: data.time,
+      type: data.type,
+      description: data.description || '',
+      color: data.color || calendarTypeColor(data.type),
+      reminders: data.reminders || [],
+    };
     syncCalendarReminders(userId);
     return created;
   }
@@ -1867,45 +1923,52 @@ export async function createCalendarEvent(userId: string, data: Omit<CalendarEve
   return apiFetchWithFallback<CalendarEvent>([`/calendar/events`, `/users/${encodeURIComponent(userId)}/calendar/events`], { method: 'POST', body: JSON.stringify({ ...data, userId }) });
 }
 
-// CalendarContext.tsx llama a updateEvent(id, patch)/deleteEvent(id) sin
-// pasar el userId dueño del evento — se resuelve con un GET puntual antes
-// de escribir, en vez del scan de TODAS las configs de TODOS los usuarios
-// que hacia findCalendarConfigByEventId contra el blob viejo.
-async function fetchBackendCalendarEventById(eventId: string): Promise<BackendCalendarEventRow | null> {
-  try {
-    return await apiRequest<BackendCalendarEventRow>(`/api/eventos-calendario/${encodeURIComponent(eventId)}`);
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) return null;
-    throw error;
-  }
-}
-
+// Update calendar event: support newer backend storage in configuraciones-usuarios
 export async function updateCalendarEvent(eventId: string, patch: Partial<CalendarEvent>): Promise<CalendarEvent> {
-  const existing = await fetchBackendCalendarEventById(eventId);
-  if (existing) {
-    const userId = String(existing.id_usuario);
-    const row = await apiRequest<BackendCalendarEventRow>(`/api/eventos-calendario/${encodeURIComponent(eventId)}`, {
+  // Try configuraciones-usuarios record first
+  try {
+    const cfg = await apiRequest<ConfiguracionUsuario>(`/api/configuraciones-usuarios/${encodeURIComponent(eventId)}`);
+    const parsed = (() => { try { return JSON.parse(cfg.valor || '{}'); } catch { return {}; } })();
+    const merged = { ...parsed, ...patch, color: patch.color || (patch.type ? calendarTypeColor(patch.type) : undefined) };
+    const now = new Date().toISOString();
+    await apiRequest(`/api/configuraciones-usuarios/${encodeURIComponent(eventId)}`, {
       method: 'PUT',
-      body: {
-        idUsuario: existing.id_usuario,
-        ...toBackendCalendarPayload({ ...patch, color: patch.color || (patch.type ? calendarTypeColor(patch.type) : undefined) }),
-      },
+      body: { id_usuario: cfg.id_usuario, clave: cfg.clave, valor: JSON.stringify(merged), fecha_modificacion: now },
     });
-    const updated = mapBackendCalendarEvent(row, userId);
-    syncCalendarReminders(userId);
+    const updatedCfg = await apiRequest<ConfiguracionUsuario>(`/api/configuraciones-usuarios/${encodeURIComponent(eventId)}`);
+    const parsedUpdated = (() => { try { return JSON.parse(updatedCfg.valor || '{}'); } catch { return {}; } })();
+    const updated: CalendarEvent = {
+      id: String(updatedCfg.id),
+      userId: String(updatedCfg.id_usuario),
+      title: parsedUpdated.title || '',
+      date: parsedUpdated.date,
+      time: parsedUpdated.time || '00:00',
+      type: parsedUpdated.type || 'actividad',
+      description: parsedUpdated.description || '',
+      color: parsedUpdated.color || calendarTypeColor(parsedUpdated.type),
+      reminders: Array.isArray(parsedUpdated.reminders) ? parsedUpdated.reminders : [],
+    };
+    syncCalendarReminders(String(updatedCfg.id_usuario));
     return updated;
+  } catch (error) {
+    if (!(error instanceof ApiError && error.status === 404)) throw error;
+    // fallback to legacy/eventos endpoint
   }
 
   return apiFetchWithFallback<CalendarEvent>([`/calendar/events/${encodeURIComponent(eventId)}`], { method: 'PATCH', body: JSON.stringify(patch) });
 }
 
 export async function deleteCalendarEvent(eventId: string): Promise<void> {
-  const existing = await fetchBackendCalendarEventById(eventId);
-  if (existing) {
-    const userId = String(existing.id_usuario);
-    await apiRequest(`/api/eventos-calendario/${encodeURIComponent(eventId)}?idUsuario=${existing.id_usuario}`, { method: 'DELETE' });
+  // Try configuraciones-usuarios record first
+  try {
+    const cfg = await apiRequest<ConfiguracionUsuario>(`/api/configuraciones-usuarios/${encodeURIComponent(eventId)}`);
+    const userId = String(cfg.id_usuario);
+    await apiRequest(`/api/configuraciones-usuarios/${encodeURIComponent(eventId)}`, { method: 'DELETE' });
     syncCalendarReminders(userId);
     return;
+  } catch (error) {
+    if (!(error instanceof ApiError && error.status === 404)) throw error;
+    // fallback
   }
 
   await apiFetchWithFallback<unknown>([`/calendar/events/${encodeURIComponent(eventId)}`], { method: 'DELETE' });

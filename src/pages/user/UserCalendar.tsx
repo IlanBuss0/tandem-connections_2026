@@ -215,25 +215,35 @@ export default function UserCalendar() {
     setShowForm(true);
   };
 
-  const submit = (submittedForm = form) => {
+  const submit = async (submittedForm = form) => {
     const payload = { ...submittedForm, title: submittedForm.title.trim() };
     if (!payload.title) return;
 
-    if (editing) {
-      updateEvent(editing.id, payload);
-    } else {
-      addEvent(payload);
-      // Solo al CREAR (no al editar): si este tipo de evento historicamente
-      // se asocia con animo dificil para esta persona, se sugiere preparar
-      // una historia social — nunca se abre sola, la persona decide.
-      const hasPattern = eventTypePatterns.some((p) => p.type === payload.type);
-      setAnticipationSuggestion(hasPattern ? payload.type : null);
-    }
+    try {
+      if (editing) {
+        await updateEvent(editing.id, payload);
+      } else {
+        await addEvent(payload);
+        // Solo al CREAR (no al editar): si este tipo de evento historicamente
+        // se asocia con animo dificil para esta persona, se sugiere preparar
+        // una historia social — nunca se abre sola, la persona decide.
+        const hasPattern = eventTypePatterns.some((p) => p.type === payload.type);
+        setAnticipationSuggestion(hasPattern ? payload.type : null);
+      }
 
-    setShowForm(false);
-    setSelectedDate(payload.date);
-    const formDate = new Date(`${payload.date}T12:00:00`);
-    setCursor(new Date(formDate.getFullYear(), formDate.getMonth(), 1));
+      setShowForm(false);
+      setSelectedDate(payload.date);
+      const formDate = new Date(`${payload.date}T12:00:00`);
+      setCursor(new Date(formDate.getFullYear(), formDate.getMonth(), 1));
+    } catch (error: any) {
+      // Mostrar error sencillo y mantener el formulario abierto para reintentar
+      // (se puede reemplazar por un toast más amigable si existe uno)
+      // eslint-disable-next-line no-console
+      console.error('Error guardando evento', error);
+      const message = (error && (error.message || (error.payload && (error.payload as any).message))) || 'No se pudo guardar el evento. Reintentá más tarde.';
+      // eslint-disable-next-line no-alert
+      alert(String(message));
+    }
   };
 
   const selectDate = (date: string) => {
