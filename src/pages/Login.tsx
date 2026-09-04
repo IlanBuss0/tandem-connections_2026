@@ -28,7 +28,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import type { ProfessionalDniVerificationResult, RegisterRole, RefepsProfessional, RefepsSearchResult } from '@/services/api';
-import { searchRefepsProfessional, verifyProfessionalDni } from '@/data/api';
+import { searchRefepsByDni, searchRefepsProfessional, verifyProfessionalDni } from '@/data/api';
 import { DniScanner } from '@/components/auth/DniScanner';
 
 type AuthView = 'welcome' | 'login' | 'register';
@@ -155,6 +155,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
   // Flujo profesional por pasos.
   const [profStep, setProfStep] = useState<ProfStep>('matricula');
   const [profMatricula, setProfMatricula] = useState('');
+  const [profSearchMode, setProfSearchMode] = useState<'matricula' | 'dni'>('matricula');
   const [profSearching, setProfSearching] = useState(false);
   const [refepsData, setRefepsData] = useState<RefepsSearchResult | null>(null);
   const [selectedProfessional, setSelectedProfessional] = useState<RefepsProfessional | null>(null);
@@ -239,6 +240,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
   const resetProfessionalFlow = () => {
     setProfStep('matricula');
     setProfMatricula('');
+    setProfSearchMode('matricula');
     setProfSearching(false);
     setRefepsData(null);
     setSelectedProfessional(null);
@@ -371,14 +373,16 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     setError('');
     setRefepsError('');
     const matricula = profMatricula.trim();
-    if (!MATRICULA_REGEX.test(matricula)) {
+    const dni = matricula.replace(/\D/g, '');
+    const searchIsValid = profSearchMode === 'dni' ? /^\d{7,8}$/.test(dni) : MATRICULA_REGEX.test(matricula);
+    if (!searchIsValid) {
       setRefepsError('La matrícula debe tener al menos 4 dígitos y solo números.');
       return;
     }
 
     setProfSearching(true);
     try {
-      const result = await searchRefepsProfessional(matricula);
+      const result = profSearchMode === 'dni' ? await searchRefepsByDni(dni) : await searchRefepsProfessional(matricula);
       setRefepsData(result);
       if (!result.found) {
         setRefepsError('No encontramos ninguna matrícula con ese número. Revisalo e intentá de nuevo.');
@@ -794,6 +798,8 @@ function ProfessionalFlow({
   profStep,
   profProgress,
   profMatricula,
+  profSearchMode,
+  setProfSearchMode,
   setProfMatricula,
   profSearching,
   refepsError,
@@ -827,6 +833,8 @@ function ProfessionalFlow({
   profStep: ProfStep;
   profProgress: ProfProgress;
   profMatricula: string;
+  profSearchMode: 'matricula' | 'dni';
+  setProfSearchMode: (mode: 'matricula' | 'dni') => void;
   setProfMatricula: (v: string) => void;
   profSearching: boolean;
   refepsError: string;
@@ -857,7 +865,7 @@ function ProfessionalFlow({
   onRegister: (e: React.FormEvent) => void;
   error: string;
 }) {
-  const matriculaReady = MATRICULA_REGEX.test(profMatricula.trim());
+  const matriculaReady = profSearchMode === 'dni' ? /^\d{7,8}$/.test(profMatricula.replace(/\D/g, '')) : MATRICULA_REGEX.test(profMatricula.trim());
   const canContinueIdentity = !!registerDniFrente && dniVerification.status === 'verified' && !registerLoading && !googleLoading;
 
   useEffect(() => {
@@ -888,8 +896,15 @@ function ProfessionalFlow({
               </p>
             </div>
 
+            <div className="grid grid-cols-2 gap-2 rounded-2xl bg-[#C9A7EB]/15 p-1">
+              {(['matricula', 'dni'] as const).map(mode => (
+                <button key={mode} type="button" onClick={() => { setProfSearchMode(mode); setProfMatricula(''); setRefepsError(''); }} className={`min-h-10 rounded-xl px-3 text-sm font-bold transition ${profSearchMode === mode ? 'bg-white text-[#6F518E] shadow-sm' : 'text-[#6F518E]/65'}`}>
+                  {mode === 'matricula' ? 'Por matrícula' : 'Por DNI'}
+                </button>
+              ))}
+            </div>
             <AuthField
-              label="Matrícula"
+              label={profSearchMode === 'dni' ? 'DNI' : 'Matrícula'}
               value={profMatricula}
               onChange={e => setProfMatricula(e.target.value)}
               placeholder="Tu número de matrícula"
