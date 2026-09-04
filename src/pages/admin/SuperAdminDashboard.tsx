@@ -207,14 +207,14 @@ export default function SuperAdminDashboard() {
   if (!user || user.role !== 'admin') return null;
 
   return (
-    <div className="min-h-screen d-flex bg-[#0a0e1a] text-slate-100" style={{
+    <div className="h-100 d-flex bg-[#0a0e1a] text-slate-100" style={{
       backgroundImage:
         'radial-gradient(ellipse at top left, rgba(56,189,248,0.08), transparent 50%), radial-gradient(ellipse at bottom right, rgba(168,85,247,0.08), transparent 50%)',
     }}>
       <Sidebar section={section} setSection={setSection} onLogout={logout} userName={user.name} clearance={(user as any).clearance} />
       <main className="flex-1 ms-lg-64 min-w-0 w-100" style={{ marginLeft: 256 }}>
         <TopBar section={section} onRefresh={() => setTick(t => t + 1)} unreadCount={unreadCount} onNotifications={() => setSection('notifications')} />
-        <div className="p-3 p-md-4">
+        <div className="p-3 p-md-4" style={{ height: 'calc(100% - 52px)', overflowY: 'auto' }}>
           <div className="rounded px-3 py-2 mb-3 font-monospace d-flex align-items-center gap-2" style={{ fontSize: 11, background: 'rgba(251,113,133,0.1)', border: '1px solid rgba(251,113,133,0.3)', color: '#fda4af' }}>
             <AlertTriangle size={14} />
             <span>Los datos de wallet, shop y feature flags en este panel viven en <strong>localStorage</strong> — no persisten en backend. Usá la API de producción para cambios reales.</span>

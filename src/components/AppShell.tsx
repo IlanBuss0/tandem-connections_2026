@@ -106,6 +106,7 @@ export default function AppShell() {
   const [profilePanelOpen, setProfilePanelOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const cantSpeakRef = useRef<CantSpeakModeHandle>(null);
+  const mainRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     try {
@@ -145,6 +146,7 @@ export default function AppShell() {
     setProfilePanelOpen(false);
     setNavParams(params || null);
     if (params) setNavKey((k) => k + 1);
+    mainRef.current?.scrollTo({ top: 0 });
   };
 
   const renderContent = () => {
@@ -208,7 +210,7 @@ export default function AppShell() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#FAF7FF] via-[#FAF7FF] to-white overflow-x-hidden">
+    <div className="flex h-dvh flex-col overflow-hidden bg-gradient-to-b from-[#FAF7FF] via-[#FAF7FF] to-white">
       <AppHeader
         position="fixed"
         onMenuClick={() => setSidebarOpen(true)}
@@ -216,6 +218,7 @@ export default function AppShell() {
         onLogoClick={() => goToTab("home")}
         rightSlot={
           <div className="flex items-center gap-2">
+            <NotificationBellButton count={unreadNotifs} onClick={() => goToTab("notifications")} className="h-9 w-9 border-0 bg-transparent" />
             <BelongingProfileAccountPanel
               open={profilePanelOpen}
               onOpenChange={setProfilePanelOpen}
@@ -223,16 +226,15 @@ export default function AppShell() {
               onNavigate={goToTab}
               onLogout={logout}
             />
-            <NotificationBellButton count={unreadNotifs} onClick={() => goToTab("notifications")} className="h-9 w-9 border-0 bg-transparent" />
           </div>
         }
       />
-      <div className="flex min-h-screen pt-16">
+      <div className="flex flex-1 min-h-0 pt-16">
         {/* Mobile sidebar drawer */}
         <AnimatePresence>
           {sidebarOpen && (
             <motion.div
-              className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm"
+              className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-md"
               onClick={() => setSidebarOpen(false)}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -310,7 +312,7 @@ export default function AppShell() {
         </AnimatePresence>
 
         {/* Main content */}
-        <main className="flex-1 min-w-0">
+        <main ref={mainRef} className="flex-1 min-w-0 overflow-y-auto">
           <div className="max-w-7xl mx-auto p-3 pb-24 sm:p-4 sm:pb-24 lg:p-6">
             <Suspense fallback={<ScreenFallback />}>{renderContent()}</Suspense>
           </div>
@@ -320,6 +322,7 @@ export default function AppShell() {
           activeTab={activeTab}
           onNavigate={goToTab}
           forceExpanded={quickActionsOpen}
+          scrollContainerRef={mainRef}
           center={(compactProgress) => <BelongingQuickActionsMenu activeTab={activeTab} onNavigate={goToTab} onOpenCantSpeak={() => cantSpeakRef.current?.open()} compactProgress={compactProgress} onOpenChange={setQuickActionsOpen} />}
         />
       </div>
