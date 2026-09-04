@@ -39,6 +39,7 @@ const UserPictograms = lazy(() => import("@/pages/user/UserPictograms"));
 const UserCommunicator = lazy(() => import("@/pages/user/UserCommunicator"));
 import CantSpeakMode from "@/components/CantSpeakMode";
 import type { CantSpeakModeHandle } from "@/components/CantSpeakMode";
+import ScreenErrorBoundary from "@/components/ScreenErrorBoundary";
 import BelongingMobileBottomNav from "@/components/belonging/BelongingMobileBottomNav";
 import BelongingQuickActionsMenu from "@/components/belonging/BelongingQuickActionsMenu";
 import BelongingProfileAccountPanel from "@/components/belonging/BelongingProfileAccountPanel";
@@ -122,22 +123,28 @@ export default function AppShell() {
 
   if (user.role === "admin")
     return (
-      <Suspense fallback={<ScreenFallback />}>
-        <SuperAdminDashboard />
-      </Suspense>
+      <ScreenErrorBoundary>
+        <Suspense fallback={<ScreenFallback />}>
+          <SuperAdminDashboard />
+        </Suspense>
+      </ScreenErrorBoundary>
     );
   if (user.role === "tutor") {
     return (
-      <Suspense fallback={<ScreenFallback />}>
-        <TutorExperience />
-      </Suspense>
+      <ScreenErrorBoundary>
+        <Suspense fallback={<ScreenFallback />}>
+          <TutorExperience />
+        </Suspense>
+      </ScreenErrorBoundary>
     );
   }
   if (user.role === "professional")
     return (
-      <Suspense fallback={<ScreenFallback />}>
-        <ProfessionalDashboard />
-      </Suspense>
+      <ScreenErrorBoundary>
+        <Suspense fallback={<ScreenFallback />}>
+          <ProfessionalDashboard />
+        </Suspense>
+      </ScreenErrorBoundary>
     );
 
   const goToTab = (tab: string, params?: Record<string, any>) => {
@@ -314,7 +321,9 @@ export default function AppShell() {
         {/* Main content */}
         <main ref={mainRef} className="flex-1 min-w-0 overflow-y-auto">
           <div className="max-w-7xl mx-auto p-3 pb-24 sm:p-4 sm:pb-24 lg:p-6 lg:pb-8">
-            <Suspense fallback={<ScreenFallback />}>{renderContent()}</Suspense>
+            <ScreenErrorBoundary key={`boundary-${activeTab}`}>
+              <Suspense fallback={<ScreenFallback />}>{renderContent()}</Suspense>
+            </ScreenErrorBoundary>
           </div>
         </main>
 
