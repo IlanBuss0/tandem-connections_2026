@@ -588,6 +588,24 @@ export async function fetchPertenecienteByUsuarioId(userId: string | number): Pr
   }
 }
 
+export async function fetchTutorByUsuarioId(userId: string | number): Promise<DbTutor | null> {
+  try {
+    return await apiRequest<DbTutor>(`/api/tutores/usuario/${encodeURIComponent(String(userId))}`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export async function fetchProfesionalByUsuarioId(userId: string | number): Promise<DbProfesional | null> {
+  try {
+    return await apiRequest<DbProfesional>(`/api/profesionales/usuario/${encodeURIComponent(String(userId))}`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
 async function fetchCustomActivitiesByPerteneciente(idPerteneciente: number): Promise<DbActividadPersonalizada[]> {
   return apiRequest<DbActividadPersonalizada[]>(
     `/api/actividades-personalizadas?id_perteneciente=${encodeURIComponent(String(idPerteneciente))}`,
@@ -1490,7 +1508,7 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
 
   const [
     usuarios,
-    tutores,
+    tutor,
     pertenecientes,
     vinculosTutor,
     estadosVinculos,
@@ -1504,7 +1522,7 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
     notificaciones,
   ] = await Promise.all([
     tandemApi.usuarios.getAll(),
-    tandemApi.tutores.getAll(),
+    fetchTutorByUsuarioId(idUsuarioTutor),
     tandemApi.pertenecientes.getAll(),
     tandemApi.vinculosTutorPertenecientes.getAll(),
     tandemApi.estadosVinculos.getAll(),
@@ -1517,8 +1535,6 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
     tandemApi.puntosOtorgados.getAll(),
     Promise.resolve([] as DbNotificacion[]),
   ]);
-
-  const tutor = (tutores as DbTutor[]).find(item => Number(item.id_usuario) === idUsuarioTutor);
 
   if (!tutor) {
     return { tutorId: null, linkedUsers: [], byUserId: {} };
@@ -2628,22 +2644,20 @@ export async function fetchLinkedPertenecientesForSupportUser(
   let linkedPertenecienteIds: number[] = [];
 
   if (role === 'professional') {
-    const [profesionalesBackend, vinculos] = await Promise.all([
-      tandemApi.profesionales.getAll(),
+    const [profesional, vinculos] = await Promise.all([
+      fetchProfesionalByUsuarioId(numericUserId),
       tandemApi.vinculosProfesionalesPertenecientes.getAll(),
     ]);
-    const profesional = (profesionalesBackend as DbProfesional[]).find((item) => Number(item.id_usuario) === numericUserId);
     if (!profesional) return [];
     linkedPertenecienteIds = (vinculos as DbVinculoProfesionalPerteneciente[])
       .filter((link) => Number(link.id_profesional) === Number(profesional.id))
       .filter((link) => Number(link.id_estado_vinculo) !== 3)
       .map((link) => Number(link.id_perteneciente));
   } else {
-    const [tutoresBackend, vinculos] = await Promise.all([
-      tandemApi.tutores.getAll(),
+    const [tutor, vinculos] = await Promise.all([
+      fetchTutorByUsuarioId(numericUserId),
       tandemApi.vinculosTutorPertenecientes.getAll(),
     ]);
-    const tutor = (tutoresBackend as DbTutor[]).find((item) => Number(item.id_usuario) === numericUserId);
     if (!tutor) return [];
     linkedPertenecienteIds = (vinculos as DbVinculoTutorPerteneciente[])
       .filter((link) => Number(link.id_tutor) === Number(tutor.id))
