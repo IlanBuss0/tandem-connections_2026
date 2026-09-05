@@ -23,14 +23,15 @@ import NotificationBellButton, {
   useUnreadNotifications,
 } from "@/components/NotificationBellButton";
 import UserHome from "@/pages/user/UserHome";
-import UserEmotions from "@/pages/user/UserEmotions";
 import { useSyncMobileMenuOpen } from "@/contexts/MobileMenuState";
-import { ACTIVE_TAB_KEY, activeTabFromPath, pathForActiveTab } from "@/lib/activeTab";
+import { ACTIVE_TAB_KEY } from "@/lib/activeTab";
 
 const UserCalendar = lazy(() => import("@/pages/user/UserCalendar"));
 const UserActivities = lazy(() => import("@/pages/user/UserActivities"));
 const UserChat = lazy(() => import("@/pages/user/UserChat"));
+const UserEmotions = lazy(() => import("@/pages/user/UserEmotions"));
 const UserAchievements = lazy(() => import("@/pages/user/UserAchievements"));
+const UserProfile = lazy(() => import("@/pages/user/UserProfile"));
 const UserProfileSettings = lazy(
   () => import("@/pages/user/UserProfileSettings"),
 );
@@ -38,15 +39,15 @@ const UserPictograms = lazy(() => import("@/pages/user/UserPictograms"));
 const UserCommunicator = lazy(() => import("@/pages/user/UserCommunicator"));
 import CantSpeakMode from "@/components/CantSpeakMode";
 import type { CantSpeakModeHandle } from "@/components/CantSpeakMode";
+import ScreenErrorBoundary from "@/components/ScreenErrorBoundary";
 import BelongingMobileBottomNav from "@/components/belonging/BelongingMobileBottomNav";
 import BelongingQuickActionsMenu from "@/components/belonging/BelongingQuickActionsMenu";
-import BelongingAccountMenu from "@/components/belonging/BelongingAccountMenu";
+import BelongingProfileAccountPanel from "@/components/belonging/BelongingProfileAccountPanel";
 const UserExplainThis = lazy(() => import("@/pages/user/UserExplainThis"));
 const UserNotifications = lazy(() => import("@/pages/user/UserNotifications"));
+const UserResources = lazy(() => import("@/pages/user/UserResources"));
+const UserShop = lazy(() => import("@/pages/user/UserShop"));
 const AboutTandem = lazy(() => import("@/pages/AboutTandem"));
-const BelongingProfileHub = lazy(
-  () => import("@/components/belonging/BelongingProfileHub"),
-);
 const ProfessionalDirectory = lazy(
   () => import("@/components/ProfessionalDirectory"),
 );
@@ -83,9 +84,6 @@ function ScreenFallback() {
 }
 
 function loadActiveTab() {
-  const pathTab = activeTabFromPath(window.location.pathname);
-  if (pathTab) return pathTab;
-
   try {
     const stored = localStorage.getItem(ACTIVE_TAB_KEY);
     if (stored === "routines") return "calendar";
@@ -106,7 +104,7 @@ export default function AppShell() {
     );
   const [navParams, setNavParams] = useState<Record<string, any> | null>(null);
   const [navKey, setNavKey] = useState(0);
-  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [profilePanelOpen, setProfilePanelOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const cantSpeakRef = useRef<CantSpeakModeHandle>(null);
   const mainRef = useRef<HTMLElement>(null);
@@ -119,50 +117,42 @@ export default function AppShell() {
     }
   }, [activeTab]);
 
-  useEffect(() => {
-    const handlePopState = () => {
-      const pathTab = activeTabFromPath(window.location.pathname);
-      setActiveTab(pathTab || "home");
-    };
-
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
-
   useSyncMobileMenuOpen(sidebarOpen);
 
   if (!user) return null;
 
   if (user.role === "admin")
     return (
-      <Suspense fallback={<ScreenFallback />}>
-        <SuperAdminDashboard />
-      </Suspense>
+      <ScreenErrorBoundary>
+        <Suspense fallback={<ScreenFallback />}>
+          <SuperAdminDashboard />
+        </Suspense>
+      </ScreenErrorBoundary>
     );
   if (user.role === "tutor") {
     return (
-      <Suspense fallback={<ScreenFallback />}>
-        <TutorExperience />
-      </Suspense>
+      <ScreenErrorBoundary>
+        <Suspense fallback={<ScreenFallback />}>
+          <TutorExperience />
+        </Suspense>
+      </ScreenErrorBoundary>
     );
   }
   if (user.role === "professional")
     return (
-      <Suspense fallback={<ScreenFallback />}>
-        <ProfessionalDashboard />
-      </Suspense>
+      <ScreenErrorBoundary>
+        <Suspense fallback={<ScreenFallback />}>
+          <ProfessionalDashboard />
+        </Suspense>
+      </ScreenErrorBoundary>
     );
 
   const goToTab = (tab: string, params?: Record<string, any>) => {
     setActiveTab(tab);
     setSidebarOpen(false);
-    setAccountMenuOpen(false);
+    setProfilePanelOpen(false);
     setNavParams(params || null);
     if (params) setNavKey((k) => k + 1);
-    const nextPath = pathForActiveTab(tab);
-    if (window.location.pathname !== nextPath) {
-      window.history.pushState(null, "", nextPath);
-    }
     mainRef.current?.scrollTo({ top: 0 });
   };
 
@@ -185,6 +175,8 @@ export default function AppShell() {
             initialAssignedActivityId={navParams?.activityId}
           />
         );
+      case "shop":
+        return <UserShop />;
       case "pictograms":
         return <UserPictograms />;
       case "communicator":
@@ -209,6 +201,8 @@ export default function AppShell() {
             onNavigate={goToTab}
           />
         );
+      case "resources":
+        return <UserResources />;
       case "professional-directory":
         return <ProfessionalDirectory />;
       case "profile":
@@ -232,9 +226,9 @@ export default function AppShell() {
         rightSlot={
           <div className="flex items-center gap-2">
             <NotificationBellButton count={unreadNotifs} onClick={() => goToTab("notifications")} className="h-9 w-9 border-0 bg-transparent" />
-            <BelongingAccountMenu
-              open={accountMenuOpen}
-              onOpenChange={setAccountMenuOpen}
+            <BelongingProfileAccountPanel
+              open={profilePanelOpen}
+              onOpenChange={setProfilePanelOpen}
               user={{ name: user.name, avatar: user.avatar }}
               onNavigate={goToTab}
               onLogout={logout}
@@ -327,7 +321,9 @@ export default function AppShell() {
         {/* Main content */}
         <main ref={mainRef} className="flex-1 min-w-0 overflow-y-auto">
           <div className="max-w-7xl mx-auto p-3 pb-24 sm:p-4 sm:pb-24 lg:p-6 lg:pb-8">
-            <Suspense fallback={<ScreenFallback />}>{renderContent()}</Suspense>
+            <ScreenErrorBoundary key={`boundary-${activeTab}`}>
+              <Suspense fallback={<ScreenFallback />}>{renderContent()}</Suspense>
+            </ScreenErrorBoundary>
           </div>
         </main>
 

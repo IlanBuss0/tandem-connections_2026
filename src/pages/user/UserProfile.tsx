@@ -70,7 +70,7 @@ export default function UserProfile({ onOpenSettings, onOpenShop }: { onOpenSett
   const allSupport = [...(profile?.tutors || []), ...(profile?.professionals || [])];
 
   const selectedPlan = profile?.plans.find(plan => plan.highlighted) || profile?.plans[0];
-  return <ProfileLayout embedded={embedded}>
+  return <ProfileLayout>
     {error && <div role="alert" className="flex items-center gap-2 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"><AlertCircle size={16} />{error}</div>}
     {loading && !profile && <div className="flex items-center gap-2 rounded-2xl border border-[#ebe3f3] bg-white p-4 text-sm text-[#80748c]"><Loader2 size={16} className="animate-spin" />Cargando perfil...</div>}
     <ProfileHero avatar={<AvatarPreview equipped={wallet.equipped} appearance={wallet.appearance} size={120} />} name={fullName} username={username} roleLabel="Perteneciente" secondary={<CoinBadge size="md" />} metrics={[{ label: 'Nivel', value: profile?.level ?? user.level }, { label: 'Puntos', value: profile?.points ?? user.points }, { label: 'Experiencia', value: profile?.experience ?? 0 }]} action={onOpenSettings ? <button type="button" onClick={onOpenSettings} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-bold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><Settings size={18} aria-hidden />Configuración</button> : undefined} />
