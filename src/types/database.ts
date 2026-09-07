@@ -436,6 +436,8 @@ export interface ActividadAsignada {
   puntaje_ultimo: number | null;
   puntaje_mejor: number | null;
   fecha_ultimo_intento: string | null;
+  asignador_nombre?: string | null;
+  asignador_rol?: 'tutor' | 'profesional' | 'app' | string | null;
 }
 
 export interface ResultadoActividadPersonalizada {

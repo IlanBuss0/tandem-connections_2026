@@ -165,6 +165,8 @@ export interface Activity {
   status: 'pendiente' | 'en progreso' | 'completada';
   recommendedBy: 'tutor' | 'profesional' | 'app';
   recommendedByName?: string;
+  assignedByName?: string;
+  assignedByRole?: 'tutor' | 'profesional';
   progress: number;
   assignedTo?: string;
   points: number;

@@ -485,6 +485,8 @@ function toAssignedLegacyActivity(
   const customDescription = 'id_actividad_base' in activity ? activityDisplayDescription(activity.descripcion) : '';
   const customSteps = 'id_actividad_base' in activity ? extractCustomSteps(activity.descripcion) : null;
   const gameMetadata = parseActivityGameMetadata(activity.descripcion);
+  const asignadorRol = assignment.asignador_rol;
+  const recommendedBy = asignadorRol === 'tutor' || asignadorRol === 'profesional' ? asignadorRol : base.recommendedBy;
 
   return {
     ...base,
@@ -497,15 +499,20 @@ function toAssignedLegacyActivity(
     status: completed ? 'completada' : 'pendiente',
     progress: completed ? 100 : 0,
     assignedTo: userId,
-    recommendedBy: 'profesional',
+    recommendedBy: recommendedBy as Activity['recommendedBy'],
+    recommendedByName: assignment.asignador_nombre || base.recommendedByName,
     assignedActivityId: assignment.id,
     backendActivityId: assignment.id_actividad,
     backendCustomActivityId: assignment.id_actividad_personalizada,
+    assignedByName: assignment.asignador_nombre || undefined,
+    assignedByRole: asignadorRol === 'tutor' || asignadorRol === 'profesional' ? asignadorRol : undefined,
     ...gameMetadata,
   } as Activity & {
     assignedActivityId: number;
     backendActivityId: number | null;
     backendCustomActivityId: number | null;
+    assignedByName?: string;
+    assignedByRole?: 'tutor' | 'profesional';
   };
 }
 
