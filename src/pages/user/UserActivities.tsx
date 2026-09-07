@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCustomActivities } from '@/contexts/CustomActivitiesContext';
 import { completeAssignedActivity, fetchActivitiesForUser, Activity } from '@/data/api';
-import { CheckCircle2, Clock, Award, ChevronDown, ChevronUp, Play, Sparkles, Filter, Search, X } from 'lucide-react';
+import { CheckCircle2, Clock, Award, ChevronDown, ChevronUp, Play, Sparkles, Filter, Search, X, User, Target, ListChecks } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
@@ -521,95 +521,113 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
           >
             <button
               onClick={() => setExpandedId(expandedId === activity.id ? null : activity.id)}
-              className="w-full p-4 sm:p-5 flex items-start gap-4 text-left"
+              className="w-full p-4 sm:p-6 flex items-start gap-3.5 sm:gap-4 text-left group"
             >
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f5f0ff] text-xl">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#f5f0ff] text-2xl">
                 {categoryEmoji[activity.category] || '📌'}
               </span>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className={`text-sm sm:text-base font-bold ${activity.status === 'completada' ? 'line-through text-[#8b7aa0]' : 'text-[#4a4a5a]'}`}>
+                <div className="flex items-start gap-2 flex-wrap">
+                  <p className={`text-lg sm:text-xl font-extrabold leading-snug ${activity.status === 'completada' ? 'line-through text-[#8b7aa0]' : 'text-[#5a3c8a]'}`}>
                     {activity.title}
                   </p>
                   {(activity as any).isCustom && (
-                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#f5f0ff] text-[#6b4c9a] font-semibold flex items-center gap-0.5">
-                      <Sparkles size={9} /> Personalizada
+                    <span className="mt-0.5 text-[10px] px-2 py-0.5 rounded-full bg-[#f5f0ff] text-[#6b4c9a] font-semibold flex items-center gap-1 shrink-0">
+                      <Sparkles size={10} /> Personalizada
                     </span>
                   )}
-                  {activity.status === 'completada' && <CheckCircle2 size={16} className="text-green-500" />}
+                  {activity.status === 'completada' && <CheckCircle2 size={20} className="text-green-500 shrink-0 mt-0.5" />}
                 </div>
-                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${difficultyColors[activity.difficulty]}`}>
+
+                <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+                  <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full ${difficultyColors[activity.difficulty]}`}>
                     {activity.difficulty}
                   </span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${typeColors[activity.type]}`}>
+                  <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full ${typeColors[activity.type]}`}>
                     {activity.type}
                   </span>
-                  <span className="text-[10px] text-[#8b7aa0] flex items-center gap-1">
-                    <Clock size={10} /> {activity.duration}
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-[#f5f0ff] text-[#6b4c9a]">
+                    <Clock size={11} /> {activity.duration}
                   </span>
-                  <span className="text-[10px] text-[#8b7aa0] flex items-center gap-1">
-                    <Award size={10} /> {activity.points} pts
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-[#f5f0ff] text-[#6b4c9a]">
+                    <Award size={11} /> {activity.points} pts
                   </span>
                 </div>
-                {activity.recommendedByName && (
-                  <p className="text-[10px] text-[#6b4c9a] mt-1.5 font-medium">
-                    Recomendada por {activity.recommendedByName}
+
+                {activity.recommendedByName ? (
+                  <p className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-[#6b4c9a]/90">
+                    <User size={13} /> Recomendada por {activity.recommendedByName}
                   </p>
-                )}
-                {sourceMeta.label && !activity.recommendedByName && (
-                  <span className={`inline-flex mt-2 text-[10px] px-2 py-0.5 rounded-full font-medium ${sourceMeta.badgeClass}`}>
-                    {sourceMeta.label}
+                ) : sourceMeta.label ? (
+                  <span className={`inline-flex items-center gap-1.5 mt-2.5 text-[11px] px-2.5 py-1 rounded-full font-medium ${sourceMeta.badgeClass}`}>
+                    <User size={11} /> {sourceMeta.label}
                   </span>
-                )}
+                ) : null}
+
                 {activity.progress > 0 && activity.progress < 100 && (
-                  <div className="w-full bg-[#f0e8f8] rounded-full h-2 mt-2.5">
+                  <div className="w-full bg-[#f0e8f8] rounded-full h-2 mt-3">
                     <div className="bg-[#6b4c9a] h-2 rounded-full" style={{ width: `${activity.progress}%` }} />
                   </div>
                 )}
               </div>
               {expandedId === activity.id
-                ? <ChevronUp size={18} className="text-[#8b7aa0] shrink-0" />
-                : <ChevronDown size={18} className="text-[#8b7aa0] shrink-0" />}
+                ? <ChevronUp size={20} className="text-[#8b7aa0] shrink-0 mt-0.5 group-hover:text-[#6b4c9a]" />
+                : <ChevronDown size={20} className="text-[#8b7aa0] shrink-0 mt-0.5 group-hover:text-[#6b4c9a]" />}
             </button>
 
             {expandedId === activity.id && (
               <motion.div
                 initial={{ height: 0 }}
                 animate={{ height: 'auto' }}
-                className="px-4 sm:px-5 pb-5 border-t border-[#f0e8f8] pt-4 space-y-3"
+                className="px-4 sm:px-6 pb-6 sm:pb-7 border-t border-[#f0e8f8] pt-5 sm:pt-6 space-y-5 sm:space-y-6"
               >
-                <p className="text-sm text-[#8b7aa0] leading-relaxed">{activity.description}</p>
-                <p className="text-xs font-bold text-[#6b4c9a]">🎯 Objetivo: {activity.objective}</p>
-                <div>
-                  <p className="text-xs font-bold text-[#6b4c9a] mb-2">Pasos:</p>
-                  <ol className="space-y-2">
+                {activity.status === 'completada' ? (
+                  <div className="flex items-center gap-3 rounded-2xl border border-green-200 bg-green-50 px-4 py-3.5">
+                    <CheckCircle2 size={22} className="text-green-600 shrink-0" />
+                    <div>
+                      <p className="text-sm font-bold text-green-700">Actividad completada</p>
+                      <p className="text-xs text-green-600/80 mt-0.5">
+                        {activity.completionMessage || '¡Excelente trabajo! Seguí así.'}
+                      </p>
+                    </div>
+                  </div>
+                ) : canCompleteActivities ? (
+                  <button
+                    onClick={() => setExecutingActivity(activity)}
+                    className="w-full inline-flex items-center justify-center gap-3 rounded-2xl bg-[#6b4c9a] px-6 py-4 text-base sm:text-lg font-bold text-white shadow-lg shadow-purple-200 hover:bg-[#5a3c8a] hover:shadow-xl hover:shadow-purple-200/80 active:scale-[0.98] transition-all"
+                  >
+                    <Play size={22} fill="currentColor" />
+                    Empezar
+                  </button>
+                ) : null}
+
+                <section>
+                  <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#8b7aa0]">Descripción</h3>
+                  <p className="text-[15px] sm:text-base text-[#4a4a5a] leading-relaxed mt-1.5">{activity.description}</p>
+                </section>
+
+                <section className="rounded-2xl border border-[#e6d9f6] bg-[#f5f0ff] p-4 sm:p-5">
+                  <h3 className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#6b4c9a]">
+                    <Target size={13} /> Objetivo
+                  </h3>
+                  <p className="text-[15px] sm:text-base text-[#5a3c8a] font-medium leading-relaxed mt-2">{activity.objective}</p>
+                </section>
+
+                <section>
+                  <h3 className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#8b7aa0]">
+                    <ListChecks size={13} /> Pasos · {activity.steps.length}
+                  </h3>
+                  <ol className="mt-2.5 space-y-2.5">
                     {activity.steps.map((step, si) => (
-                      <li key={si} className="flex items-start gap-3 text-xs text-[#8b7aa0]">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f5f0ff] text-[#6b4c9a] text-[10px] font-bold overflow-hidden">
-                          <StepIcon value={activity.stepIcons?.[si]} fallback={si + 1} className="w-7 h-7" />
+                      <li key={si} className="flex items-start gap-3 sm:gap-3.5 rounded-2xl border border-[#f0e8f8] bg-[#faf8ff] p-3.5 sm:p-4">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#6b4c9a] text-white text-sm font-bold shadow-sm overflow-hidden">
+                          <StepIcon value={activity.stepIcons?.[si]} fallback={si + 1} className="w-6 h-6" />
                         </span>
-                        {step}
+                        <p className="pt-1 text-sm sm:text-[15px] text-[#4a4a5a] leading-relaxed">{step}</p>
                       </li>
                     ))}
                   </ol>
-                </div>
-                {activity.status !== 'completada' && canCompleteActivities && (
-                  <div className="flex gap-3 pt-1">
-                    <button
-                      onClick={() => setExecutingActivity(activity)}
-                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 transition"
-                    >
-                      <Play size={14} /> Empezar
-                    </button>
-                    <button
-                      onClick={() => completeActivity(activity.id)}
-                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-4 py-2.5 text-sm font-semibold text-[#6b4c9a] hover:bg-[#f5f0ff] transition"
-                    >
-                      <CheckCircle2 size={14} /> Completada
-                    </button>
-                  </div>
-                )}
+                </section>
               </motion.div>
             )}
           </motion.div>
