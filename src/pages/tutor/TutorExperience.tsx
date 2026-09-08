@@ -18,7 +18,7 @@ import UserPictograms from '@/pages/user/UserPictograms';
 import AboutTandem from '@/pages/AboutTandem';
 import { aggregateTutorEvents, type TutorAggregateEvent } from '@/lib/tutorEventAggregation';
 import { TutorAccountMenu, TutorDrawer, TutorQuickMenu, type TutorTab } from '@/components/tutor/TutorNavigation';
-import TutorLinkedDetail from '@/components/tutor/TutorLinkedDetail';
+import PertenecienteDetail from '@/components/perteneciente/PertenecienteDetail';
 import TutorHome from '@/components/tutor/TutorHome';
 import TutorAccountSettings from '@/components/tutor/TutorAccountSettings';
 import { ChatProvider } from '@/contexts/ChatContext';
@@ -29,7 +29,9 @@ import type { TutorAggregateActivity as AggregateActivity, TutorAggregateEmotion
 import {
   createCalendarEvent, deleteCalendarEvent, fetchCalendarEventsForUser, fetchPictograms,
   fetchTutorHome, updateCalendarEvent, type CalendarEvent, type Pictogram, type TutorHomeData,
-  type TutorHomeLinkedUser,
+  type TutorHomeLinkedUser, fetchAcompanamiento, createSharedSupportNote, deleteSharedSupportNote,
+  createSharedSupportAgreement, updateSharedSupportAgreement, askSharedSupportQuestion,
+  type AcompanamientoData,
 } from '@/data/api';
 
 const tutorPageLabels: Partial<Record<TutorTab, string>> = {
@@ -62,6 +64,7 @@ export default function TutorExperience() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
   const [selectedNotificationChatId, setSelectedNotificationChatId] = useState<string | undefined>();
+  const [supportData, setSupportData] = useState<AcompanamientoData | null>(null);
   const mainRef = useRef<HTMLElement>(null);
   const { unreadCount, setUnreadCount } = useUnreadNotifications(user?.role === 'tutor' ? { id: String(user.id) } : null);
   useSyncMobileMenuOpen(menuOpen || profileOpen || quickOpen);
@@ -100,12 +103,20 @@ export default function TutorExperience() {
     return { activities, emotions, events };
   }, [data, linkedUsers, tutorEvents]);
 
+  const detailOwner = linkedUsers.find(item => item.id === detailUserId);
+  const reloadSupport = useCallback(async () => {
+    if (!detailOwner) { setSupportData(null); return; }
+    setSupportData(await fetchAcompanamiento(Number(detailOwner.pertenecienteId)));
+  }, [detailOwner]);
+  useEffect(() => {
+    setSupportData(null);
+    if (detailOwner) void reloadSupport().catch(() => setSupportData(null));
+  }, [detailOwner, reloadSupport]);
   if (!user || user.role !== 'tutor') return null;
 
   const navigate = (next: TutorTab, context?: { detailUserId?: string | null; chatId?: string }) => { setMenuOpen(false); setProfileOpen(false); setQuickOpen(false); mainRef.current?.scrollTo({ top: 0 }); navigateRoute(next, context); };
   const openDetail = (id: string) => navigate('detail', { detailUserId: id });
   const chatProfiles = [{ id: String(user.id), name: user.name, avatar: user.avatar, label: 'Tutor' }, ...linkedUsers.map(item => ({ id: item.id, name: item.name, avatar: item.avatar, label: 'Perteneciente' }))];
-  const detailOwner = linkedUsers.find(item => item.id === detailUserId);
   const pageTitle = tab === 'detail' ? detailOwner?.name || 'Detalle' : tutorPageLabels[tab] || 'TÁNDEM';
 
   return (
@@ -134,6 +145,7 @@ export default function TutorExperience() {
             activities={aggregates.activities} emotions={aggregates.emotions} events={aggregates.events}
             tutorEvents={tutorEvents} pictograms={pictograms}
             detailUserId={detailUserId} chatProfiles={chatProfiles} selectedNotificationChatId={selectedNotificationChatId}
+            supportData={supportData} onReloadSupport={reloadSupport}
             onNavigate={navigate} onOpenDetail={openDetail}
             onUnreadCountChange={setUnreadCount} onSelectNotificationChat={setSelectedNotificationChatId}
             onTutorEventsChange={setTutorEvents}
@@ -162,6 +174,7 @@ function TutorContent(props: {
   activities: AggregateActivity[]; emotions: AggregateEmotion[]; events: TutorAggregateEvent[]; tutorEvents: CalendarEvent[];
   pictograms: Pictogram[]; detailUserId: string | null;
   chatProfiles: { id: string; name: string; avatar?: string | null; label: string }[]; selectedNotificationChatId?: string;
+  supportData: AcompanamientoData | null; onReloadSupport: () => Promise<void>;
   onNavigate: (tab: TutorTab, context?: { detailUserId?: string | null; chatId?: string }) => void; onOpenDetail: (id: string) => void;
   onUnreadCountChange: (count: number) => void; onSelectNotificationChat: (id?: string) => void;
   onTutorEventsChange: (events: CalendarEvent[]) => void;
@@ -186,7 +199,23 @@ function TutorContent(props: {
   if (tab === 'profile') return <TutorAccountSettings linkedUsers={props.linkedUsers} onManageConnections={() => props.onNavigate('connections')} />;
   if (tab === 'detail') {
     const owner = props.linkedUsers.find(item => item.id === props.detailUserId);
-    return owner ? <TutorLinkedDetail owner={owner} data={props.data.byUserId[owner.id]} onNavigate={props.onNavigate} onOpenChat={(id) => { props.onSelectNotificationChat(id); props.onNavigate('chat', { chatId: id }); }} /> : <ErrorState message="No encontramos a esa persona vinculada." onRetry={() => props.onNavigate('connections')} />;
+    const detail = owner && props.data.byUserId[owner.id];
+    return owner ? <PertenecienteDetail
+      person={owner}
+      role="tutor"
+      activities={detail?.activities}
+      emotions={detail?.emotions}
+      events={detail?.events}
+      supportData={props.supportData || undefined}
+      canViewHistory
+      onCreateSharedNote={async content => { await createSharedSupportNote(Number(owner.pertenecienteId), content); await props.onReloadSupport(); }}
+      onDeleteSharedNote={async id => { await deleteSharedSupportNote(Number(owner.pertenecienteId), id); await props.onReloadSupport(); }}
+      onCreateAgreement={async texto => { await createSharedSupportAgreement(Number(owner.pertenecienteId), texto); await props.onReloadSupport(); }}
+      onToggleAgreement={async (id, completado) => { await updateSharedSupportAgreement(Number(owner.pertenecienteId), id, { completado }); await props.onReloadSupport(); }}
+      onAskAI={async question => (await askSharedSupportQuestion(Number(owner.pertenecienteId), question)).respuesta}
+      onOpenChat={() => { props.onSelectNotificationChat(owner.id); props.onNavigate('chat', { chatId: owner.id }); }}
+      onOpenCalendar={() => props.onNavigate('calendar')}
+    /> : <ErrorState message="No encontramos a esa persona vinculada." onRetry={() => props.onNavigate('connections')} />;
   }
   return null;
 }

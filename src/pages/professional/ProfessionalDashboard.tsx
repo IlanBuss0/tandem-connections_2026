@@ -4,7 +4,10 @@ import {
   askAboutPatient, deleteProfessionalSession, downloadPatientHistoryPdf, fetchActivitiesForUser,
   fetchEmotionRecordsForUser, fetchLinkedPertenecientesForSupportUser, fetchPersonalNotesForUser, fetchPrivateProfessionalNote,
   fetchProfessionalSessions, joinProfessionalInviteByCode, prepareSessionSummary, updateProfessionalSession,
-  type Activity, type EmotionalRecord, type PersonalNote, type ProfessionalSession, type SessionPrepSummary, type User,
+  fetchAcompanamiento, createSharedSupportNote, deleteSharedSupportNote, createSharedSupportObjective,
+  updateSharedSupportObjective, createSharedSupportAgreement,
+  updateSharedSupportAgreement, askSharedSupportQuestion,
+  type Activity, type AcompanamientoData, type EmotionalRecord, type PersonalNote, type ProfessionalSession, type SessionPrepSummary, type User,
 } from '@/data/api';
 import { withGoogleToken } from '@/lib/googleAuth';
 import { getDocPlainText } from '@/lib/googleDocs';
@@ -17,6 +20,7 @@ import { motion } from 'framer-motion';
 import ActivityManager from '@/components/ActivityManager';
 import AdvancedStats from '@/components/AdvancedStats';
 import ProfessionalPatientOverview from '@/components/ProfessionalPatientOverview';
+import PertenecienteDetail from '@/components/perteneciente/PertenecienteDetail';
 import ChatScreen from '@/components/ChatScreen';
 import { ChatProvider } from '@/contexts/ChatContext';
 import AppHeader from '@/components/AppHeader';
@@ -87,6 +91,7 @@ export default function ProfessionalDashboard() {
   const [joiningProfessionalInvite, setJoiningProfessionalInvite] = useState(false);
   const [patientSearch, setPatientSearch] = useState('');
   const [selectedNotificationChatId, setSelectedNotificationChatId] = useState<string | undefined>();
+  const [patientSupportData, setPatientSupportData] = useState<AcompanamientoData | null>(null);
   const [agendaInitialPatientId, setAgendaInitialPatientId] = useState<number | undefined>();
   const { unreadCount, setUnreadCount } = useUnreadNotifications(
     user && user.role === 'professional' ? { id: String(user.id) } : null
@@ -198,6 +203,13 @@ export default function ProfessionalDashboard() {
     }
   };
 
+  const patientPertenecienteId = selectedPatient
+    ? Number((permissionContext?.vinculos || []).find(item => String(item.perteneciente.usuario.id) === selectedPatient)?.perteneciente.id)
+    : undefined;
+  useEffect(() => {
+    setPatientSupportData(null);
+    if (patientPertenecienteId) void fetchAcompanamiento(patientPertenecienteId).then(setPatientSupportData).catch(() => setPatientSupportData(null));
+  }, [patientPertenecienteId]);
   if (!user || user.role !== 'professional') return null;
 
   const vinculosByUsuarioPerteneciente = new Map(
@@ -223,6 +235,10 @@ export default function ProfessionalDashboard() {
   ];
   const patientDetail = selectedPatient ? linkedUsers.find(u => u.id === selectedPatient) : null;
   const linkForUser = (userId: string) => vinculosByUsuarioPerteneciente.get(String(userId));
+  const reloadPatientSupport = async () => {
+    if (!patientPertenecienteId) { setPatientSupportData(null); return; }
+    setPatientSupportData(await fetchAcompanamiento(patientPertenecienteId));
+  };
   const patientHasPermission = (userId: string, permission: string, fallback = false) => {
     const link = linkForUser(userId);
     return Boolean(link?.permisos_efectivos.vinculo_aprobado)
@@ -373,6 +389,35 @@ export default function ProfessionalDashboard() {
         )}
 
         {tab === 'patients' && selectedPatient && patientDetail && (() => {
+          const sharedActivities = activitiesByUser[patientDetail.id] || [];
+          const sharedEmotions = emotionsByUser[patientDetail.id] || [];
+          const sharedPertenecienteId = Number(linkForUser(patientDetail.id)?.perteneciente.id);
+          const sharedSessions = sessions
+            .filter(session => Number(session.id_perteneciente) === sharedPertenecienteId)
+            .sort((a, b) => b.fecha_sesion.localeCompare(a.fecha_sesion));
+          const sharedPermissions = vinculosByUsuarioPerteneciente.get(String(patientDetail.id))?.permisos_efectivos?.permisos;
+          const sharedCanViewHistory = Boolean(permissionContext) && isPermissionEnabled(sharedPermissions, PROFESIONAL_PERMISSIONS.VER_HISTORIAL, false);
+          const sharedCanSchedule = isPermissionEnabled(sharedPermissions, PROFESIONAL_PERMISSIONS.AGENDAR_SESIONES, true);
+          return <PertenecienteDetail
+            person={patientDetail}
+            role="professional"
+            activities={sharedCanViewHistory ? sharedActivities : []}
+            emotions={sharedCanViewHistory ? sharedEmotions : []}
+            sessions={sharedCanViewHistory ? sharedSessions : []}
+            supportData={patientSupportData || undefined}
+            canViewHistory={sharedCanViewHistory}
+            canManageSessions={sharedCanSchedule}
+            onCreateSharedNote={async content => { await createSharedSupportNote(sharedPertenecienteId, content); await reloadPatientSupport(); }}
+            onDeleteSharedNote={async id => { await deleteSharedSupportNote(sharedPertenecienteId, id); await reloadPatientSupport(); }}
+            onCreateObjective={async input => { await createSharedSupportObjective(sharedPertenecienteId, input); await reloadPatientSupport(); }}
+            onUpdateObjective={async (id, input) => { await updateSharedSupportObjective(sharedPertenecienteId, id, input); await reloadPatientSupport(); }}
+            onCreateAgreement={async texto => { await createSharedSupportAgreement(sharedPertenecienteId, texto); await reloadPatientSupport(); }}
+            onToggleAgreement={async (id, completado) => { await updateSharedSupportAgreement(sharedPertenecienteId, id, { completado }); await reloadPatientSupport(); }}
+            onAskAI={async question => (await askSharedSupportQuestion(sharedPertenecienteId, question)).respuesta}
+            onOpenCalendar={() => navigate('calendar')}
+            onScheduleSession={() => { setAgendaInitialPatientId(sharedPertenecienteId || undefined); setSelectedPatient(null); navigate('calendar'); }}
+            onOpenPrivateNote={setPatientNoteSession}
+          />;
           const acts = activitiesByUser[patientDetail.id] || [];
           const emotions = emotionsByUser[patientDetail.id] || [];
           const patientPermissions = vinculosByUsuarioPerteneciente.get(String(patientDetail.id))?.permisos_efectivos?.permisos;
