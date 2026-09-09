@@ -31,7 +31,8 @@ import {
   fetchTutorHome, updateCalendarEvent, type CalendarEvent, type Pictogram, type TutorHomeData,
   type TutorHomeLinkedUser, fetchAcompanamiento, createSharedSupportNote, deleteSharedSupportNote,
   createSharedSupportAgreement, updateSharedSupportAgreement, askSharedSupportQuestion,
-  type AcompanamientoData,
+  fetchSupportNetwork, fetchProfessionalSessions,
+  type AcompanamientoData, type ProfessionalSession, type SupportNetworkMember,
 } from '@/data/api';
 
 const tutorPageLabels: Partial<Record<TutorTab, string>> = {
@@ -65,6 +66,8 @@ export default function TutorExperience() {
   const [quickOpen, setQuickOpen] = useState(false);
   const [selectedNotificationChatId, setSelectedNotificationChatId] = useState<string | undefined>();
   const [supportData, setSupportData] = useState<AcompanamientoData | null>(null);
+  const [supportNetwork, setSupportNetwork] = useState<SupportNetworkMember[]>([]);
+  const [detailSessions, setDetailSessions] = useState<ProfessionalSession[]>([]);
   const mainRef = useRef<HTMLElement>(null);
   const { unreadCount, setUnreadCount } = useUnreadNotifications(user?.role === 'tutor' ? { id: String(user.id) } : null);
   useSyncMobileMenuOpen(menuOpen || profileOpen || quickOpen);
@@ -110,7 +113,14 @@ export default function TutorExperience() {
   }, [detailOwner]);
   useEffect(() => {
     setSupportData(null);
-    if (detailOwner) void reloadSupport().catch(() => setSupportData(null));
+    setSupportNetwork([]);
+    setDetailSessions([]);
+    if (detailOwner) {
+      const pertenecienteId = Number(detailOwner.pertenecienteId);
+      void reloadSupport().catch(() => setSupportData(null));
+      void fetchSupportNetwork(pertenecienteId).then(setSupportNetwork).catch(() => setSupportNetwork([]));
+      void fetchProfessionalSessions(pertenecienteId).then(setDetailSessions).catch(() => setDetailSessions([]));
+    }
   }, [detailOwner, reloadSupport]);
   if (!user || user.role !== 'tutor') return null;
 
@@ -145,7 +155,7 @@ export default function TutorExperience() {
             activities={aggregates.activities} emotions={aggregates.emotions} events={aggregates.events}
             tutorEvents={tutorEvents} pictograms={pictograms}
             detailUserId={detailUserId} chatProfiles={chatProfiles} selectedNotificationChatId={selectedNotificationChatId}
-            supportData={supportData} onReloadSupport={reloadSupport}
+            supportData={supportData} supportNetwork={supportNetwork} detailSessions={detailSessions} onReloadSupport={reloadSupport}
             onNavigate={navigate} onOpenDetail={openDetail}
             onUnreadCountChange={setUnreadCount} onSelectNotificationChat={setSelectedNotificationChatId}
             onTutorEventsChange={setTutorEvents}
@@ -174,7 +184,7 @@ function TutorContent(props: {
   activities: AggregateActivity[]; emotions: AggregateEmotion[]; events: TutorAggregateEvent[]; tutorEvents: CalendarEvent[];
   pictograms: Pictogram[]; detailUserId: string | null;
   chatProfiles: { id: string; name: string; avatar?: string | null; label: string }[]; selectedNotificationChatId?: string;
-  supportData: AcompanamientoData | null; onReloadSupport: () => Promise<void>;
+  supportData: AcompanamientoData | null; supportNetwork: SupportNetworkMember[]; detailSessions: ProfessionalSession[]; onReloadSupport: () => Promise<void>;
   onNavigate: (tab: TutorTab, context?: { detailUserId?: string | null; chatId?: string }) => void; onOpenDetail: (id: string) => void;
   onUnreadCountChange: (count: number) => void; onSelectNotificationChat: (id?: string) => void;
   onTutorEventsChange: (events: CalendarEvent[]) => void;
@@ -206,7 +216,10 @@ function TutorContent(props: {
       activities={detail?.activities}
       emotions={detail?.emotions}
       events={detail?.events}
+      sessions={props.detailSessions}
       supportData={props.supportData || undefined}
+      supportNetwork={props.supportNetwork}
+      currentUserId={props.userId}
       canViewHistory
       onCreateSharedNote={async content => { await createSharedSupportNote(Number(owner.pertenecienteId), content); await props.onReloadSupport(); }}
       onDeleteSharedNote={async id => { await deleteSharedSupportNote(Number(owner.pertenecienteId), id); await props.onReloadSupport(); }}

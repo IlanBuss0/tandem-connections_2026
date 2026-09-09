@@ -3034,6 +3034,14 @@ export interface SharedSupportObjective {
   progreso: number;
   fecha_creacion: string;
   fecha_actualizacion: string;
+  autor_nombre?: string;
+  autor_rol?: string;
+}
+
+export interface SupportNetworkMember {
+  id_usuario: number;
+  nombre: string;
+  rol: 'tutor' | 'profesional';
 }
 
 export interface SharedSupportAgreement {
@@ -3091,6 +3099,10 @@ export async function deleteSharedSupportAgreement(idPerteneciente: number, agre
 
 export async function askSharedSupportQuestion(idPerteneciente: number, pregunta: string): Promise<{ respuesta: string }> {
   return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}/ia/preguntar`, { method: 'POST', token: getStoredAuthToken(), body: { pregunta } });
+}
+
+export async function fetchSupportNetwork(idPerteneciente: number): Promise<SupportNetworkMember[]> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}/red-apoyo`, { token: getStoredAuthToken() });
 }
 
 export async function fetchNoteTemplateFavorites(): Promise<string[]> {

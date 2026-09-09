@@ -1632,20 +1632,25 @@ function DragWordSandbox({
 interface Props {
   initialId?: string;
   onClose: () => void;
+  onBack?: () => void;
   assignableUsersOverride?: User[];
+  preselectUserIds?: string[];
 }
 
 export default function ActivityBuilder({
   initialId,
   onClose,
+  onBack,
   assignableUsersOverride,
+  preselectUserIds,
 }: Props) {
   const { user } = useAuth();
   const { items, createOrUpdate } = useCustomActivities();
   const { toast } = useToast();
   const editing = initialId ? items.find((a) => a.id === initialId) : undefined;
+  const hasPreselect = Boolean(preselectUserIds && preselectUserIds.length > 0);
 
-  const [step, setStep] = useState(editing ? 1 : 0); // 0 = plantilla
+  const [step, setStep] = useState(editing || hasPreselect ? 1 : 0); // 0 = plantilla
   const [tplSearch, setTplSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [assignableUsers, setAssignableUsers] = useState<User[]>([]);
@@ -1723,7 +1728,7 @@ export default function ActivityBuilder({
       stepIcons: ["📌"],
       points: 30,
       completionMessage: "¡Bien hecho!",
-      assignedToIds: [] as string[],
+      assignedToIds: (hasPreselect ? [...preselectUserIds!] : []) as string[],
       dueDate: "",
       notes: "",
       draft: true,
@@ -2036,6 +2041,16 @@ export default function ActivityBuilder({
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
+            {onBack && hasPreselect && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="p-2 hover:bg-muted rounded-lg text-foreground/80"
+                aria-label="Volver al detalle del perteneciente"
+              >
+                <ChevronLeft size={20} />
+              </button>
+            )}
             <Sparkles size={20} className="text-primary" />
             <h2 className="font-heading font-bold text-lg sm:text-xl text-foreground">
               {editing ? "Editar actividad" : "Crear actividad"}

@@ -6,12 +6,12 @@ import {
   fetchProfessionalSessions, joinProfessionalInviteByCode, prepareSessionSummary, updateProfessionalSession,
   fetchAcompanamiento, createSharedSupportNote, deleteSharedSupportNote, createSharedSupportObjective,
   updateSharedSupportObjective, createSharedSupportAgreement,
-  updateSharedSupportAgreement, askSharedSupportQuestion,
-  type Activity, type AcompanamientoData, type EmotionalRecord, type PersonalNote, type ProfessionalSession, type SessionPrepSummary, type User,
+  updateSharedSupportAgreement, askSharedSupportQuestion, fetchSupportNetwork,
+  type Activity, type AcompanamientoData, type EmotionalRecord, type PersonalNote, type ProfessionalSession, type SessionPrepSummary, type SupportNetworkMember, type User,
 } from '@/data/api';
 import { withGoogleToken } from '@/lib/googleAuth';
 import { getDocPlainText } from '@/lib/googleDocs';
-import { CheckCircle2, Calendar, Home, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, Sparkles, MessageCircle, Bell, KeyRound, Loader2, FolderOpen, CalendarClock, Download, Send, Info, Image, ShieldCheck, Link2 } from 'lucide-react';
+import { CheckCircle2, Calendar, Home, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, Sparkles, MessageCircle, Bell, KeyRound, Loader2, FolderOpen, CalendarClock, Download, Send, Info, Image, ShieldCheck, Link2, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -92,7 +92,10 @@ export default function ProfessionalDashboard() {
   const [patientSearch, setPatientSearch] = useState('');
   const [selectedNotificationChatId, setSelectedNotificationChatId] = useState<string | undefined>();
   const [patientSupportData, setPatientSupportData] = useState<AcompanamientoData | null>(null);
+  const [patientSupportNetwork, setPatientSupportNetwork] = useState<SupportNetworkMember[]>([]);
   const [agendaInitialPatientId, setAgendaInitialPatientId] = useState<number | undefined>();
+  const [builderPreselect, setBuilderPreselect] = useState<string[] | undefined>(undefined);
+  const [activitiesReturnPatientId, setActivitiesReturnPatientId] = useState<string | null>(null);
   const { unreadCount, setUnreadCount } = useUnreadNotifications(
     user && user.role === 'professional' ? { id: String(user.id) } : null
   );
@@ -208,7 +211,11 @@ export default function ProfessionalDashboard() {
     : undefined;
   useEffect(() => {
     setPatientSupportData(null);
-    if (patientPertenecienteId) void fetchAcompanamiento(patientPertenecienteId).then(setPatientSupportData).catch(() => setPatientSupportData(null));
+    setPatientSupportNetwork([]);
+    if (patientPertenecienteId) {
+      void fetchAcompanamiento(patientPertenecienteId).then(setPatientSupportData).catch(() => setPatientSupportData(null));
+      void fetchSupportNetwork(patientPertenecienteId).then(setPatientSupportNetwork).catch(() => setPatientSupportNetwork([]));
+    }
   }, [patientPertenecienteId]);
   if (!user || user.role !== 'professional') return null;
 
@@ -300,6 +307,15 @@ export default function ProfessionalDashboard() {
   };
   const openPatient = (userId: string) => {
     navigateRoute('patients', { patientId: userId }); setSelectedPatient(userId); setPatientTab('overview'); setMenuOpen(false); setProfileOpen(false); setQuickOpen(false);
+    mainRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+  };
+  const backToPatientFromActividades = () => {
+    if (!activitiesReturnPatientId) return;
+    const patientId = activitiesReturnPatientId;
+    setActivitiesReturnPatientId(null);
+    setBuilderPreselect(undefined);
+    setMenuOpen(false); setProfileOpen(false); setQuickOpen(false);
+    navigateRoute('patients', { patientId }); setSelectedPatient(patientId); setPatientTab('overview');
     mainRef.current?.scrollTo({ top: 0, behavior: 'auto' });
   };
   return (
@@ -417,252 +433,22 @@ export default function ProfessionalDashboard() {
             onOpenCalendar={() => navigate('calendar')}
             onScheduleSession={() => { setAgendaInitialPatientId(sharedPertenecienteId || undefined); setSelectedPatient(null); navigate('calendar'); }}
             onOpenPrivateNote={setPatientNoteSession}
+            onCreateActivity={isPermissionEnabled(sharedPermissions, PROFESIONAL_PERMISSIONS.ASIGNAR_ACTIVIDADES, true)
+              ? () => { setBuilderPreselect([patientDetail.id]); setActivitiesReturnPatientId(patientDetail.id); navigate('create'); }
+              : undefined}
+            currentUserId={user.id}
+            supportNetwork={patientSupportNetwork}
           />;
-          const acts = activitiesByUser[patientDetail.id] || [];
-          const emotions = emotionsByUser[patientDetail.id] || [];
-          const patientPermissions = vinculosByUsuarioPerteneciente.get(String(patientDetail.id))?.permisos_efectivos?.permisos;
-          const canViewPatientHistory = Boolean(permissionContext) && isPermissionEnabled(patientPermissions, PROFESIONAL_PERMISSIONS.VER_HISTORIAL, false);
-          const canSchedulePatient = isPermissionEnabled(patientPermissions, PROFESIONAL_PERMISSIONS.AGENDAR_SESIONES, true);
-          const pertenecienteId = Number(linkForUser(patientDetail.id)?.perteneciente.id);
-          const patientSessions = sessions
-            .filter(session => Number(session.id_perteneciente) === pertenecienteId)
-            .sort((a, b) => b.fecha_sesion.localeCompare(a.fecha_sesion));
-          const patientSessionSeries = Array.from(
-            patientSessions.reduce((groups, session) => {
-              if (!session.recurrence_group_id) return groups;
-              const group = groups.get(session.recurrence_group_id) || [];
-              group.push(session);
-              groups.set(session.recurrence_group_id, group);
-              return groups;
-            }, new Map<string, ProfessionalSession[]>()),
-            ([groupId, groupedSessions]) => ({
-              groupId,
-              sessions: groupedSessions.sort((a, b) => a.fecha_sesion.localeCompare(b.fecha_sesion)),
-            }),
-          ).sort((a, b) => b.sessions[0].fecha_sesion.localeCompare(a.sessions[0].fecha_sesion));
-          const standalonePatientSessions = patientSessions.filter(session => !session.recurrence_group_id);
-          const patientCompletadas = patientSessions.filter(s => s.estado === 'completada').length;
-          const patientAusentes = patientSessions.filter(s => s.estado === 'ausente').length;
-          const patientAsistencia = patientCompletadas + patientAusentes > 0
-            ? Math.round((patientCompletadas / (patientCompletadas + patientAusentes)) * 100)
-            : null;
-          const nextPatientSession = nextSessionForPatient(sessions, pertenecienteId);
-          const patientSupportLevel = patientDetail.supportLevel || 'Sin registrar';
-          const patientAutonomy = (patientDetail as User & { autonomy?: string }).autonomy || 'Sin registrar';
-
-          const gatherNotesFor = async (candidatas: ProfessionalSession[]) => {
-            return Promise.all(
-              candidatas.map(async (s) => {
-                let notasTexto: string | undefined;
-                try {
-                  const note = await fetchPrivateProfessionalNote(s.id);
-                  const fileId = note?.documento_drive?.google_file_id;
-                  if (fileId) {
-                    notasTexto = await withGoogleToken((token) => getDocPlainText(token, fileId));
-                  }
-                } catch {
-                  // si falla la lectura de un doc puntual, seguimos sin su texto
-                }
-                return { id: s.id, fecha_sesion: s.fecha_sesion, titulo: s.titulo, estado: s.estado, notas_texto: notasTexto };
-              }),
-            );
-          };
-
-          const runPrepareSession = async (session: ProfessionalSession) => {
-            setPrepSession(session);
-            setPrepLoading(true);
-            setPrepError(null);
-            setPrepResult(null);
-            try {
-              const pastWithNotes = patientSessions
-                .filter(s => s.estado !== 'programada' && s.has_note)
-                .sort((a, b) => b.fecha_sesion.localeCompare(a.fecha_sesion))
-                .slice(0, 3);
-              if (pastWithNotes.length === 0) {
-                setPrepError('No hay sesiones pasadas con notas para este paciente todavía.');
-                return;
-              }
-              const sesionesPayload = await gatherNotesFor(pastWithNotes);
-              const prep = await prepareSessionSummary({
-                id_perteneciente: pertenecienteId,
-                sesion_objetivo: { titulo: session.titulo, fecha_sesion: session.fecha_sesion },
-                sesiones_pasadas: sesionesPayload,
-              });
-              setPrepResult(prep);
-            } catch (err) {
-              setPrepError(err instanceof Error ? err.message : 'No se pudo generar la preparación.');
-            } finally {
-              setPrepLoading(false);
-            }
-          };
-
-          const runAskQuestion = async () => {
-            if (!askQuestion.trim()) return;
-            setAskLoading(true);
-            setAskError(null);
-            setAskAnswer(null);
-            try {
-              const withNotes = patientSessions
-                .filter(s => s.has_note)
-                .slice(0, 6);
-              if (withNotes.length === 0) {
-                setAskError('Este paciente todavía no tiene sesiones con notas para consultar.');
-                return;
-              }
-              const sesionesPayload = await gatherNotesFor(withNotes);
-              const { respuesta } = await askAboutPatient({
-                id_perteneciente: pertenecienteId,
-                pregunta: askQuestion.trim(),
-                sesiones: sesionesPayload,
-              });
-              setAskAnswer(respuesta);
-            } catch (err) {
-              setAskError(err instanceof Error ? err.message : 'No se pudo responder la pregunta.');
-            } finally {
-              setAskLoading(false);
-            }
-          };
-
-          const downloadPatientPdf = async () => {
-            setDownloadingPatientPdf(true);
-            try {
-              const blob = await downloadPatientHistoryPdf(pertenecienteId);
-              const url = URL.createObjectURL(blob);
-              const link = document.createElement('a');
-              link.href = url;
-              link.download = `historial-${patientDetail.name.replace(/\s+/g, '-').toLowerCase()}.pdf`;
-              link.click();
-              URL.revokeObjectURL(url);
-            } catch (err) {
-              toast({
-                title: 'No se pudo generar el PDF',
-                description: err instanceof Error ? err.message : undefined,
-                variant: 'destructive',
-              });
-            } finally {
-              setDownloadingPatientPdf(false);
-            }
-          };
-
-          return (
-            <div className="space-y-5 pb-24 lg:pb-6">
-              <button onClick={() => { setSelectedPatient(null); setPatientTab('overview'); setPatientNoteSession(null); }} className="inline-flex min-h-10 items-center rounded-lg border border-primary/20 bg-white px-4 text-sm font-semibold text-primary shadow-sm">← Volver a pacientes</button>
-              <section className="flex flex-col gap-4 border-b border-border/70 pb-4 lg:flex-row lg:items-center max-lg:rounded-[26px] max-lg:border max-lg:border-white/80 max-lg:bg-white/80 max-lg:p-4 max-lg:shadow-sm">
-                <div className="flex min-w-0 items-center gap-4">
-                  <span className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-violet-50 text-4xl shadow-md max-sm:h-16 max-sm:w-16 max-sm:text-3xl">
-                    {patientDetail.avatar && /^(https?:|data:image\/|\/|\.\/|\.\.\/)/.test(patientDetail.avatar) ? <img src={patientDetail.avatar} alt="" className="h-full w-full object-cover" /> : patientDetail.avatar}
-                  </span>
-                  <div className="min-w-0"><h1 className="truncate text-2xl font-bold text-[#302444] sm:text-3xl">{patientDetail.name}</h1><p className="text-sm text-muted-foreground">{patientDetail.age ? `${patientDetail.age} años` : 'Edad sin registrar'}</p></div>
-                </div>
-                <div className="flex flex-wrap gap-2 lg:ml-4 max-sm:grid max-sm:grid-cols-2">
-                  <span className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-violet-200 bg-violet-50/60 px-3 text-xs font-semibold text-violet-700 max-sm:px-2"><ShieldCheck size={16} className="shrink-0" />Apoyo {patientSupportLevel}</span>
-                  <span className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/60 px-3 text-xs font-semibold text-amber-700 max-sm:px-2"><Users size={16} className="shrink-0" />Autonomía {patientAutonomy}</span>
-                  <span className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 text-xs font-semibold text-emerald-700 max-sm:col-span-2 max-sm:px-2"><Link2 size={16} className="shrink-0" />Vínculo activo</span>
-                </div>
-                {nextPatientSession && <div className="rounded-xl border bg-white p-3 shadow-sm lg:ml-auto lg:min-w-52 max-lg:w-full"><p className="flex items-center gap-2 text-xs font-bold text-[#302444]"><CalendarClock size={17} className="text-violet-600" />Próxima sesión</p><p className="mt-1 pl-6 text-xs text-muted-foreground">{new Date(nextPatientSession.fecha_sesion).toLocaleString('es-AR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</p></div>}
-              </section>
-              {!canViewPatientHistory && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                  El tutor deshabilito ver historial para este perteneciente.
-                </div>
-              )}
-              <div className="flex gap-1 overflow-x-auto border-b border-border/70 max-lg:sticky max-lg:top-16 max-lg:z-30 max-lg:-mx-4 max-lg:bg-[#faf8fe]/95 max-lg:px-4 max-lg:backdrop-blur sm:max-lg:-mx-6 sm:max-lg:px-6">
-                {([
-                  { id: 'overview', label: 'Resumen', icon: BarChart3 },
-                  { id: 'stats', label: 'Estadísticas', icon: TrendingUp },
-                  { id: 'sessions', label: 'Sesiones', icon: CalendarClock },
-                ] as const).map(t => (
-                  <button key={t.id} onClick={() => { setPatientTab(t.id); setPatientNoteSession(null); }} className={`flex min-h-12 min-w-28 flex-1 items-center justify-center gap-1.5 border-b-2 px-4 py-2 text-sm font-semibold transition max-sm:min-w-[104px] max-sm:px-2 ${patientTab === t.id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
-                    <t.icon size={14} /> {t.label}
-                  </button>
-                ))}
-              </div>
-
-              {patientTab === 'sessions' && (
-                patientNoteSession ? (
-                  <div className="space-y-4">
-                    <Button variant="ghost" onClick={() => setPatientNoteSession(null)}>← Volver a sesiones</Button>
-                    <ProfessionalPrivateNote session={patientNoteSession} patientName={patientDetail.name} />
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="grid gap-3 rounded-2xl border border-[#ebe7f2] bg-white p-4 shadow-sm sm:grid-cols-[1fr_1fr_auto] max-sm:rounded-[22px]">
-                        {canSchedulePatient && <Button onClick={() => { setAgendaInitialPatientId(pertenecienteId || undefined); setSelectedPatient(null); navigate('calendar'); }} className="min-h-11">+ Programar sesión</Button>}
-                        <Button variant="outline" onClick={downloadPatientPdf} disabled={downloadingPatientPdf || patientSessions.length === 0} className="min-h-11">
-                          {downloadingPatientPdf ? <Loader2 size={13} className="mr-1 animate-spin" /> : <Download size={13} className="mr-1" />}
-                          Historial (PDF)
-                        </Button>
-                        <div className="rounded-xl bg-violet-50 px-5 py-2 text-center text-violet-700"><p className="text-lg font-bold">{patientAsistencia === null ? '—' : `${patientAsistencia}%`}</p><p className="text-[10px]">de asistencia</p></div>
-                    </div>
-                    {nextPatientSession && <section className="grid gap-4 rounded-2xl border border-[#ebe7f2] bg-white p-5 shadow-sm sm:grid-cols-[1fr_auto] sm:items-center max-sm:rounded-[22px] max-sm:p-4"><div className="flex gap-3"><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-violet-50 text-violet-600"><CalendarClock /></span><div><p className="text-xs font-bold text-violet-600">Próxima sesión</p><h3 className="text-xl font-bold text-[#302444] max-sm:text-lg">{new Date(nextPatientSession.fecha_sesion).toLocaleString('es-AR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</h3><p className="text-sm text-muted-foreground">{nextPatientSession.titulo} · {nextPatientSession.duracion_minutos} minutos</p></div></div><Button onClick={() => runPrepareSession(nextPatientSession)} className="min-h-11 max-sm:w-full"><Sparkles size={15} className="mr-2" />Preparar con IA</Button></section>}
-                    {patientSessions.length === 0 && (
-                      <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-                        Todavia no hay sesiones agendadas con este paciente.
-                      </div>
-                    )}
-                    <section className="rounded-2xl border border-[#ebe7f2] bg-white p-4 shadow-sm"><h3 className="mb-1 font-bold text-[#302444]">Historial de sesiones</h3><p className="mb-4 text-xs text-muted-foreground">Las sesiones recurrentes se agrupan por serie. Abrí una carpeta para consultar sus sesiones y notas.</p><div className="space-y-2">{patientSessionSeries.map(({ groupId, sessions: groupedSessions }) => (
-                      <SessionSeriesFolder
-                        key={groupId}
-                        groupId={groupId}
-                        sessions={groupedSessions}
-                        patientName={patientDetail.name}
-                        onOpenNote={setPatientNoteSession}
-                        onEditSession={() => {
-                          setAgendaInitialPatientId(pertenecienteId || undefined);
-                          setSelectedPatient(null);
-                          navigate('calendar');
-                        }}
-                        onDeleteSession={deletePatientSession}
-                        onSeriesChanged={reloadSessions}
-                        compact
-                      />
-                    ))}{standalonePatientSessions.map(session => (
-                      <SessionCard
-                        key={session.id}
-                        session={session}
-                        patientName={patientDetail.name}
-                        onOpenNote={() => setPatientNoteSession(session)}
-                        onEdit={() => {
-                          setAgendaInitialPatientId(pertenecienteId || undefined);
-                          setSelectedPatient(null);
-                          navigate('calendar');
-                        }}
-                        onDelete={() => deletePatientSession(session)}
-                        onPrepare={session.estado === 'programada' ? () => runPrepareSession(session) : undefined}
-                      />
-                    ))}</div></section>
-                    {patientSessions.some(s => s.has_note) && <section className="rounded-2xl border border-[#ebe7f2] bg-white p-4 shadow-sm"><p className="mb-3 flex items-center gap-2 text-sm font-semibold"><Sparkles size={16} className="text-primary" />Preguntale a la IA sobre este perteneciente</p><div className="flex flex-col gap-2 sm:flex-row"><Input value={askQuestion} onChange={e => setAskQuestion(e.target.value)} placeholder="¿Cómo evolucionó el uso de apoyos visuales?" onKeyDown={e => e.key === 'Enter' && runAskQuestion()} /><Button onClick={runAskQuestion} disabled={askLoading || !askQuestion.trim()}>{askLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} className="mr-2" />}Consultar</Button></div>{askError && <p className="mt-2 text-xs text-destructive">{askError}</p>}{askAnswer && <p className="mt-3 whitespace-pre-wrap border-t pt-3 text-sm">{askAnswer}</p>}<p className="mt-2 text-[11px] text-muted-foreground">La respuesta utiliza únicamente las sesiones y notas a las que tenés acceso.</p></section>}
-                  </div>
-                )
-              )}
-
-              <Dialog open={Boolean(prepSession)} onOpenChange={(open) => !open && setPrepSession(null)}>
-                <DialogContent className="sm:max-w-lg max-lg:bottom-0 max-lg:left-0 max-lg:top-auto max-lg:max-h-[88dvh] max-lg:w-full max-lg:max-w-none max-lg:translate-x-0 max-lg:translate-y-0 max-lg:overflow-y-auto max-lg:rounded-b-none max-lg:rounded-t-[28px] max-lg:p-5">
-                  <DialogHeader>
-                    <DialogTitle>Preparación — {prepSession?.titulo}</DialogTitle>
-                  </DialogHeader>
-                  {prepLoading && (
-                    <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-                      <Loader2 size={16} className="animate-spin" /> Generando preparación con IA…
-                    </div>
-                  )}
-                  {prepError && !prepLoading && (
-                    <p className="text-sm text-destructive">{prepError}</p>
-                  )}
-                  {prepResult && !prepLoading && (
-                    <Textarea readOnly value={prepResult.contenido} className="min-h-[280px] text-sm" />
-                  )}
-                  <Button variant="outline" onClick={() => setPrepSession(null)}>Cerrar</Button>
-                </DialogContent>
-              </Dialog>
-
-              {patientTab === 'stats' && canViewPatientHistory && <AdvancedStats user={patientDetail} activities={acts} emotions={emotions} sessions={patientSessions} />}
-              {patientTab === 'overview' && canViewPatientHistory && <ProfessionalPatientOverview user={patientDetail} emotions={emotions} sessions={patientSessions} supportLevel={patientSupportLevel} autonomy={patientAutonomy} />}
-            </div>
-          );
         })()}
 
-        {tab === 'create' && (canAssignActivities || canCreateCustomActivities) && <ActivityManager assignableUsers={activityPatients} />}
+        {tab === 'create' && (canAssignActivities || canCreateCustomActivities) && (
+          <div className="space-y-4">
+            {activitiesReturnPatientId && (
+              <button type="button" onClick={backToPatientFromActividades} className="inline-flex min-h-10 items-center rounded-lg border border-primary/20 bg-white px-4 text-sm font-semibold text-primary shadow-sm"><ChevronLeft size={16} className="mr-1" />Volver a {linkedUsers.find(p => p.id === activitiesReturnPatientId)?.name || 'paciente'}</button>
+            )}
+            <ActivityManager assignableUsers={activityPatients} initialPreselectUserIds={builderPreselect} onBuilderClose={() => setBuilderPreselect(undefined)} onBack={activitiesReturnPatientId ? backToPatientFromActividades : undefined} />
+          </div>
+        )}
         {tab === 'create' && !(canAssignActivities || canCreateCustomActivities) && (
           <PermissionBlocked
             title="Creacion de actividades deshabilitada"
