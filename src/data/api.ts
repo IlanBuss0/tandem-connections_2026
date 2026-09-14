@@ -1217,6 +1217,12 @@ export async function searchRefepsByDni(
   return tandemApi.refeps.searchByDni(dni);
 }
 
+export async function fetchRefepsConstancia(
+  payload: { matricula: string; dni: string; jurisdiccion: string },
+): Promise<import('@/services/api').RefepsProfessional> {
+  return tandemApi.refeps.getConstancia(payload);
+}
+
 export async function verifyProfessionalDni(
   payload: import('@/services/api').ProfessionalDniVerificationRequest,
 ): Promise<import('@/services/api').ProfessionalDniVerificationResult> {

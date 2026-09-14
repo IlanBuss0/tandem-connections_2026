@@ -5,6 +5,7 @@ import Login from './Login';
 
 const searchRefepsProfessional = vi.fn();
 const searchRefepsByDni = vi.fn();
+const fetchRefepsConstancia = vi.fn();
 const verifyProfessionalDni = vi.fn();
 
 vi.mock('@/contexts/AuthContext', () => ({
@@ -18,6 +19,7 @@ vi.mock('@/contexts/AuthContext', () => ({
 vi.mock('@/data/api', () => ({
   searchRefepsProfessional: (...args: unknown[]) => searchRefepsProfessional(...args),
   searchRefepsByDni: (...args: unknown[]) => searchRefepsByDni(...args),
+  fetchRefepsConstancia: (...args: unknown[]) => fetchRefepsConstancia(...args),
   verifyProfessionalDni: (...args: unknown[]) => verifyProfessionalDni(...args),
 }));
 
@@ -36,6 +38,7 @@ function buildRefepsResults(count: number) {
   return Array.from({ length: count }, (_, index) => ({
     nombre: `Nombre${index + 1}`,
     apellido: `Apellido${index + 1}`,
+    dni: '30123456',
     matricula: '1234',
     profesion: 'Psicología',
     jurisdiccion: 'CABA',
@@ -72,7 +75,12 @@ describe('professional registration flow', () => {
   beforeEach(() => {
     searchRefepsProfessional.mockReset();
     searchRefepsByDni.mockReset();
+    fetchRefepsConstancia.mockReset();
     verifyProfessionalDni.mockReset();
+    fetchRefepsConstancia.mockImplementation(async ({ matricula, dni, jurisdiccion }: { matricula: string; dni: string; jurisdiccion: string }) => ({
+      nombre: 'Nombre oficial', apellido: 'Apellido oficial', dni, matricula, jurisdiccion,
+      profesion: 'Psicología', habilitado: true, estado: 'Habilitado', especialidades: ['Psicología clínica'],
+    }));
     URL.createObjectURL = vi.fn(() => 'blob:dni-preview');
     URL.revokeObjectURL = vi.fn();
   });
@@ -99,8 +107,8 @@ describe('professional registration flow', () => {
       found: true,
       ambiguous: true,
       results: [
-        { nombre: 'Juan', apellido: 'Perez', matricula: '1234', profesion: 'Psicología', jurisdiccion: 'CABA' },
-        { nombre: 'Maria', apellido: 'Gonzalez', matricula: '1234', profesion: 'Psicología', jurisdiccion: 'CABA' },
+        { nombre: 'Juan', apellido: 'Perez', dni: '30123456', matricula: '1234', profesion: 'Psicología', jurisdiccion: 'CABA' },
+        { nombre: 'Maria', apellido: 'Gonzalez', dni: '30123457', matricula: '1234', profesion: 'Psicología', jurisdiccion: 'CABA' },
       ],
     });
     openProfessionalRegistration();
@@ -133,7 +141,8 @@ describe('professional registration flow', () => {
     expect(await screen.findByText('Nombre1')).toBeInTheDocument();
     expect(screen.getByText('Apellido1')).toBeInTheDocument();
     expectScrollableRefepsModal();
-    expect(screen.getByRole('button', { name: /confirmar datos/i })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: /generar constancia/i }));
+    expect(await screen.findByRole('button', { name: /confirmar datos/i })).toBeVisible();
     expect(screen.getByRole('button', { name: /no soy esta persona/i })).toBeVisible();
   });
 
@@ -143,7 +152,10 @@ describe('professional registration flow', () => {
     expect(await screen.findByText('Lic. Nombre1 Apellido1')).toBeInTheDocument();
     expect(screen.getByText('Lic. Nombre5 Apellido5')).toBeInTheDocument();
     expectScrollableRefepsModal();
-    expect(screen.getByRole('button', { name: /confirmar datos/i })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: /lic\. nombre1 apellido1/i }));
+    fireEvent.click(screen.getByRole('button', { name: /generar constancia/i }));
+    expect(await screen.findByRole('button', { name: /confirmar datos/i })).toBeVisible();
+    expect(fetchRefepsConstancia).toHaveBeenCalledWith({ matricula: '1234', dni: '30123456', jurisdiccion: 'CABA' });
     expect(screen.getByRole('button', { name: /no soy esta persona/i })).toBeVisible();
   });
 
@@ -158,7 +170,8 @@ describe('professional registration flow', () => {
 
     expect(screen.getByText('Nombre12')).toBeInTheDocument();
     expect(screen.getByText('Apellido12')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /confirmar datos/i })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: /generar constancia/i }));
+    expect(await screen.findByRole('button', { name: /confirmar datos/i })).toBeEnabled();
   });
 
   it('keeps the professional results modal constrained for mobile viewport', async () => {
@@ -182,12 +195,29 @@ describe('professional registration flow', () => {
     expect(screen.getByTestId('refeps-modal-scroll-area').closest('[role="dialog"]')).toHaveClass('sm:max-h-[42rem]');
   });
 
+  it('avanza a la cuenta solo después de verificar la identidad', async () => {
+    await openRefepsResults(1);
+    verifyProfessionalDni.mockResolvedValueOnce({
+      status: 'VERIFIED', reviewStatus: 'VERIFIED', verified: true, reason: null,
+      messageCode: 'PROFESSIONAL_CREDENTIALS_VERIFIED',
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: /generar constancia/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /confirmar datos/i }));
+    fireEvent.click(screen.getByRole('button', { name: /escanear dni/i }));
+
+    await waitFor(() => expect(screen.getByText(/acceso concedido/i)).toBeInTheDocument());
+    expect(await screen.findByText(/creá tu contraseña/i, {}, { timeout: 2000 })).toBeInTheDocument();
+    expect(screen.getByText(/paso 3 de 3/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /crear cuenta/i })).toBeInTheDocument();
+  });
+
   it('blocks identity continuation when DNI verification does not match REFEPS', async () => {
     searchRefepsProfessional.mockResolvedValueOnce({
       found: true,
       ambiguous: false,
       results: [
-        { nombre: 'Juan', apellido: 'Perez', matricula: '1234', profesion: 'Psicología', jurisdiccion: 'CABA' },
+        { nombre: 'Juan', apellido: 'Perez', dni: '30123456', matricula: '1234', profesion: 'Psicología', jurisdiccion: 'CABA' },
       ],
     });
     verifyProfessionalDni.mockResolvedValueOnce({
@@ -201,10 +231,14 @@ describe('professional registration flow', () => {
 
     fireEvent.change(screen.getByLabelText(/matrícula/i), { target: { value: '1234' } });
     fireEvent.click(screen.getByRole('button', { name: /continuar/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /generar constancia/i }));
     fireEvent.click(await screen.findByRole('button', { name: /confirmar datos/i }));
     fireEvent.click(screen.getByRole('button', { name: /escanear dni/i }));
 
     await waitFor(() => expect(verifyProfessionalDni).toHaveBeenCalled());
+    expect(verifyProfessionalDni).toHaveBeenCalledWith(expect.objectContaining({
+      matricula: '1234', refepsDni: '30123456', jurisdiccion: 'CABA',
+    }));
     expect(await screen.findByText(/los datos del dni no coinciden/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /escanear otro dni/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /volver a matr/i })).toBeInTheDocument();

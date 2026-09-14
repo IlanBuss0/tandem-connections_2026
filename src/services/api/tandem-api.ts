@@ -101,18 +101,26 @@ export type LoginRequest = {
 export type RegisterRole = "perteneciente" | "tutor" | "profesional";
 
 export type RefepsProfessional =
-  | {
-      nombre: string | null;
-      apellido: string | null;
-      dni: string | null;
-      matricula: string | number;
-      profesion: string | null;
-      jurisdiccion: string | null;
-      habilitado: boolean;
-      estado: string | null;
-      especialidades: string[];
-    }
-  | Record<string, never>;
+  {
+    nombre: string | null;
+    apellido: string | null;
+    dni: string | null;
+    matricula: string | number;
+    profesion: string | null;
+    jurisdiccion: string | null;
+    habilitado: boolean;
+    estado: string | null;
+    especialidades: string[];
+    nombreCompleto?: string | null;
+    cuil?: string | null;
+    titulo?: string | null;
+    fuente?: string | null;
+    fechaNacimiento?: string | null;
+    sexo?: string | null;
+    nacionalidad?: string | null;
+    fechaEmision?: string | null;
+    source?: string | null;
+  };
 
 export type RefepsSearchResult = {
   found: boolean;
@@ -153,6 +161,8 @@ export type ProfessionalDniVerificationRequest = {
   matricula: string;
   dniFrente: File;
   pdf417Raw?: string;
+  refepsDni?: string;
+  jurisdiccion?: string;
 };
 
 export interface TutorAccount {
@@ -182,6 +192,9 @@ export type RegisterRequest = Pick<
     especialidad?: string;
     institucion?: string;
     dniFrente?: File;
+    pdf417Raw?: string;
+    refepsDni?: string;
+    jurisdiccion?: string;
   };
 
 function authFormData(payload: Partial<RegisterRequest> & { accessToken?: string }): FormData {
@@ -366,6 +379,13 @@ class RefepsApiService {
   async searchByDni(dni: string): Promise<RefepsSearchResult> {
     const response = await apiRequest<{ ok: boolean; data: RefepsSearchResult }>("/api/refeps/search-refeps", {
       method: "POST", body: { dni }, cacheTtlMs: 0,
+    });
+    return unwrapApiData(response?.data ?? response);
+  }
+
+  async getConstancia(payload: { matricula: string; dni: string; jurisdiccion: string }): Promise<RefepsProfessional> {
+    const response = await apiRequest<{ ok: boolean; data: RefepsProfessional }>('/api/refeps/constancia', {
+      method: 'POST', body: payload, cacheTtlMs: 0,
     });
     return unwrapApiData(response?.data ?? response);
   }
