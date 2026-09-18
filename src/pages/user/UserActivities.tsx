@@ -553,9 +553,15 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
                   </span>
                 </div>
                 {activity.recommendedByName && (
-                  <p className="text-[10px] text-[#6b4c9a] mt-1.5 font-medium">
-                    Recomendada por {activity.recommendedByName}
-                  </p>
+                  activity.assignedByName && (activity.assignedByRole === 'tutor' || activity.assignedByRole === 'profesional') ? (
+                    <span className={`inline-flex mt-2 text-[10px] px-2 py-0.5 rounded-full font-medium ${activity.assignedByRole === 'tutor' ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700'}`}>
+                      Asignada por {activity.recommendedByName} ({activity.assignedByRole === 'tutor' ? 'Tutor' : 'Profesional'})
+                    </span>
+                  ) : (
+                    <p className="text-[10px] text-[#6b4c9a] mt-1.5 font-medium">
+                      Recomendada por {activity.recommendedByName}
+                    </p>
+                  )
                 )}
                 {sourceMeta.label && !activity.recommendedByName && (
                   <span className={`inline-flex mt-2 text-[10px] px-2 py-0.5 rounded-full font-medium ${sourceMeta.badgeClass}`}>

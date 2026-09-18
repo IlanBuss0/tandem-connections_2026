@@ -28,7 +28,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import type { ProfessionalDniVerificationResult, RegisterRole, RefepsProfessional, RefepsSearchResult } from '@/services/api';
-import { searchRefepsByDni, searchRefepsProfessional, verifyProfessionalDni } from '@/data/api';
+import { fetchProfessionalRegistryDetails, searchRefepsByDni, searchRefepsProfessional, verifyProfessionalDni } from '@/data/api';
 import { DniScanner } from '@/components/auth/DniScanner';
 
 type AuthView = 'welcome' | 'login' | 'register';
@@ -161,10 +161,13 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
   const [selectedProfessional, setSelectedProfessional] = useState<RefepsProfessional | null>(null);
   const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([]);
   const [refepsError, setRefepsError] = useState('');
+  const [refepsLoading, setRefepsLoading] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
 
   // DNI (paso 2).
   const [registerDniFrente, setRegisterDniFrente] = useState<File | null>(null);
+  const [registerPdf417Raw, setRegisterPdf417Raw] = useState<string | undefined>();
   const [registerDniPreview, setRegisterDniPreview] = useState<string | null>(null);
   const [dniVerification, setDniVerification] = useState<DniVerificationState>({
     status: 'idle',
@@ -197,15 +200,16 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     setShowCredentials(false);
   };
 
-  const updateDniFrente = (file: File | null) => {
+  const updateDniFrente = (file: File | null, pdf417Raw?: string) => {
     if (registerDniPreview) URL.revokeObjectURL(registerDniPreview);
     setRegisterDniFrente(file);
+    setRegisterPdf417Raw(file ? pdf417Raw : undefined);
     setRegisterDniPreview(file ? URL.createObjectURL(file) : null);
     setDniVerification({ status: 'idle', message: 'Ubicá el frente de tu DNI dentro del recuadro.' });
   };
 
   const updateAndVerifyDniFrente = (file: File | null, pdf417Raw?: string) => {
-    updateDniFrente(file);
+    updateDniFrente(file, pdf417Raw);
     if (!file) return;
 
     if (!selectedProfessional?.nombre || !selectedProfessional?.apellido || !selectedProfessional?.matricula) {
@@ -228,6 +232,11 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
         nombre: professional.nombre || '',
         apellido: professional.apellido || '',
         pdf417Raw,
+        refepsDni: professional.dni || undefined,
+        jurisdiccion: professional.jurisdiccion || undefined,
+        codigo: professional.codigo || undefined,
+        profesion: professional.profesion || undefined,
+        selectionId: professional.selectionId || undefined,
       });
       setDniVerification(toDniVerificationState(result));
     } catch {
@@ -247,6 +256,8 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     setSelectedProfessional(null);
     setSelectedSpecialties([]);
     setRefepsError('');
+    setRefepsLoading(false);
+    setProfileLoaded(false);
     setPreviewOpen(false);
     updateDniFrente(null);
   };
@@ -276,6 +287,11 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
         payload.matricula = String(selectedProfessional?.matricula || profMatricula.trim());
         payload.especialidad = selectedSpecialties.join(', ') || undefined;
         payload.dniFrente = registerDniFrente || undefined;
+        payload.pdf417Raw = registerPdf417Raw;
+        payload.refepsDni = selectedProfessional?.dni || undefined;
+        payload.jurisdiccion = selectedProfessional?.jurisdiccion || undefined;
+        payload.codigo = selectedProfessional?.codigo || undefined;
+        payload.selectionId = selectedProfessional?.selectionId || undefined;
       }
       await googleAuth(payload);
       setPendingGoogleToken(null);
@@ -377,7 +393,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     const dni = matricula.replace(/\D/g, '');
     const searchIsValid = profSearchMode === 'dni' ? /^\d{7,8}$/.test(dni) : MATRICULA_REGEX.test(matricula);
     if (!searchIsValid) {
-      setRefepsError(profSearchMode === 'dni' ? 'El DNI debe tener 7 u 8 dígitos.' : 'La matrícula debe tener al menos 4 dígitos y solo números.');
+      setRefepsError(profSearchMode === 'dni' ? 'El DNI debe tener 7 u 8 dígitos.' : 'La matrícula debe tener al menos 4 dígitos.');
       return;
     }
 
@@ -385,8 +401,10 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     try {
       const result = profSearchMode === 'dni' ? await searchRefepsByDni(dni) : await searchRefepsProfessional(matricula);
       setRefepsData(result);
+      setSelectedProfessional(null);
+      setProfileLoaded(false);
       if (!result.found) {
-        setRefepsError(profSearchMode === 'dni' ? 'No encontramos ningún profesional con ese DNI.' : 'No encontramos ninguna matrícula con ese número. Revisalo e intentá de nuevo.');
+        setRefepsError(profSearchMode === 'dni' ? 'No encontramos un profesional asociado a este DNI.' : 'No encontramos un profesional asociado a esta matrícula.');
         return;
       }
       // Resultado único: lo seleccionamos y abrimos el modal de preview.
@@ -401,7 +419,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
       setRefepsError(
         err instanceof ApiError && err.message
           ? err.message
-          : 'No pudimos consultar el registro. Intentá nuevamente en unos segundos.',
+          : 'No pudimos verificar tu matrícula en este momento. Intentá nuevamente.',
       );
     } finally {
       setProfSearching(false);
@@ -414,7 +432,38 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     );
   };
 
-  const handleConfirmRefeps = () => {
+  const handleConfirmRefeps = async () => {
+    if (!selectedProfessional) return;
+    if (!profileLoaded) {
+      if (!selectedProfessional.dni || !selectedProfessional.jurisdiccion) {
+        setRefepsError('No pudimos obtener los datos oficiales de este registro. Elegí otro resultado.');
+        return;
+      }
+      setRefepsLoading(true);
+      setRefepsError('');
+      try {
+        const official = await fetchProfessionalRegistryDetails({
+          matricula: String(selectedProfessional.matricula),
+          dni: selectedProfessional.dni,
+          jurisdiccion: selectedProfessional.jurisdiccion,
+          codigo: selectedProfessional.codigo,
+          profesion: selectedProfessional.profesion,
+          selectionId: selectedProfessional.selectionId,
+        });
+        setSelectedProfessional(current => current ? { ...current, ...official } : current);
+        setProfileLoaded(true);
+        if (!official.habilitado) setRefepsError('Tu matrícula no figura habilitada en el registro profesional.');
+      } catch (err) {
+        setRefepsError(err instanceof ApiError && err.message ? err.message : 'No pudimos consultar el registro profesional en este momento. Intentá nuevamente.');
+      } finally {
+        setRefepsLoading(false);
+      }
+      return;
+    }
+    if (!selectedProfessional.habilitado) {
+      setRefepsError('Tu matrícula no figura habilitada en el registro profesional.');
+      return;
+    }
     setPreviewOpen(false);
     updateDniFrente(null);
     setProfStep('identity');
@@ -426,6 +475,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     setRefepsData(null);
     setProfMatricula('');
     setRefepsError('');
+    setProfileLoaded(false);
     setProfStep('matricula');
   };
 
@@ -494,6 +544,11 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
               matricula: String(selectedProfessional?.matricula || profMatricula.trim()),
               especialidad: selectedSpecialties.join(', ') || undefined,
               dniFrente: registerDniFrente,
+              pdf417Raw: registerPdf417Raw,
+              refepsDni: selectedProfessional?.dni || undefined,
+              jurisdiccion: selectedProfessional?.jurisdiccion || undefined,
+              codigo: selectedProfessional?.codigo || undefined,
+              selectionId: selectedProfessional?.selectionId || undefined,
             }
           : {}),
       });
@@ -784,6 +839,9 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
         refepsData={refepsData}
         selectedProfessional={selectedProfessional}
         setSelectedProfessional={setSelectedProfessional}
+        profileLoaded={profileLoaded}
+        loading={refepsLoading}
+        error={refepsError}
         selectedSpecialties={selectedSpecialties}
         toggleSpecialty={toggleSpecialty}
         onConfirm={handleConfirmRefeps}
@@ -893,9 +951,9 @@ function ProfessionalFlow({
             className="space-y-5"
           >
             <div className="space-y-1.5">
-              <h2 className="text-xl font-extrabold text-[#6F518E]">Ingresá tu matrícula profesional</h2>
+              <h2 className="text-xl font-extrabold text-[#6F518E]">Buscá tu registro profesional</h2>
               <p className="text-sm font-medium text-[#6F518E]/70">
-                Buscamos tu registro en el Registro Federal de Profesionales de la Salud para agilizar tu alta.
+                Usá tu matrícula o DNI para consultar el Buscador Nacional de Profesionales de la Salud.
               </p>
             </div>
 
@@ -909,7 +967,7 @@ function ProfessionalFlow({
             <AuthField
               label={profSearchMode === 'dni' ? 'DNI' : 'Matrícula'}
               value={profMatricula}
-              onChange={e => setProfMatricula(e.target.value)}
+              onChange={e => setProfMatricula(e.target.value.replace(/\D/g, ''))}
               placeholder={profSearchMode === 'dni' ? 'Tu número de DNI' : 'Tu número de matrícula'}
               autoComplete="off"
               inputMode="numeric"
@@ -1114,6 +1172,9 @@ function RefepsPreviewModal({
   refepsData,
   selectedProfessional,
   setSelectedProfessional,
+  profileLoaded,
+  loading,
+  error,
   selectedSpecialties,
   toggleSpecialty,
   onConfirm,
@@ -1124,6 +1185,9 @@ function RefepsPreviewModal({
   refepsData: RefepsSearchResult | null;
   selectedProfessional: RefepsProfessional | null;
   setSelectedProfessional: (p: RefepsProfessional | null) => void;
+  profileLoaded: boolean;
+  loading: boolean;
+  error: string;
   selectedSpecialties: string[];
   toggleSpecialty: (name: string) => void;
   onConfirm: () => void;
@@ -1142,18 +1206,18 @@ function RefepsPreviewModal({
         overlayClassName="bg-black/60"
       >
         <DialogHeader className="shrink-0 text-left">
-          <DialogTitle className="text-lg font-extrabold text-[#6F518E]">Registro encontrado</DialogTitle>
+          <DialogTitle className="text-lg font-extrabold text-[#6F518E]">Encontramos tu registro profesional</DialogTitle>
           <DialogDescription className="text-sm font-medium text-[#6F518E]/70">
-            Encontramos tus datos profesionales.
+            Revisá los datos oficiales antes de confirmar tu identidad.
           </DialogDescription>
         </DialogHeader>
 
         <div data-testid="refeps-modal-scroll-area" className="mt-2 min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-1">
           {current ? (
             <>
-              <p className="flex items-center gap-1.5 text-xs font-bold text-[#4a8f4e]">
-                <BadgeCheck size={15} />
-                Verificado por REFEPS
+              <p className={`flex items-center gap-1.5 text-xs font-bold ${profileLoaded ? 'text-[#4a8f4e]' : 'text-[#6F518E]'}`}>
+                {profileLoaded ? <BadgeCheck size={15} /> : <Search size={15} />}
+                {profileLoaded ? 'Datos oficiales del Buscador Nacional de Profesionales' : 'Resultado seleccionado'}
               </p>
 
               <div className="grid grid-cols-2 gap-x-3 gap-y-3 rounded-2xl border border-[#C9A7EB]/40 bg-white p-4 text-[#6F518E]">
@@ -1161,8 +1225,14 @@ function RefepsPreviewModal({
                 <LockedField label="Apellido" value={current?.apellido || '—'} />
                 <LockedField label="Profesión" value={current?.profesion || '—'} />
                 <LockedField label="Matrícula" value={String(current?.matricula ?? '—')} />
-                <LockedField label="Jurisdicción" value={current?.jurisdiccion || '—'} />
+                  <LockedField label="Provincia/jurisdicción" value={current?.jurisdiccion || '—'} />
+                  {current?.especialidades?.length ? <LockedField label="Especialidad" value={current.especialidades.join(', ')} /> : null}
+                {profileLoaded && <LockedField label="Estado de matrícula" value={current?.estado || '—'} />}
               </div>
+
+              {!profileLoaded && <p className="rounded-2xl bg-[#C9A7EB]/18 px-4 py-3 text-sm font-semibold text-[#6F518E]">
+                Consultaremos la ficha oficial del Buscador Nacional de Profesionales.
+              </p>}
 
               <div className="space-y-2">
                 <p className="text-sm font-extrabold text-[#6F518E]">Especialidades visibles en TÁNDEM</p>
@@ -1219,6 +1289,7 @@ function RefepsPreviewModal({
                           <span className="block truncate text-sm font-bold text-[#6F518E]">{professionalDisplayName(r)}</span>
                           <span className="block truncate text-xs font-semibold text-[#6F518E]/65">{r?.profesion || 'Profesional'}</span>
                           <span className="block text-xs font-semibold text-[#6F518E]/55">Matrícula: {String(r?.matricula ?? '')}</span>
+                          {r?.jurisdiccion && <span className="block truncate text-xs font-semibold text-[#6F518E]/55">{r.jurisdiccion}</span>}
                         </span>
                         {selectedProfessional === r && <Check size={17} className="mt-0.5 shrink-0 text-[#6F518E]" />}
                       </button>
@@ -1234,13 +1305,15 @@ function RefepsPreviewModal({
           )}
         </div>
 
+        {error && <p className="mt-3 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700" role="alert">{error}</p>}
+
         <div data-testid="refeps-modal-actions" className="mt-4 shrink-0 space-y-2">
           <AuthActionButton
             type="button"
-            disabled={!current}
+            disabled={!current || loading}
             onClick={onConfirm}
           >
-            Confirmar datos
+            {loading ? 'Consultando ficha...' : profileLoaded ? 'Confirmar datos' : 'Aceptar'}
           </AuthActionButton>
           <button
             type="button"

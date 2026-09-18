@@ -8,7 +8,7 @@ import {
 } from '@/data/api';
 import { withGoogleToken } from '@/lib/googleAuth';
 import { getDocPlainText } from '@/lib/googleDocs';
-import { CheckCircle2, Calendar, Home, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, Sparkles, MessageCircle, Bell, KeyRound, Loader2, FolderOpen, CalendarClock, Download, Send, Info, Image, ShieldCheck, Link2 } from 'lucide-react';
+import { CheckCircle2, Calendar, Home, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, Sparkles, MessageCircle, Bell, KeyRound, Loader2, FolderOpen, CalendarClock, Download, Send, Info, Image, ShieldCheck, Link2, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -88,6 +88,8 @@ export default function ProfessionalDashboard() {
   const [patientSearch, setPatientSearch] = useState('');
   const [selectedNotificationChatId, setSelectedNotificationChatId] = useState<string | undefined>();
   const [agendaInitialPatientId, setAgendaInitialPatientId] = useState<number | undefined>();
+  const [builderPreselect, setBuilderPreselect] = useState<string[] | undefined>(undefined);
+  const [activitiesReturnPatientId, setActivitiesReturnPatientId] = useState<string | null>(null);
   const { unreadCount, setUnreadCount } = useUnreadNotifications(
     user && user.role === 'professional' ? { id: String(user.id) } : null
   );
@@ -279,11 +281,20 @@ export default function ProfessionalDashboard() {
   };
 
   const navigate = (next: ProfessionalTab) => {
-    navigateRoute(next); setSelectedPatient(null); setMenuOpen(false); setProfileOpen(false); setQuickOpen(false);
+    navigateRoute(next); setSelectedPatient(null); setMenuOpen(false); setProfileOpen(false); setQuickOpen(false); setActivitiesReturnPatientId(null);
     mainRef.current?.scrollTo({ top: 0, behavior: 'auto' });
   };
   const openPatient = (userId: string) => {
     navigateRoute('patients', { patientId: userId }); setSelectedPatient(userId); setPatientTab('overview'); setMenuOpen(false); setProfileOpen(false); setQuickOpen(false);
+    mainRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+  };
+  const backToPatientFromActividades = () => {
+    if (!activitiesReturnPatientId) return;
+    const patientId = activitiesReturnPatientId;
+    setActivitiesReturnPatientId(null);
+    setBuilderPreselect(undefined);
+    setMenuOpen(false); setProfileOpen(false); setQuickOpen(false);
+    navigateRoute('patients', { patientId });
     mainRef.current?.scrollTo({ top: 0, behavior: 'auto' });
   };
   return (
@@ -378,6 +389,7 @@ export default function ProfessionalDashboard() {
           const patientPermissions = vinculosByUsuarioPerteneciente.get(String(patientDetail.id))?.permisos_efectivos?.permisos;
           const canViewPatientHistory = Boolean(permissionContext) && isPermissionEnabled(patientPermissions, PROFESIONAL_PERMISSIONS.VER_HISTORIAL, false);
           const canSchedulePatient = isPermissionEnabled(patientPermissions, PROFESIONAL_PERMISSIONS.AGENDAR_SESIONES, true);
+          const canCreateActivityForPatient = Boolean(permissionContext) && isPermissionEnabled(patientPermissions, PROFESIONAL_PERMISSIONS.ASIGNAR_ACTIVIDADES, true);
           const pertenecienteId = Number(linkForUser(patientDetail.id)?.perteneciente.id);
           const patientSessions = sessions
             .filter(session => Number(session.id_perteneciente) === pertenecienteId)
@@ -514,6 +526,7 @@ export default function ProfessionalDashboard() {
                   <span className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/60 px-3 text-xs font-semibold text-amber-700 max-sm:px-2"><Users size={16} className="shrink-0" />Autonomía {patientAutonomy}</span>
                   <span className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 text-xs font-semibold text-emerald-700 max-sm:col-span-2 max-sm:px-2"><Link2 size={16} className="shrink-0" />Vínculo activo</span>
                 </div>
+                {canCreateActivityForPatient && <Button onClick={() => { setBuilderPreselect([patientDetail.id]); navigate('create'); setActivitiesReturnPatientId(patientDetail.id); }} className="gradient-primary text-primary-foreground min-h-11 shrink-0 lg:ml-4 max-sm:col-span-2"><ClipboardPlus size={16} className="mr-2" />Crear actividad</Button>}
                 {nextPatientSession && <div className="rounded-xl border bg-white p-3 shadow-sm lg:ml-auto lg:min-w-52 max-lg:w-full"><p className="flex items-center gap-2 text-xs font-bold text-[#302444]"><CalendarClock size={17} className="text-violet-600" />Próxima sesión</p><p className="mt-1 pl-6 text-xs text-muted-foreground">{new Date(nextPatientSession.fecha_sesion).toLocaleString('es-AR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</p></div>}
               </section>
               {!canViewPatientHistory && (
@@ -617,7 +630,14 @@ export default function ProfessionalDashboard() {
           );
         })()}
 
-        {tab === 'create' && (canAssignActivities || canCreateCustomActivities) && <ActivityManager assignableUsers={activityPatients} />}
+        {tab === 'create' && (canAssignActivities || canCreateCustomActivities) && (
+          <div className="space-y-4">
+            {activitiesReturnPatientId && (
+              <button type="button" onClick={backToPatientFromActividades} className="inline-flex min-h-10 items-center rounded-lg border border-primary/20 bg-white px-4 text-sm font-semibold text-primary shadow-sm"><ChevronLeft size={16} className="mr-1" />Volver a {linkedUsers.find(p => p.id === activitiesReturnPatientId)?.name || 'pacientes'}</button>
+            )}
+            <ActivityManager assignableUsers={activityPatients} initialPreselectUserIds={builderPreselect} onBuilderClose={() => setBuilderPreselect(undefined)} onBack={backToPatientFromActividades} />
+          </div>
+        )}
         {tab === 'create' && !(canAssignActivities || canCreateCustomActivities) && (
           <PermissionBlocked
             title="Creacion de actividades deshabilitada"

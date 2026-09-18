@@ -31,7 +31,7 @@ describe('DniScanner', () => {
     Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: vi.fn().mockRejectedValue(new DOMException('Denied', 'NotAllowedError')) } });
     render(<DniScanner onCapture={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /escanear dni/i }));
-    expect(await screen.findByText(/no pudimos acceder a tu cámara/i)).toBeInTheDocument();
+    expect(await screen.findByText(/necesitamos acceso a la cámara/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /reintentar/i })).toBeInTheDocument();
   });
 
