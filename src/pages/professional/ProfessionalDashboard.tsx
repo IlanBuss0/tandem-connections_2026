@@ -6,8 +6,8 @@ import {
   fetchProfessionalSessions, joinProfessionalInviteByCode, prepareSessionSummary, updateProfessionalSession,
   fetchAcompanamiento, createSharedSupportNote, deleteSharedSupportNote, createSharedSupportObjective,
   updateSharedSupportObjective, createSharedSupportAgreement,
-  updateSharedSupportAgreement, askSharedSupportQuestion, fetchSupportNetwork,
-  type Activity, type AcompanamientoData, type EmotionalRecord, type PersonalNote, type ProfessionalSession, type SessionPrepSummary, type SupportNetworkMember, type User,
+  updateSharedSupportAgreement, askSharedSupportQuestion, fetchSupportNetwork, fetchProfessionalReports,
+  type Activity, type AcompanamientoData, type EmotionalRecord, type GeneratedReport, type PersonalNote, type ProfessionalSession, type SessionPrepSummary, type SupportNetworkMember, type User,
 } from '@/data/api';
 import { withGoogleToken } from '@/lib/googleAuth';
 import { getDocPlainText } from '@/lib/googleDocs';
@@ -93,6 +93,7 @@ export default function ProfessionalDashboard() {
   const [selectedNotificationChatId, setSelectedNotificationChatId] = useState<string | undefined>();
   const [patientSupportData, setPatientSupportData] = useState<AcompanamientoData | null>(null);
   const [patientSupportNetwork, setPatientSupportNetwork] = useState<SupportNetworkMember[]>([]);
+  const [patientReports, setPatientReports] = useState<GeneratedReport[]>([]);
   const [agendaInitialPatientId, setAgendaInitialPatientId] = useState<number | undefined>();
   const [builderPreselect, setBuilderPreselect] = useState<string[] | undefined>(undefined);
   const [activitiesReturnPatientId, setActivitiesReturnPatientId] = useState<string | null>(null);
@@ -212,9 +213,11 @@ export default function ProfessionalDashboard() {
   useEffect(() => {
     setPatientSupportData(null);
     setPatientSupportNetwork([]);
+    setPatientReports([]);
     if (patientPertenecienteId) {
       void fetchAcompanamiento(patientPertenecienteId).then(setPatientSupportData).catch(() => setPatientSupportData(null));
       void fetchSupportNetwork(patientPertenecienteId).then(setPatientSupportNetwork).catch(() => setPatientSupportNetwork([]));
+      void fetchProfessionalReports(patientPertenecienteId).then(setPatientReports).catch(() => setPatientReports([]));
     }
   }, [patientPertenecienteId]);
   if (!user || user.role !== 'professional') return null;
@@ -334,7 +337,8 @@ export default function ProfessionalDashboard() {
       />
 
       <ProfessionalDrawer open={menuOpen} active={tab} permissions={navigationPermissions} onClose={() => setMenuOpen(false)} onNavigate={navigate} onLogout={logout} />
-      <main ref={mainRef} id="professional-main" tabIndex={-1} className="mx-auto min-h-0 w-full max-w-[1536px] flex-1 space-y-5 overflow-y-auto px-4 py-6 max-lg:pb-28 sm:px-6 lg:px-8 lg:py-9 xl:px-10">
+      <main ref={mainRef} id="professional-main" tabIndex={-1} className="min-h-0 w-full flex-1 overflow-y-auto px-4 py-6 max-lg:pb-28 sm:px-6 lg:px-8 lg:py-9 xl:px-10">
+       <div className="mx-auto w-full max-w-[1536px] space-y-5">
         {tab === 'home' && loadingPatients && <ProfessionalHomeSkeleton />}
         {tab === 'home' && !loadingPatients && patientsError && <div role="alert" className="rounded-3xl border border-destructive/20 bg-white p-6 text-sm text-destructive shadow-sm">{patientsError}<Button type="button" variant="outline" className="ml-3" onClick={reloadPatients}>Reintentar</Button></div>}
         {tab === 'home' && !loadingPatients && !patientsError && <ProfessionalHome professionalName={user.name} patients={linkedUsers} sessions={sessions} activitiesByUser={activitiesByUser} emotionsByUser={emotionsByUser} notesByUser={notesByUser} patientPertenecienteIds={Object.fromEntries(linkedUsers.map(patient => [patient.id, Number(linkForUser(patient.id)?.perteneciente.id)]))} onNavigate={navigate} onOpenPatient={openPatient} />}
@@ -421,6 +425,7 @@ export default function ProfessionalDashboard() {
             emotions={sharedCanViewHistory ? sharedEmotions : []}
             sessions={sharedCanViewHistory ? sharedSessions : []}
             supportData={patientSupportData || undefined}
+            reports={patientReports}
             canViewHistory={sharedCanViewHistory}
             canManageSessions={sharedCanSchedule}
             onCreateSharedNote={async content => { await createSharedSupportNote(sharedPertenecienteId, content); await reloadPatientSupport(); }}
@@ -577,6 +582,7 @@ export default function ProfessionalDashboard() {
           </div>
         )}
 
+       </div>
       </main>
       <BelongingMobileBottomNav activeTab={tab} onNavigate={(next) => navigate(next as ProfessionalTab)} destinations={mobileDestinations} forceExpanded={quickOpen} scrollContainerRef={mainRef} center={(compactProgress) => <ProfessionalQuickMenu open={quickOpen} onOpenChange={setQuickOpen} compactProgress={compactProgress} permissions={navigationPermissions} onAction={(action: ProfessionalQuickAction) => {
         if (action === 'activity') navigate('create');
