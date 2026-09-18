@@ -1225,6 +1225,12 @@ export async function searchRefepsProfessional(
   return tandemApi.refeps.searchByMatricula(matricula);
 }
 
+export async function fetchProfessionalRegistryDetails(
+  payload: { selectionId?: string | null; matricula: string; dni: string; jurisdiccion: string; codigo?: string | null; profesion?: string | null },
+): Promise<import('@/services/api').RefepsProfessional> {
+  return tandemApi.refeps.getDetails(payload);
+}
+
 export async function searchRefepsByDni(
   dni: string,
 ): Promise<import('@/services/api').RefepsSearchResult> {
@@ -3021,6 +3027,98 @@ export async function downloadPatientHistoryPdf(idPerteneciente: number): Promis
   const res = await fetch(url, { credentials: 'include' });
   if (!res.ok) throw new Error('No se pudo generar el PDF.');
   return res.blob();
+}
+
+export interface SharedSupportNote {
+  id: number;
+  id_perteneciente: number;
+  id_usuario_autor: number;
+  contenido: string;
+  fecha_creacion: string;
+  fecha_actualizacion: string;
+  autor_nombre?: string;
+  autor_rol?: string;
+}
+
+export interface SharedSupportObjective {
+  id: number;
+  id_perteneciente: number;
+  id_usuario_creador: number;
+  titulo: string;
+  descripcion: string | null;
+  estado: 'activo' | 'pausado' | 'completado';
+  progreso: number;
+  fecha_creacion: string;
+  fecha_actualizacion: string;
+  autor_nombre?: string;
+  autor_rol?: string;
+}
+
+export interface SupportNetworkMember {
+  id_usuario: number;
+  nombre: string;
+  rol: 'tutor' | 'profesional';
+}
+
+export interface SharedSupportAgreement {
+  id: number;
+  id_perteneciente: number;
+  id_usuario_creador: number;
+  texto: string;
+  completado: boolean;
+  fecha_creacion: string;
+  fecha_actualizacion: string;
+}
+
+export interface AcompanamientoData {
+  id_perteneciente: number;
+  notas: SharedSupportNote[];
+  objetivos: SharedSupportObjective[];
+  acuerdos: SharedSupportAgreement[];
+}
+
+export async function fetchAcompanamiento(idPerteneciente: number): Promise<AcompanamientoData> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}`, { token: getStoredAuthToken() });
+}
+
+export async function createSharedSupportNote(idPerteneciente: number, contenido: string): Promise<AcompanamientoData> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}/notas`, { method: 'POST', token: getStoredAuthToken(), body: { contenido } });
+}
+
+export async function deleteSharedSupportNote(idPerteneciente: number, noteId: number): Promise<AcompanamientoData> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}/notas/${noteId}`, { method: 'DELETE', token: getStoredAuthToken() });
+}
+
+export async function createSharedSupportObjective(idPerteneciente: number, payload: { titulo: string; descripcion?: string }): Promise<AcompanamientoData> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}/objetivos`, { method: 'POST', token: getStoredAuthToken(), body: payload });
+}
+
+export async function updateSharedSupportObjective(idPerteneciente: number, objectiveId: number, payload: Partial<Pick<SharedSupportObjective, 'titulo' | 'descripcion' | 'estado' | 'progreso'>>): Promise<AcompanamientoData> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}/objetivos/${objectiveId}`, { method: 'PATCH', token: getStoredAuthToken(), body: payload });
+}
+
+export async function deleteSharedSupportObjective(idPerteneciente: number, objectiveId: number): Promise<AcompanamientoData> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}/objetivos/${objectiveId}`, { method: 'DELETE', token: getStoredAuthToken() });
+}
+
+export async function createSharedSupportAgreement(idPerteneciente: number, texto: string): Promise<AcompanamientoData> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}/acuerdos`, { method: 'POST', token: getStoredAuthToken(), body: { texto } });
+}
+
+export async function updateSharedSupportAgreement(idPerteneciente: number, agreementId: number, payload: { texto?: string; completado?: boolean }): Promise<AcompanamientoData> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}/acuerdos/${agreementId}`, { method: 'PATCH', token: getStoredAuthToken(), body: payload });
+}
+
+export async function deleteSharedSupportAgreement(idPerteneciente: number, agreementId: number): Promise<AcompanamientoData> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}/acuerdos/${agreementId}`, { method: 'DELETE', token: getStoredAuthToken() });
+}
+
+export async function askSharedSupportQuestion(idPerteneciente: number, pregunta: string): Promise<{ respuesta: string }> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}/ia/preguntar`, { method: 'POST', token: getStoredAuthToken(), body: { pregunta } });
+}
+
+export async function fetchSupportNetwork(idPerteneciente: number): Promise<SupportNetworkMember[]> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}/red-apoyo`, { token: getStoredAuthToken() });
 }
 
 export async function fetchNoteTemplateFavorites(): Promise<string[]> {
