@@ -1211,16 +1211,16 @@ export async function searchRefepsProfessional(
   return tandemApi.refeps.searchByMatricula(matricula);
 }
 
+export async function fetchProfessionalRegistryDetails(
+  payload: { selectionId?: string | null; matricula: string; dni: string; jurisdiccion: string; codigo?: string | null; profesion?: string | null },
+): Promise<import('@/services/api').RefepsProfessional> {
+  return tandemApi.refeps.getDetails(payload);
+}
+
 export async function searchRefepsByDni(
   dni: string,
 ): Promise<import('@/services/api').RefepsSearchResult> {
   return tandemApi.refeps.searchByDni(dni);
-}
-
-export async function fetchRefepsConstancia(
-  payload: { matricula: string; dni: string; jurisdiccion: string },
-): Promise<import('@/services/api').RefepsProfessional> {
-  return tandemApi.refeps.getConstancia(payload);
 }
 
 export async function verifyProfessionalDni(

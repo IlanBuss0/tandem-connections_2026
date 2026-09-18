@@ -5,7 +5,7 @@ import Login from './Login';
 
 const searchRefepsProfessional = vi.fn();
 const searchRefepsByDni = vi.fn();
-const fetchRefepsConstancia = vi.fn();
+const fetchProfessionalRegistryDetails = vi.fn();
 const verifyProfessionalDni = vi.fn();
 
 vi.mock('@/contexts/AuthContext', () => ({
@@ -19,7 +19,7 @@ vi.mock('@/contexts/AuthContext', () => ({
 vi.mock('@/data/api', () => ({
   searchRefepsProfessional: (...args: unknown[]) => searchRefepsProfessional(...args),
   searchRefepsByDni: (...args: unknown[]) => searchRefepsByDni(...args),
-  fetchRefepsConstancia: (...args: unknown[]) => fetchRefepsConstancia(...args),
+  fetchProfessionalRegistryDetails: (...args: unknown[]) => fetchProfessionalRegistryDetails(...args),
   verifyProfessionalDni: (...args: unknown[]) => verifyProfessionalDni(...args),
 }));
 
@@ -75,9 +75,9 @@ describe('professional registration flow', () => {
   beforeEach(() => {
     searchRefepsProfessional.mockReset();
     searchRefepsByDni.mockReset();
-    fetchRefepsConstancia.mockReset();
+    fetchProfessionalRegistryDetails.mockReset();
     verifyProfessionalDni.mockReset();
-    fetchRefepsConstancia.mockImplementation(async ({ matricula, dni, jurisdiccion }: { matricula: string; dni: string; jurisdiccion: string }) => ({
+    fetchProfessionalRegistryDetails.mockImplementation(async ({ matricula, dni, jurisdiccion }: { matricula: string; dni: string; jurisdiccion: string }) => ({
       nombre: 'Nombre oficial', apellido: 'Apellido oficial', dni, matricula, jurisdiccion,
       profesion: 'Psicología', habilitado: true, estado: 'Habilitado', especialidades: ['Psicología clínica'],
     }));
@@ -122,28 +122,45 @@ describe('professional registration flow', () => {
     expect(screen.getAllByText('Psicología')).toHaveLength(2);
   });
 
-  it('switches to DNI search and queries the public DNI lookup', async () => {
-    searchRefepsByDni.mockResolvedValueOnce({ found: true, ambiguous: false, results: buildRefepsResults(1) });
-    openProfessionalRegistration();
-
-    fireEvent.click(screen.getByRole('button', { name: /por dni/i }));
-    expect(screen.getByRole('button', { name: /por dni/i })).toHaveAttribute('aria-pressed', 'true');
-    fireEvent.change(screen.getByLabelText(/^dni$/i), { target: { value: '30123456' } });
-    fireEvent.click(screen.getByRole('button', { name: /continuar/i }));
-
-    await waitFor(() => expect(searchRefepsByDni).toHaveBeenCalledWith('30123456'));
-    expect(searchRefepsProfessional).not.toHaveBeenCalled();
-  });
-
   it('keeps the professional selection modal scrollable with one result', async () => {
     await openRefepsResults(1);
 
     expect(await screen.findByText('Nombre1')).toBeInTheDocument();
     expect(screen.getByText('Apellido1')).toBeInTheDocument();
     expectScrollableRefepsModal();
-    fireEvent.click(screen.getByRole('button', { name: /generar constancia/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^aceptar$/i }));
     expect(await screen.findByRole('button', { name: /confirmar datos/i })).toBeVisible();
     expect(screen.getByRole('button', { name: /no soy esta persona/i })).toBeVisible();
+  });
+
+  it('searches the public registry by DNI and opens the selected professional', async () => {
+    searchRefepsByDni.mockResolvedValueOnce({
+      found: true,
+      ambiguous: false,
+      results: buildRefepsResults(1),
+    });
+    openProfessionalRegistration();
+
+    fireEvent.click(screen.getByRole('button', { name: /por dni/i }));
+    fireEvent.change(screen.getByLabelText(/^dni$/i), { target: { value: '30123456' } });
+    fireEvent.click(screen.getByRole('button', { name: /continuar/i }));
+
+    await waitFor(() => expect(searchRefepsByDni).toHaveBeenCalledWith('30123456'));
+    expect(searchRefepsProfessional).not.toHaveBeenCalled();
+    expect(await screen.findByRole('button', { name: /^aceptar$/i })).toBeVisible();
+  });
+
+  it('blocks a professional whose official license is not enabled', async () => {
+    await openRefepsResults(1);
+    fetchProfessionalRegistryDetails.mockResolvedValueOnce({
+      ...buildRefepsResults(1)[0], habilitado: false, estado: 'No habilitado', especialidades: [],
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /^aceptar$/i }));
+    await waitFor(() => expect(screen.getAllByText(/tu matrícula no figura habilitada/i).length).toBeGreaterThan(0));
+    fireEvent.click(screen.getByRole('button', { name: /confirmar datos/i }));
+    expect(screen.getAllByText(/tu matrícula no figura habilitada/i).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: /escanear dni/i })).not.toBeInTheDocument();
   });
 
   it('keeps all modal actions accessible with five professional results', async () => {
@@ -153,9 +170,9 @@ describe('professional registration flow', () => {
     expect(screen.getByText('Lic. Nombre5 Apellido5')).toBeInTheDocument();
     expectScrollableRefepsModal();
     fireEvent.click(screen.getByRole('button', { name: /lic\. nombre1 apellido1/i }));
-    fireEvent.click(screen.getByRole('button', { name: /generar constancia/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^aceptar$/i }));
     expect(await screen.findByRole('button', { name: /confirmar datos/i })).toBeVisible();
-    expect(fetchRefepsConstancia).toHaveBeenCalledWith({ matricula: '1234', dni: '30123456', jurisdiccion: 'CABA' });
+    expect(fetchProfessionalRegistryDetails).toHaveBeenCalledWith({ matricula: '1234', dni: '30123456', jurisdiccion: 'CABA', codigo: undefined, profesion: 'Psicología', selectionId: undefined });
     expect(screen.getByRole('button', { name: /no soy esta persona/i })).toBeVisible();
   });
 
@@ -170,7 +187,7 @@ describe('professional registration flow', () => {
 
     expect(screen.getByText('Nombre12')).toBeInTheDocument();
     expect(screen.getByText('Apellido12')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /generar constancia/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^aceptar$/i }));
     expect(await screen.findByRole('button', { name: /confirmar datos/i })).toBeEnabled();
   });
 
@@ -202,7 +219,7 @@ describe('professional registration flow', () => {
       messageCode: 'PROFESSIONAL_CREDENTIALS_VERIFIED',
     });
 
-    fireEvent.click(await screen.findByRole('button', { name: /generar constancia/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^aceptar$/i }));
     fireEvent.click(await screen.findByRole('button', { name: /confirmar datos/i }));
     fireEvent.click(screen.getByRole('button', { name: /escanear dni/i }));
 
@@ -231,7 +248,7 @@ describe('professional registration flow', () => {
 
     fireEvent.change(screen.getByLabelText(/matrícula/i), { target: { value: '1234' } });
     fireEvent.click(screen.getByRole('button', { name: /continuar/i }));
-    fireEvent.click(await screen.findByRole('button', { name: /generar constancia/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^aceptar$/i }));
     fireEvent.click(await screen.findByRole('button', { name: /confirmar datos/i }));
     fireEvent.click(screen.getByRole('button', { name: /escanear dni/i }));
 

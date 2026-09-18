@@ -111,8 +111,15 @@ export type RefepsProfessional =
     habilitado: boolean;
     estado: string | null;
     especialidades: string[];
-    nombreCompleto?: string | null;
     cuil?: string | null;
+    codigo?: string | null;
+    activo?: string | null;
+    emisor?: string | null;
+    tipoSancion?: string | null;
+    motivoSancion?: string | null;
+    fechaFinSancion?: string | null;
+    selectionId?: string | null;
+    nombreCompleto?: string | null;
     titulo?: string | null;
     fuente?: string | null;
     fechaNacimiento?: string | null;
@@ -163,6 +170,9 @@ export type ProfessionalDniVerificationRequest = {
   pdf417Raw?: string;
   refepsDni?: string;
   jurisdiccion?: string;
+  codigo?: string;
+  profesion?: string;
+  selectionId?: string;
 };
 
 export interface TutorAccount {
@@ -195,6 +205,8 @@ export type RegisterRequest = Pick<
     pdf417Raw?: string;
     refepsDni?: string;
     jurisdiccion?: string;
+    codigo?: string;
+    selectionId?: string;
   };
 
 function authFormData(payload: Partial<RegisterRequest> & { accessToken?: string }): FormData {
@@ -383,8 +395,8 @@ class RefepsApiService {
     return unwrapApiData(response?.data ?? response);
   }
 
-  async getConstancia(payload: { matricula: string; dni: string; jurisdiccion: string }): Promise<RefepsProfessional> {
-    const response = await apiRequest<{ ok: boolean; data: RefepsProfessional }>('/api/refeps/constancia', {
+  async getDetails(payload: { selectionId?: string | null; matricula: string; dni: string; jurisdiccion: string; codigo?: string | null; profesion?: string | null }): Promise<RefepsProfessional> {
+    const response = await apiRequest<{ ok: boolean; data: RefepsProfessional }>('/api/refeps/details', {
       method: 'POST', body: payload, cacheTtlMs: 0,
     });
     return unwrapApiData(response?.data ?? response);
