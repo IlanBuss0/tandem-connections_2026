@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Edit2, Copy, Trash2, Send, EyeOff, Sparkles, Users, Calendar, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,13 +9,20 @@ import { useToast } from '@/components/ui/use-toast';
 import { tandemApi } from '@/services/api';
 import type { ResultadoActividadPersonalizada } from '@/types/database';
 
-export default function ActivityManager({ assignableUsers }: { assignableUsers?: User[] }) {
+export default function ActivityManager({ assignableUsers, initialPreselectUserIds, onBuilderClose, onBack }: { assignableUsers?: User[]; initialPreselectUserIds?: string[]; onBuilderClose?: () => void; onBack?: () => void }) {
   const { user } = useAuth();
   const { byCreator, remove, duplicate, publish, unpublish } = useCustomActivities();
   const { toast } = useToast();
   const [builderOpen, setBuilderOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
   const [publishingId, setPublishingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialPreselectUserIds && initialPreselectUserIds.length > 0) {
+      setEditingId(undefined);
+      setBuilderOpen(true);
+    }
+  }, [initialPreselectUserIds]);
 
   if (!user) return null;
   const list = byCreator(user.id);
@@ -24,7 +31,8 @@ export default function ActivityManager({ assignableUsers }: { assignableUsers?:
   const userNameById = new Map((assignableUsers || []).map(item => [item.id, item.name]));
 
   const open = (id?: string) => { setEditingId(id); setBuilderOpen(true); };
-  const close = () => { setBuilderOpen(false); setEditingId(undefined); };
+  const close = () => { setBuilderOpen(false); setEditingId(undefined); onBuilderClose?.(); };
+  const back = () => { setBuilderOpen(false); setEditingId(undefined); onBack?.(); };
   const publishDraft = async (id: string) => {
     setPublishingId(id);
     try {
@@ -88,7 +96,7 @@ export default function ActivityManager({ assignableUsers }: { assignableUsers?:
         </div>
       )}
 
-      {builderOpen && <ActivityBuilder initialId={editingId} onClose={close} assignableUsersOverride={assignableUsers} />}
+      {builderOpen && <ActivityBuilder initialId={editingId} onClose={close} onBack={onBack ? back : undefined} assignableUsersOverride={assignableUsers} preselectUserIds={initialPreselectUserIds} />}
     </div>
   );
 }

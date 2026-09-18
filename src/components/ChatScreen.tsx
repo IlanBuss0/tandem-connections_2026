@@ -54,10 +54,12 @@ export default function ChatScreen({
   profiles,
   defaultProfileId,
   defaultSelectedId,
+  focusUserId,
 }: {
   profiles?: ChatViewProfile[];
   defaultProfileId?: string;
   defaultSelectedId?: string;
+  focusUserId?: string;
 }) {
   const { user } = useAuth();
   const { conversationsForUser, messagesFor, send, edit, remove, markRead, createDirect, createGroup, updateConversation, uploadConversationAvatar, hideConversation, setActiveConversation, sendTyping, typingUsersFor, allContacts, getPersonById, connectionStatus } = useChat();
@@ -156,6 +158,15 @@ export default function ChatScreen({
   useEffect(() => {
     setSelectedId(defaultSelectedId || null);
   }, [defaultSelectedId, resolvedProfileId]);
+
+  useEffect(() => {
+    if (!focusUserId) return;
+    let cancelled = false;
+    void createDirect(focusUserId)
+      .then(conv => { if (!cancelled) setSelectedId(conv.id); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [focusUserId, createDirect]);
 
   useEffect(() => {
     let mounted = true;
