@@ -79,7 +79,7 @@ export default function CollaborationFeed({ notes, agreements, objectives, suppo
                 key={`objetivo-${objective.id}`} objective={objective}
                 disabled={pendingId === `objetivo-${objective.id}`}
                 showButtons={Boolean(onUpdateObjective)}
-                onAdjust={delta => onUpdateObjective && void run(`objetivo-${objective.id}`, () => onUpdateObjective(objective.id, { progreso: Math.max(0, Math.min(100, objective.progreso + delta)) }))}
+                onCommit={progreso => onUpdateObjective && void run(`objetivo-${objective.id}`, () => onUpdateObjective(objective.id, { progreso }))}
                 onComplete={() => onUpdateObjective && void run(`objetivo-${objective.id}`, () => onUpdateObjective(objective.id, { progreso: 100, estado: 'completado' }))}
               />
             );

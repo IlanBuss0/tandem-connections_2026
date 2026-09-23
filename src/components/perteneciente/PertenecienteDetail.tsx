@@ -10,7 +10,6 @@ import { useRememberedTab } from '@/hooks/useRememberedTab';
 import { activityIsDone, buildEvolutionCopy } from '@/components/perteneciente/evolution/evolutionHelpers';
 import { useEvolutionSummary } from '@/components/perteneciente/evolution/useEvolutionSummary';
 import EvolutionTab from '@/components/perteneciente/evolution/EvolutionTab';
-import CollaborationHeader from '@/components/perteneciente/collaboration/CollaborationHeader';
 import NowCard from '@/components/perteneciente/collaboration/NowCard';
 import CollaborationComposer from '@/components/perteneciente/collaboration/CollaborationComposer';
 import CollaborationFeed from '@/components/perteneciente/collaboration/CollaborationFeed';
@@ -94,6 +93,14 @@ export default function PertenecienteDetail({
   const historyObjectives = sharedObjectives.filter(objective => objective.estado === 'completado');
   const sharedAgreements = supportData?.acuerdos || [];
   const supportNetworkSection = <Section title="Personas acompañando" eyebrow="Red de apoyo" icon={Users}>{supportNetwork.length ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">{supportNetwork.map(member => { const isYou = currentUserId != null && String(member.id_usuario) === String(currentUserId); return <div key={`${member.rol}-${member.id_usuario}`} className={`flex items-center gap-3 rounded-2xl p-3 ${isYou ? 'bg-violet-50 text-violet-800' : 'bg-muted/40 text-foreground'}`}><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/80 text-xs font-bold">{initialsOf(member.nombre)}</span><span className="min-w-0 flex-1"><span className="flex items-center gap-2 truncate text-sm font-bold">{member.nombre}{isYou && <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">Vos</span>}</span><span className="block text-xs capitalize opacity-80">{member.rol}</span></span></div>; })}</div> : <Empty>Todavía no hay tutores ni profesionales vinculados.</Empty>}</Section>;
+  const nowCardSection = <NowCard
+    sharedAgreements={sharedAgreements}
+    activeObjectives={activeObjectives}
+    nextSession={nextSession}
+    supportNetwork={supportNetwork}
+    onToggleAgreement={onToggleAgreement}
+    onUpdateObjective={onUpdateObjective}
+  />;
   const sortedReports = useMemo(() => [...reports].sort((a, b) => reportTime(b) - reportTime(a)), [reports]);
   const latestReport = sortedReports[0];
   const reportMonths = useMemo(() => Object.entries(sortedReports.reduce((result, report) => {
@@ -157,18 +164,10 @@ export default function PertenecienteDetail({
     />}
 
     {tab === 'collaboration' && <div className="evolution-scope grid gap-5 lg:grid-cols-[1.15fr_.85fr]">
-      <div className="space-y-4 lg:col-span-2">
-        <CollaborationHeader members={supportNetwork} />
-        <NowCard
-          sharedAgreements={sharedAgreements}
-          activeObjectives={activeObjectives}
-          nextSession={nextSession}
-          supportNetwork={supportNetwork}
-          onToggleAgreement={onToggleAgreement}
-          onUpdateObjective={onUpdateObjective}
-        />
+      <div className="min-w-0 space-y-4 lg:hidden">
+        {nowCardSection}
+        {supportNetworkSection}
       </div>
-      <div className="min-w-0 lg:hidden">{supportNetworkSection}</div>
       <div className="min-w-0 space-y-5">
         <CollaborationComposer onCreateSharedNote={onCreateSharedNote} onCreateAgreement={onCreateAgreement} onCreateObjective={onCreateObjective} />
         <CollaborationFeed
@@ -181,7 +180,10 @@ export default function PertenecienteDetail({
           onUpdateObjective={onUpdateObjective}
         />
       </div>
-      <div className="min-w-0 space-y-5"><div className="hidden lg:block">{supportNetworkSection}</div></div>
+      <div className="hidden min-w-0 space-y-4 lg:block">
+        {nowCardSection}
+        {supportNetworkSection}
+      </div>
     </div>}
 
     {tab === 'sessions' && <div className="grid gap-5 lg:grid-cols-2"><Section title="Sesiones permitidas" eyebrow="Acompañamiento profesional" icon={CalendarDays}><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><p className="max-w-xl text-sm text-muted-foreground">Las notas privadas profesionales quedan protegidas y nunca se muestran en este espacio compartido.</p>{canManageSessions && onScheduleSession && <button type="button" onClick={onScheduleSession} className="min-h-11 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground">Programar sesión</button>}</div>{nextSession && <div className="mb-4 rounded-2xl bg-violet-50 p-4"><p className="text-xs font-bold uppercase tracking-wider text-violet-700">Próxima sesión</p><p className="mt-1 font-heading text-xl font-bold text-violet-950">{nextSession.titulo}</p><p className="text-sm text-violet-800/75">{new Date(nextSession.fecha_sesion).toLocaleString('es-AR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })} · {nextSession.duracion_minutos} min</p></div>} {!canViewHistory ? <Empty>El historial no está habilitado para este vínculo.</Empty> : sessions.length ? <div className="space-y-2">{sessions.slice(0, 8).map(session => <div key={session.id} className="flex items-center gap-3 rounded-2xl border border-border/70 p-3"><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${session.estado === 'completada' ? 'bg-emerald-50 text-emerald-600' : 'bg-violet-50 text-violet-600'}`}><CalendarDays size={18} /></span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold">{session.titulo}</span><span className="block text-xs text-muted-foreground">{dateLabel(session.fecha_sesion)} · {session.estado}</span></span>{role === 'professional' && session.has_note && onOpenPrivateNote && <button type="button" onClick={() => onOpenPrivateNote(session)} className="min-h-10 rounded-xl px-3 text-xs font-bold text-primary hover:bg-primary/5">Nota privada</button>}</div>)}</div> : <Empty>Todavía no hay sesiones para mostrar.</Empty>}</Section><Section title="Reportes" eyebrow="Enviados por profesionales" icon={FileText}>{reportMonths.length ? <div className="space-y-3">{reportMonths.map(([month, monthReports], index) => <details key={month} open={index === 0} className="group overflow-hidden rounded-2xl border border-border/70 bg-white"><summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"><span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold capitalize">{month}</span><span className="block text-xs text-muted-foreground">{monthReports.length} {monthReports.length === 1 ? 'reporte' : 'reportes'}</span></span></summary><div className="border-t border-border/60 px-3">{monthReports.map(report => <ReportItem key={report.id} report={report} />)}</div></details>)}</div> : <Empty>Todavía no hay reportes para mostrar acá.</Empty>}</Section></div>}
