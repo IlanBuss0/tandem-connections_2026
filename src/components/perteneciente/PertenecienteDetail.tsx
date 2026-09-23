@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Activity, ArrowRight, CalendarDays, Check, CheckCircle2, ClipboardPlus, Clock3, FileText, Heart,
-  History, MessageCircle, Network, NotebookPen, Sparkles, Target, Users,
+  MessageCircle, Network, Sparkles, Target, Users,
 } from 'lucide-react';
 import type { AcompanamientoData, CalendarEvent, EmotionalRecord, GeneratedReport, ProfessionalSession, SupportNetworkMember, User } from '@/data/api';
 import { ReportItem } from '@/components/TutorReportsPanel';
@@ -10,6 +10,10 @@ import { useRememberedTab } from '@/hooks/useRememberedTab';
 import { activityIsDone, buildEvolutionCopy } from '@/components/perteneciente/evolution/evolutionHelpers';
 import { useEvolutionSummary } from '@/components/perteneciente/evolution/useEvolutionSummary';
 import EvolutionTab from '@/components/perteneciente/evolution/EvolutionTab';
+import CollaborationHeader from '@/components/perteneciente/collaboration/CollaborationHeader';
+import NowCard from '@/components/perteneciente/collaboration/NowCard';
+import CollaborationComposer from '@/components/perteneciente/collaboration/CollaborationComposer';
+import CollaborationFeed from '@/components/perteneciente/collaboration/CollaborationFeed';
 
 type DetailTab = 'summary' | 'evolution' | 'collaboration' | 'sessions' | 'ai';
 
@@ -80,10 +84,6 @@ export default function PertenecienteDetail({
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
-  const [noteDraft, setNoteDraft] = useState('');
-  const [objectiveDraft, setObjectiveDraft] = useState('');
-  const [agreementDraft, setAgreementDraft] = useState('');
-  const [showObjectiveHistory, setShowObjectiveHistory] = useState(false);
   const evolution = useEvolutionSummary(String(person.id));
   const completed = activities.filter(activityIsDone).length;
   const upcoming = useMemo(() => events.filter(event => new Date(`${event.date}T${event.time || '00:00'}`).getTime() >= Date.now() - 3600000).slice(0, 3), [events]);
@@ -156,10 +156,32 @@ export default function PertenecienteDetail({
       canViewHistory={canViewHistory}
     />}
 
-    {tab === 'collaboration' && <div className="grid gap-5 lg:grid-cols-[1.15fr_.85fr]">
+    {tab === 'collaboration' && <div className="evolution-scope grid gap-5 lg:grid-cols-[1.15fr_.85fr]">
+      <div className="space-y-4 lg:col-span-2">
+        <CollaborationHeader members={supportNetwork} />
+        <NowCard
+          sharedAgreements={sharedAgreements}
+          activeObjectives={activeObjectives}
+          nextSession={nextSession}
+          supportNetwork={supportNetwork}
+          onToggleAgreement={onToggleAgreement}
+          onUpdateObjective={onUpdateObjective}
+        />
+      </div>
       <div className="min-w-0 lg:hidden">{supportNetworkSection}</div>
-      <div className="min-w-0 space-y-5"><Section title="Notas compartidas" eyebrow="Muro de acompañamiento" icon={NotebookPen}><div className="space-y-3">{sharedNotes.slice(0, 8).map(note => <article key={note.id} className="rounded-2xl border border-border/70 bg-[#fffaf4] p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm font-bold">{note.autor_nombre || 'Red de apoyo'} <span className="font-normal text-muted-foreground">· {note.autor_rol || 'Acompañamiento'}</span></p><time className="text-xs text-muted-foreground">{dateLabel(note.fecha_creacion)}</time></div><p className="mt-2 text-sm leading-6">{note.contenido}</p>{onDeleteSharedNote && <button type="button" onClick={() => void onDeleteSharedNote(note.id)} className="mt-2 text-xs font-bold text-muted-foreground hover:text-destructive">Eliminar</button>}</article>)}{!sharedNotes.length && <Empty>Todavía no hay notas compartidas. Las notas privadas profesionales no aparecen aquí.</Empty>} </div>{onCreateSharedNote && <form onSubmit={event => { event.preventDefault(); if (!noteDraft.trim()) return; void onCreateSharedNote(noteDraft.trim()).then(() => setNoteDraft('')); }} className="flex flex-col gap-2 sm:flex-row"><textarea value={noteDraft} onChange={event => setNoteDraft(event.target.value)} placeholder="Compartí una observación útil para la red…" maxLength={2000} className="min-h-14 flex-1 rounded-2xl border border-border bg-white p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/30" /><button type="submit" className="min-h-9 self-end rounded-2xl bg-primary px-3 text-sm font-bold text-primary-foreground">Compartir</button></form>}</Section><Section title="En qué estamos trabajando" eyebrow="Objetivos compartidos" icon={Target}><div className="space-y-3">{activeObjectives.map(objective => <ObjectiveCard key={objective.id} objective={objective} editable={Boolean(onUpdateObjective)} onUpdate={onUpdateObjective} />)}{!activeObjectives.length && <Empty>Aún no hay objetivos activos.</Empty>}</div>{onCreateObjective && <form onSubmit={event => { event.preventDefault(); if (!objectiveDraft.trim()) return; void onCreateObjective({ titulo: objectiveDraft.trim() }).then(() => setObjectiveDraft('')); }} className="mt-3 flex gap-2"><input value={objectiveDraft} onChange={event => setObjectiveDraft(event.target.value)} placeholder="Nuevo objetivo" maxLength={160} className="min-h-11 min-w-0 flex-1 rounded-xl border border-border px-3 text-sm" /><button type="submit" className="rounded-xl bg-primary px-3 text-xs font-bold text-primary-foreground">Agregar</button></form>}{historyObjectives.length > 0 && <div className="mt-4"><button type="button" onClick={() => setShowObjectiveHistory(value => !value)} className="flex min-h-9 items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground"><History size={14} aria-hidden /> Historial ({historyObjectives.length})</button>{showObjectiveHistory && <div className="mt-2 space-y-2">{historyObjectives.map(objective => <div key={objective.id} className="rounded-2xl bg-emerald-50/70 p-3"><div className="flex items-start justify-between gap-3"><p className="text-sm font-bold text-emerald-950 line-through">{objective.titulo}</p><CheckCircle2 size={16} className="shrink-0 text-emerald-600" aria-hidden /></div><p className="mt-1 text-xs text-emerald-800/80">Completado {dateLabel(objective.fecha_actualizacion)}{objective.autor_nombre ? ` · lo puso ${objective.autor_nombre}` : ''}</p></div>)}</div>}</div>}</Section></div>
-      <div className="min-w-0 space-y-5"><div className="hidden lg:block">{supportNetworkSection}</div><Section title="Acuerdos de acompañamiento" eyebrow="Esta semana" icon={CheckCircle2}><div className="space-y-2 text-sm">{sharedAgreements.map(agreement => <label key={agreement.id} className="flex items-start gap-2"><input type="checkbox" checked={agreement.completado} onChange={event => onToggleAgreement && void onToggleAgreement(agreement.id, event.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" /><span className={agreement.completado ? 'text-muted-foreground line-through' : ''}>{agreement.texto}</span></label>)}{!sharedAgreements.length && <Empty>Todavía no hay acuerdos registrados.</Empty>}</div>{onCreateAgreement && <form onSubmit={event => { event.preventDefault(); if (!agreementDraft.trim()) return; void onCreateAgreement(agreementDraft.trim()).then(() => setAgreementDraft('')); }} className="mt-3 flex gap-2"><input value={agreementDraft} onChange={event => setAgreementDraft(event.target.value)} placeholder="Nuevo acuerdo" maxLength={500} className="min-h-11 min-w-0 flex-1 rounded-xl border border-border px-3 text-sm" /><button type="submit" className="rounded-xl bg-primary px-3 text-xs font-bold text-primary-foreground">Agregar</button></form>}</Section></div>
+      <div className="min-w-0 space-y-5">
+        <CollaborationComposer onCreateSharedNote={onCreateSharedNote} onCreateAgreement={onCreateAgreement} onCreateObjective={onCreateObjective} />
+        <CollaborationFeed
+          notes={sharedNotes}
+          agreements={sharedAgreements}
+          objectives={sharedObjectives}
+          supportNetwork={supportNetwork}
+          onDeleteSharedNote={onDeleteSharedNote}
+          onToggleAgreement={onToggleAgreement}
+          onUpdateObjective={onUpdateObjective}
+        />
+      </div>
+      <div className="min-w-0 space-y-5"><div className="hidden lg:block">{supportNetworkSection}</div></div>
     </div>}
 
     {tab === 'sessions' && <div className="grid gap-5 lg:grid-cols-2"><Section title="Sesiones permitidas" eyebrow="Acompañamiento profesional" icon={CalendarDays}><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><p className="max-w-xl text-sm text-muted-foreground">Las notas privadas profesionales quedan protegidas y nunca se muestran en este espacio compartido.</p>{canManageSessions && onScheduleSession && <button type="button" onClick={onScheduleSession} className="min-h-11 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground">Programar sesión</button>}</div>{nextSession && <div className="mb-4 rounded-2xl bg-violet-50 p-4"><p className="text-xs font-bold uppercase tracking-wider text-violet-700">Próxima sesión</p><p className="mt-1 font-heading text-xl font-bold text-violet-950">{nextSession.titulo}</p><p className="text-sm text-violet-800/75">{new Date(nextSession.fecha_sesion).toLocaleString('es-AR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })} · {nextSession.duracion_minutos} min</p></div>} {!canViewHistory ? <Empty>El historial no está habilitado para este vínculo.</Empty> : sessions.length ? <div className="space-y-2">{sessions.slice(0, 8).map(session => <div key={session.id} className="flex items-center gap-3 rounded-2xl border border-border/70 p-3"><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${session.estado === 'completada' ? 'bg-emerald-50 text-emerald-600' : 'bg-violet-50 text-violet-600'}`}><CalendarDays size={18} /></span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold">{session.titulo}</span><span className="block text-xs text-muted-foreground">{dateLabel(session.fecha_sesion)} · {session.estado}</span></span>{role === 'professional' && session.has_note && onOpenPrivateNote && <button type="button" onClick={() => onOpenPrivateNote(session)} className="min-h-10 rounded-xl px-3 text-xs font-bold text-primary hover:bg-primary/5">Nota privada</button>}</div>)}</div> : <Empty>Todavía no hay sesiones para mostrar.</Empty>}</Section><Section title="Reportes" eyebrow="Enviados por profesionales" icon={FileText}>{reportMonths.length ? <div className="space-y-3">{reportMonths.map(([month, monthReports], index) => <details key={month} open={index === 0} className="group overflow-hidden rounded-2xl border border-border/70 bg-white"><summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"><span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold capitalize">{month}</span><span className="block text-xs text-muted-foreground">{monthReports.length} {monthReports.length === 1 ? 'reporte' : 'reportes'}</span></span></summary><div className="border-t border-border/60 px-3">{monthReports.map(report => <ReportItem key={report.id} report={report} />)}</div></details>)}</div> : <Empty>Todavía no hay reportes para mostrar acá.</Empty>}</Section></div>}

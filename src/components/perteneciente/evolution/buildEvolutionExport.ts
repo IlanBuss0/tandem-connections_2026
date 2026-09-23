@@ -28,7 +28,7 @@ export interface EvolutionSummaryExport {
 
 const weekLabel = (week: EvolutionWeek) => {
   const date = isoWeekStart(week.week);
-  return `Semana del ${date ? date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }) : week.week}`;
+  return `Semana del ${date ? date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', timeZone: 'UTC' }) : week.week}`;
 };
 
 // Unica responsabilidad: juntar los datos ya cargados en pantalla (cambios,

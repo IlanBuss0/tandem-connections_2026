@@ -1,20 +1,23 @@
-// Anillo de porcentaje con etiqueta central (vocabulario, patrones).
-export default function Donut({ percent, centerLabel, label }: { percent: number; centerLabel: string; label: string }) {
+// Anillo de porcentaje con etiqueta central (vocabulario, patrones, "Ahora" de Colaboración).
+export default function Donut({ percent, centerLabel, label, size = 80, stroke = 8, radius, color = 'var(--evo-ring-support)', labelSize = 12 }: {
+  percent: number; centerLabel: string; label: string; size?: number; stroke?: number; radius?: number; color?: string; labelSize?: number;
+}) {
   const clamped = Math.max(0, Math.min(100, percent));
-  const radius = 34;
-  const circumference = 2 * Math.PI * radius;
+  const r = radius ?? size / 2 - stroke / 2 - 2;
+  const circumference = 2 * Math.PI * r;
   const offset = circumference * (1 - clamped / 100);
+  const center = size / 2;
 
   return (
-    <div className="relative inline-flex h-20 w-20 items-center justify-center" role="img" aria-label={label}>
-      <svg viewBox="0 0 80 80" className="h-20 w-20 -rotate-90">
-        <circle cx="40" cy="40" r={radius} fill="none" stroke="var(--evo-track)" strokeWidth="8" />
+    <div className="relative inline-flex shrink-0 items-center justify-center" style={{ height: size, width: size }} role="img" aria-label={label}>
+      <svg viewBox={`0 0 ${size} ${size}`} style={{ height: size, width: size }} className="-rotate-90">
+        <circle cx={center} cy={center} r={r} fill="none" stroke="var(--evo-track)" strokeWidth={stroke} />
         <circle
-          cx="40" cy="40" r={radius} fill="none" stroke="var(--evo-ring-support)" strokeWidth="8" strokeLinecap="round"
+          cx={center} cy={center} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round"
           strokeDasharray={circumference} strokeDashoffset={offset}
         />
       </svg>
-      <span className="absolute text-xs font-bold text-[var(--evo-text)]">{centerLabel}</span>
+      <span className="absolute font-bold text-[var(--evo-text)]" style={{ fontSize: labelSize }}>{centerLabel}</span>
     </div>
   );
 }

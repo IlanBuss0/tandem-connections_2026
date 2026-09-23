@@ -40,7 +40,7 @@ export default function AutonomyDetailContent({ userId, weeks, direction, afterT
   const recentWeeks = weeks.slice(-5);
   const weekLabels = recentWeeks.map(week => {
     const date = isoWeekStart(week.week);
-    return date ? date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }) : week.week;
+    return date ? date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', timeZone: 'UTC' }) : week.week;
   });
 
   return (

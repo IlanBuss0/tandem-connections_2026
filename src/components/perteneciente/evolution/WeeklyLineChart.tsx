@@ -17,7 +17,7 @@ export default function WeeklyLineChart({ id, title, weeks, valueOf, formatValue
   const lastIndex = points.length - 1;
   const tableId = `${id}-table`;
 
-  const dateLabel = (date: Date | null, key: string) => date ? date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }) : key;
+  const dateLabel = (date: Date | null, key: string) => date ? date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', timeZone: 'UTC' }) : key;
   const rows = points.map(point => ({ label: `Semana del ${dateLabel(point.date, point.key)}`, value: point.value === null ? '—' : formatValue(point.value) }));
 
   if (!values.length) {
@@ -76,7 +76,7 @@ export default function WeeklyLineChart({ id, title, weeks, valueOf, formatValue
         <div className="mt-1 flex">
           {points.map((point, index) => (
             <span key={point.key} className="flex-1 text-center text-[11.5px] text-[var(--evo-text-secondary)]">
-              {(points.length <= 8 || index % 2 === 0 || index === lastIndex) && point.date ? point.date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }) : ''}
+              {(points.length <= 8 || index % 2 === 0 || index === lastIndex) && point.date ? point.date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', timeZone: 'UTC' }) : ''}
             </span>
           ))}
         </div>
