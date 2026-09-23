@@ -1,22 +1,11 @@
-import type { ProfessionalSession, SharedSupportAgreement, SharedSupportObjective, SupportNetworkMember } from '@/data/api';
+import type { ProfessionalSession, SharedSupportAgreement, SharedSupportObjective } from '@/data/api';
 
 const DAY_MS = 86400000;
 export const WEEKDAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 export const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
-export const firstName = (fullName: string) => fullName.trim().split(/\s+/)[0] || fullName;
-
 export const initials = (fullName: string) =>
   fullName.trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('') || '?';
-
-export function peopleLabel(members: SupportNetworkMember[]): string {
-  if (!members.length) return '';
-  const names = members.map(member => firstName(member.nombre));
-  const verb = names.length === 1 ? 'acompaña' : 'acompañan';
-  if (names.length === 1) return `${names[0]} ${verb}`;
-  const last = names[names.length - 1];
-  return `${names.slice(0, -1).join(', ')} y ${last} ${verb}`;
-}
 
 export function relativeDays(iso: string, now: Date = new Date()): string {
   const date = new Date(iso);

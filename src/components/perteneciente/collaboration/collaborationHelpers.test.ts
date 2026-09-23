@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { SharedSupportAgreement, SharedSupportObjective, SupportNetworkMember } from '@/data/api';
-import { nowCount, pendingAgreements, peopleLabel, relativeDays, sessionLabel, staleObjective } from './collaborationHelpers';
+import type { SharedSupportAgreement, SharedSupportObjective } from '@/data/api';
+import { nowCount, pendingAgreements, relativeDays, sessionLabel, staleObjective } from './collaborationHelpers';
 
 const NOW = new Date('2026-09-23T12:00:00Z');
 const daysAgo = (days: number) => new Date(NOW.getTime() - days * 86400000).toISOString();
@@ -65,17 +65,6 @@ describe('staleObjective', () => {
       objective({ id: 2, fecha_actualizacion: daysAgo(20) }),
     ], NOW);
     expect(result?.id).toBe(2);
-  });
-});
-
-describe('peopleLabel', () => {
-  const member = (nombre: string, rol: SupportNetworkMember['rol'] = 'tutor'): SupportNetworkMember => ({ id_usuario: 1, nombre, rol });
-
-  it('0 personas', () => expect(peopleLabel([])).toBe(''));
-  it('1 persona', () => expect(peopleLabel([member('Laura Gómez')])).toBe('Laura acompaña'));
-  it('2 personas', () => expect(peopleLabel([member('Laura Gómez'), member('Sofía Paz')])).toBe('Laura y Sofía acompañan'));
-  it('3 personas', () => {
-    expect(peopleLabel([member('Laura Gómez'), member('Martín Ríos'), member('Sofía Paz')])).toBe('Laura, Martín y Sofía acompañan');
   });
 });
 

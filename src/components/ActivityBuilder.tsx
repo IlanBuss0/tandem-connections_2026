@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ChevronLeft,
   ChevronRight,
@@ -388,7 +389,15 @@ function VisualValue({
     );
   }
 
-  return <span className={className}>{value || "Agregar pictograma"}</span>;
+  return (
+    <span
+      className={`block w-full max-w-full text-center break-words ${
+        className || "text-sm text-muted-foreground"
+      }`}
+    >
+      {value || "Agregar pictograma"}
+    </span>
+  );
 }
 
 const PICTOGRAM_PAGE_SIZE = 24;
@@ -1247,7 +1256,7 @@ function MemorySandbox({
                     }}
                     className={`rounded-lg border-2 p-2 ${selected.pair === pairIndex && selected.side === side ? "border-primary bg-primary/5" : "border-border"}`}
                   >
-                    <div className="mb-2 flex h-20 items-center justify-center overflow-hidden rounded-md bg-muted/30 text-3xl">
+                    <div className="mb-2 flex min-h-20 items-center justify-center rounded-md bg-muted/30 text-3xl">
                       <VisualValue
                         value={pair[side]}
                         className={isImageValue(pair[side]) ? "h-16 w-16" : ""}
@@ -1648,9 +1657,8 @@ export default function ActivityBuilder({
   const { items, createOrUpdate } = useCustomActivities();
   const { toast } = useToast();
   const editing = initialId ? items.find((a) => a.id === initialId) : undefined;
-  const hasPreselect = Boolean(preselectUserIds && preselectUserIds.length > 0);
 
-  const [step, setStep] = useState(editing || hasPreselect ? 1 : 0); // 0 = plantilla
+  const [step, setStep] = useState(editing ? 1 : 0); // 0 = plantilla
   const [tplSearch, setTplSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [assignableUsers, setAssignableUsers] = useState<User[]>([]);
@@ -1728,7 +1736,7 @@ export default function ActivityBuilder({
       stepIcons: ["📌"],
       points: 30,
       completionMessage: "¡Bien hecho!",
-      assignedToIds: (hasPreselect ? [...preselectUserIds!] : []) as string[],
+      assignedToIds: preselectUserIds ? [...preselectUserIds] : [],
       dueDate: "",
       notes: "",
       draft: true,
@@ -2035,36 +2043,38 @@ export default function ActivityBuilder({
     "Revisar",
   ];
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/70 p-3 backdrop-blur-sm sm:p-6">
-      <div className="max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl overflow-y-auto rounded-2xl border border-border bg-background p-3 shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-foreground/40 p-3 backdrop-blur-md sm:p-6">
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl sm:max-h-[calc(100dvh-3rem)]">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            {onBack && hasPreselect && (
-              <button
-                type="button"
-                onClick={onBack}
-                className="p-2 hover:bg-muted rounded-lg text-foreground/80"
-                aria-label="Volver al detalle del perteneciente"
-              >
-                <ChevronLeft size={20} />
-              </button>
-            )}
-            <Sparkles size={20} className="text-primary" />
-            <h2 className="font-heading font-bold text-lg sm:text-xl text-foreground">
+        <div className="flex shrink-0 items-center gap-1 border-b border-border/60 px-2 py-2.5 sm:px-3">
+          {onBack && preselectUserIds && preselectUserIds.length > 0 && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="shrink-0 rounded-lg p-2 text-foreground/80 hover:bg-muted hover:text-foreground"
+              aria-label="Volver al detalle del perteneciente"
+            >
+              <ChevronLeft size={20} />
+            </button>
+          )}
+          <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
+            <Sparkles size={20} className="text-primary shrink-0" />
+            <h2 className="truncate font-heading font-bold text-lg sm:text-xl text-foreground">
               {editing ? "Editar actividad" : "Crear actividad"}
             </h2>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-2 hover:bg-muted rounded-lg"
+            className="shrink-0 rounded-lg p-2 text-foreground/80 hover:bg-muted hover:text-foreground"
             aria-label="Cerrar"
           >
             <X size={20} />
           </button>
         </div>
 
+        <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
         {/* Stepper */}
         <div className="flex gap-1 mb-6 overflow-x-auto pb-1">
           {stepsLabels.map((lbl, i) => (
@@ -2799,7 +2809,9 @@ export default function ActivityBuilder({
             </Button>
           </div>
         )}
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

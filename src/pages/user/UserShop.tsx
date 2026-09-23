@@ -19,7 +19,7 @@ const TABS: Array<{ id: ShopTab; label: string; icon: typeof Sparkles }> = [
 
 const CATS: Array<ShopCategory | 'todas'> = ['todas', 'pelo', 'accesorio', 'ropa', 'fondo', 'mascota'];
 
-export default function UserShop({ embedded = false }: { embedded?: boolean }) {
+export default function UserShop() {
   const { state, loading, error, buy, equip, unequip, hasItem, isEquipped, refresh } = useWallet();
   const { context: permissionContext } = usePermissionContext();
   const [tab, setTab] = useState<ShopTab>('avatar');
@@ -59,16 +59,14 @@ export default function UserShop({ embedded = false }: { embedded?: boolean }) {
   };
 
   return (
-    <div className={embedded ? 'space-y-4' : 'pb-24 lg:pb-6 space-y-6'}>
-      {!embedded && (
-        <div className="flex flex-wrap items-start justify-between gap-3 sm:items-center">
-          <div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-[#6b4c9a] leading-tight">Tienda y avatar</h2>
-            <p className="text-sm sm:text-base text-[#8b7aa0] mt-1 font-medium">Personaliza tu personaje con las monedas que ganas</p>
-          </div>
-          <CoinBadge size="md" />
+    <div className="pb-24 lg:pb-6 space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3 sm:items-center">
+        <div>
+          <h2 className="text-3xl sm:text-4xl font-bold text-[#6b4c9a] leading-tight">Tienda y avatar</h2>
+          <p className="text-sm sm:text-base text-[#8b7aa0] mt-1 font-medium">Personaliza tu personaje con las monedas que ganas</p>
         </div>
-      )}
+        <CoinBadge size="md" />
+      </div>
 
       {error && (
         <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -90,22 +88,19 @@ export default function UserShop({ embedded = false }: { embedded?: boolean }) {
         </div>
       )}
 
-      <div className="flex items-center gap-2">
-        <div className="flex flex-1 gap-1 overflow-x-auto rounded-2xl bg-[#f5f0ff] p-1">
-          {TABS.map(item => (
-            <button
-              key={item.id}
-              onClick={() => setTab(item.id)}
-              className={`flex min-w-[110px] flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium transition-all sm:text-sm ${
-                tab === item.id ? 'bg-white text-[#6b4c9a] shadow-md' : 'text-[#8b7aa0] hover:text-[#6b4c9a]'
-              }`}
-            >
-              <item.icon size={14} />
-              {item.label}
-            </button>
-          ))}
-        </div>
-        {embedded && <CoinBadge size="md" />}
+      <div className="flex gap-1 overflow-x-auto rounded-2xl bg-[#f5f0ff] p-1">
+        {TABS.map(item => (
+          <button
+            key={item.id}
+            onClick={() => setTab(item.id)}
+            className={`flex min-w-[118px] flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium transition-all sm:text-sm ${
+              tab === item.id ? 'bg-white text-[#6b4c9a] shadow-md' : 'text-[#8b7aa0] hover:text-[#6b4c9a]'
+            }`}
+          >
+            <item.icon size={14} />
+            {item.label}
+          </button>
+        ))}
       </div>
 
       {loading && (

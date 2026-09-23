@@ -17,6 +17,7 @@ import PasswordRecoveryPage from '@/pages/PasswordRecoveryPage';
 import EmailVerificationGate from '@/pages/EmailVerificationGate';
 import OnboardingQuestionnaire from '@/pages/OnboardingQuestionnaire';
 import Pdf417TestPage from '@/pages/Pdf417TestPage';
+import NotFoundPage from '@/pages/NotFoundPage';
 import AppShell from '@/components/AppShell';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -26,12 +27,13 @@ import { fetchOnboardingStatus } from '@/data/api';
 import '@/styles/accessibility.css';
 
 const queryClient = new QueryClient();
-type PublicView = 'landing' | 'login' | 'register';
+type PublicView = 'landing' | 'login' | 'register' | 'notfound';
 
 function publicViewFromPath(pathname: string): PublicView {
   if (pathname === '/login') return 'login';
   if (pathname === '/signup' || pathname === '/register') return 'register';
-  return 'landing';
+  if (pathname === '/') return 'landing';
+  return 'notfound';
 }
 
 function inviteTokenFromPath(pathname: string): string | null {
@@ -71,15 +73,6 @@ function AuthGate() {
     window.addEventListener('popstate', syncPublicView);
     return () => window.removeEventListener('popstate', syncPublicView);
   }, []);
-
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    if (['/login', '/signup', '/register'].includes(window.location.pathname)) {
-      window.history.replaceState(null, '', '/');
-      setPublicView('landing');
-    }
-  }, [isAuthenticated]);
 
   // Cuestionario de onboarding (Fase 6): se muestra una sola vez, solo a
   // pertenecientes (role 'user'), y solo despues de que el mail este
@@ -159,6 +152,8 @@ function AuthGate() {
     <AppShell />
   ) : publicView === 'landing' ? (
     <Landing onNavigate={navigatePublic} />
+  ) : publicView === 'notfound' ? (
+    <NotFoundPage onGoHome={() => navigatePublic('landing')} onNavigate={navigatePublic} />
   ) : (
     <Login
       initialView={publicView}

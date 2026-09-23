@@ -485,6 +485,8 @@ function toAssignedLegacyActivity(
   const customDescription = 'id_actividad_base' in activity ? activityDisplayDescription(activity.descripcion) : '';
   const customSteps = 'id_actividad_base' in activity ? extractCustomSteps(activity.descripcion) : null;
   const gameMetadata = parseActivityGameMetadata(activity.descripcion);
+  const asignadorRol = assignment.asignador_rol;
+  const recommendedBy = asignadorRol === 'tutor' || asignadorRol === 'profesional' ? asignadorRol : base.recommendedBy;
 
   return {
     ...base,
@@ -497,15 +499,20 @@ function toAssignedLegacyActivity(
     status: completed ? 'completada' : 'pendiente',
     progress: completed ? 100 : 0,
     assignedTo: userId,
-    recommendedBy: 'profesional',
+    recommendedBy: recommendedBy as Activity['recommendedBy'],
+    recommendedByName: assignment.asignador_nombre || base.recommendedByName,
     assignedActivityId: assignment.id,
     backendActivityId: assignment.id_actividad,
     backendCustomActivityId: assignment.id_actividad_personalizada,
+    assignedByName: assignment.asignador_nombre || undefined,
+    assignedByRole: asignadorRol === 'tutor' || asignadorRol === 'profesional' ? asignadorRol : undefined,
     ...gameMetadata,
   } as Activity & {
     assignedActivityId: number;
     backendActivityId: number | null;
     backendCustomActivityId: number | null;
+    assignedByName?: string;
+    assignedByRole?: 'tutor' | 'profesional';
   };
 }
 
@@ -582,6 +589,24 @@ export function clearStoredAuthToken(): void {
 export async function fetchPertenecienteByUsuarioId(userId: string | number): Promise<DbPerteneciente | null> {
   try {
     return await apiRequest<DbPerteneciente>(`/api/pertenecientes/usuario/${encodeURIComponent(String(userId))}`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export async function fetchTutorByUsuarioId(userId: string | number): Promise<DbTutor | null> {
+  try {
+    return await apiRequest<DbTutor>(`/api/tutores/usuario/${encodeURIComponent(String(userId))}`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export async function fetchProfesionalByUsuarioId(userId: string | number): Promise<DbProfesional | null> {
+  try {
+    return await apiRequest<DbProfesional>(`/api/profesionales/usuario/${encodeURIComponent(String(userId))}`);
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) return null;
     throw error;
@@ -873,52 +898,41 @@ export type UserProfileSettingsPayload = {
   accessibility: UserProfileSettings['accessibility'];
 };
 
-export function parseEmotionConfig(config: ConfiguracionUsuario): EmotionalRecord | null {
+function parseEmotionConfig(config: ConfiguracionUsuario): EmotionalRecord | null {
   if (!config.clave?.startsWith('emotion:')) return null;
 
   try {
-    const value = JSON.parse(config.valor || '{}') as Record<string, unknown>;
-    if (typeof value.emotion !== 'string' || !value.emotion.trim()) return null;
-
-    const modificationDate = typeof config.fecha_modificacion === 'string'
-      ? config.fecha_modificacion
-      : new Date().toISOString();
-    const parsedIntensity = Number(value.intensity);
+    const value = JSON.parse(config.valor || '{}') as Partial<EmotionalRecord>;
+    if (!value.emotion) return null;
 
     return {
       id: String(config.id),
       userId: String(config.id_usuario),
-      emotion: value.emotion.trim(),
-      emoji: typeof value.emoji === 'string' && value.emoji ? value.emoji : '🙂',
-      intensity: Number.isFinite(parsedIntensity) ? Math.min(5, Math.max(1, parsedIntensity)) : 3,
-      context: typeof value.context === 'string' ? value.context : '',
-      whatHelped: typeof value.whatHelped === 'string' ? value.whatHelped : '',
-      timestamp: typeof value.timestamp === 'string' && value.timestamp
-        ? value.timestamp
-        : new Date(modificationDate).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
-      date: typeof value.date === 'string' && value.date
-        ? value.date
-        : modificationDate.split('T')[0],
+      emotion: value.emotion,
+      emoji: value.emoji || '🙂',
+      intensity: Number(value.intensity || 3),
+      context: value.context || '',
+      whatHelped: value.whatHelped || '',
+      timestamp: value.timestamp || new Date(config.fecha_modificacion).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+      date: value.date || config.fecha_modificacion.split('T')[0],
     };
   } catch {
     return null;
   }
 }
 
-export function parsePersonalNoteConfig(config: ConfiguracionUsuario): PersonalNote | null {
+function parsePersonalNoteConfig(config: ConfiguracionUsuario): PersonalNote | null {
   if (!config.clave?.startsWith('personal-note:')) return null;
 
   try {
-    const value = JSON.parse(config.valor || '{}') as Record<string, unknown>;
-    if (typeof value.content !== 'string' || !value.content.trim()) return null;
+    const value = JSON.parse(config.valor || '{}') as Partial<PersonalNote>;
+    if (!value.content?.trim()) return null;
     return {
       id: String(config.id),
       userId: String(config.id_usuario),
       content: value.content.trim(),
-      title: typeof value.title === 'string' ? value.title.trim() || undefined : undefined,
-      createdAt: typeof value.createdAt === 'string' && value.createdAt
-        ? value.createdAt
-        : config.fecha_modificacion,
+      title: value.title?.trim() || undefined,
+      createdAt: value.createdAt || config.fecha_modificacion,
     };
   } catch {
     return null;
@@ -1496,7 +1510,7 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
 
   const [
     usuarios,
-    tutores,
+    tutor,
     pertenecientes,
     vinculosTutor,
     estadosVinculos,
@@ -1510,7 +1524,7 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
     notificaciones,
   ] = await Promise.all([
     tandemApi.usuarios.getAll(),
-    tandemApi.tutores.getAll(),
+    fetchTutorByUsuarioId(idUsuarioTutor),
     tandemApi.pertenecientes.getAll(),
     tandemApi.vinculosTutorPertenecientes.getAll(),
     tandemApi.estadosVinculos.getAll(),
@@ -1523,8 +1537,6 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
     tandemApi.puntosOtorgados.getAll(),
     Promise.resolve([] as DbNotificacion[]),
   ]);
-
-  const tutor = (tutores as DbTutor[]).find(item => Number(item.id_usuario) === idUsuarioTutor);
 
   if (!tutor) {
     return { tutorId: null, linkedUsers: [], byUserId: {} };
@@ -2634,22 +2646,20 @@ export async function fetchLinkedPertenecientesForSupportUser(
   let linkedPertenecienteIds: number[] = [];
 
   if (role === 'professional') {
-    const [profesionalesBackend, vinculos] = await Promise.all([
-      tandemApi.profesionales.getAll(),
+    const [profesional, vinculos] = await Promise.all([
+      fetchProfesionalByUsuarioId(numericUserId),
       tandemApi.vinculosProfesionalesPertenecientes.getAll(),
     ]);
-    const profesional = (profesionalesBackend as DbProfesional[]).find((item) => Number(item.id_usuario) === numericUserId);
     if (!profesional) return [];
     linkedPertenecienteIds = (vinculos as DbVinculoProfesionalPerteneciente[])
       .filter((link) => Number(link.id_profesional) === Number(profesional.id))
       .filter((link) => Number(link.id_estado_vinculo) !== 3)
       .map((link) => Number(link.id_perteneciente));
   } else {
-    const [tutoresBackend, vinculos] = await Promise.all([
-      tandemApi.tutores.getAll(),
+    const [tutor, vinculos] = await Promise.all([
+      fetchTutorByUsuarioId(numericUserId),
       tandemApi.vinculosTutorPertenecientes.getAll(),
     ]);
-    const tutor = (tutoresBackend as DbTutor[]).find((item) => Number(item.id_usuario) === numericUserId);
     if (!tutor) return [];
     linkedPertenecienteIds = (vinculos as DbVinculoTutorPerteneciente[])
       .filter((link) => Number(link.id_tutor) === Number(tutor.id))
