@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { AlertTriangle, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock, Moon, Pencil, Plus, Sun, Sunrise, Tag, Trash2, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock, Moon, Pencil, Plus, Sun, Sunrise, Tag, Trash2, X } from 'lucide-react';
 import PermissionBlocked from '@/components/PermissionBlocked';
 import { useCalendar, eventTypes } from '@/contexts/CalendarContext';
 import { useRoutines } from '@/contexts/RoutinesContext';
@@ -50,7 +50,13 @@ function momentoDelDia(time: string) {
   return { label: 'Noche', Icon: Moon };
 }
 
-export default function UserCalendar() {
+type UserCalendarProps = {
+  onBack: () => void;
+  initialRoutineId?: string;
+  initialItemId?: string;
+};
+
+export default function UserCalendar({ onBack }: UserCalendarProps) {
   const { context: permissionContext } = usePermissionContext();
   const { events, addEvent, updateEvent, deleteEvent, eventTypePatterns } = useCalendar();
   const { customCategories } = useRoutines();
@@ -261,6 +267,15 @@ export default function UserCalendar() {
 
   return (
     <div className="pb-24 lg:pb-6 space-y-6">
+      <button
+        type="button"
+        onClick={onBack}
+        className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-[#ddcfed] bg-white px-4 text-sm font-semibold text-[#6b4c9a] shadow-sm transition hover:bg-[#f5f0ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"
+      >
+        <ArrowLeft size={18} aria-hidden />
+        Volver
+      </button>
+
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -655,7 +670,7 @@ export default function UserCalendar() {
             </div>
           )}
         </section>
-      </motion.section>)
+      </motion.section>
       </div>
 
       <AlertDialog open={Boolean(deleteCandidate)} onOpenChange={open => { if (!open) setDeleteCandidate(null); }}>

@@ -10,7 +10,7 @@ import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } 
 import ActivityExecution from './ActivityExecution';
 import { useToast } from '@/components/ui/use-toast';
 import { deduplicateActivities, findActivityByNavigationId, getActivityIdentity, moveSelectedActivityFirst } from '@/lib/activityNavigation';
-import { isPendingActivity } from '@/lib/activityStatus';
+import { isCompletedActivityStatus, isPendingActivity } from '@/lib/activityStatus';
 
 const categoryEmoji: Record<string, string> = {
   'autonomía personal': '🦸', higiene: '🧼', organización: '📋', escuela: '📚', 'cocina básica': '🍳',
@@ -156,6 +156,8 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
   const [dateFilter, setDateFilter] = useState<ActivityDateFilter>('all');
   const [recommendedOnly, setRecommendedOnly] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showPreviousActivities, setShowPreviousActivities] = useState(false);
+  const [completedVisibleCount, setCompletedVisibleCount] = useState(5);
   const [localActivities, setLocalActivities] = useState<Activity[]>([]);
   const [executingActivity, setExecutingActivity] = useState<Activity | null>(null);
   const canCompleteActivities = isPermissionEnabled(
@@ -184,6 +186,10 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
 
   const availableActivities = useMemo(
     () => merged.filter(isPendingActivity),
+    [merged],
+  );
+  const completedActivities = useMemo(
+    () => merged.filter(activity => isCompletedActivityStatus(activity.status)),
     [merged],
   );
 
@@ -336,6 +342,121 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
   const displayedActivities = showDailyActivity && dailyActivity
     ? filtered.filter(activity => getActivityIdentity(activity) !== getActivityIdentity(dailyActivity))
     : filtered;
+  const visibleCompletedActivities = completedActivities.slice(0, completedVisibleCount);
+  const renderActivityCard = (activity: Activity, i: number) => {
+    const sourceMeta = getSourceMeta(activity);
+    const isCompleted = isCompletedActivityStatus(activity.status);
+
+    return (
+      <motion.div
+        key={activity.id}
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: i * 0.04 }}
+        className={`w-full overflow-hidden rounded-3xl border bg-white shadow-lg ${isCompleted ? 'border-[#d0e8d0]' : 'border-[#f0e8f8]'}`}
+      >
+        <button
+          type="button"
+          onClick={() => setExpandedId(expandedId === activity.id ? null : activity.id)}
+          className="flex w-full items-start gap-4 p-4 text-left sm:p-5"
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f5f0ff] text-xl">
+            {categoryEmoji[activity.category] || '📌'}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className={`text-sm font-bold sm:text-base ${isCompleted ? 'line-through text-[#8b7aa0]' : 'text-[#4a4a5a]'}`}>
+                {activity.title}
+              </p>
+              {(activity as any).isCustom && (
+                <span className="flex items-center gap-0.5 rounded-full bg-[#f5f0ff] px-2 py-0.5 text-[9px] font-semibold text-[#6b4c9a]">
+                  <Sparkles size={9} /> Personalizada
+                </span>
+              )}
+            </div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${isCompleted ? 'bg-green-100 text-green-700' : 'bg-violet-100 text-violet-700'}`}>
+                {isCompleted ? <CheckCircle2 size={11} /> : <Clock size={11} />}
+                {isCompleted ? 'Completada' : 'Pendiente'}
+              </span>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${difficultyColors[activity.difficulty]}`}>
+                {activity.difficulty}
+              </span>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${typeColors[activity.type]}`}>
+                {activity.type}
+              </span>
+              <span className="flex items-center gap-1 text-[10px] text-[#8b7aa0]">
+                <Clock size={10} /> {activity.duration}
+              </span>
+              <span className="flex items-center gap-1 text-[10px] text-[#8b7aa0]">
+                <Award size={10} /> {activity.points} pts
+              </span>
+            </div>
+            {activity.recommendedByName && (
+              <p className="mt-1.5 text-[10px] font-medium text-[#6b4c9a]">
+                Recomendada por {activity.recommendedByName}
+              </p>
+            )}
+            {sourceMeta.label && !activity.recommendedByName && (
+              <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${sourceMeta.badgeClass}`}>
+                {sourceMeta.label}
+              </span>
+            )}
+            {activity.progress > 0 && activity.progress < 100 && (
+              <div className="mt-2.5 h-2 w-full rounded-full bg-[#f0e8f8]">
+                <div className="h-2 rounded-full bg-[#6b4c9a]" style={{ width: `${activity.progress}%` }} />
+              </div>
+            )}
+          </div>
+          {expandedId === activity.id
+            ? <ChevronUp size={18} className="shrink-0 text-[#8b7aa0]" />
+            : <ChevronDown size={18} className="shrink-0 text-[#8b7aa0]" />}
+        </button>
+
+        {expandedId === activity.id && (
+          <motion.div
+            initial={{ height: 0 }}
+            animate={{ height: 'auto' }}
+            className="space-y-3 border-t border-[#f0e8f8] px-4 pb-5 pt-4 sm:px-5"
+          >
+            <p className="text-sm leading-relaxed text-[#8b7aa0]">{activity.description}</p>
+            <p className="text-xs font-bold text-[#6b4c9a]">🎯 Objetivo: {activity.objective}</p>
+            <div>
+              <p className="mb-2 text-xs font-bold text-[#6b4c9a]">Pasos:</p>
+              <ol className="space-y-2">
+                {activity.steps.map((step, si) => (
+                  <li key={si} className="flex items-start gap-3 text-xs text-[#8b7aa0]">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#f5f0ff] text-[10px] font-bold text-[#6b4c9a]">
+                      <StepIcon value={activity.stepIcons?.[si]} fallback={si + 1} className="h-7 w-7" />
+                    </span>
+                    {step}
+                  </li>
+                ))}
+              </ol>
+            </div>
+            {!isCompleted && canCompleteActivities && (
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setExecutingActivity(activity)}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-200 transition hover:bg-[#5a3c8a] active:scale-95"
+                >
+                  <Play size={14} /> Empezar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => completeActivity(activity.id)}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-4 py-2.5 text-sm font-semibold text-[#6b4c9a] transition hover:bg-[#f5f0ff]"
+                >
+                  <CheckCircle2 size={14} /> Completada
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </motion.div>
+    );
+  };
 
   return (
     <div className="pb-24 lg:pb-6 space-y-6">
@@ -507,115 +628,55 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
       )}
 
       {/* Activity cards — same style as Calendar */}
-      <div className="space-y-4">
-        {displayedActivities.map((activity, i) => {
-          const sourceMeta = getSourceMeta(activity);
+      <section aria-labelledby="pending-activities-title" className="space-y-3">
+        <h2 id="pending-activities-title" className="px-1 text-sm font-extrabold uppercase tracking-wide text-[#5f477c]">
+          Actividades pendientes
+        </h2>
+        <div className="space-y-4">
+          {displayedActivities.map(renderActivityCard)}
+        </div>
+      </section>
 
-          return (
-          <motion.div
-            key={activity.id}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.04 }}
-            className={`w-full bg-white rounded-3xl shadow-lg border ${activity.status === 'completada' ? 'border-[#d0e8d0]' : 'border-[#f0e8f8]'} overflow-hidden`}
+      {completedActivities.length > 0 && (
+        <section className="overflow-hidden rounded-3xl border border-[#ddcfed] bg-white shadow-sm">
+          <button
+            type="button"
+            onClick={() => {
+              const nextOpen = !showPreviousActivities;
+              setShowPreviousActivities(nextOpen);
+              if (nextOpen) setCompletedVisibleCount(5);
+            }}
+            aria-expanded={showPreviousActivities}
+            aria-controls="previous-activities-list"
+            className="flex min-h-14 w-full items-center gap-3 bg-[#faf8ff] px-4 py-3 text-sm font-semibold text-[#6b4c9a] transition hover:bg-[#f5f0ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#7c3aed]"
           >
-            <button
-              onClick={() => setExpandedId(expandedId === activity.id ? null : activity.id)}
-              className="w-full p-4 sm:p-5 flex items-start gap-4 text-left"
-            >
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f5f0ff] text-xl">
-                {categoryEmoji[activity.category] || '📌'}
-              </span>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className={`text-sm sm:text-base font-bold ${activity.status === 'completada' ? 'line-through text-[#8b7aa0]' : 'text-[#4a4a5a]'}`}>
-                    {activity.title}
-                  </p>
-                  {(activity as any).isCustom && (
-                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#f5f0ff] text-[#6b4c9a] font-semibold flex items-center gap-0.5">
-                      <Sparkles size={9} /> Personalizada
-                    </span>
-                  )}
-                  {activity.status === 'completada' && <CheckCircle2 size={16} className="text-green-500" />}
-                </div>
-                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${difficultyColors[activity.difficulty]}`}>
-                    {activity.difficulty}
-                  </span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${typeColors[activity.type]}`}>
-                    {activity.type}
-                  </span>
-                  <span className="text-[10px] text-[#8b7aa0] flex items-center gap-1">
-                    <Clock size={10} /> {activity.duration}
-                  </span>
-                  <span className="text-[10px] text-[#8b7aa0] flex items-center gap-1">
-                    <Award size={10} /> {activity.points} pts
-                  </span>
-                </div>
-                {activity.recommendedByName && (
-                  <p className="text-[10px] text-[#6b4c9a] mt-1.5 font-medium">
-                    Recomendada por {activity.recommendedByName}
-                  </p>
-                )}
-                {sourceMeta.label && !activity.recommendedByName && (
-                  <span className={`inline-flex mt-2 text-[10px] px-2 py-0.5 rounded-full font-medium ${sourceMeta.badgeClass}`}>
-                    {sourceMeta.label}
-                  </span>
-                )}
-                {activity.progress > 0 && activity.progress < 100 && (
-                  <div className="w-full bg-[#f0e8f8] rounded-full h-2 mt-2.5">
-                    <div className="bg-[#6b4c9a] h-2 rounded-full" style={{ width: `${activity.progress}%` }} />
-                  </div>
-                )}
-              </div>
-              {expandedId === activity.id
-                ? <ChevronUp size={18} className="text-[#8b7aa0] shrink-0" />
-                : <ChevronDown size={18} className="text-[#8b7aa0] shrink-0" />}
-            </button>
+            <span aria-hidden className="h-px flex-1 bg-[#ddcfed]" />
+            <span>Ver actividades anteriores ({completedActivities.length})</span>
+            {showPreviousActivities ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+            <span aria-hidden className="h-px flex-1 bg-[#ddcfed]" />
+          </button>
 
-            {expandedId === activity.id && (
-              <motion.div
-                initial={{ height: 0 }}
-                animate={{ height: 'auto' }}
-                className="px-4 sm:px-5 pb-5 border-t border-[#f0e8f8] pt-4 space-y-3"
-              >
-                <p className="text-sm text-[#8b7aa0] leading-relaxed">{activity.description}</p>
-                <p className="text-xs font-bold text-[#6b4c9a]">🎯 Objetivo: {activity.objective}</p>
-                <div>
-                  <p className="text-xs font-bold text-[#6b4c9a] mb-2">Pasos:</p>
-                  <ol className="space-y-2">
-                    {activity.steps.map((step, si) => (
-                      <li key={si} className="flex items-start gap-3 text-xs text-[#8b7aa0]">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f5f0ff] text-[#6b4c9a] text-[10px] font-bold overflow-hidden">
-                          <StepIcon value={activity.stepIcons?.[si]} fallback={si + 1} className="w-7 h-7" />
-                        </span>
-                        {step}
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-                {activity.status !== 'completada' && canCompleteActivities && (
-                  <div className="flex gap-3 pt-1">
-                    <button
-                      onClick={() => setExecutingActivity(activity)}
-                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 transition"
-                    >
-                      <Play size={14} /> Empezar
-                    </button>
-                    <button
-                      onClick={() => completeActivity(activity.id)}
-                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-4 py-2.5 text-sm font-semibold text-[#6b4c9a] hover:bg-[#f5f0ff] transition"
-                    >
-                      <CheckCircle2 size={14} /> Completada
-                    </button>
-                  </div>
-                )}
-              </motion.div>
-            )}
-          </motion.div>
-          );
-        })}
-      </div>
+          {showPreviousActivities && (
+            <div id="previous-activities-list" className="space-y-4 p-3 sm:p-5">
+              <div className="space-y-4">
+                {visibleCompletedActivities.map(renderActivityCard)}
+              </div>
+              {completedActivities.length > 5 && (
+                <button
+                  type="button"
+                  onClick={() => setCompletedVisibleCount(count => count < completedActivities.length
+                    ? Math.min(count + 5, completedActivities.length)
+                    : Math.max(5, count - 5))}
+                  className="mx-auto flex min-h-11 items-center gap-2 rounded-2xl border border-[#ddcfed] px-5 text-sm font-semibold text-[#6b4c9a] transition hover:bg-[#f5f0ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"
+                >
+                  {completedVisibleCount < completedActivities.length ? 'Mostrar más' : 'Mostrar menos'}
+                  {completedVisibleCount < completedActivities.length ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                </button>
+              )}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Empty state — same style as Calendar */}
       {displayedActivities.length === 0 && !showDailyActivity && (
