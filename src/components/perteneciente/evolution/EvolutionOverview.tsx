@@ -18,7 +18,9 @@ export interface EvolutionOverviewProps {
   recentMood: number | null; earlierMood: number | null;
   stepsDirection: 1 | 0 | -1 | null; moodDirection: 1 | 0 | -1 | null;
   autonomyBefore: string; autonomyAfter: string; participationBefore: string; participationAfter: string;
-  periodMonths: number;
+  previousLabel: string;
+  perWord: string;
+  reportWeeks: EvolutionWeek[];
   activityMonthCounts: { thisMonth: number; lastMonth: number };
   sessionMonthCounts: { thisMonth: number; lastMonth: number };
   objectiveMonthCounts: { thisMonth: number; lastMonth: number };
@@ -30,15 +32,14 @@ export interface EvolutionOverviewProps {
 export default function EvolutionOverview(props: EvolutionOverviewProps) {
   const {
     personName, userId, canViewHistory, autonomyLabel, weeks, recentSteps, earlierSteps, recentMood, earlierMood, stepsDirection, moodDirection,
-    autonomyBefore, autonomyAfter, participationBefore, participationAfter, periodMonths,
+    autonomyBefore, autonomyAfter, participationBefore, participationAfter, previousLabel, perWord, reportWeeks,
     activityMonthCounts, sessionMonthCounts, objectiveMonthCounts, emotions, emotionPattern, onOpenDetail,
   } = props;
 
-  const previousPeriodLabel = periodMonths === 1 ? 'Mes pasado' : `${periodMonths} meses antes`;
   const cards: (EvolutionMetricCardProps & { key: string })[] = [];
 
   cards.push({
-    key: 'autonomy', icon: ListChecks, title: autonomyLabel, unit: 'pasos por semana',
+    key: 'autonomy', icon: ListChecks, title: autonomyLabel, unit: `pasos por ${perWord}`,
     value: recentSteps !== null ? Math.round(recentSteps) : null,
     previousLabel: earlierSteps !== null ? `Antes: ${Math.round(earlierSteps)}` : null,
     direction: stepsDirection,
@@ -61,7 +62,7 @@ export default function EvolutionOverview(props: EvolutionOverviewProps) {
   if (activityMonthCounts.thisMonth + activityMonthCounts.lastMonth > 0) {
     cards.push({
       key: 'activities', icon: CheckCircle2, title: 'Actividades completadas', unit: 'completadas',
-      value: activityMonthCounts.thisMonth, previousLabel: `${previousPeriodLabel}: ${activityMonthCounts.lastMonth}`,
+      value: activityMonthCounts.thisMonth, previousLabel: `${previousLabel}: ${activityMonthCounts.lastMonth}`,
       direction: trendDirection(activityMonthCounts.thisMonth - activityMonthCounts.lastMonth, 0.5),
       barColumns: { values: [activityMonthCounts.lastMonth, activityMonthCounts.thisMonth], labels: ['Antes', 'Ahora'] },
       beforeText: `${activityMonthCounts.lastMonth} ${activityMonthCounts.lastMonth === 1 ? 'actividad completada.' : 'actividades completadas.'}`,
@@ -72,7 +73,7 @@ export default function EvolutionOverview(props: EvolutionOverviewProps) {
   if (sessionMonthCounts.thisMonth + sessionMonthCounts.lastMonth > 0) {
     cards.push({
       key: 'sessions', icon: Users, title: 'Sesiones con profesionales', unit: 'realizadas',
-      value: sessionMonthCounts.thisMonth, previousLabel: `${previousPeriodLabel}: ${sessionMonthCounts.lastMonth}`,
+      value: sessionMonthCounts.thisMonth, previousLabel: `${previousLabel}: ${sessionMonthCounts.lastMonth}`,
       direction: trendDirection(sessionMonthCounts.thisMonth - sessionMonthCounts.lastMonth, 0.5),
       barColumns: { values: [sessionMonthCounts.lastMonth, sessionMonthCounts.thisMonth], labels: ['Antes', 'Ahora'] },
       beforeText: `${sessionMonthCounts.lastMonth} ${sessionMonthCounts.lastMonth === 1 ? 'sesión realizada.' : 'sesiones realizadas.'}`,
@@ -83,7 +84,7 @@ export default function EvolutionOverview(props: EvolutionOverviewProps) {
   if (objectiveMonthCounts.thisMonth + objectiveMonthCounts.lastMonth > 0) {
     cards.push({
       key: 'objectives', icon: Target, title: 'Objetivos cumplidos', unit: 'cumplidos',
-      value: objectiveMonthCounts.thisMonth, previousLabel: `${previousPeriodLabel}: ${objectiveMonthCounts.lastMonth}`,
+      value: objectiveMonthCounts.thisMonth, previousLabel: `${previousLabel}: ${objectiveMonthCounts.lastMonth}`,
       direction: trendDirection(objectiveMonthCounts.thisMonth - objectiveMonthCounts.lastMonth, 0.5),
       barColumns: { values: [objectiveMonthCounts.lastMonth, objectiveMonthCounts.thisMonth], labels: ['Antes', 'Ahora'] },
       beforeText: `${objectiveMonthCounts.lastMonth} ${objectiveMonthCounts.lastMonth === 1 ? 'objetivo cumplido.' : 'objetivos cumplidos.'}`,
@@ -121,7 +122,7 @@ export default function EvolutionOverview(props: EvolutionOverviewProps) {
       </div>
 
       {canViewHistory && (
-        <EvolutionShareCard personName={personName} userId={userId} weeks={weeks} summaryPhrase={summary.phrase} cards={exportCards} />
+        <EvolutionShareCard personName={personName} userId={userId} weeks={reportWeeks} summaryPhrase={summary.phrase} cards={exportCards} />
       )}
     </div>
   );

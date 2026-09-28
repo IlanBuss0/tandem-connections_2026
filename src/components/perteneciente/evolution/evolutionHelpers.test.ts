@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EmotionalRecord } from '@/data/api';
-import { buildOverviewSummary, describeChange, emotionCounts, periodCounts } from './evolutionHelpers';
+import { buildOverviewSummary, dayCounts, describeChange, emotionCounts, periodCounts } from './evolutionHelpers';
 
 function emotion(overrides: Partial<EmotionalRecord> = {}): EmotionalRecord {
   return { id: '1', userId: 'u1', emotion: 'Contento', emoji: '😊', intensity: 3, context: '', whatHelped: '', timestamp: '10:00', date: '2026-01-01', ...overrides };
@@ -103,5 +103,22 @@ describe('periodCounts', () => {
 
   it('sin fechas, ambos períodos dan 0', () => {
     expect(periodCounts([], 3)).toEqual({ thisMonth: 0, lastMonth: 0 });
+  });
+});
+
+describe('dayCounts', () => {
+  const daysAgo = (n: number) => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - n); return d; };
+
+  it('days=1 compara hoy contra ayer', () => {
+    expect(dayCounts([daysAgo(0), daysAgo(0), daysAgo(1), daysAgo(2)], 1)).toEqual({ thisMonth: 2, lastMonth: 1 });
+  });
+
+  it('days=7 compara los últimos 7 días contra los 7 anteriores', () => {
+    const dates = [daysAgo(0), daysAgo(6), daysAgo(7), daysAgo(13), daysAgo(14)];
+    expect(dayCounts(dates, 7)).toEqual({ thisMonth: 2, lastMonth: 2 });
+  });
+
+  it('sin fechas, ambos períodos dan 0', () => {
+    expect(dayCounts([], 7)).toEqual({ thisMonth: 0, lastMonth: 0 });
   });
 });

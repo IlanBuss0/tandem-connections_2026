@@ -231,7 +231,7 @@ function TutorContent(props: {
   if (tab === 'professionals') return <ProfessionalDirectory />;
   if (tab === 'pictograms') return <AiPictogramStudio />;
   if (tab === 'pictogramCatalog') return <UserPictograms />;
-  if (tab === 'connections') return <ConnectionsPage users={props.linkedUsers} onOpenDetail={props.onOpenDetail} />;
+  if (tab === 'connections') return <TutorConnections onOpenDetail={props.onOpenDetail} />;
   if (tab === 'about') return <AboutTandem />;
   if (tab === 'profile') return <TutorAccountSettings linkedUsers={props.linkedUsers} onManageConnections={() => props.onNavigate('connections')} />;
   if (tab === 'detail') {
@@ -368,13 +368,6 @@ function CalendarPage(props: Parameters<typeof TutorContent>[0]) {
       onDelete={async id => { setSaving(true); try { await deleteCalendarEvent(id); await refresh(); } finally { setSaving(false); } }}
     />
     <section className="rounded-3xl border border-border/80 bg-card p-4 shadow-sm"><h2 className="text-lg font-bold">Próximos eventos</h2><div className="mt-3 divide-y divide-border">{upcomingEvents.map(event => <div key={`${event.userId}-${event.id}`} className="grid min-h-14 grid-cols-[80px_1fr_auto] items-center gap-3 py-2"><span className="text-xs font-semibold text-primary">{event.date}<br />{event.time}</span><span className="truncate text-sm font-semibold">{event.title}</span><EventContextChip owner={event.owner} /></div>)}{upcomingEvents.length === 0 && <EmptyState text="No hay eventos futuros para mostrar." />}</div></section>
-  </div>;
-}
-
-function ConnectionsPage({ users, onOpenDetail }: { users: TutorHomeLinkedUser[]; onOpenDetail: (id: string) => void }) {
-  return <div className="space-y-5"><PageHeading title="Personas vinculadas" subtitle="Consultá perfiles y administrá vínculos sin convertir a una persona en el contexto global." />
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{users.map(owner => <button key={owner.id} type="button" onClick={() => onOpenDetail(owner.id)} className="flex min-h-24 items-center gap-4 rounded-3xl border border-border/80 bg-card p-4 text-left shadow-sm transition hover:border-primary/30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{ownerAvatar(owner, 'h-14 w-14')}<span className="min-w-0 flex-1"><span className="block truncate font-bold">{owner.name}</span><span className="block truncate text-xs text-muted-foreground">{owner.supportLevel} · {owner.linkStatus}</span></span><ChevronRight className="text-muted-foreground" aria-hidden /></button>)}{users.length === 0 && <EmptyState text="Todavía no hay personas vinculadas." />}</div>
-    <TutorConnections />
   </div>;
 }
 
