@@ -114,6 +114,19 @@ export async function fetchEvolutionReport(userId: string, weeks = 8): Promise<E
   }
 }
 
+// Periodos "Hoy" / "Última semana": mismo shape que EvolutionWeek (con la
+// fecha YYYY-MM-DD en `week`) para reusar el resumen. Devuelve [] si no hubo
+// nada en toda la ventana, así la pantalla dice "sin datos" en vez de ceros.
+export async function fetchEvolutionDaily(userId: string, days: number): Promise<EvolutionWeek[]> {
+  try {
+    const rows = await apiRequest<(Omit<EvolutionWeek, 'week'> & { day: string })[]>(`/api/eventos-uso/usuario/${encodeURIComponent(userId)}/evolucion-diaria?dias=${days}`);
+    if (rows.every(row => row.routineCompletions === 0 && row.positiveEmotionRatio === null)) return [];
+    return rows.map(({ day, ...rest }) => ({ week: day, ...rest }));
+  } catch {
+    return [];
+  }
+}
+
 export interface AutonomyCardUsage {
   entidadTipo: string;
   entidadId: string;

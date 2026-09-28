@@ -3,9 +3,10 @@ import { Activity, LineChart, MessageCircle, TrendingUp } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { EmotionalRecord } from '@/data/api';
 import { useRememberedTab } from '@/hooks/useRememberedTab';
-import { useEvolutionSummary } from './useEvolutionSummary';
-import { activityIsDone, buildEvolutionCopy, mostFrequentEmotion, periodCounts } from './evolutionHelpers';
-import EvolutionPeriodSelector, { type Period } from './EvolutionPeriodSelector';
+import { useDailyEvolutionSummary, useEvolutionSummary } from './useEvolutionSummary';
+import { activityIsDone, buildEvolutionCopy, mostFrequentEmotion } from './evolutionHelpers';
+import EvolutionPeriodSelector from './EvolutionPeriodSelector';
+import { PERIODS, PERIOD_CONFIG, countByPeriod, type Period } from './evolutionPeriods';
 import EvolutionOverview from './EvolutionOverview';
 import EvolutionWeekly from './EvolutionWeekly';
 import EvolutionCommunication from './EvolutionCommunication';
@@ -13,9 +14,6 @@ import EvolutionDetailSheet, { type DetailKind } from './EvolutionDetailSheet';
 
 type SubTab = 'changes' | 'weekly' | 'communication';
 const SUB_TABS: readonly SubTab[] = ['changes', 'weekly', 'communication'];
-const PERIODS: readonly Period[] = ['month', 'quarter'];
-const PERIOD_WEEKS: Record<Period, number> = { month: 8, quarter: 13 };
-const PERIOD_MONTHS: Record<Period, number> = { month: 1, quarter: 3 };
 
 export interface EvolutionTabProps {
   person: { id: string | number; name: string; autonomy?: string };
@@ -35,22 +33,27 @@ export default function EvolutionTab({ person, activities, emotions, sessions, h
   const [period, setPeriod] = useRememberedTab<Period>(periodStorageKey, PERIODS, 'month');
   const [openDetail, setOpenDetail] = useState<DetailKind | null>(null);
 
-  const periodMonths = PERIOD_MONTHS[period];
-  const evolution = useEvolutionSummary(userId, PERIOD_WEEKS[period]);
-  const evolutionCopy = useMemo(() => buildEvolutionCopy(evolution, activities.length), [evolution, activities.length]);
+  const config = PERIOD_CONFIG[period];
+  // `weekly` alimenta la sub-tab Semanas, el detalle y el PDF; `evolution` es
+  // el resumen del período elegido (la serie diaria en Hoy / Última semana).
+  const weekly = useEvolutionSummary(userId, config.weeks);
+  const daily = useDailyEvolutionSummary(userId, config.days);
+  const evolution = config.days ? daily : weekly;
+  const copyWording = useMemo(() => ({ perWord: config.perWord, when: config.days ? 'Antes' : 'Hace unas semanas' }), [config]);
+  const evolutionCopy = useMemo(() => buildEvolutionCopy(evolution, activities.length, copyWording), [evolution, activities.length, copyWording]);
 
-  const activityMonthCounts = useMemo(() => periodCounts(
+  const activityMonthCounts = useMemo(() => countByPeriod(
     activities.filter(item => activityIsDone(item) && item.completedAt).map(item => new Date(item.completedAt as string)).filter(date => !Number.isNaN(date.getTime())),
-    periodMonths,
-  ), [activities, periodMonths]);
-  const sessionMonthCounts = useMemo(() => periodCounts(
+    config,
+  ), [activities, config]);
+  const sessionMonthCounts = useMemo(() => countByPeriod(
     sessions.filter(session => session.estado === 'completada').map(session => new Date(session.fecha_sesion)).filter(date => !Number.isNaN(date.getTime())),
-    periodMonths,
-  ), [sessions, periodMonths]);
-  const objectiveMonthCounts = useMemo(() => periodCounts(
+    config,
+  ), [sessions, config]);
+  const objectiveMonthCounts = useMemo(() => countByPeriod(
     historyObjectives.map(objective => new Date(objective.fecha_actualizacion)).filter(date => !Number.isNaN(date.getTime())),
-    periodMonths,
-  ), [historyObjectives, periodMonths]);
+    config,
+  ), [historyObjectives, config]);
   const emotionPattern = useMemo(() => {
     const sortedAsc = [...emotions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     if (sortedAsc.length < 4) return null;
@@ -112,7 +115,9 @@ export default function EvolutionTab({ person, activities, emotions, sessions, h
                 autonomyAfter={evolutionCopy.autonomyAfter}
                 participationBefore={evolutionCopy.participationBefore}
                 participationAfter={evolutionCopy.participationAfter}
-                periodMonths={periodMonths}
+                previousLabel={config.previousLabel}
+                perWord={config.perWord}
+                reportWeeks={weekly.weeks}
                 activityMonthCounts={activityMonthCounts}
                 sessionMonthCounts={sessionMonthCounts}
                 objectiveMonthCounts={objectiveMonthCounts}
@@ -124,7 +129,7 @@ export default function EvolutionTab({ person, activities, emotions, sessions, h
           )}
         </TabsContent>
         <TabsContent value="weekly" className="mt-0">
-          {subTab === 'weekly' && <EvolutionWeekly userId={userId} weeks={evolution.weeks} />}
+          {subTab === 'weekly' && <EvolutionWeekly userId={userId} weeks={weekly.weeks} />}
         </TabsContent>
         <TabsContent value="communication" className="mt-0">
           {subTab === 'communication' && <EvolutionCommunication userId={userId} canViewHistory={canViewHistory} />}
@@ -136,7 +141,7 @@ export default function EvolutionTab({ person, activities, emotions, sessions, h
         onClose={() => setOpenDetail(null)}
         userId={userId}
         autonomyLabel={person.autonomy || 'Autonomía cotidiana'}
-        weeks={evolution.weeks}
+        weeks={weekly.weeks}
         stepsDirection={evolutionCopy.stepsDirection}
         moodDirection={evolutionCopy.moodDirection}
         autonomyAfter={evolutionCopy.autonomyAfter}
