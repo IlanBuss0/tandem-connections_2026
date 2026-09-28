@@ -36,6 +36,18 @@ export function periodCounts(dates: Date[], months: number) {
   return { thisMonth, lastMonth };
 }
 
+// Ventana móvil en días ("Hoy" = 1, "Última semana" = 7): hoy y los `days - 1`
+// anteriores contra los `days` previos. Devuelve las mismas claves que
+// periodCounts para poder usarse de forma intercambiable.
+export function dayCounts(dates: Date[], days: number) {
+  const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const today = startOfDay(new Date());
+  const daysAgo = (date: Date) => Math.round((today - startOfDay(date)) / 86400000);
+  const thisMonth = dates.filter(date => { const ago = daysAgo(date); return ago >= 0 && ago < days; }).length;
+  const lastMonth = dates.filter(date => { const ago = daysAgo(date); return ago >= days && ago < days * 2; }).length;
+  return { thisMonth, lastMonth };
+}
+
 export function mostFrequentEmotion(records: EmotionalRecord[]) {
   if (!records.length) return null;
   const counts = new Map<string, number>();
@@ -135,7 +147,11 @@ export interface EvolutionCopy {
 // de Evolución (8 o 13 semanas según el período elegido, Prompt 2): mismo
 // cálculo de dirección y texto "antes/ahora", solo cambia cuántas semanas
 // trae `evolution`.
-export function buildEvolutionCopy(evolution: EvolutionSummary, activitiesCount: number): EvolutionCopy {
+export function buildEvolutionCopy(
+  evolution: EvolutionSummary,
+  activitiesCount: number,
+  { perWord, when } = { perWord: 'semana', when: 'Hace unas semanas' },
+): EvolutionCopy {
   const withoutData = {
     stepsDirection: null as 1 | 0 | -1 | null,
     moodDirection: null as 1 | 0 | -1 | null,
@@ -154,13 +170,13 @@ export function buildEvolutionCopy(evolution: EvolutionSummary, activitiesCount:
     stepsDirection,
     moodDirection,
     autonomyBefore: earlierSteps !== null
-      ? `Hace unas semanas hacía unos ${Math.round(earlierSteps)} pasos de rutina por semana.`
+      ? `${when} hacía unos ${Math.round(earlierSteps)} pasos de rutina por ${perWord}.`
       : 'Todavía no había suficientes semanas registradas para comparar.',
     autonomyAfter: recentSteps !== null
-      ? `Ahora hace unos ${Math.round(recentSteps)} por semana${stepsDirection !== null ? ` — ${stepsDirection > 0 ? 'un poco más' : stepsDirection < 0 ? 'un poco menos' : 'más o menos igual'} que antes` : ''}.`
+      ? `Ahora hace unos ${Math.round(recentSteps)} por ${perWord}${stepsDirection !== null ? ` — ${stepsDirection > 0 ? 'un poco más' : stepsDirection < 0 ? 'un poco menos' : 'más o menos igual'} que antes` : ''}.`
       : 'Todavía no hay pasos de rutina registrados para calcular esto.',
     participationBefore: earlierMood !== null
-      ? `Hace unas semanas, ${Math.round(earlierMood * 10)} de cada 10 registros emocionales eran positivos.`
+      ? `${when}, ${Math.round(earlierMood * 10)} de cada 10 registros emocionales eran positivos.`
       : 'Todavía no había suficientes registros emocionales para comparar.',
     participationAfter: recentMood !== null
       ? `Ahora, ${Math.round(recentMood * 10)} de cada 10 son positivos${moodDirection !== null ? ` — ${moodDirection > 0 ? 'más que antes' : moodDirection < 0 ? 'menos que antes' : 'igual que antes'}` : ''}.`
