@@ -256,6 +256,54 @@ export default function ProfessionalDashboard() {
   const patientByPertenecienteId = new Map(agendaPatients.map(p => [p.pertenecienteId, p]));
   const visiblePatients = linkedUsers.filter(patient => patient.name.toLocaleLowerCase('es').includes(patientSearch.trim().toLocaleLowerCase('es')));
 
+  const gatherNotesFor = async (candidatas: ProfessionalSession[]) => {
+    return Promise.all(
+      candidatas.map(async (s) => {
+        let notasTexto: string | undefined;
+        try {
+          const note = await fetchPrivateProfessionalNote(s.id);
+          const fileId = note?.documento_drive?.google_file_id;
+          if (fileId) {
+            notasTexto = await withGoogleToken((token) => getDocPlainText(token, fileId));
+          }
+        } catch {
+          // si falla la lectura de un doc puntual, seguimos sin su texto
+        }
+        return { id: s.id, fecha_sesion: s.fecha_sesion, titulo: s.titulo, estado: s.estado, notas_texto: notasTexto };
+      }),
+    );
+  };
+
+  const runPrepareSession = async (session: ProfessionalSession) => {
+    const pertenecienteId = Number(session.id_perteneciente);
+    const patientSessions = sessions.filter(item => Number(item.id_perteneciente) === pertenecienteId);
+    setPrepSession(session);
+    setPrepLoading(true);
+    setPrepError(null);
+    setPrepResult(null);
+    try {
+      const pastWithNotes = patientSessions
+        .filter(s => s.estado !== 'programada' && s.has_note)
+        .sort((a, b) => b.fecha_sesion.localeCompare(a.fecha_sesion))
+        .slice(0, 3);
+      if (pastWithNotes.length === 0) {
+        setPrepError('No hay sesiones pasadas con notas para este paciente todavía.');
+        return;
+      }
+      const sesionesPayload = await gatherNotesFor(pastWithNotes);
+      const prep = await prepareSessionSummary({
+        id_perteneciente: pertenecienteId,
+        sesion_objetivo: { titulo: session.titulo, fecha_sesion: session.fecha_sesion },
+        sesiones_pasadas: sesionesPayload,
+      });
+      setPrepResult(prep);
+    } catch (err) {
+      setPrepError(err instanceof Error ? err.message : 'No se pudo generar la preparación.');
+    } finally {
+      setPrepLoading(false);
+    }
+  };
+
   const navigateFromNotification = (nextTab: string, params?: Record<string, any>) => {
     const sourceUserId = params?.sourceUserId ? String(params.sourceUserId) : null;
     const linkedPatient = sourceUserId && linkedUsers.some(item => String(item.id) === sourceUserId)
@@ -288,6 +336,21 @@ export default function ProfessionalDashboard() {
     navigateRoute('patients', { patientId: userId }); setSelectedPatient(userId); setPatientTab('overview'); setMenuOpen(false); setProfileOpen(false); setQuickOpen(false);
     mainRef.current?.scrollTo({ top: 0, behavior: 'auto' });
   };
+  const userIdForSession = (session: ProfessionalSession) =>
+    linkedUsers.find(patient => Number(linkForUser(patient.id)?.perteneciente.id) === Number(session.id_perteneciente))?.id;
+  const openPatientSessions = (session: ProfessionalSession) => {
+    const userId = userIdForSession(session);
+    if (!userId) return false;
+    openPatient(userId);
+    setPatientTab('sessions');
+    return true;
+  };
+  const prepareSessionFromHome = (session: ProfessionalSession) => { if (openPatientSessions(session)) void runPrepareSession(session); };
+  const writeNoteFromHome = (session: ProfessionalSession) => { if (openPatientSessions(session)) setPatientNoteSession(session); };
+  const scheduleFromHome = (userId: string) => {
+    setAgendaInitialPatientId(Number(linkForUser(userId)?.perteneciente.id) || undefined);
+    navigate('calendar');
+  };
   const backToPatientFromActividades = () => {
     if (!activitiesReturnPatientId) return;
     const patientId = activitiesReturnPatientId;
@@ -316,7 +379,7 @@ export default function ProfessionalDashboard() {
       <main ref={mainRef} id="professional-main" tabIndex={-1} className="mx-auto min-h-0 w-full max-w-[1536px] flex-1 space-y-5 overflow-y-auto px-4 py-6 max-lg:pb-28 sm:px-6 lg:px-8 lg:py-9 xl:px-10">
         {tab === 'home' && loadingPatients && <ProfessionalHomeSkeleton />}
         {tab === 'home' && !loadingPatients && patientsError && <div role="alert" className="rounded-3xl border border-destructive/20 bg-white p-6 text-sm text-destructive shadow-sm">{patientsError}<Button type="button" variant="outline" className="ml-3" onClick={reloadPatients}>Reintentar</Button></div>}
-        {tab === 'home' && !loadingPatients && !patientsError && <ProfessionalHome professionalName={user.name} patients={linkedUsers} sessions={sessions} activitiesByUser={activitiesByUser} emotionsByUser={emotionsByUser} notesByUser={notesByUser} patientPertenecienteIds={Object.fromEntries(linkedUsers.map(patient => [patient.id, Number(linkForUser(patient.id)?.perteneciente.id)]))} onNavigate={navigate} onOpenPatient={openPatient} />}
+        {tab === 'home' && !loadingPatients && !patientsError && <ProfessionalHome professionalName={user.name} patients={linkedUsers} sessions={sessions} activitiesByUser={activitiesByUser} emotionsByUser={emotionsByUser} notesByUser={notesByUser} patientPertenecienteIds={Object.fromEntries(linkedUsers.map(patient => [patient.id, Number(linkForUser(patient.id)?.perteneciente.id)]))} onNavigate={navigate} onOpenPatient={openPatient} onPrepareSession={prepareSessionFromHome} onWriteNote={writeNoteFromHome} onSchedule={scheduleFromHome} unscheduledUserIds={patientsWithoutNextSession.map(patient => patient.id)} canOpenAgenda={canScheduleSessions} />}
         {tab === 'recentActivity' && <ProfessionalRecentActivity patients={linkedUsers} emotionsByUser={emotionsByUser} notesByUser={notesByUser} onOpenPatient={openPatient} />}
         {tab === 'emotionalStatus' && <ProfessionalEmotionalStatus patients={linkedUsers} emotionsByUser={emotionsByUser} />}
         {tab === 'chat' && canSendMessages && (
@@ -416,52 +479,6 @@ export default function ProfessionalDashboard() {
           const nextPatientSession = nextSessionForPatient(sessions, pertenecienteId);
           const patientSupportLevel = patientDetail.supportLevel || 'Sin registrar';
           const patientAutonomy = (patientDetail as User & { autonomy?: string }).autonomy || 'Sin registrar';
-
-          const gatherNotesFor = async (candidatas: ProfessionalSession[]) => {
-            return Promise.all(
-              candidatas.map(async (s) => {
-                let notasTexto: string | undefined;
-                try {
-                  const note = await fetchPrivateProfessionalNote(s.id);
-                  const fileId = note?.documento_drive?.google_file_id;
-                  if (fileId) {
-                    notasTexto = await withGoogleToken((token) => getDocPlainText(token, fileId));
-                  }
-                } catch {
-                  // si falla la lectura de un doc puntual, seguimos sin su texto
-                }
-                return { id: s.id, fecha_sesion: s.fecha_sesion, titulo: s.titulo, estado: s.estado, notas_texto: notasTexto };
-              }),
-            );
-          };
-
-          const runPrepareSession = async (session: ProfessionalSession) => {
-            setPrepSession(session);
-            setPrepLoading(true);
-            setPrepError(null);
-            setPrepResult(null);
-            try {
-              const pastWithNotes = patientSessions
-                .filter(s => s.estado !== 'programada' && s.has_note)
-                .sort((a, b) => b.fecha_sesion.localeCompare(a.fecha_sesion))
-                .slice(0, 3);
-              if (pastWithNotes.length === 0) {
-                setPrepError('No hay sesiones pasadas con notas para este paciente todavía.');
-                return;
-              }
-              const sesionesPayload = await gatherNotesFor(pastWithNotes);
-              const prep = await prepareSessionSummary({
-                id_perteneciente: pertenecienteId,
-                sesion_objetivo: { titulo: session.titulo, fecha_sesion: session.fecha_sesion },
-                sesiones_pasadas: sesionesPayload,
-              });
-              setPrepResult(prep);
-            } catch (err) {
-              setPrepError(err instanceof Error ? err.message : 'No se pudo generar la preparación.');
-            } finally {
-              setPrepLoading(false);
-            }
-          };
 
           const runAskQuestion = async () => {
             if (!askQuestion.trim()) return;
