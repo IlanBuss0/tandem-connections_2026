@@ -85,6 +85,28 @@ const TANDEM_SPECIALTIES = [
 
 const authGradient = 'linear-gradient(90deg, #6F518E 0%, #C9A7EB 100%)';
 
+const DNI_NOT_RECOGNIZED_MESSAGE = 'No pudimos reconocer un DNI. Asegurate de mostrar el frente correctamente.';
+const DNI_UNREADABLE_MESSAGE = 'No pudimos leer el DNI. Intentá nuevamente manteniéndolo quieto y con buena iluminación.';
+const DNI_EXPIRY_UNCONFIRMED_MESSAGE = 'Leímos tu DNI, pero no pudimos confirmar su vigencia. Vamos a revisarlo manualmente.';
+const DNI_INACTIVE_LICENSE_MESSAGE = 'Tu matrícula no figura habilitada en el registro profesional.';
+const DNI_MANUAL_REVIEW_MESSAGE = 'Necesitamos revisar tus datos manualmente. Te avisaremos por correo.';
+
+function manualReviewMessage(reason: string | null): string {
+  switch (reason) {
+    case 'ISSUED_UNDER_14':
+    case 'UNVERIFIABLE_EXPIRY':
+      return DNI_EXPIRY_UNCONFIRMED_MESSAGE;
+    case 'LOW_CONFIDENCE':
+    case 'OCR_TIMEOUT':
+    case 'OCR_ERROR':
+      return DNI_UNREADABLE_MESSAGE;
+    case 'INACTIVE_LICENSE':
+      return DNI_INACTIVE_LICENSE_MESSAGE;
+    default:
+      return DNI_MANUAL_REVIEW_MESSAGE;
+  }
+}
+
 function toDniVerificationState(result: ProfessionalDniVerificationResult): DniVerificationState {
   if (result.status === 'VERIFIED') {
     return { status: 'verified', message: '✓ DNI verificado', result };
@@ -102,16 +124,14 @@ function toDniVerificationState(result: ProfessionalDniVerificationResult): DniV
   if (result.reason === 'NOT_ARGENTINE_DNI' || result.reason === 'MISSING_FIELDS') {
     return {
       status: 'invalid_dni',
-      message: 'No pudimos reconocer un DNI. Asegurate de mostrar el frente correctamente.',
+      message: DNI_NOT_RECOGNIZED_MESSAGE,
       result,
     };
   }
   if (result.status === 'MANUAL_REVIEW') {
     return {
       status: 'manual_review',
-      message: result.reason === 'OCR_TIMEOUT' || result.reason === 'OCR_ERROR'
-        ? 'No pudimos leer el DNI. Intentá nuevamente manteniéndolo quieto y con buena iluminación.'
-        : 'No pudimos reconocer un DNI. Asegurate de mostrar el frente correctamente.',
+      message: manualReviewMessage(result.reason),
       result,
     };
   }

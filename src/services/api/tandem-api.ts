@@ -156,6 +156,7 @@ export type ProfessionalDniVerificationResult = {
     dni: string | null;
     nombreCompleto?: string | null;
     fechaVencimiento?: string | null;
+    fechaVencimientoEstimada?: boolean;
     confidence: number;
     structureScore?: number;
     detectedFields?: string[];
