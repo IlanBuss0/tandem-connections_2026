@@ -47,15 +47,16 @@ function summarize(data: EvolutionWeek[] | null, aggregate: (values: number[]) =
 // usuario. `weeks` (8, 13 o 52) es el selector de periodo de la sub-tab
 // Cambios — la tab Resumen sigue llamando esto con el default de 8
 // semanas, sin cambios de comportamiento.
-export function useEvolutionSummary(userId: string, weeks = 8): EvolutionSummary {
+export function useEvolutionSummary(userId: string, weeks = 8, enabled = true): EvolutionSummary {
   const [data, setData] = useState<EvolutionWeek[] | null>(null);
 
   useEffect(() => {
+    if (!enabled) { setData([]); return undefined; }
     let mounted = true;
     setData(null);
     fetchEvolutionReport(userId, weeks).then(result => { if (mounted) setData(result); });
     return () => { mounted = false; };
-  }, [userId, weeks]);
+  }, [userId, weeks, enabled]);
 
   return useMemo(() => summarize(data, average), [data]);
 }

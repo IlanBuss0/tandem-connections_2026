@@ -2,7 +2,7 @@ import type { AcompanamientoData, GeneratedReport, PersonalNote, ProfessionalSes
 import type { AutonomyCardUsage } from '@/data/usageApi';
 
 const DAY_MS = 86_400_000;
-const PAUSE_CARD_ID = 'necesito-un-momento';
+export const PAUSE_CARD_ID = 'necesito-un-momento';
 
 export const startOfLocalDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 const time = (session: ProfessionalSession) => new Date(session.fecha_sesion).getTime();

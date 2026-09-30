@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Activity, ArrowRight, CalendarDays, Check, CheckCircle2, ClipboardPlus, Clock3, FileText, Heart,
   MessageCircle, Network, Sparkles, Target, Users,
@@ -14,7 +14,7 @@ import NowCard from '@/components/perteneciente/collaboration/NowCard';
 import CollaborationComposer from '@/components/perteneciente/collaboration/CollaborationComposer';
 import CollaborationFeed from '@/components/perteneciente/collaboration/CollaborationFeed';
 
-type DetailTab = 'summary' | 'evolution' | 'collaboration' | 'sessions' | 'ai';
+export type DetailTab = 'summary' | 'evolution' | 'collaboration' | 'sessions' | 'ai';
 
 export interface PertenecienteDetailProps {
   person: Pick<User, 'id' | 'name' | 'avatar' | 'age'> & {
@@ -46,6 +46,12 @@ export interface PertenecienteDetailProps {
   onCreateAgreement?: (text: string) => Promise<void>;
   onToggleAgreement?: (agreementId: number, completed: boolean) => Promise<void>;
   onAskAI?: (question: string) => Promise<string>;
+  /** Si viene, reemplaza el cuerpo de la pestaña Sesiones (solo lo pasa el Profesional). */
+  sessionsSlot?: ReactNode;
+  /** Pestaña con la que se abre; manda sobre la recordada. */
+  initialTab?: DetailTab;
+  /** Se dibuja arriba de todo en la pestaña Resumen (solo lo pasa el Profesional). */
+  summaryTop?: ReactNode;
 }
 
 const dateLabel = (value?: string | null) => {
@@ -53,6 +59,8 @@ const dateLabel = (value?: string | null) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
 };
+
+const HISTORY_NOTICE = 'El historial no está habilitado para este vínculo.';
 
 const initialsOf = (name: string) => name.trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('') || '?';
 
@@ -77,13 +85,18 @@ export default function PertenecienteDetail({
   currentUserId, role, canViewHistory = true, canManageSessions = false, onOpenChat,
   onCreateActivity, onScheduleSession, onOpenPrivateNote, onCreateSharedNote, onDeleteSharedNote,
   onCreateObjective, onUpdateObjective, onCreateAgreement, onToggleAgreement, onAskAI,
+  sessionsSlot, initialTab, summaryTop,
 }: PertenecienteDetailProps) {
   const tabStorageKey = `tandem:perteneciente-tab:${currentUserId ?? 'anon'}:${person.id}`;
-  const [tab, setTab] = useRememberedTab<DetailTab>(tabStorageKey, ['summary', 'evolution', 'collaboration', 'sessions', 'ai'], 'summary');
+  const [rememberedTab, setRememberedTab] = useRememberedTab<DetailTab>(tabStorageKey, ['summary', 'evolution', 'collaboration', 'sessions', 'ai'], 'summary');
+  const [forcedTab, setForcedTab] = useState(initialTab);
+  useEffect(() => { if (initialTab) setForcedTab(initialTab); }, [initialTab]);
+  const tab = forcedTab ?? rememberedTab;
+  const setTab = (next: DetailTab) => { setForcedTab(undefined); setRememberedTab(next); };
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
-  const evolution = useEvolutionSummary(String(person.id));
+  const evolution = useEvolutionSummary(String(person.id), 8, canViewHistory);
   const completed = activities.filter(activityIsDone).length;
   const upcoming = useMemo(() => events.filter(event => new Date(`${event.date}T${event.time || '00:00'}`).getTime() >= Date.now() - 3600000).slice(0, 3), [events]);
   const nextSession = sessions.find(session => session.estado === 'programada' && new Date(session.fecha_sesion).getTime() >= Date.now());
@@ -148,12 +161,16 @@ export default function PertenecienteDetail({
       {tabs.map(item => <button key={item.id} type="button" onClick={() => setTab(item.id)} aria-label={item.label} className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-1 text-[11px] font-bold transition sm:min-h-12 sm:gap-2 sm:px-3 sm:text-sm ${tab === item.id ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-primary/5 hover:text-foreground'}`}><item.icon size={18} aria-hidden /><span className="hidden sm:inline">{item.label}</span></button>)}
     </nav>
 
-    {tab === 'summary' && <div className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
+    {tab === 'summary' && summaryTop}
+
+    {!canViewHistory && tab !== 'sessions' && !(tab === 'summary' && summaryTop) && <Empty>{HISTORY_NOTICE}</Empty>}
+
+    {canViewHistory && tab === 'summary' && <div className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
       <div className="space-y-5"><section className="rounded-[28px] bg-[#f6fbff] p-5 shadow-inner"><p className="text-sm font-semibold text-primary">Una mirada de esta semana</p><h2 className="mt-2 font-heading text-3xl font-bold">{completed > activities.length / 2 ? 'Semana estable' : 'Acompañamiento en marcha'}</h2><p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{evolutionCopy.weeklyHighlight || 'Lo importante es observar pequeños avances y sostener apoyos que le resulten claros y posibles.'}</p><div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3"><MiniStat value={`${completed}/${activities.length}`} label="actividades" icon={CheckCircle2} /><MiniStat value={emotions.length} label="registros emocionales" icon={Heart} /><MiniStat value={upcoming.length} label="próximos momentos" icon={CalendarDays} /></div></section><Section title="Qué pasó recientemente" eyebrow="Señales para conversar" icon={Clock3}><div className="space-y-3">{emotions.slice(0, 3).map(emotion => <div key={emotion.id} className="flex items-start gap-3 rounded-2xl bg-rose-50/60 p-3"><span className="text-2xl" role="img" aria-label={emotion.emotion}>{emotion.emoji || '🙂'}</span><div className="min-w-0"><p className="font-semibold">{emotion.emotion}</p><p className="text-sm text-muted-foreground">{emotion.context || 'Registro emocional compartido.'}</p><p className="mt-1 text-xs text-muted-foreground">{dateLabel(emotion.date)}</p></div></div>)}{!emotions.length && <Empty>Todavía no hay registros emocionales para compartir.</Empty>}</div></Section></div>
       <div className="space-y-5"><Section title="En qué estamos trabajando" eyebrow="Objetivos activos" icon={Target}>{activeObjectives.length ? <div className="space-y-3">{activeObjectives.slice(0, 2).map(objective => <ObjectiveCard key={objective.id} objective={objective} editable={false} />)}{activeObjectives.length > 2 && <button type="button" onClick={() => setTab('collaboration')} className="text-xs font-bold text-primary hover:underline">Ver los {activeObjectives.length} objetivos</button>}</div> : <Empty>Todavía no hay objetivos activos.</Empty>}{nextSession && <p className="mt-4 border-t border-border/60 pt-3 text-sm text-muted-foreground"><span className="font-bold text-foreground">Próxima sesión · </span>{nextSession.titulo}, {new Date(nextSession.fecha_sesion).toLocaleDateString('es-AR', { day: 'numeric', month: 'long' })}</p>}</Section>{latestReport && <Section title="Último reporte" eyebrow={latestReport.profesional_nombre ? `De ${latestReport.profesional_nombre}` : 'Reporte profesional'} icon={FileText}><p className="text-sm font-bold">{latestReport.titulo || 'Reporte de seguimiento'}</p><p className="mt-1 text-xs text-muted-foreground">{dateLabel(latestReport.fecha_envio || latestReport.fecha_generacion)}</p><p className="mt-2 line-clamp-3 text-sm text-muted-foreground">{latestReport.contenido}</p><button type="button" onClick={() => setTab('sessions')} className="mt-3 text-xs font-bold text-primary hover:underline">Ver los {sortedReports.length} reportes</button></Section>}<button type="button" onClick={() => setTab('ai')} className="w-full rounded-[28px] bg-[linear-gradient(135deg,#7350ad,#9b78d0)] p-5 text-left text-white shadow-[0_14px_30px_rgba(115,80,173,.25)] transition hover:-translate-y-0.5"><span className="text-2xl">✨</span><p className="mt-3 font-heading text-xl font-bold">Preguntale a TÁNDEM</p><p className="mt-1 text-sm text-white/80">Una mirada basada en la información autorizada de {person.name}.</p><span className="mt-4 inline-flex items-center gap-2 text-sm font-bold">Abrir acompañamiento IA <ArrowRight size={16} /></span></button></div>
     </div>}
 
-    {tab === 'evolution' && <EvolutionTab
+    {canViewHistory && tab === 'evolution' && <EvolutionTab
       person={person}
       activities={activities}
       emotions={emotions}
@@ -163,7 +180,7 @@ export default function PertenecienteDetail({
       canViewHistory={canViewHistory}
     />}
 
-    {tab === 'collaboration' && <div className="evolution-scope grid gap-5 lg:grid-cols-[1.15fr_.85fr]">
+    {canViewHistory && tab === 'collaboration' && <div className="evolution-scope grid gap-5 lg:grid-cols-[1.15fr_.85fr]">
       <div className="min-w-0 space-y-4 lg:hidden">
         {nowCardSection}
         {supportNetworkSection}
@@ -186,9 +203,9 @@ export default function PertenecienteDetail({
       </div>
     </div>}
 
-    {tab === 'sessions' && <div className="grid gap-5 lg:grid-cols-2"><Section title="Sesiones permitidas" eyebrow="Acompañamiento profesional" icon={CalendarDays}><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><p className="max-w-xl text-sm text-muted-foreground">Las notas privadas profesionales quedan protegidas y nunca se muestran en este espacio compartido.</p>{canManageSessions && onScheduleSession && <button type="button" onClick={onScheduleSession} className="min-h-11 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground">Programar sesión</button>}</div>{nextSession && <div className="mb-4 rounded-2xl bg-violet-50 p-4"><p className="text-xs font-bold uppercase tracking-wider text-violet-700">Próxima sesión</p><p className="mt-1 font-heading text-xl font-bold text-violet-950">{nextSession.titulo}</p><p className="text-sm text-violet-800/75">{new Date(nextSession.fecha_sesion).toLocaleString('es-AR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })} · {nextSession.duracion_minutos} min</p></div>} {!canViewHistory ? <Empty>El historial no está habilitado para este vínculo.</Empty> : sessions.length ? <div className="space-y-2">{sessions.slice(0, 8).map(session => <div key={session.id} className="flex items-center gap-3 rounded-2xl border border-border/70 p-3"><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${session.estado === 'completada' ? 'bg-emerald-50 text-emerald-600' : 'bg-violet-50 text-violet-600'}`}><CalendarDays size={18} /></span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold">{session.titulo}</span><span className="block text-xs text-muted-foreground">{dateLabel(session.fecha_sesion)} · {session.estado}</span></span>{role === 'professional' && session.has_note && onOpenPrivateNote && <button type="button" onClick={() => onOpenPrivateNote(session)} className="min-h-10 rounded-xl px-3 text-xs font-bold text-primary hover:bg-primary/5">Nota privada</button>}</div>)}</div> : <Empty>Todavía no hay sesiones para mostrar.</Empty>}</Section><Section title="Reportes" eyebrow="Enviados por profesionales" icon={FileText}>{reportMonths.length ? <div className="space-y-3">{reportMonths.map(([month, monthReports], index) => <details key={month} open={index === 0} className="group overflow-hidden rounded-2xl border border-border/70 bg-white"><summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"><span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold capitalize">{month}</span><span className="block text-xs text-muted-foreground">{monthReports.length} {monthReports.length === 1 ? 'reporte' : 'reportes'}</span></span></summary><div className="border-t border-border/60 px-3">{monthReports.map(report => <ReportItem key={report.id} report={report} />)}</div></details>)}</div> : <Empty>Todavía no hay reportes para mostrar acá.</Empty>}</Section></div>}
+    {tab === 'sessions' && (sessionsSlot ?? <div className="grid gap-5 lg:grid-cols-2"><Section title="Sesiones permitidas" eyebrow="Acompañamiento profesional" icon={CalendarDays}><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><p className="max-w-xl text-sm text-muted-foreground">Las notas privadas profesionales quedan protegidas y nunca se muestran en este espacio compartido.</p>{canManageSessions && onScheduleSession && <button type="button" onClick={onScheduleSession} className="min-h-11 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground">Programar sesión</button>}</div>{nextSession && <div className="mb-4 rounded-2xl bg-violet-50 p-4"><p className="text-xs font-bold uppercase tracking-wider text-violet-700">Próxima sesión</p><p className="mt-1 font-heading text-xl font-bold text-violet-950">{nextSession.titulo}</p><p className="text-sm text-violet-800/75">{new Date(nextSession.fecha_sesion).toLocaleString('es-AR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })} · {nextSession.duracion_minutos} min</p></div>} {!canViewHistory ? <Empty>El historial no está habilitado para este vínculo.</Empty> : sessions.length ? <div className="space-y-2">{sessions.slice(0, 8).map(session => <div key={session.id} className="flex items-center gap-3 rounded-2xl border border-border/70 p-3"><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${session.estado === 'completada' ? 'bg-emerald-50 text-emerald-600' : 'bg-violet-50 text-violet-600'}`}><CalendarDays size={18} /></span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold">{session.titulo}</span><span className="block text-xs text-muted-foreground">{dateLabel(session.fecha_sesion)} · {session.estado}</span></span>{role === 'professional' && session.has_note && onOpenPrivateNote && <button type="button" onClick={() => onOpenPrivateNote(session)} className="min-h-10 rounded-xl px-3 text-xs font-bold text-primary hover:bg-primary/5">Nota privada</button>}</div>)}</div> : <Empty>Todavía no hay sesiones para mostrar.</Empty>}</Section><Section title="Reportes" eyebrow="Enviados por profesionales" icon={FileText}>{reportMonths.length ? <div className="space-y-3">{reportMonths.map(([month, monthReports], index) => <details key={month} open={index === 0} className="group overflow-hidden rounded-2xl border border-border/70 bg-white"><summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"><span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold capitalize">{month}</span><span className="block text-xs text-muted-foreground">{monthReports.length} {monthReports.length === 1 ? 'reporte' : 'reportes'}</span></span></summary><div className="border-t border-border/60 px-3">{monthReports.map(report => <ReportItem key={report.id} report={report} />)}</div></details>)}</div> : <Empty>Todavía no hay reportes para mostrar acá.</Empty>}</Section></div>)}
 
-    {tab === 'ai' && <Section title="Preguntale a TÁNDEM" eyebrow="Información autorizada" icon={Sparkles}><div className="max-w-2xl"><p className="text-sm leading-6 text-muted-foreground">La IA puede ayudarte a conectar actividades, emociones, sesiones y objetivos compartidos. No diagnostica ni completa datos que no existan.</p>{onAskAI ? <><div className="mt-4 flex flex-col gap-2 sm:flex-row"><input value={question} onChange={event => setQuestion(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void ask(); }} placeholder="¿Qué querés saber sobre esta persona?" className="min-h-12 flex-1 rounded-2xl border border-border bg-white px-4 text-sm outline-none focus:ring-2 focus:ring-primary/30" /><button type="button" onClick={() => void ask()} disabled={aiLoading || !question.trim()} className="min-h-12 rounded-2xl bg-primary px-5 text-sm font-bold text-primary-foreground disabled:opacity-50">{aiLoading ? 'Pensando…' : 'Preguntar'}</button></div>{answer && <p className="mt-4 whitespace-pre-wrap rounded-2xl bg-primary/5 p-4 text-sm leading-6">{answer}</p>}</> : <div className="mt-4 rounded-2xl bg-muted/45 p-4 text-sm text-muted-foreground">La conversación IA compartida se habilita cuando el vínculo tenga un proveedor autorizado.</div>}</div></Section>}
+    {canViewHistory && tab === 'ai' && <Section title="Preguntale a TÁNDEM" eyebrow="Información autorizada" icon={Sparkles}><div className="max-w-2xl"><p className="text-sm leading-6 text-muted-foreground">La IA puede ayudarte a conectar actividades, emociones, sesiones y objetivos compartidos. No diagnostica ni completa datos que no existan.</p>{onAskAI ? <><div className="mt-4 flex flex-col gap-2 sm:flex-row"><input value={question} onChange={event => setQuestion(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void ask(); }} placeholder="¿Qué querés saber sobre esta persona?" className="min-h-12 flex-1 rounded-2xl border border-border bg-white px-4 text-sm outline-none focus:ring-2 focus:ring-primary/30" /><button type="button" onClick={() => void ask()} disabled={aiLoading || !question.trim()} className="min-h-12 rounded-2xl bg-primary px-5 text-sm font-bold text-primary-foreground disabled:opacity-50">{aiLoading ? 'Pensando…' : 'Preguntar'}</button></div>{answer && <p className="mt-4 whitespace-pre-wrap rounded-2xl bg-primary/5 p-4 text-sm leading-6">{answer}</p>}</> : <div className="mt-4 rounded-2xl bg-muted/45 p-4 text-sm text-muted-foreground">La conversación IA compartida se habilita cuando el vínculo tenga un proveedor autorizado.</div>}</div></Section>}
   </div>;
 }
 
