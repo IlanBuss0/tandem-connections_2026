@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, Lock, Sparkles } from "lucide-react";
 import { AgendaSheet, SheetLabel } from "@/components/agenda/AgendaSheet";
 import { PatientChips, type AgendaPatient } from "@/components/agenda/SessionFormSheet";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -7,7 +7,7 @@ import { Chip } from "@/components/professional/home/HomeUi";
 import { useToast } from "@/components/ui/use-toast";
 import { withGoogleToken } from "@/lib/googleAuth";
 import { getDocPlainText } from "@/lib/googleDocs";
-import { clockOf } from "@/lib/agendaFormat";
+import { clockOf, initials } from "@/lib/agendaFormat";
 import { fetchPrivateProfessionalNote, fetchProfessionalSessions, generatePatientReport, type GeneratedReport, type ProfessionalSession } from "@/data/api";
 
 /** Manda al backend cada sesión con el texto de su nota de Drive (si se puede leer). */
@@ -27,13 +27,14 @@ const sessionWhen = (session: ProfessionalSession) => {
   return `${date.toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" }).replace(/[.,]/g, "")} · ${clockOf(date)}`;
 };
 
-export default function NewReportSheet({ patients, initialPatientId, replacing, onClose, onGenerated }: { patients: AgendaPatient[]; initialPatientId?: number; /** Reporte que se reemplaza al volver a generar. */ replacing?: GeneratedReport; onClose: () => void; onGenerated: (report: GeneratedReport) => void }) {
+export default function NewReportSheet({ patients, initialPatientId, replacing, lockPatient, onClose, onGenerated }: { patients: AgendaPatient[]; initialPatientId?: number; /** Reporte que se reemplaza al volver a generar. */ replacing?: GeneratedReport; /** El paciente viene elegido y no se puede cambiar. */ lockPatient?: boolean; onClose: () => void; onGenerated: (report: GeneratedReport) => void }) {
   const { toast } = useToast();
   const [patientId, setPatientId] = useState(String(replacing?.id_perteneciente ?? initialPatientId ?? ""));
   const [sessions, setSessions] = useState<ProfessionalSession[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const lockedPatient = patients.find((patient) => String(patient.pertenecienteId) === patientId);
 
   useEffect(() => {
     setSelected(new Set());
@@ -82,7 +83,17 @@ export default function NewReportSheet({ patients, initialPatientId, replacing, 
         </button>
       }
     >
-      {!replacing && <PatientChips patients={patients} value={patientId} onChange={setPatientId} />}
+      {lockPatient && (
+        <div>
+          <SheetLabel>Paciente</SheetLabel>
+          <div className="flex min-h-12 items-center gap-3 rounded-2xl bg-primary/10 px-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/70 text-xs font-bold text-primary" aria-hidden>{initials(lockedPatient?.name || "")}</span>
+            <span className="flex-1 text-sm font-bold text-[#2b2145]">{lockedPatient?.name || "Paciente"}</span>
+            <Lock size={18} className="text-primary" aria-hidden />
+          </div>
+        </div>
+      )}
+      {!replacing && !lockPatient && <PatientChips patients={patients} value={patientId} onChange={setPatientId} />}
       {patientId && (
         <div>
           <div className="flex items-start justify-between gap-3">
