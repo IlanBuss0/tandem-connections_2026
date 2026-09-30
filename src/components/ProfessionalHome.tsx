@@ -1,7 +1,17 @@
-import { Activity, CalendarDays, CheckCircle2, ChevronRight, FileText, FolderOpen, Heart, Users } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Activity, CalendarDays, ChevronRight, FileText, Heart, Users } from 'lucide-react';
 import type { Activity as PatientActivity, EmotionalRecord, PersonalNote, ProfessionalSession, User } from '@/data/api';
+import HomeGreeting from '@/components/professional/home/HomeGreeting';
+import HomeToday from '@/components/professional/home/HomeToday';
+import HomeAttention from '@/components/professional/home/HomeAttention';
+import HomeCloseMonth from '@/components/professional/home/HomeCloseMonth';
+import HomeWeek from '@/components/professional/home/HomeWeek';
+import { Pressable, SectionTitle } from '@/components/professional/home/HomeUi';
+import { useHomeSupport } from '@/components/professional/home/useHomeSupport';
+import { useScrollToSection } from '@/components/professional/home/useScrollToSection';
+import { attentionItems, buildWeek, nextTodaySession, sessionsWithoutNote, todaySessions, unsentReportsThisMonth } from '@/components/professional/home/homeData';
 
-type HomeTab = 'patients' | 'calendar' | 'documents';
+type HomeTab = 'patients' | 'calendar' | 'documents' | 'reports';
 export type ProfessionalHomeProps = {
   professionalName: string;
   patients: User[];
@@ -12,6 +22,11 @@ export type ProfessionalHomeProps = {
   patientPertenecienteIds: Record<string, number>;
   onNavigate: (tab: HomeTab) => void;
   onOpenPatient: (userId: string) => void;
+  onPrepareSession: (session: ProfessionalSession) => void;
+  onWriteNote: (session: ProfessionalSession) => void;
+  onSchedule: (userId: string) => void;
+  unscheduledUserIds: string[];
+  canOpenAgenda: boolean;
 };
 
 function avatar(user?: User, size = 'h-8 w-8') {
@@ -24,39 +39,38 @@ function avatar(user?: User, size = 'h-8 w-8') {
 function parseTime(value?: string) { const time = Date.parse(value || ''); return Number.isFinite(time) ? time : 0; }
 function relative(value: string) { const diff = Math.max(0, Date.now() - parseTime(value)); const hours = Math.floor(diff / 3_600_000); return hours < 1 ? 'Recién' : hours < 24 ? `Hace ${hours} h` : hours < 48 ? 'Ayer' : `Hace ${Math.floor(hours / 24)} días`; }
 
+function useMinuteClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 60_000); return () => window.clearInterval(timer); }, []);
+  return now;
+}
+
 export default function ProfessionalHome(props: ProfessionalHomeProps) {
-  const byPerteneciente = new Map(Object.entries(props.patientPertenecienteIds).map(([userId, id]) => [id, props.patients.find(patient => patient.id === userId)]));
-  const upcoming = props.sessions.filter(session => session.estado === 'programada' && parseTime(session.fecha_sesion) >= Date.now() - 3_600_000).sort((a, b) => a.fecha_sesion.localeCompare(b.fecha_sesion));
-  const today = new Date().toISOString().slice(0, 10);
-  const todayCount = upcoming.filter(session => session.fecha_sesion.slice(0, 10) === today).length;
-  const totalActivities = Object.values(props.activitiesByUser).flat();
-  const completedActivities = totalActivities.filter(activity => activity.status === 'completada').length;
-  const adherence = totalActivities.length ? Math.round(completedActivities / totalActivities.length * 100) : null;
-  const notes = Object.entries(props.notesByUser).flatMap(([userId, rows]) => rows.map(row => ({ ...row, patient: props.patients.find(item => item.id === userId)! }))).filter(item => item.patient).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const now = useMinuteClock();
+  const scrollTo = useScrollToSection();
+  const patientOf = useCallback((session: ProfessionalSession) => props.patients.find(patient => props.patientPertenecienteIds[patient.id] === Number(session.id_perteneciente)), [props.patients, props.patientPertenecienteIds]);
+  const today = useMemo(() => todaySessions(props.sessions, now), [props.sessions, now]);
+  const todayUserIds = useMemo(() => [...new Set(today.flatMap(session => patientOf(session)?.id ?? []))], [today, patientOf]);
+  const { agreements, usage, reports } = useHomeSupport({ pertenecienteIds: props.patientPertenecienteIds, todayUserIds });
+  const missingNotes = useMemo(() => sessionsWithoutNote(props.sessions, now), [props.sessions, now]);
+  const unsentReports = useMemo(() => unsentReportsThisMonth(reports, now), [reports, now]);
+  const week = useMemo(() => buildWeek(props.sessions, now), [props.sessions, now]);
+  const attention = { patients: props.patients, now, notesByUser: props.notesByUser, agreements, unscheduledUserIds: props.unscheduledUserIds };
 
-  return <div className="space-y-4 md:space-y-6">
-    <header className="rounded-[24px] border border-[#e8dcf8] bg-gradient-to-br from-[#f9f4ff] via-[#f4ebff] to-[#eef8fb] px-4 py-5 shadow-[0_10px_30px_#eadff6] sm:px-8 sm:py-9"><h1 className="font-heading text-2xl font-black tracking-tight text-[#2e2344] sm:text-4xl">Hola, Lic. {props.professionalName.replace(/^Lic\.?\s*/i, '').split(' ')[0]}</h1><p className="mt-1.5 max-w-2xl text-xs leading-5 text-[#675a78] sm:mt-2 sm:text-base sm:leading-6">Organizá tus pacientes, sesiones y recursos en un solo lugar.</p></header>
-
-    <section aria-label="Áreas principales" className="grid gap-3 md:grid-cols-3 md:gap-4">
-      <NavigationCard icon={Users} title="Pacientes" text={`${props.patients.length} ${props.patients.length === 1 ? 'paciente vinculado' : 'pacientes vinculados'}`} onClick={() => props.onNavigate('patients')}>
-        <div className="flex -space-x-2">{props.patients.slice(0, 5).map(patient => <span key={patient.id} className="rounded-full border-2 border-white">{avatar(patient, 'h-9 w-9')}</span>)}{props.patients.length > 5 && <span className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-primary/10 text-xs font-bold text-primary">+{props.patients.length - 5}</span>}</div>
-      </NavigationCard>
-      <NavigationCard icon={CalendarDays} title="Sesiones y agenda" text={todayCount ? `${todayCount} ${todayCount === 1 ? 'sesión' : 'sesiones'} hoy` : 'Sin sesiones para hoy'} onClick={() => props.onNavigate('calendar')}>
-        {upcoming[0] ? <SessionPreview session={upcoming[0]} patient={byPerteneciente.get(Number(upcoming[0].id_perteneciente))} /> : <SmallEmpty text="Todavía no hay próximas sesiones." />}
-      </NavigationCard>
-      <div className="max-md:hidden md:contents"><NavigationCard icon={FolderOpen} title="Documentos y notas" text="Archivos y seguimiento, juntos" onClick={() => props.onNavigate('documents')}>
-        {notes[0] ? <div className="flex items-center gap-2 rounded-2xl bg-primary/[.045] p-3">{avatar(notes[0].patient)}<span className="min-w-0"><span className="block truncate text-sm font-semibold">{notes[0].title || 'Última nota compartida'}</span><span className="block truncate text-xs text-muted-foreground">{notes[0].patient.name}</span></span></div> : <SmallEmpty text="Sin notas recientes." />}
-      </NavigationCard></div>
-    </section>
-
-    <div className="grid gap-3 md:gap-5 xl:grid-cols-2">
-      <div className="max-md:hidden md:contents"><Card title="Resumen de pacientes" icon={Users} action="Ver pacientes" onAction={() => props.onNavigate('patients')}>
-        <div className="space-y-4">{props.patients.slice(0, 6).map(patient => { const activities = props.activitiesByUser[patient.id] || []; const done = activities.filter(item => item.status === 'completada').length; const percent = activities.length ? Math.round(done / activities.length * 100) : 0; return <div key={patient.id} className="grid grid-cols-[minmax(90px,auto)_1fr_38px] items-center gap-3"><span className="flex min-w-0 items-center gap-2">{avatar(patient)}<span className="truncate text-xs font-semibold">{patient.name.split(' ')[0]}</span></span><span className="h-3 overflow-hidden rounded-full bg-primary/10"><span className="block h-full rounded-full bg-gradient-to-r from-primary to-violet-400" style={{ width: `${percent}%` }} /></span><span className="text-right text-xs font-bold tabular-nums">{activities.length ? `${percent}%` : '—'}</span></div>; })}{!props.patients.length && <SmallEmpty text="Todavía no hay pacientes vinculados." />}</div>
-        <div className="mt-5 grid grid-cols-3 gap-2 rounded-2xl bg-primary/[.035] p-3"><Metric value={props.patients.length} label="pacientes" /><Metric value={upcoming.length} label="próximas" /><Metric value={adherence === null ? '—' : `${adherence}%`} label="adherencia" /></div>
-      </Card></div>
-      <Card title="Próximas sesiones" icon={CalendarDays} action="Ver calendario" onAction={() => props.onNavigate('calendar')}>
-        <div className="divide-y divide-border">{upcoming.slice(0, 5).map(session => <button key={session.id} type="button" onClick={() => props.onNavigate('calendar')} className="grid min-h-16 w-full grid-cols-[58px_1fr_auto] items-center gap-3 py-2 text-left hover:bg-primary/[.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="text-xs font-bold text-primary">{new Date(session.fecha_sesion).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span><span className="min-w-0"><span className="block truncate text-sm font-semibold">{session.titulo}</span><span className="block text-xs text-muted-foreground">{session.duracion_minutos} min · {session.estado}</span></span><Person patient={byPerteneciente.get(Number(session.id_perteneciente))} /></button>)}{!upcoming.length && <SmallEmpty text="Todavía no hay sesiones programadas." />}</div>
-      </Card>
+  return <div className="mx-auto w-full max-w-[1200px] text-[#2B2145]">
+    <HomeGreeting name={props.professionalName} now={now} todayCount={today.length} missingNotes={missingNotes.length} onGoToday={() => scrollTo('home-hoy')} onGoClose={() => scrollTo('home-cerrar')} />
+    <div className="flex flex-col lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(0,.9fr)] lg:items-start lg:gap-x-7">
+      <div className="contents lg:block">
+        <div id="home-hoy" className="order-1">
+          <SectionTitle action={props.canOpenAgenda ? <Pressable onClick={() => props.onNavigate('calendar')} className="inline-flex min-h-[44px] items-center gap-1 text-[13px] font-extrabold text-[#553588]">Agenda<ChevronRight size={15} strokeWidth={2.6} aria-hidden /></Pressable> : undefined}>Hoy</SectionTitle>
+          <HomeToday sessions={today} next={nextTodaySession(today, now)} now={now} patientOf={patientOf} agreements={agreements} usage={usage} onOpenPatient={props.onOpenPatient} onPrepareSession={props.onPrepareSession} onWriteNote={props.onWriteNote} />
+        </div>
+        <div className="order-4"><SectionTitle>Esta semana</SectionTitle><HomeWeek week={week} /></div>
+      </div>
+      <div className="contents lg:block">
+        {attentionItems(attention).length > 0 && <div className="order-2"><SectionTitle>Necesitan tu mirada</SectionTitle><HomeAttention {...attention} onOpenPatient={props.onOpenPatient} onSchedule={props.onSchedule} /></div>}
+        <div id="home-cerrar" className="order-3"><SectionTitle>Para cerrar el mes</SectionTitle><HomeCloseMonth missingNotes={missingNotes} reports={unsentReports} now={now} patientOf={patientOf} onWriteNote={props.onWriteNote} onReviewReports={() => props.onNavigate('reports')} /></div>
+      </div>
     </div>
   </div>;
 }
@@ -75,9 +89,6 @@ export function ProfessionalEmotionalStatus({ patients, emotionsByUser }: Pick<P
 
 function PageHeading({ title, subtitle }: { title: string; subtitle: string }) { return <header><h1 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">{title}</h1><p className="mt-2 text-sm text-muted-foreground sm:text-base">{subtitle}</p></header>; }
 
-function NavigationCard({ icon: Icon, title, text, onClick, children }: { icon: typeof Users; title: string; text: string; onClick: () => void; children: React.ReactNode }) { return <button type="button" onClick={onClick} className="group min-h-0 rounded-[20px] border border-[#ece3f8] bg-white p-3.5 text-left shadow-[0_8px_24px_#f0e8f8] transition hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-48 md:rounded-[24px] md:p-5"><span className="flex items-start gap-2.5 md:gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary md:h-11 md:w-11 md:rounded-2xl"><Icon size={19} className="md:h-[22px] md:w-[22px]" aria-hidden /></span><span className="min-w-0 flex-1"><span className="block text-base font-bold text-[#2e2344] md:text-lg">{title}</span><span className="mt-0.5 block text-xs text-muted-foreground md:mt-1 md:text-sm">{text}</span></span><ChevronRight className="h-5 w-5 text-primary transition-transform group-hover:translate-x-0.5 md:h-6 md:w-6" aria-hidden /></span><span className="mt-3 block md:mt-5">{children}</span></button>; }
 function Card({ title, icon: Icon, action, onAction, children }: { title: string; icon: typeof Users; action?: string; onAction?: () => void; children: React.ReactNode }) { return <section className="rounded-[20px] border border-[#ece3f8] bg-white p-3.5 shadow-[0_8px_24px_#f0e8f8] sm:p-5 md:rounded-[24px]"><header className="mb-2.5 flex items-center gap-2.5 md:mb-4 md:gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary md:h-10 md:w-10 md:rounded-2xl"><Icon size={18} className="md:h-5 md:w-5" aria-hidden /></span><h2 className="min-w-0 flex-1 text-base font-bold text-[#2e2344] md:text-lg">{title}</h2>{action && <button type="button" onClick={onAction} className="min-h-10 rounded-xl px-2 text-xs font-semibold text-primary hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-11 md:text-sm">{action}</button>}</header>{children}</section>; }
-function SessionPreview({ session, patient }: { session: ProfessionalSession; patient?: User }) { return <div className="flex items-center gap-3 rounded-2xl bg-primary/[.045] p-3">{avatar(patient, 'h-10 w-10')}<span className="min-w-0"><span className="block truncate text-sm font-semibold">{new Date(session.fecha_sesion).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} · {patient?.name || 'Paciente'}</span><span className="block truncate text-xs text-muted-foreground">{session.titulo} · {session.duracion_minutos} min</span></span></div>; }
 function Person({ patient }: { patient?: User }) { return patient ? <span className="inline-flex max-w-28 items-center gap-1.5 rounded-full bg-primary/[.065] py-1 pl-1 pr-2 text-xs font-semibold text-primary">{avatar(patient, 'h-6 w-6')}<span className="truncate">{patient.name.split(' ')[0]}</span></span> : <span className="text-xs text-muted-foreground">Paciente</span>; }
-function Metric({ value, label }: { value: string | number; label: string }) { return <div className="text-center"><strong className="block text-xl text-primary tabular-nums">{value}</strong><span className="text-[11px] text-muted-foreground">{label}</span></div>; }
 function SmallEmpty({ text }: { text: string }) { return <p className="rounded-2xl border border-dashed border-border p-3 text-sm text-muted-foreground">{text}</p>; }
