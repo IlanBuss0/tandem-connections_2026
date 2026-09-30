@@ -14,3 +14,14 @@ export const clockOf = (date: Date) => date.toTimeString().slice(0, 5);
 
 /** "Martes 29". */
 export const dayLabel = (date: Date) => cap(date.toLocaleDateString("es-AR", { weekday: "long", day: "numeric" }).replace(",", ""));
+
+export const MAX_PATIENT_CHIPS = 4;
+
+/** Hasta 4 chips; con más, los primeros 4 (el elegido, si quedó afuera, reemplaza al cuarto). */
+export function visiblePatients<T extends { pertenecienteId: number }>(patients: T[], value: string) {
+  if (patients.length <= MAX_PATIENT_CHIPS) return patients;
+  const firstFour = patients.slice(0, MAX_PATIENT_CHIPS);
+  const chosen = patients.find((patient) => String(patient.pertenecienteId) === value);
+  if (!chosen || firstFour.includes(chosen)) return firstFour;
+  return [...firstFour.slice(0, MAX_PATIENT_CHIPS - 1), chosen];
+}
