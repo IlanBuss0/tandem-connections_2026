@@ -73,15 +73,13 @@ export function buildNextSessionModel({ sessions, now, canViewHistory, canSchedu
     : { id: 'todayNote', tone: 'amber', icon: 'pencil', text: 'Nota de hoy sin escribir' });
   if (!next && lastCompleted) chips.push({ id: 'last', tone: 'gray', text: `Última: ${formatLastSession(lastCompleted.fecha_sesion)}` });
 
-  let actions: SessionAction[];
-  if (todaySession) {
-    actions = todaySession.has_note ? schedule : [{ kind: 'writeNote', session: todaySession }, ...schedule];
-  } else if (next) {
-    const previous = completed.find(session => session.has_note);
-    actions = [{ kind: 'prepare', session: next }, ...(previous ? [{ kind: 'previousNote', session: previous } as SessionAction] : [])];
-  } else {
-    actions = schedule;
-  }
+  // Preparar sesión siempre que haya próxima sesión; "Escribir nota" se suma como secundario si falta la nota de hoy.
+  const previous = completed.find(session => session.has_note);
+  const actions: SessionAction[] = [
+    ...(next ? [{ kind: 'prepare', session: next } as SessionAction] : schedule),
+    ...(todaySession && !todaySession.has_note ? [{ kind: 'writeNote', session: todaySession } as SessionAction] : []),
+    ...(next && previous ? [{ kind: 'previousNote', session: previous } as SessionAction] : []),
+  ];
   return { title, chips, actions };
 }
 

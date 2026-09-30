@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarClock, Download, Loader2, Send, Sparkles } from 'lucide-react';
 import {
   askAboutPatient, deleteProfessionalSession, downloadPatientHistoryPdf, fetchPrivateProfessionalNote, prepareSessionSummary,
-  type ProfessionalSession, type SessionPrepSummary,
+  type GeneratedReport, type ProfessionalSession, type SessionPrepSummary,
 } from '@/data/api';
 import { withGoogleToken } from '@/lib/googleAuth';
 import { getDocPlainText } from '@/lib/googleDocs';
@@ -15,8 +15,10 @@ import { useToast } from '@/components/ui/use-toast';
 import ProfessionalPrivateNote from '@/components/ProfessionalPrivateNote';
 import SessionCard from '@/components/SessionCard';
 import SessionSeriesFolder from '@/components/SessionSeriesFolder';
+import { useScrollToSection } from '@/components/professional/home/useScrollToSection';
+import PatientReportsSection, { REPORTS_SECTION_ID } from './PatientReportsSection';
 
-export type PatientSessionsIntent = { prepare?: ProfessionalSession; note?: ProfessionalSession };
+export type PatientSessionsIntent = { prepare?: ProfessionalSession; note?: ProfessionalSession; reports?: boolean };
 
 type Props = {
   patientName: string;
@@ -24,6 +26,9 @@ type Props = {
   /** Sesiones de este paciente. */
   sessions: ProfessionalSession[];
   canSchedule: boolean;
+  /** Reportes ya cargados por el Centro; la sección solo se muestra con permiso de historial. */
+  reports: GeneratedReport[];
+  canViewHistory: boolean;
   onSchedule: () => void;
   onSessionsChanged: () => void;
   /** Atajos de la Home: preparar una sesión o abrir su nota al entrar. */
@@ -32,7 +37,7 @@ type Props = {
 };
 
 /** Contenido de la pestaña Sesiones del Profesional (movido tal cual desde la ficha anterior). */
-export default function ProfessionalPatientSessions({ patientName, pertenecienteId, sessions, canSchedule, onSchedule, onSessionsChanged, intent, onIntentHandled }: Props) {
+export default function ProfessionalPatientSessions({ patientName, pertenecienteId, sessions, canSchedule, reports, canViewHistory, onSchedule, onSessionsChanged, intent, onIntentHandled }: Props) {
   const { toast } = useToast();
   const [noteSession, setNoteSession] = useState<ProfessionalSession | null>(intent?.note ?? null);
   const [prepSession, setPrepSession] = useState<ProfessionalSession | null>(null);
@@ -103,11 +108,13 @@ export default function ProfessionalPatientSessions({ patientName, perteneciente
     }
   };
 
+  const scrollTo = useScrollToSection();
   const handled = useRef(false);
   useEffect(() => {
     if (handled.current || !intent) return;
     handled.current = true;
     if (intent.prepare) void runPrepareSession(intent.prepare);
+    if (intent.reports) requestAnimationFrame(() => scrollTo(REPORTS_SECTION_ID));
     onIntentHandled?.();
     // Solo al montar: el atajo se consume una vez.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -210,6 +217,7 @@ export default function ProfessionalPatientSessions({ patientName, perteneciente
           />
         ))}</div></section>
         {patientSessions.some(s => s.has_note) && <section className="rounded-2xl border border-[#ebe7f2] bg-white p-4 shadow-sm"><p className="mb-3 flex items-center gap-2 text-sm font-semibold"><Sparkles size={16} className="text-primary" />Preguntale a la IA sobre este perteneciente</p><div className="flex flex-col gap-2 sm:flex-row"><Input value={askQuestion} onChange={e => setAskQuestion(e.target.value)} placeholder="¿Cómo evolucionó el uso de apoyos visuales?" onKeyDown={e => e.key === 'Enter' && runAskQuestion()} /><Button onClick={runAskQuestion} disabled={askLoading || !askQuestion.trim()}>{askLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} className="mr-2" />}Consultar</Button></div>{askError && <p className="mt-2 text-xs text-destructive">{askError}</p>}{askAnswer && <p className="mt-3 whitespace-pre-wrap border-t pt-3 text-sm">{askAnswer}</p>}<p className="mt-2 text-[11px] text-muted-foreground">La respuesta utiliza únicamente las sesiones y notas a las que tenés acceso.</p></section>}
+        {canViewHistory && <PatientReportsSection reports={reports} />}
       </div>
     )}
 

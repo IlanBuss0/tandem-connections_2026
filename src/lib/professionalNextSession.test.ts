@@ -51,17 +51,17 @@ describe('buildNextSessionModel', () => {
     expect(ids(buildNextSessionModel(input({ sessions: [session({})], usageEvents: [pauseEvent(at(-1, 9))] })))).toEqual([]);
   });
 
-  it('nota de hoy sin escribir: chip ámbar y solo "Escribir nota"', () => {
+  it('nota de hoy sin escribir: chip ámbar, Preparar sesión y "Escribir nota" como secundario', () => {
     const today = session({ id: 3, estado: 'completada', fecha_sesion: at(0, 9), has_note: false });
     const model = buildNextSessionModel(input({ sessions: [session({}), today] }));
     expect(model.chips.map(chip => chip.text)).toEqual(['Nota de hoy sin escribir']);
-    expect(model.actions).toEqual([{ kind: 'writeNote', session: today }]);
+    expect(model.actions).toEqual([{ kind: 'prepare', session: session({}) }, { kind: 'writeNote', session: today }]);
   });
 
-  it('nota de hoy guardada: chip verde y sin botones', () => {
+  it('nota de hoy guardada: chip verde y Preparar sesión (sin Escribir nota)', () => {
     const model = buildNextSessionModel(input({ sessions: [session({}), session({ id: 3, estado: 'completada', fecha_sesion: at(0, 9), has_note: true })] }));
     expect(model.chips.map(chip => chip.text)).toEqual(['Nota de hoy guardada']);
-    expect(model.actions).toEqual([]);
+    expect(kinds(model)).toEqual(['prepare', 'previousNote']);
   });
 
   it('sin próxima sesión: título, última sesión y Agendar solo con permiso', () => {

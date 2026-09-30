@@ -31,13 +31,15 @@ import { ProfessionalAccountMenu, ProfessionalDrawer, ProfessionalQuickMenu, typ
 import { useProfessionalNavigation } from '@/hooks/useProfessionalNavigation';
 import ProfessionalPatients from '@/components/professional/patients/ProfessionalPatients';
 import ProfessionalPatientCenter from '@/components/professional/patients/ProfessionalPatientCenter';
+import PatientBreadcrumb from '@/components/professional/patients/PatientBreadcrumb';
+import PatientMissing from '@/components/professional/patients/PatientMissing';
 import type { PatientSessionsIntent } from '@/components/professional/patients/ProfessionalPatientSessions';
 import type { DetailTab } from '@/components/perteneciente/PertenecienteDetail';
 import { buildPatientLinks, nextSessionForPatient } from '@/lib/professionalPatientsModel';
 
 export default function ProfessionalDashboard() {
   const { user, logout } = useAuth();
-  const { context: permissionContext, refetch: refetchPermissionContext } = usePermissionContext();
+  const { context: permissionContext, loading: permissionLoading, refetch: refetchPermissionContext } = usePermissionContext();
   const { toast } = useToast();
   const { tab, patientId: routePatientId, chatId: routeChatId, navigate: navigateRoute } = useProfessionalNavigation();
   const [selectedPatient, setSelectedPatient] = useState<string | null>(routePatientId);
@@ -319,6 +321,8 @@ export default function ProfessionalDashboard() {
           <ProfessionalPatients patients={linkedUsers} sessions={sessions} permissionContext={permissionContext} loading={loadingPatients} error={patientsError} onRetry={reloadPatients} onOpenPatient={openPatient} onSchedule={scheduleFromHome} onLinkWithCode={linkPatientWithCode} />
         )}
 
+        {patientOpen && <PatientBreadcrumb patientName={patientDetail?.name} onBack={() => navigate('patients')} />}
+        {patientOpen && !(patientDetail && patientLink) && <PatientMissing loading={loadingPatients || (permissionLoading && !permissionContext)} onBack={() => navigate('patients')} />}
         {tab === 'patients' && selectedPatient && patientDetail && patientLink && (
           <ProfessionalPatientCenter
             key={patientDetail.id}

@@ -14,7 +14,7 @@ const CHIP_ICONS: Record<SessionChipIcon, typeof Check> = {
 
 const ACTIONS: Record<SessionAction['kind'], { label: string; icon: typeof Check; primary: boolean }> = {
   prepare: { label: 'Preparar sesión', icon: Sparkles, primary: true },
-  writeNote: { label: 'Escribir nota', icon: PenLine, primary: true },
+  writeNote: { label: 'Escribir nota', icon: PenLine, primary: false },
   schedule: { label: 'Agendar', icon: Plus, primary: true },
   previousNote: { label: 'Nota anterior', icon: Lock, primary: false },
 };

@@ -95,6 +95,7 @@ export default function ProfessionalPatientCenter({
       <PermissionNote canViewHistory={canViewHistory} canSchedule={canSchedule} canAssignActivities={canAssignActivities} />
     </div>}
     onScheduleSession={onSchedule}
+    onViewReports={canViewHistory ? () => openSessions({ reports: true }) : undefined}
     onCreateActivity={onCreateActivity}
     onCreateSharedNote={content => refresh(createSharedSupportNote(pertenecienteId, content))}
     onDeleteSharedNote={id => refresh(deleteSharedSupportNote(pertenecienteId, id))}
@@ -108,6 +109,8 @@ export default function ProfessionalPatientCenter({
       pertenecienteId={pertenecienteId}
       sessions={patientSessions}
       canSchedule={canSchedule}
+      reports={reports}
+      canViewHistory={canViewHistory}
       onSchedule={onSchedule}
       onSessionsChanged={onSessionsChanged}
       intent={entry.intent}

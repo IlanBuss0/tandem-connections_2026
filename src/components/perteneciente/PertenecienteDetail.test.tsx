@@ -61,6 +61,30 @@ describe('PertenecienteDetail con role="professional"', () => {
     expect(screen.getByText('Contenido del Profesional')).toBeInTheDocument();
   });
 
+  it('"Ver los N reportes" llama a onViewReports (y sin él, abre Sesiones)', () => {
+    const report = { id: 1, id_profesional: 1, id_perteneciente: 7, titulo: 'R', contenido: 'x', id_tipo: 'manual', fecha_generacion: '2026-09-01T10:00:00Z', enviado_al_tutor: true, fecha_envio: null } as NonNullable<PertenecienteDetailProps['reports']>[number];
+    const onViewReports = vi.fn();
+    const { unmount } = render(<PertenecienteDetail person={person} role="professional" currentUserId="1" reports={[report]} onViewReports={onViewReports} />);
+    fireEvent.click(screen.getByRole('button', { name: /Ver los 1 reportes/ }));
+    expect(onViewReports).toHaveBeenCalledTimes(1);
+    unmount();
+    render(<PertenecienteDetail person={person} role="tutor" currentUserId="1" reports={[report]} />);
+    fireEvent.click(screen.getByRole('button', { name: /Ver los 1 reportes/ }));
+    expect(screen.getByText('Sesiones permitidas')).toBeInTheDocument();
+  });
+
+  it('"Ver los N reportes" llama a onViewReports (y sin él, abre Sesiones)', () => {
+    const report = { id: 1, id_profesional: 1, id_perteneciente: 7, titulo: 'R', contenido: 'x', id_tipo: 'manual', fecha_generacion: '2026-09-01T10:00:00Z', enviado_al_tutor: true, fecha_envio: null } as NonNullable<PertenecienteDetailProps['reports']>[number];
+    const onViewReports = vi.fn();
+    const { unmount } = render(<PertenecienteDetail person={person} role="professional" currentUserId="1" reports={[report]} onViewReports={onViewReports} />);
+    fireEvent.click(screen.getByRole('button', { name: /Ver los 1 reportes/ }));
+    expect(onViewReports).toHaveBeenCalledTimes(1);
+    unmount();
+    render(<PertenecienteDetail person={person} role="tutor" currentUserId="1" reports={[report]} />);
+    fireEvent.click(screen.getByRole('button', { name: /Ver los 1 reportes/ }));
+    expect(screen.getByText('Sesiones permitidas')).toBeInTheDocument();
+  });
+
   it('summaryTop va arriba del Resumen y solo ahí', () => {
     render(<PertenecienteDetail person={person} role="professional" currentUserId="1" summaryTop={<p>Tu próxima sesión</p>} />);
     const top = screen.getByText('Tu próxima sesión');
