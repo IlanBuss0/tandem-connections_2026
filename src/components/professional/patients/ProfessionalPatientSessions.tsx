@@ -16,7 +16,8 @@ import ProfessionalPrivateNote from '@/components/ProfessionalPrivateNote';
 import SessionCard from '@/components/SessionCard';
 import SessionSeriesFolder from '@/components/SessionSeriesFolder';
 import { useScrollToSection } from '@/components/professional/home/useScrollToSection';
-import PatientReportsSection, { REPORTS_SECTION_ID } from './PatientReportsSection';
+import PatientReportsBlock, { REPORTS_SECTION_ID } from './PatientReportsBlock';
+import type { AgendaPatient } from '@/components/agenda/SessionFormSheet';
 
 export type PatientSessionsIntent = { prepare?: ProfessionalSession; note?: ProfessionalSession; reports?: boolean };
 
@@ -29,6 +30,12 @@ type Props = {
   /** Reportes ya cargados por el Centro; la sección solo se muestra con permiso de historial. */
   reports: GeneratedReport[];
   canViewHistory: boolean;
+  /** Paciente (con su id de perteneciente) para la hoja «Nuevo reporte». */
+  reportPatient: AgendaPatient;
+  /** Refresca los reportes del Centro después de una acción. */
+  onReportsChanged: () => Promise<unknown> | void;
+  /** Abre la carpeta de este paciente en Reportes. */
+  onOpenReports?: () => void;
   onSchedule: () => void;
   onSessionsChanged: () => void;
   /** Atajos de la Home: preparar una sesión o abrir su nota al entrar. */
@@ -37,7 +44,7 @@ type Props = {
 };
 
 /** Contenido de la pestaña Sesiones del Profesional (movido tal cual desde la ficha anterior). */
-export default function ProfessionalPatientSessions({ patientName, pertenecienteId, sessions, canSchedule, reports, canViewHistory, onSchedule, onSessionsChanged, intent, onIntentHandled }: Props) {
+export default function ProfessionalPatientSessions({ patientName, pertenecienteId, sessions, canSchedule, reports, canViewHistory, reportPatient, onReportsChanged, onOpenReports, onSchedule, onSessionsChanged, intent, onIntentHandled }: Props) {
   const { toast } = useToast();
   const [noteSession, setNoteSession] = useState<ProfessionalSession | null>(intent?.note ?? null);
   const [prepSession, setPrepSession] = useState<ProfessionalSession | null>(null);
@@ -217,7 +224,7 @@ export default function ProfessionalPatientSessions({ patientName, perteneciente
           />
         ))}</div></section>
         {patientSessions.some(s => s.has_note) && <section className="rounded-2xl border border-[#ebe7f2] bg-white p-4 shadow-sm"><p className="mb-3 flex items-center gap-2 text-sm font-semibold"><Sparkles size={16} className="text-primary" />Preguntale a la IA sobre este perteneciente</p><div className="flex flex-col gap-2 sm:flex-row"><Input value={askQuestion} onChange={e => setAskQuestion(e.target.value)} placeholder="¿Cómo evolucionó el uso de apoyos visuales?" onKeyDown={e => e.key === 'Enter' && runAskQuestion()} /><Button onClick={runAskQuestion} disabled={askLoading || !askQuestion.trim()}>{askLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} className="mr-2" />}Consultar</Button></div>{askError && <p className="mt-2 text-xs text-destructive">{askError}</p>}{askAnswer && <p className="mt-3 whitespace-pre-wrap border-t pt-3 text-sm">{askAnswer}</p>}<p className="mt-2 text-[11px] text-muted-foreground">La respuesta utiliza únicamente las sesiones y notas a las que tenés acceso.</p></section>}
-        {canViewHistory && <PatientReportsSection reports={reports} />}
+        {canViewHistory && <PatientReportsBlock patient={reportPatient} reports={reports} onReportsChanged={onReportsChanged} onOpenReports={onOpenReports} />}
       </div>
     )}
 
