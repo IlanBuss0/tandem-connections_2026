@@ -356,7 +356,7 @@ export default function ProfessionalDashboard() {
         )}
 
         {tab === 'calendar' && canScheduleSessions && (
-          <ProfessionalCalendar patients={agendaPatients} initialPatientId={agendaInitialPatientId} />
+          <ProfessionalCalendar patients={agendaPatients} initialPatientId={agendaInitialPatientId} onPrepareSession={prepareSessionFromHome} />
         )}
         {tab === 'calendar' && !canScheduleSessions && (
           <PermissionBlocked title="Calendario deshabilitado" description="No tenés permisos activos para gestionar sesiones con tus pacientes vinculados." />
