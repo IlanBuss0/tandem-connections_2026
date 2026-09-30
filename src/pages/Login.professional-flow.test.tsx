@@ -261,4 +261,31 @@ describe('professional registration flow', () => {
     expect(screen.getByRole('button', { name: /volver a matr/i })).toBeInTheDocument();
     expect(screen.queryByText(/acceso concedido/i)).not.toBeInTheDocument();
   });
+
+  it.each([
+    ['MANUAL_REVIEW', 'NOT_ARGENTINE_DNI', /no pudimos reconocer un dni/i],
+    ['MANUAL_REVIEW', 'MISSING_FIELDS', /no pudimos reconocer un dni/i],
+    ['MANUAL_REVIEW', 'ISSUED_UNDER_14', /no pudimos confirmar su vigencia/i],
+    ['MANUAL_REVIEW', 'UNVERIFIABLE_EXPIRY', /no pudimos confirmar su vigencia/i],
+    ['MANUAL_REVIEW', 'LOW_CONFIDENCE', /no pudimos leer el dni/i],
+    ['MANUAL_REVIEW', 'OCR_TIMEOUT', /no pudimos leer el dni/i],
+    ['MANUAL_REVIEW', 'OCR_ERROR', /no pudimos leer el dni/i],
+    ['MANUAL_REVIEW', 'INACTIVE_LICENSE', /matrícula no figura habilitada/i],
+    ['MANUAL_REVIEW', 'AMBIGUOUS_RESULTS', /revisar tus datos manualmente/i],
+    ['MANUAL_REVIEW', 'ALGO_NUEVO', /revisar tus datos manualmente/i],
+  ])('muestra el mensaje propio de %s / %s', async (status, reason, expected) => {
+    await openRefepsResults(1);
+    verifyProfessionalDni.mockResolvedValueOnce({
+      status, reviewStatus: status, verified: false, reason, messageCode: 'PROFESSIONAL_MANUAL_REVIEW',
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: /^aceptar$/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /confirmar datos/i }));
+    fireEvent.click(screen.getByRole('button', { name: /escanear dni/i }));
+
+    expect(await screen.findByText(expected)).toBeInTheDocument();
+    if (!/reconocer un dni/.test(String(expected))) {
+      expect(screen.queryByText(/no pudimos reconocer un dni/i)).not.toBeInTheDocument();
+    }
+  });
 });
