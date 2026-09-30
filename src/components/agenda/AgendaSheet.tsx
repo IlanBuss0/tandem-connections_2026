@@ -10,6 +10,7 @@ export function AgendaSheet({
   onClose,
   footer,
   small = false,
+  large = false,
   children,
 }: {
   title: string;
@@ -18,6 +19,8 @@ export function AgendaSheet({
   footer?: ReactNode;
   /** Hoja chica que se apila sobre otra (ej. lista completa de pacientes). */
   small?: boolean;
+  /** Hoja más grande y de animación más lenta (ej. detalle del día). */
+  large?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -31,6 +34,7 @@ export function AgendaSheet({
             "inset-x-0 bottom-0 max-h-[92dvh] rounded-t-[28px]",
             "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-full sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[28px]",
             small && "max-h-[70dvh]",
+            large && "min-h-[60dvh] duration-500 sm:min-h-[32rem] sm:max-w-2xl",
           )}
         >
           <div className="mx-auto mt-3 h-1.5 w-11 shrink-0 rounded-full bg-primary/20 sm:hidden" aria-hidden />

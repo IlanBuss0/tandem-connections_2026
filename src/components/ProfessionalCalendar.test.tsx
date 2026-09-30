@@ -29,12 +29,15 @@ const patient = (id: number, name: string) => ({ id: String(id), name, perteneci
 const few = [patient(1, "Martina"), patient(2, "Sol"), patient(3, "Tomás"), patient(4, "Caro")];
 const many = [...few, patient(5, "Joel"), patient(6, "Álvaro")];
 
+const openToday = async () => fireEvent.click(await screen.findByRole("button", { name: /2 elementos/ }));
+
 describe("ProfessionalCalendar", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("muestra un solo calendario con sesiones y eventos mezclados, sin selector ni filtros", async () => {
     render(<ProfessionalCalendar patients={few} />);
     expect(screen.getByRole("heading", { name: "Tu calendario" })).toBeInTheDocument();
+    await openToday();
     await screen.findByText("Martina", { selector: "p" });
     expect(screen.getByText("Almuerzo", { selector: "p" })).toBeInTheDocument();
     expect(screen.queryByText(/Semana|Lista|Todos los estados|Buscar/)).not.toBeInTheDocument();
@@ -42,8 +45,9 @@ describe("ProfessionalCalendar", () => {
 
   it("el menú ⋯ de una sesión de serie ofrece gestionar la serie", async () => {
     render(<ProfessionalCalendar patients={few} />);
+    await openToday();
     fireEvent.click(await screen.findByRole("button", { name: /Más acciones de la sesión de Martina/ }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = (await screen.findAllByRole("dialog")).at(-1)!;
     ["Editar sesión", "Editar serie", "Marcar pasadas como completadas", "Eliminar sesión"].forEach((label) =>
       expect(within(dialog).getByText(label)).toBeInTheDocument(),
     );

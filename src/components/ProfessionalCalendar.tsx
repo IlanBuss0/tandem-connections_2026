@@ -13,6 +13,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import ProfessionalPrivateNote from "@/components/ProfessionalPrivateNote";
 import { decodePatientLink } from "@/components/PersonalEventCalendar";
+import { AgendaSheet } from "@/components/agenda/AgendaSheet";
 import AgendaItemMenu, { type MenuAction } from "@/components/agenda/AgendaItemMenu";
 import { EventRow, SessionRow } from "@/components/agenda/AgendaDayRow";
 import EventFormSheet, { type EventPayload } from "@/components/agenda/EventFormSheet";
@@ -72,6 +73,7 @@ export default function ProfessionalCalendar({
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [sessionForm, setSessionForm] = useState<SessionForm | null>(null);
   const [eventForm, setEventForm] = useState<{ editing: CalendarEvent | null } | null>(null);
+  const [dayOpen, setDayOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [menu, setMenu] = useState<MenuTarget | null>(null);
   const [seriesEditId, setSeriesEditId] = useState<string | null>(null);
@@ -297,7 +299,7 @@ export default function ProfessionalCalendar({
   const headerButton = "inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-5 text-base font-extrabold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
 
   return (
-    <div className="space-y-5">
+    <div className="mx-auto w-full max-w-6xl space-y-5">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
           <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground" aria-hidden><CalendarDays size={28} /></span>
@@ -316,18 +318,18 @@ export default function ProfessionalCalendar({
         </div>
       </header>
 
-      <section className="rounded-[28px] border border-white/80 bg-white/70 p-2 sm:p-6 sm:shadow-sm" aria-label="Calendario mensual">
+      <section className="rounded-3xl border border-[#f0e8f8] bg-white p-3 shadow-lg sm:p-5" aria-label="Calendario mensual">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-1 sm:gap-3">
-            <button type="button" onClick={() => goToMonth(-1)} aria-label="Mes anterior" className="flex h-11 w-11 items-center justify-center rounded-full text-[#2b2145] hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><ChevronLeft size={22} aria-hidden /></button>
-            <h3 className="min-w-[9.5rem] text-center text-lg font-extrabold text-[#2b2145] sm:text-xl" aria-live="polite">{MONTHS[cursor.getMonth()]} {cursor.getFullYear()}</h3>
-            <button type="button" onClick={() => goToMonth(1)} aria-label="Mes siguiente" className="flex h-11 w-11 items-center justify-center rounded-full text-[#2b2145] hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><ChevronRight size={22} aria-hidden /></button>
+            <button type="button" onClick={() => goToMonth(-1)} aria-label="Mes anterior" className="flex h-11 w-11 items-center justify-center rounded-full text-[#8b7aa0] transition hover:bg-[#f5f0ff] hover:text-[#6b4c9a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><ChevronLeft size={22} aria-hidden /></button>
+            <h3 className="min-w-[9.5rem] text-center font-body text-sm font-bold text-[#6b4c9a] sm:text-base" aria-live="polite">{MONTHS[cursor.getMonth()]} {cursor.getFullYear()}</h3>
+            <button type="button" onClick={() => goToMonth(1)} aria-label="Mes siguiente" className="flex h-11 w-11 items-center justify-center rounded-full text-[#8b7aa0] transition hover:bg-[#f5f0ff] hover:text-[#6b4c9a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><ChevronRight size={22} aria-hidden /></button>
           </div>
-          <button type="button" onClick={goToToday} className="min-h-11 rounded-full bg-primary/10 px-5 text-base font-extrabold text-primary hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Hoy</button>
+          <button type="button" onClick={goToToday} className="min-h-11 rounded-full px-3 text-xs font-semibold text-[#8b7aa0] transition hover:bg-[#f5f0ff] hover:text-[#6b4c9a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Hoy</button>
         </div>
 
         <div translate="no" className="notranslate mb-2 grid grid-cols-7 gap-1 sm:gap-2">
-          {WEEKDAYS.map((day) => <div key={day} className="py-1 text-center text-[11px] font-extrabold uppercase tracking-wide text-[#5f477c] sm:text-xs">{day}</div>)}
+          {WEEKDAYS.map((day) => <div key={day} className="py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-[#8b7aa0] sm:text-xs">{day}</div>)}
         </div>
 
         <div className="grid grid-cols-7 gap-1 sm:gap-2">
@@ -340,22 +342,22 @@ export default function ProfessionalCalendar({
               <button
                 key={key}
                 type="button"
-                onClick={() => setSelectedDate(key)}
+                onClick={() => { setSelectedDate(key); setDayOpen(true); }}
                 aria-pressed={selected}
                 aria-label={`${longDate(key)}, ${items.length === 0 ? "sin sesiones ni eventos" : `${items.length} ${items.length === 1 ? "elemento" : "elementos"}`}`}
                 className={cn(
-                  "flex min-h-[56px] min-w-0 flex-col items-center rounded-2xl border px-0.5 py-1.5 text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-[128px] sm:items-stretch sm:rounded-3xl sm:p-3 sm:text-left",
-                  selected ? "border-primary bg-primary text-primary-foreground shadow-md" : key === todayKey ? "border-primary bg-white text-[#2b2145]" : "border-primary/10 bg-white text-[#2b2145] hover:border-primary/40",
+                  "flex min-h-[56px] min-w-0 flex-col items-center rounded-2xl border px-0.5 py-1.5 text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-[120px] sm:items-stretch sm:rounded-2xl sm:p-2 sm:text-left",
+                  key === todayKey ? "border-[#6b4c9a] bg-[#6b4c9a] text-white shadow-md shadow-purple-200" : selected ? "border-[#d8c7ef] bg-[#f5f0ff] text-[#6b4c9a] shadow-sm" : items.length ? "border-[#eadcff] bg-[#EFE3FF] text-[#6b4c9a] hover:border-[#6b4c9a]/30" : "border-transparent bg-[#faf8ff] text-[#4a3a6a] hover:bg-[#f5f0ff]",
                 )}
               >
-                <span className="font-heading text-lg font-bold leading-none sm:text-xl">{day}</span>
+                <span className="text-sm font-extrabold leading-none sm:text-base">{day}</span>
                 <span className="mt-1.5 flex gap-1 sm:hidden" aria-hidden>
-                  {items.slice(0, 3).map((item) => <span key={item.key} className={cn("h-1.5 w-1.5 rounded-full", selected ? "bg-white" : item.dot)} />)}
+                  {items.slice(0, 3).map((item) => <span key={item.key} className={cn("h-1.5 w-1.5 rounded-full", key === todayKey ? "bg-white" : item.dot)} />)}
                 </span>
                 <span className="mt-2 hidden min-w-0 flex-col gap-1 sm:flex" aria-hidden>
                   {shown.map((item) => (
                     <span key={item.key} className="flex min-w-0 items-center gap-1.5 text-xs font-semibold">
-                      <span className={cn("h-2 w-2 shrink-0 rounded-full", selected ? "bg-white" : item.dot)} />
+                      <span className={cn("h-2 w-2 shrink-0 rounded-full", key === todayKey ? "bg-white" : item.dot)} />
                       <span className="truncate">{item.label}</span>
                     </span>
                   ))}
@@ -373,12 +375,8 @@ export default function ProfessionalCalendar({
         ))}
       </ul>
 
-      <section aria-label="Sesiones y eventos del día seleccionado">
-        <div className="mb-3 flex items-center gap-2 px-2">
-          <h3 className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#5f477c]">{longDate(selectedDate)}</h3>
-          {loading && <Loader2 size={16} className="animate-spin text-muted-foreground" aria-label="Cargando" />}
-        </div>
-        <div className="rounded-[28px] border border-white/80 bg-white px-4 shadow-sm sm:px-6">
+      {dayOpen && (
+        <AgendaSheet large title={longDate(selectedDate)} subtitle={loading ? "Cargando…" : undefined} onClose={() => setDayOpen(false)}>
           {dayItems.length === 0 ? (
             <div className="flex flex-col items-center py-10 text-center">
               <CalendarDays size={32} className="text-primary" aria-hidden />
@@ -395,8 +393,8 @@ export default function ProfessionalCalendar({
                     time={item.time}
                     now={now}
                     onMenu={() => openMenu(item)}
-                    onOpenNote={() => setNoteSession(item.session)}
-                    onPrepare={onPrepareSession && (() => onPrepareSession(item.session))}
+                    onOpenNote={() => { setDayOpen(false); setNoteSession(item.session); }}
+                    onPrepare={onPrepareSession && (() => { setDayOpen(false); onPrepareSession(item.session); })}
                   />
                 ) : (
                   <EventRow
@@ -409,8 +407,8 @@ export default function ProfessionalCalendar({
               )}
             </ul>
           )}
-        </div>
-      </section>
+        </AgendaSheet>
+      )}
 
       {menu && <AgendaItemMenu title={menu.title} subtitle={menu.subtitle} actions={menuActions(menu.item)} onClose={() => setMenu(null)} />}
       {sessionForm && (

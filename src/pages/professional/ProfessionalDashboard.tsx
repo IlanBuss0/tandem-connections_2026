@@ -299,7 +299,8 @@ export default function ProfessionalDashboard() {
       />
 
       <ProfessionalDrawer open={menuOpen} active={tab} permissions={navigationPermissions} onClose={() => setMenuOpen(false)} onNavigate={navigate} onLogout={logout} />
-      <main ref={mainRef} id="professional-main" tabIndex={-1} className="mx-auto min-h-0 w-full max-w-[1536px] flex-1 space-y-5 overflow-y-auto px-4 py-6 max-lg:pb-28 sm:px-6 lg:px-8 lg:py-9 xl:px-10">
+      <main ref={mainRef} id="professional-main" tabIndex={-1} className="min-h-0 w-full flex-1 overflow-y-auto">
+      <div className="mx-auto w-full max-w-[1536px] space-y-5 px-4 py-6 max-lg:pb-28 sm:px-6 lg:px-8 lg:py-9 xl:px-10">
         {tab === 'home' && loadingPatients && <ProfessionalHomeSkeleton />}
         {tab === 'home' && !loadingPatients && patientsError && <div role="alert" className="rounded-3xl border border-destructive/20 bg-white p-6 text-sm text-destructive shadow-sm">{patientsError}<Button type="button" variant="outline" className="ml-3" onClick={reloadPatients}>Reintentar</Button></div>}
         {tab === 'home' && !loadingPatients && !patientsError && <ProfessionalHome professionalName={user.name} patients={linkedUsers} sessions={sessions} activitiesByUser={activitiesByUser} emotionsByUser={emotionsByUser} notesByUser={notesByUser} patientPertenecienteIds={Object.fromEntries(linkedUsers.map(patient => [patient.id, Number(linkForUser(patient.id)?.perteneciente.id)]))} onNavigate={navigate} onOpenPatient={openPatient} onPrepareSession={prepareSessionFromHome} onWriteNote={writeNoteFromHome} onSchedule={scheduleFromHome} unscheduledUserIds={patientsWithoutNextSession.map(patient => patient.id)} canOpenAgenda={canScheduleSessions} />}
@@ -476,6 +477,7 @@ export default function ProfessionalDashboard() {
           </div>
         )}
 
+      </div>
       </main>
       <BelongingMobileBottomNav activeTab={tab} onNavigate={(next) => navigate(next as ProfessionalTab)} destinations={mobileDestinations} forceExpanded={quickOpen} scrollContainerRef={mainRef} center={(compactProgress) => <ProfessionalQuickMenu open={quickOpen} onOpenChange={setQuickOpen} compactProgress={compactProgress} permissions={navigationPermissions} onAction={(action: ProfessionalQuickAction) => {
         if (action === 'activity') navigate('create');
