@@ -13,7 +13,7 @@ import ChatScreen from '@/components/ChatScreen';
 import { ChatProvider } from '@/contexts/ChatContext';
 import AppHeader from '@/components/AppHeader';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
-import ProfessionalReportsPanel from '@/components/ProfessionalReportsPanel';
+import ProfessionalReports from '@/components/professional/reports/ProfessionalReports';
 import DriveExplorer from '@/components/DriveExplorer';
 import ProfessionalCalendar from '@/components/ProfessionalCalendar';
 import ProfessionalHome, { ProfessionalEmotionalStatus, ProfessionalRecentActivity } from '@/components/ProfessionalHome';
@@ -61,6 +61,7 @@ export default function ProfessionalDashboard() {
   const [joiningProfessionalInvite, setJoiningProfessionalInvite] = useState(false);
   const [selectedNotificationChatId, setSelectedNotificationChatId] = useState<string | undefined>();
   const [agendaInitialPatientId, setAgendaInitialPatientId] = useState<number | undefined>();
+  const [reportsPatientId, setReportsPatientId] = useState<number | undefined>();
   const [builderPreselect, setBuilderPreselect] = useState<string[] | undefined>(undefined);
   const [activitiesReturnPatientId, setActivitiesReturnPatientId] = useState<string | null>(null);
   const { unreadCount, setUnreadCount } = useUnreadNotifications(
@@ -249,7 +250,7 @@ export default function ProfessionalDashboard() {
   };
 
   const navigate = (next: ProfessionalTab) => {
-    navigateRoute(next); setSelectedPatient(null); setMenuOpen(false); setProfileOpen(false); setQuickOpen(false); setActivitiesReturnPatientId(null);
+    navigateRoute(next); setReportsPatientId(undefined); setSelectedPatient(null); setMenuOpen(false); setProfileOpen(false); setQuickOpen(false); setActivitiesReturnPatientId(null);
     mainRef.current?.scrollTo({ top: 0, behavior: 'auto' });
   };
   const openPatient = (userId: string) => {
@@ -266,6 +267,7 @@ export default function ProfessionalDashboard() {
   };
   const prepareSessionFromHome = (session: ProfessionalSession) => openPatientSessions(session, { prepare: session });
   const writeNoteFromHome = (session: ProfessionalSession) => openPatientSessions(session, { note: session });
+  const openReports = (pertenecienteId: number) => { navigate('reports'); setReportsPatientId(pertenecienteId); };
   const scheduleFromHome = (userId: string) => {
     setAgendaInitialPatientId(Number(linkForUser(userId)?.perteneciente.id) || undefined);
     navigate('calendar');
@@ -336,6 +338,7 @@ export default function ProfessionalDashboard() {
             initialTab={patientEntry?.tab}
             sessionsIntent={patientEntry?.intent}
             onSchedule={() => scheduleFromHome(patientDetail.id)}
+            onOpenReports={() => openReports(patientLink.pertenecienteId)}
             onCreateActivity={patientLink.canAssignActivities ? () => { setBuilderPreselect([patientDetail.id]); navigate('create'); setActivitiesReturnPatientId(patientDetail.id); } : undefined}
             onSessionsChanged={reloadSessions}
           />
@@ -363,7 +366,7 @@ export default function ProfessionalDashboard() {
           <PermissionBlocked title="Calendario deshabilitado" description="No tenés permisos activos para gestionar sesiones con tus pacientes vinculados." />
         )}
         {tab === 'documents' && <ProfessionalDocumentsArea onOpenPatients={() => navigate('patients')} />}
-        {tab === 'reports' && <ProfessionalReportsPanel patients={agendaPatients} />}
+        {tab === 'reports' && <ProfessionalReports patients={agendaPatients} initialPatientId={reportsPatientId} />}
         {tab === 'resources' && <ProfessionalResourceHub onNavigate={navigate} />}
         {tab === 'pictograms' && <AiPictogramStudio />}
         {tab === 'pictogramCatalog' && <UserPictograms />}
@@ -472,7 +475,8 @@ export default function ProfessionalDashboard() {
 
             <div className="bg-card rounded-xl p-4 border border-border">
               <h3 className="font-heading font-semibold text-foreground mb-3">📄 Reportes</h3>
-              <ProfessionalReportsPanel patients={agendaPatients} />
+              <p className="mb-3 text-sm text-muted-foreground">Armá, leé y mandá reportes a las familias.</p>
+              <Button type="button" className="min-h-11" onClick={() => navigate('reports')}>Ir a Reportes</Button>
             </div>
           </div>
         )}

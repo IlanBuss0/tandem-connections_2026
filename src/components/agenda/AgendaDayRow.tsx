@@ -7,7 +7,7 @@ import { decodePatientLink } from "@/components/PersonalEventCalendar";
 import type { CalendarEvent, ProfessionalSession } from "@/data/api";
 import { cn } from "@/lib/utils";
 
-const AVATAR_TONES = ["bg-amber-100 text-amber-800", "bg-violet-100 text-violet-800", "bg-emerald-100 text-emerald-800", "bg-[#e0f2fb] text-[#0c5a86]"];
+export const AVATAR_TONES = ["bg-amber-100 text-amber-800", "bg-violet-100 text-violet-800", "bg-emerald-100 text-emerald-800", "bg-[#e0f2fb] text-[#0c5a86]"];
 
 const badgeClass = "rounded-full px-2.5 py-0.5 text-xs font-bold";
 

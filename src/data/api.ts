@@ -2958,6 +2958,15 @@ export async function sendReportToTutor(reportId: number): Promise<GeneratedRepo
   return apiRequest(`/api/reportes-profesionales/${reportId}/send`, { method: 'POST', token: getStoredAuthToken() });
 }
 
+/** Edita título y/o texto de un reporte propio que todavía no se envió. */
+export async function updateReport(reportId: number, changes: { titulo?: string; contenido?: string }): Promise<GeneratedReport> {
+  return apiRequest(`/api/reportes-profesionales/${reportId}`, { method: 'PATCH', token: getStoredAuthToken(), body: changes });
+}
+
+export async function deleteReport(reportId: number): Promise<{ rowsAffected: number }> {
+  return apiRequest(`/api/reportes-profesionales/${reportId}`, { method: 'DELETE', token: getStoredAuthToken() });
+}
+
 export async function fetchProfessionalReports(idPerteneciente?: number): Promise<GeneratedReport[]> {
   const query = idPerteneciente ? `?id_perteneciente=${idPerteneciente}` : '';
   return apiRequest(`/api/reportes-profesionales${query}`, { token: getStoredAuthToken() });
@@ -2967,8 +2976,38 @@ export async function fetchTutorReports(): Promise<GeneratedReport[]> {
   return apiRequest('/api/reportes-profesionales/tutor', { token: getStoredAuthToken() });
 }
 
-export async function downloadMonthlyReportPdf(anio: number, mes: number): Promise<Blob> {
-  const url = `${API_BASE_URL.replace(/\/$/, '')}/api/reportes-profesionales/pdf-mensual?anio=${anio}&mes=${mes}`;
+export type ReportPdfSection = 'ia' | 'asistencia' | 'detalle';
+export interface ReportPdfOptions {
+  /** Rango YYYY-MM-DD; reemplaza a anio/mes en el resumen. */
+  desde?: string;
+  hasta?: string;
+  /** Solo resumen: ids de perteneciente; sin esto salen todos. */
+  pacientes?: number[];
+  /** Secciones a incluir; sin esto, las de siempre. */
+  incluir?: ReportPdfSection[];
+}
+
+function reportPdfQuery(params: Record<string, string | undefined>) {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => value !== undefined && query.set(key, value));
+  const text = query.toString();
+  return text ? `?${text}` : '';
+}
+
+function reportPdfOptionsParams(options: ReportPdfOptions) {
+  const range = options.desde && options.hasta;
+  return {
+    desde: range ? options.desde : undefined,
+    hasta: range ? options.hasta : undefined,
+    pacientes: options.pacientes ? options.pacientes.join(',') : undefined,
+    incluir: options.incluir ? options.incluir.join(',') : undefined,
+  };
+}
+
+export async function downloadMonthlyReportPdf(anio: number, mes: number, options: ReportPdfOptions = {}): Promise<Blob> {
+  const params = reportPdfOptionsParams(options);
+  const period = params.desde ? {} : { anio: String(anio), mes: String(mes) };
+  const url = `${API_BASE_URL.replace(/\/$/, '')}/api/reportes-profesionales/pdf-mensual${reportPdfQuery({ ...period, ...params })}`;
   const res = await fetch(url, { credentials: 'include' });
   if (!res.ok) throw new Error('No se pudo generar el PDF.');
   return res.blob();
@@ -3022,8 +3061,9 @@ export async function askAboutPatient(payload: {
   return apiRequest('/api/reportes-profesionales/preguntar', { method: 'POST', token: getStoredAuthToken(), body: payload });
 }
 
-export async function downloadPatientHistoryPdf(idPerteneciente: number): Promise<Blob> {
-  const url = `${API_BASE_URL.replace(/\/$/, '')}/api/reportes-profesionales/pdf-paciente/${idPerteneciente}`;
+export async function downloadPatientHistoryPdf(idPerteneciente: number, options: Omit<ReportPdfOptions, 'pacientes'> = {}): Promise<Blob> {
+  const { desde, hasta, incluir } = reportPdfOptionsParams(options);
+  const url = `${API_BASE_URL.replace(/\/$/, '')}/api/reportes-profesionales/pdf-paciente/${idPerteneciente}${reportPdfQuery({ desde, hasta, incluir })}`;
   const res = await fetch(url, { credentials: 'include' });
   if (!res.ok) throw new Error('No se pudo generar el PDF.');
   return res.blob();

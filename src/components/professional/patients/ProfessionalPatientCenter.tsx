@@ -26,6 +26,8 @@ type Props = {
   sessionsIntent?: PatientSessionsIntent | null;
   onSchedule: () => void;
   onCreateActivity?: () => void;
+  /** Lleva a la carpeta de este paciente en Reportes. */
+  onOpenReports?: () => void;
   onSessionsChanged: () => void;
 };
 
@@ -36,7 +38,7 @@ type Props = {
  */
 export default function ProfessionalPatientCenter({
   patient, link, currentUserId, activities, emotions, sessions, initialTab, sessionsIntent,
-  onSchedule, onCreateActivity, onSessionsChanged,
+  onSchedule, onCreateActivity, onOpenReports, onSessionsChanged,
 }: Props) {
   const { pertenecienteId, canViewHistory, canSchedule, canAssignActivities } = link;
   // Entrar a Sesiones con un atajo remonta el Centro (key) para abrir esa pestaña; el atajo se consume una vez.
@@ -95,7 +97,7 @@ export default function ProfessionalPatientCenter({
       <PermissionNote canViewHistory={canViewHistory} canSchedule={canSchedule} canAssignActivities={canAssignActivities} />
     </div>}
     onScheduleSession={onSchedule}
-    onViewReports={canViewHistory ? () => openSessions({ reports: true }) : undefined}
+    onViewReports={canViewHistory ? onOpenReports ?? (() => openSessions({ reports: true })) : undefined}
     onCreateActivity={onCreateActivity}
     onCreateSharedNote={content => refresh(createSharedSupportNote(pertenecienteId, content))}
     onDeleteSharedNote={id => refresh(deleteSharedSupportNote(pertenecienteId, id))}

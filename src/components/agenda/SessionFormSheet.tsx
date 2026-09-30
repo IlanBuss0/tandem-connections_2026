@@ -77,7 +77,7 @@ function PatientPickerSheet({ patients, onPick, onClose }: { patients: AgendaPat
 }
 
 /** Chips de paciente: hasta 4 completos; con más, 4 + "Ver más". */
-function PatientChips({ patients, value, onChange }: { patients: AgendaPatient[]; value: string; onChange: (id: string) => void }) {
+export function PatientChips({ patients, value, onChange }: { patients: AgendaPatient[]; value: string; onChange: (id: string) => void }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const visible = useMemo(() => {
     if (patients.length <= MAX_PATIENT_CHIPS) return patients;
