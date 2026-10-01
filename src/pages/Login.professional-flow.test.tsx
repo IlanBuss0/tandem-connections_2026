@@ -288,4 +288,29 @@ describe('professional registration flow', () => {
       expect(screen.queryByText(/no pudimos reconocer un dni/i)).not.toBeInTheDocument();
     }
   });
+
+  it('dice que el DNI ya expiró y muestra el checklist de pasos cuando el servidor lo informa', async () => {
+    await openRefepsResults(1);
+    verifyProfessionalDni.mockResolvedValueOnce({
+      status: 'EXPIRED_DOCUMENT', reviewStatus: 'EXPIRED_DOCUMENT', verified: false, reason: 'EXPIRED_DOCUMENT',
+      messageCode: 'PROFESSIONAL_EXPIRED_DOCUMENT',
+      dni: { nombre: 'Juan', apellido: 'Perez', dni: '30123456', fechaVencimiento: '2019-01-01', fechaVencimientoEstimada: true, fuente: 'PDF417', confidence: 100 },
+      steps: [
+        { id: 'codigo_barras', label: 'Código de barras leído', status: 'ok' },
+        { id: 'ocr', label: 'Lectura del texto (OCR, respaldo)', status: 'skipped' },
+        { id: 'vigencia', label: 'DNI vigente', status: 'fail', detail: 'El DNI ya expiró' },
+      ],
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: /^aceptar$/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /confirmar datos/i }));
+    fireEvent.click(screen.getByRole('button', { name: /escanear dni/i }));
+
+    expect(await screen.findByText(/tu dni ya expiró/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no pudimos/i)).not.toBeInTheDocument();
+    const checklist = screen.getByTestId('dni-checklist');
+    expect(checklist).toHaveTextContent(/datos leídos por código de barras/i);
+    expect(checklist.querySelector('[data-status="fail"]')).toHaveTextContent('DNI vigente');
+    expect(checklist.querySelector('[data-status="skipped"]')).toHaveTextContent(/ocr/i);
+  });
 });
