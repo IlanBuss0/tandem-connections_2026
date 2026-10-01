@@ -3,12 +3,21 @@ import PersonAvatar from './PersonAvatar';
 
 export type PersonOption = { id: number; name: string };
 
-export default function PersonSelector({ people, selectedId, onSelect }: { people: PersonOption[]; selectedId: number | null; onSelect: (id: number) => void }) {
+type Props = {
+  people: PersonOption[];
+  selectedId: number | null;
+  onSelect: (id: number) => void;
+  label?: string;
+  /** Si se pasa, se agrega un chip «Ver más» que lo dispara. */
+  onMore?: () => void;
+};
+
+export default function PersonSelector({ people, selectedId, onSelect, label = 'Elegí a quién gestionarle los permisos', onMore }: Props) {
   if (people.length <= 1) return null;
 
   return (
     <div>
-      <p className="mb-2.5 px-1 text-[12.5px] text-[var(--evo-text-secondary)]">Elegí a quién gestionarle los permisos</p>
+      <p className="mb-2.5 px-1 text-[12.5px] text-[var(--evo-text-secondary)]">{label}</p>
       <div className="flex flex-wrap gap-2">
         {people.map(person => {
           const active = person.id === selectedId;
@@ -31,6 +40,15 @@ export default function PersonSelector({ people, selectedId, onSelect }: { peopl
             </button>
           );
         })}
+        {onMore && (
+          <button
+            type="button"
+            onClick={onMore}
+            className="inline-flex min-h-11 items-center rounded-full border-2 border-[var(--evo-border-1)] bg-white px-3.5 text-[13px] font-extrabold text-[var(--evo-text)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--evo-primary)] focus-visible:ring-offset-2"
+          >
+            Ver más
+          </button>
+        )}
       </div>
     </div>
   );

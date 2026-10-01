@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, Lock, Search } from "lucide-react";
 import { recurrenceLabels, type RecurrenceFrequency } from "@/lib/sessionRecurrence";
-import { initials, longDate } from "@/lib/agendaFormat";
+import { initials, longDate, MAX_PATIENT_CHIPS, visiblePatients } from "@/lib/agendaFormat";
 import { findOverlappingSession } from "@/lib/sessionOverlap";
 import type { ProfessionalSession, User } from "@/data/api";
 import {
@@ -30,7 +30,6 @@ export type SessionForm = {
   recurrence_count: string;
 };
 
-const MAX_PATIENT_CHIPS = 4;
 const DURATIONS = [30, 45, 60, 90, 120];
 const STATES: { value: ProfessionalSession["estado"]; label: string }[] = [
   { value: "programada", label: "Programada" },
@@ -41,7 +40,7 @@ const STATES: { value: ProfessionalSession["estado"]; label: string }[] = [
 
 const plain = (text: string) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 /** Hoja chica con la lista completa de pacientes y buscador. */
-function PatientPickerSheet({ patients, onPick, onClose }: { patients: AgendaPatient[]; onPick: (id: string) => void; onClose: () => void }) {
+export function PatientPickerSheet({ patients, onPick, onClose }: { patients: AgendaPatient[]; onPick: (id: string) => void; onClose: () => void }) {
   const [query, setQuery] = useState("");
   const matches = patients.filter((patient) => plain(patient.name).includes(plain(query.trim())));
   return (
@@ -79,13 +78,7 @@ function PatientPickerSheet({ patients, onPick, onClose }: { patients: AgendaPat
 /** Chips de paciente: hasta 4 completos; con más, 4 + "Ver más". */
 export function PatientChips({ patients, value, onChange }: { patients: AgendaPatient[]; value: string; onChange: (id: string) => void }) {
   const [pickerOpen, setPickerOpen] = useState(false);
-  const visible = useMemo(() => {
-    if (patients.length <= MAX_PATIENT_CHIPS) return patients;
-    const firstFour = patients.slice(0, MAX_PATIENT_CHIPS);
-    const chosen = patients.find((patient) => String(patient.pertenecienteId) === value);
-    if (!chosen || firstFour.includes(chosen)) return firstFour;
-    return [...firstFour.slice(0, MAX_PATIENT_CHIPS - 1), chosen];
-  }, [patients, value]);
+  const visible = useMemo(() => visiblePatients(patients, value), [patients, value]);
 
   return (
     <div>
