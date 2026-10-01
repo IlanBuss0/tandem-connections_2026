@@ -86,3 +86,6 @@ export function pdfPreview(sessions: ProfessionalSession[], scope: { pertenecien
   });
   return { patients: new Set(matching.map((session) => session.id_perteneciente)).size, sessions: matching.length };
 }
+
+/** Los últimos `count` reportes por fecha de generación. */
+export const latestReports = (reports: GeneratedReport[], count: number) => [...reports].sort(byGeneratedDesc).slice(0, count);

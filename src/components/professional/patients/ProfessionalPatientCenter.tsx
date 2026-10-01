@@ -53,6 +53,8 @@ export default function ProfessionalPatientCenter({
     setSupportData(await fetchAcompanamiento(pertenecienteId));
   }, [pertenecienteId]);
 
+  const reloadReports = useCallback(async () => setReports(await fetchProfessionalReports(pertenecienteId)), [pertenecienteId]);
+
   useEffect(() => {
     setSupportData(undefined); setSupportNetwork([]); setReports([]); setEvents([]);
     if (!canViewHistory) return undefined;
@@ -113,6 +115,9 @@ export default function ProfessionalPatientCenter({
       canSchedule={canSchedule}
       reports={reports}
       canViewHistory={canViewHistory}
+      reportPatient={{ ...patient, pertenecienteId }}
+      onReportsChanged={reloadReports}
+      onOpenReports={onOpenReports}
       onSchedule={onSchedule}
       onSessionsChanged={onSessionsChanged}
       intent={entry.intent}

@@ -5,7 +5,7 @@ import {
   fetchEmotionRecordsForUser, fetchLinkedPertenecientesForSupportUser, fetchPersonalNotesForUser, fetchProfessionalSessions, joinProfessionalInviteByCode, updateProfessionalSession,
   type Activity, type EmotionalRecord, type PersonalNote, type ProfessionalSession, type User,
 } from '@/data/api';
-import { CheckCircle2, Calendar, Home, Users, FileText, ClipboardPlus, Sparkles, MessageCircle, Bell, KeyRound, Loader2, FolderOpen, Image, ChevronLeft } from 'lucide-react';
+import { CheckCircle2, Calendar, Home, Users, ClipboardPlus, Sparkles, MessageCircle, Bell, KeyRound, Loader2, Image, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import ActivityManager from '@/components/ActivityManager';
@@ -14,9 +14,10 @@ import { ChatProvider } from '@/contexts/ChatContext';
 import AppHeader from '@/components/AppHeader';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
 import ProfessionalReports from '@/components/professional/reports/ProfessionalReports';
-import DriveExplorer from '@/components/DriveExplorer';
+import ProfessionalDocuments from '@/components/professional/documents/ProfessionalDocuments';
 import ProfessionalCalendar from '@/components/ProfessionalCalendar';
-import ProfessionalHome, { ProfessionalEmotionalStatus, ProfessionalRecentActivity } from '@/components/ProfessionalHome';
+import ProfessionalHome, { ProfessionalRecentActivity } from '@/components/ProfessionalHome';
+import EmotionalStatusScreen from '@/components/professional/emotions/EmotionalStatusScreen';
 import ProfessionalProfileSettings from '@/components/ProfessionalProfileSettings';
 import UserNotifications from '@/pages/user/UserNotifications';
 import { isPermissionEnabled, PROFESIONAL_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
@@ -203,6 +204,9 @@ export default function ProfessionalDashboard() {
   const agendaPatients = linkedUsers
     .filter(patient => patientHasPermission(patient.id, PROFESIONAL_PERMISSIONS.AGENDAR_SESIONES, true))
     .map(patient => ({ ...patient, pertenecienteId: Number(linkForUser(patient.id)?.perteneciente.id) }));
+  const notePatients = linkedUsers
+    .filter(patient => linkForUser(patient.id)?.permisos_efectivos.vinculo_aprobado)
+    .map(patient => ({ ...patient, pertenecienteId: Number(linkForUser(patient.id)?.perteneciente.id) }));
   const activityPatients = linkedUsers.filter(patient => patientHasPermission(patient.id, PROFESIONAL_PERMISSIONS.ASIGNAR_ACTIVIDADES, true));
 
   const now = Date.now();
@@ -307,7 +311,7 @@ export default function ProfessionalDashboard() {
         {tab === 'home' && !loadingPatients && patientsError && <div role="alert" className="rounded-3xl border border-destructive/20 bg-white p-6 text-sm text-destructive shadow-sm">{patientsError}<Button type="button" variant="outline" className="ml-3" onClick={reloadPatients}>Reintentar</Button></div>}
         {tab === 'home' && !loadingPatients && !patientsError && <ProfessionalHome professionalName={user.name} patients={linkedUsers} sessions={sessions} activitiesByUser={activitiesByUser} emotionsByUser={emotionsByUser} notesByUser={notesByUser} patientPertenecienteIds={Object.fromEntries(linkedUsers.map(patient => [patient.id, Number(linkForUser(patient.id)?.perteneciente.id)]))} onNavigate={navigate} onOpenPatient={openPatient} onPrepareSession={prepareSessionFromHome} onWriteNote={writeNoteFromHome} onSchedule={scheduleFromHome} unscheduledUserIds={patientsWithoutNextSession.map(patient => patient.id)} canOpenAgenda={canScheduleSessions} />}
         {tab === 'recentActivity' && <ProfessionalRecentActivity patients={linkedUsers} emotionsByUser={emotionsByUser} notesByUser={notesByUser} onOpenPatient={openPatient} />}
-        {tab === 'emotionalStatus' && <ProfessionalEmotionalStatus patients={linkedUsers} emotionsByUser={emotionsByUser} />}
+        {tab === 'emotionalStatus' && <EmotionalStatusScreen patients={linkedUsers} emotionsByUser={emotionsByUser} links={buildPatientLinks(permissionContext, linkedUsers)} loading={loadingPatients || (permissionLoading && !permissionContext)} />}
         {tab === 'chat' && canSendMessages && (
           <ChatProvider>
             <ChatScreen
@@ -365,7 +369,7 @@ export default function ProfessionalDashboard() {
         {tab === 'calendar' && !canScheduleSessions && (
           <PermissionBlocked title="Calendario deshabilitado" description="No tenés permisos activos para gestionar sesiones con tus pacientes vinculados." />
         )}
-        {tab === 'documents' && <ProfessionalDocumentsArea onOpenPatients={() => navigate('patients')} />}
+        {tab === 'documents' && <ProfessionalDocuments sessions={sessions} patients={notePatients} onRefresh={reloadSessions} />}
         {tab === 'reports' && <ProfessionalReports patients={agendaPatients} initialPatientId={reportsPatientId} />}
         {tab === 'resources' && <ProfessionalResourceHub onNavigate={navigate} />}
         {tab === 'pictograms' && <AiPictogramStudio />}
@@ -510,6 +514,3 @@ function ProfessionalHomeSkeleton() {
   </div>;
 }
 
-function ProfessionalDocumentsArea({ onOpenPatients }: { onOpenPatients: () => void }) {
-  return <div className="space-y-5"><header><h1 className="font-heading text-3xl font-bold">Documentos y notas</h1><p className="mt-2 text-sm text-muted-foreground sm:text-base">Archivos de Drive y notas clínicas organizados dentro de tu práctica.</p></header><button type="button" onClick={onOpenPatients} className="flex min-h-24 w-full items-center gap-4 rounded-[24px] border border-[#ece3f8] bg-white p-4 text-left shadow-[0_8px_24px_#f0e8f8] transition hover:border-primary/25 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary"><FileText size={21} aria-hidden /></span><span className="min-w-0 flex-1"><span className="block font-bold text-[#2e2344]">Notas clínicas</span><span className="block text-sm text-muted-foreground">Elegí un paciente y una sesión para consultar o escribir su nota privada.</span></span><span className="text-sm font-semibold text-primary">Ver pacientes</span></button><section className="rounded-[24px] border border-[#ece3f8] bg-white p-4 shadow-[0_8px_24px_#f0e8f8] sm:p-5"><h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-[#2e2344]"><FolderOpen className="text-primary" aria-hidden />Documentos</h2><DriveExplorer /></section></div>;
-}
