@@ -245,6 +245,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
 
   const verifyDniFrente = async (file: File, professional: RefepsProfessional, pdf417Raw?: string) => {
     setDniVerification({ status: 'processing', message: 'Verificando tu DNI...' });
+    console.info('[DniVerify] enviando al servidor', { bytes: file.size, conPdf417: Boolean(pdf417Raw), pdf417Largo: pdf417Raw?.length ?? 0 });
     try {
       const result = await verifyProfessionalDni({
         dniFrente: file,
@@ -258,8 +259,10 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
         profesion: professional.profesion || undefined,
         selectionId: professional.selectionId || undefined,
       });
+      console.info('[DniVerify] respuesta del servidor', { status: result.status, reason: result.reason, estimado: result.dni?.fechaVencimientoEstimada ?? null });
       setDniVerification(toDniVerificationState(result));
-    } catch {
+    } catch (error) {
+      console.error('[DniVerify] fallo la solicitud', error instanceof Error ? error.message : error);
       setDniVerification({
         status: 'technical_error',
         message: 'No pudimos verificar tu DNI en este momento. Intentá nuevamente.',

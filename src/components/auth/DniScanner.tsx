@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BrowserPDF417Reader, type IScannerControls } from '@zxing/browser';
 import { Camera, Loader2, RotateCcw } from 'lucide-react';
+import { describePdf417, isPlausibleDniPdf417 } from '@/lib/dniPdf417';
+
+// Step-by-step trace to see where the scan stops. It never logs personal data.
+const scanLog = (step: string, info?: Record<string, unknown>) => console.info(`[DniScanner] ${step}`, info ?? '');
 
 type ScannerState = 'idle' | 'opening' | 'scanning' | 'capturing' | 'camera_error' | 'unavailable';
 
@@ -25,8 +29,20 @@ export function DniScanner({ onCapture, disabled = false }: { onCapture: (file: 
     if (state === 'capturing' || !video.videoWidth || !video.videoHeight) return;
     const canvas = document.createElement('canvas'); canvas.width = video.videoWidth; canvas.height = video.videoHeight;
     canvas.getContext('2d')?.drawImage(video, 0, 0);
+    scanLog('captura: fotograma tomado', { width: canvas.width, height: canvas.height, pdf417Previo: Boolean(pdf417RawRef.current) });
+    if (!pdf417RawRef.current) {
+      // The live reader never found a valid barcode: try once more on the sharp captured frame.
+      try {
+        const text = (pdfReaderRef.current ?? new BrowserPDF417Reader()).decodeFromCanvas(canvas).getText();
+        scanLog('captura: PDF417 leido del fotograma', describePdf417(text));
+        if (isPlausibleDniPdf417(text)) pdf417RawRef.current = text;
+      } catch (error) {
+        scanLog('captura: sin PDF417 en el fotograma', { motivo: error instanceof Error ? error.name : 'desconocido' });
+      }
+    }
     canvas.toBlob(blob => {
-      if (!blob) { setState('scanning'); setCountdown(null); stableSecondsRef.current = 0; return; }
+      if (!blob) { scanLog('captura: toBlob fallo, se reintenta'); setState('scanning'); setCountdown(null); stableSecondsRef.current = 0; return; }
+      scanLog('captura: enviando a verificar', { bytes: blob.size, conPdf417: Boolean(pdf417RawRef.current) });
       stop(); onCapture(new File([blob], `dni-${Date.now()}.jpg`, { type: 'image/jpeg' }), pdf417RawRef.current); setState('idle'); setCountdown(null); stableSecondsRef.current = 0;
     }, 'image/jpeg', 0.9);
   }, [onCapture, state, stop]);
@@ -34,9 +50,11 @@ export function DniScanner({ onCapture, disabled = false }: { onCapture: (file: 
   useEffect(() => () => stop(), [stop]);
   useEffect(() => {
     if (state !== 'scanning') return;
+    let lastQualityMessage = '';
     const timer = window.setInterval(() => {
       const video = videoRef.current; if (!video || video.readyState < 2) return;
       const quality = analyseFrame(video); setFeedback(quality.message);
+      if (quality.message !== lastQualityMessage) { lastQualityMessage = quality.message; scanLog('calidad de imagen', { valida: quality.valid, mensaje: quality.message }); }
       if (!quality.valid) { stableSecondsRef.current = 0; setCountdown(null); return; }
       stableSecondsRef.current += 1;
       if (stableSecondsRef.current <= 3) { setCountdown(4 - stableSecondsRef.current); return; }
@@ -50,23 +68,32 @@ export function DniScanner({ onCapture, disabled = false }: { onCapture: (file: 
     try {
       pdfControlsRef.current = await reader.decodeFromVideoElement(video, result => {
         if (!result || pdf417RawRef.current) return;
-        pdf417RawRef.current = result.getText(); setPdf417Detected(true); setFeedback('Código PDF417 detectado. Mantené el DNI quieto...');
+        const text = result.getText(); const info = describePdf417(text);
+        // A misread frame can decode to garbage: keep scanning until the text looks like a DNI.
+        if (!info.plausible) { scanLog('PDF417 leido pero descartado (no parece un DNI), sigue escaneando', info); return; }
+        scanLog('PDF417 leido y aceptado', info);
+        pdf417RawRef.current = text; setPdf417Detected(true); setFeedback('Código PDF417 detectado. Mantené el DNI quieto...');
         pdfControlsRef.current?.stop(); pdfControlsRef.current = null;
       });
-    } catch {
+      scanLog('lector PDF417 iniciado');
+    } catch (error) {
       // PDF417 es una mejora local; OCR continúa siendo el fallback seguro.
+      scanLog('lector PDF417 no pudo iniciar (se usara OCR)', { error: error instanceof Error ? `${error.name}: ${error.message}` : 'desconocido' });
     }
   };
 
   const openCamera = async () => {
+    scanLog('abriendo camara');
     stop(); setState('opening'); setCountdown(null); stableSecondsRef.current = 0; pdf417RawRef.current = undefined; setPdf417Detected(false);
     try {
-      if (!navigator.mediaDevices?.getUserMedia) { setState('unavailable'); return; }
+      if (!navigator.mediaDevices?.getUserMedia) { scanLog('camara no disponible en este navegador'); setState('unavailable'); return; }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } });
       streamRef.current = stream;
+      const settings = stream.getVideoTracks?.()[0]?.getSettings?.();
+      scanLog('camara abierta', { width: settings?.width, height: settings?.height });
       if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); await startPdf417Reader(videoRef.current); }
       setState('scanning');
-    } catch { setState('camera_error'); }
+    } catch (error) { scanLog('error de camara', { error: error instanceof Error ? `${error.name}: ${error.message}` : 'desconocido' }); setState('camera_error'); }
   };
 
   if (state === 'idle') return <button type="button" onClick={openCamera} disabled={disabled} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-[#6F518E] px-4 text-sm font-bold text-white disabled:opacity-50"><Camera size={19} />Escanear DNI</button>;
