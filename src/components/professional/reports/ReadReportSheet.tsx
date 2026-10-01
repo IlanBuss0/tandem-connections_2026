@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Info, Loader2, Pencil, Send, X } from "lucide-react";
+import { Download, Info, Loader2, Pencil, Send, X } from "lucide-react";
 import { AgendaSheet } from "@/components/agenda/AgendaSheet";
 import { useToast } from "@/components/ui/use-toast";
 import { sendReportToTutor, type GeneratedReport } from "@/data/api";
-import { reportTitle, shortDate } from "@/lib/professionalReports";
+import { professionalByline, reportTitle, shortDate } from "@/lib/professionalReports";
+import { downloadSingleReport } from "@/lib/reportsPdf";
 
 const footerButton = "flex min-h-11 w-full items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
 
@@ -11,7 +12,24 @@ const footerButton = "flex min-h-11 w-full items-center justify-center gap-2 rou
 export default function ReadReportSheet({ report, patientName, onClose, onSent, onEdit }: { report: GeneratedReport; patientName: string; onClose: () => void; onSent: () => void; onEdit: () => void }) {
   const { toast } = useToast();
   const [sending, setSending] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const sent = report.enviado_al_tutor;
+
+  const downloadPdf = async () => {
+    setDownloading(true);
+    try {
+      await downloadSingleReport(report, patientName, professionalByline);
+    } catch {
+      toast({ title: "No pudimos armar el PDF", description: "Intentá nuevamente.", variant: "destructive" });
+    } finally {
+      setDownloading(false);
+    }
+  };
+  const pdfButton = (
+    <button type="button" onClick={downloadPdf} disabled={downloading} className={`${footerButton} border border-primary/20 bg-white text-primary hover:bg-primary/5`}>
+      {downloading ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <Download size={16} aria-hidden />} {sent ? "Descargar PDF" : "PDF"}
+    </button>
+  );
 
   const send = async () => {
     setSending(true);
@@ -41,12 +59,13 @@ export default function ReadReportSheet({ report, patientName, onClose, onSent, 
               Enviar al tutor
             </button>
           )}
-          <div className={sent ? "" : "grid grid-cols-2 gap-2"}>
+          <div className={sent ? "grid grid-cols-2 gap-2" : "grid grid-cols-3 gap-2"}>
             {!sent && (
               <button type="button" onClick={onEdit} className={`${footerButton} border border-primary/20 bg-white text-primary hover:bg-primary/5`}>
                 <Pencil size={16} aria-hidden /> Editar
               </button>
             )}
+            {pdfButton}
             <button type="button" onClick={onClose} className={`${footerButton} border border-primary/20 bg-white text-primary hover:bg-primary/5`}>
               <X size={18} aria-hidden /> Cerrar
             </button>

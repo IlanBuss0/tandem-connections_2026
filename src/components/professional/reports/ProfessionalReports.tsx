@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileText, Loader2, Plus } from "lucide-react";
+import { Download, FileText, Loader2, Plus } from "lucide-react";
 import type { AgendaPatient } from "@/components/agenda/SessionFormSheet";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { fetchProfessionalReports, fetchScheduledReportTasks, type GeneratedReport, type ScheduledReportTask } from "@/data/api";
-import { groupByPatient, unsentReports } from "@/lib/professionalReports";
+import { groupByPatient, professionalByline, unsentReports } from "@/lib/professionalReports";
+import DownloadReportsSheet from "@/components/reports/DownloadReportsSheet";
 import BuildPdfSheet from "@/components/professional/reports/BuildPdfSheet";
 import PatientFolderView from "@/components/professional/reports/PatientFolderView";
 import ReportsOverview from "@/components/professional/reports/ReportsOverview";
@@ -12,7 +13,7 @@ import ScheduledReportsSheet from "@/components/professional/reports/ScheduledRe
 import UnsentReportsView from "@/components/professional/reports/UnsentReportsView";
 import { useReportSheets } from "@/components/professional/reports/useReportSheets";
 
-type Tool = "pdf" | "auto" | null;
+type Tool = "pdf" | "auto" | { download: number | undefined } | null;
 
 /** Reportes del Profesional: para enviar, carpetas por paciente, PDF y reportes automáticos. */
 export default function ProfessionalReports({ patients, initialPatientId }: { patients: AgendaPatient[]; initialPatientId?: number }) {
@@ -50,7 +51,7 @@ export default function ProfessionalReports({ patients, initialPatientId }: { pa
       {view === "unsent" ? (
         <UnsentReportsView reports={toSend} nameOf={nameOf} onBack={() => setView(undefined)} onRead={openRead} onMenu={openMenu} />
       ) : folder ? (
-        <PatientFolderView pertenecienteId={folder.pertenecienteId} name={folder.name} reports={folder.reports} onBack={() => setView(undefined)} onNew={() => openNew(folder.pertenecienteId)} onRead={openRead} onMenu={openMenu} />
+        <PatientFolderView pertenecienteId={folder.pertenecienteId} name={folder.name} reports={folder.reports} onBack={() => setView(undefined)} onNew={() => openNew(folder.pertenecienteId)} onDownload={() => setTool({ download: folder.pertenecienteId })} onRead={openRead} onMenu={openMenu} />
       ) : (
         <>
           <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -61,9 +62,14 @@ export default function ProfessionalReports({ patients, initialPatientId }: { pa
                 <h2 className="font-heading text-2xl font-bold leading-tight text-[#2b2145]">Para las familias</h2>
               </div>
             </div>
-            <button type="button" disabled={!patients.length} onClick={() => openNew()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
-              <Plus size={16} aria-hidden /> Nuevo reporte
-            </button>
+            <div className="flex flex-wrap gap-3 sm:flex-row-reverse">
+              <button type="button" disabled={!patients.length} onClick={() => openNew()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
+                <Plus size={16} aria-hidden /> Nuevo reporte
+              </button>
+              <button type="button" disabled={!reports.length} onClick={() => setTool({ download: undefined })} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-primary/10 px-5 text-sm font-bold text-primary transition hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
+                <Download size={16} aria-hidden /> Descargar reportes
+              </button>
+            </div>
           </header>
           {loading ? (
             <p className="flex items-center justify-center gap-2 py-12 text-muted-foreground"><Loader2 size={18} className="animate-spin" aria-hidden /> Cargando reportes…</p>
@@ -76,6 +82,16 @@ export default function ProfessionalReports({ patients, initialPatientId }: { pa
       )}
 
       {sheets}
+      {typeof tool === "object" && tool && (
+        <DownloadReportsSheet
+          people={patients.map((patient) => ({ id: patient.pertenecienteId, name: patient.name }))}
+          reports={reports}
+          initialPersonId={tool.download ?? (typeof view === "number" ? view : patients[0]?.pertenecienteId)}
+          personLabel="Paciente"
+          byline={professionalByline}
+          onClose={() => setTool(null)}
+        />
+      )}
       {tool === "pdf" && <BuildPdfSheet patients={patients} onClose={() => setTool(null)} />}
       {tool === "auto" && <ScheduledReportsSheet patients={patients} tasks={tasks} onChanged={loadTasks} onClose={() => setTool(null)} />}
     </div>

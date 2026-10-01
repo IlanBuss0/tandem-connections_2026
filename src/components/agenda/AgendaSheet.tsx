@@ -30,7 +30,7 @@ export function AgendaSheet({
         <DialogPrimitive.Content
           aria-describedby={undefined}
           className={cn(
-            "fixed z-50 flex flex-col bg-white shadow-2xl outline-none data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom-8 motion-reduce:animate-none",
+            "professional-surface fixed z-50 flex flex-col bg-white shadow-2xl outline-none data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom-8 motion-reduce:animate-none",
             "inset-x-0 bottom-0 max-h-[92dvh] rounded-t-[28px]",
             "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-full sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[28px]",
             small && "max-h-[70dvh]",
