@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Download, Plus } from "lucide-react";
 import type { GeneratedReport } from "@/data/api";
 import { AVATAR_TONES } from "@/components/agenda/AgendaDayRow";
 import { SheetChip } from "@/components/agenda/AgendaSheet";
@@ -16,7 +16,7 @@ const FILTERS: { value: ReportFilter; label: string }[] = [
 ];
 
 /** Carpeta de un paciente: todos sus reportes, por mes, con filtro. */
-export default function PatientFolderView({ pertenecienteId, name, reports, onBack, onNew, onRead, onMenu }: { pertenecienteId: number; name: string; reports: GeneratedReport[]; onBack: () => void; onNew: () => void; onRead: (report: GeneratedReport) => void; onMenu: (report: GeneratedReport) => void }) {
+export default function PatientFolderView({ pertenecienteId, name, reports, onBack, onNew, onDownload, onRead, onMenu }: { pertenecienteId: number; name: string; reports: GeneratedReport[]; onBack: () => void; onNew: () => void; onDownload: () => void; onRead: (report: GeneratedReport) => void; onMenu: (report: GeneratedReport) => void }) {
   const [filter, setFilter] = useState<ReportFilter>("all");
   const months = useMemo(() => groupByMonth(filterReports(reports, filter)), [reports, filter]);
   return (
@@ -32,9 +32,14 @@ export default function PatientFolderView({ pertenecienteId, name, reports, onBa
           <p className="text-xs text-muted-foreground">{reports.length} {reports.length === 1 ? "reporte" : "reportes"}</p>
         </div>
       </header>
-      <button type="button" onClick={onNew} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-auto">
-        <Plus size={18} aria-hidden /> Nuevo reporte para {name.split(" ")[0]}
-      </button>
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <button type="button" onClick={onNew} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-auto">
+          <Plus size={18} aria-hidden /> Nuevo reporte para {name.split(" ")[0]}
+        </button>
+        <button type="button" onClick={onDownload} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-primary/10 px-5 text-sm font-bold text-primary transition hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-auto">
+          <Download size={18} aria-hidden /> Descargar los de {name.split(" ")[0]}
+        </button>
+      </div>
       <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar reportes">
         {FILTERS.map((option) => <SheetChip key={option.value} selected={filter === option.value} onClick={() => setFilter(option.value)}>{option.label}</SheetChip>)}
       </div>

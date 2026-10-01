@@ -1,10 +1,11 @@
 import { useState, type ReactNode } from "react";
-import { FileSearch, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { Download, FileSearch, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import AgendaItemMenu from "@/components/agenda/AgendaItemMenu";
 import type { AgendaPatient } from "@/components/agenda/SessionFormSheet";
 import { useToast } from "@/components/ui/use-toast";
 import { deleteReport, type GeneratedReport } from "@/data/api";
-import { reportTitle } from "@/lib/professionalReports";
+import { professionalByline, reportTitle } from "@/lib/professionalReports";
+import { downloadSingleReport } from "@/lib/reportsPdf";
 import DeleteReportDialog from "@/components/professional/reports/DeleteReportDialog";
 import EditReportSheet from "@/components/professional/reports/EditReportSheet";
 import NewReportSheet from "@/components/professional/reports/NewReportSheet";
@@ -39,8 +40,17 @@ export function useReportSheets({ patients, nameOf, onChanged, lockPatient }: Op
   const openMenu = (report: GeneratedReport) => setSheet({ kind: "menu", report });
   const openNew = (patientId?: number) => setSheet({ kind: "new", patientId });
 
+  const downloadPdf = async (report: GeneratedReport) => {
+    try {
+      await downloadSingleReport(report, nameOf(report), professionalByline);
+    } catch {
+      toast({ title: "No pudimos armar el PDF", description: "Intentá nuevamente.", variant: "destructive" });
+    }
+  };
+
   const menuActions = (report: GeneratedReport) => [
     { label: "Leer", icon: <FileSearch size={22} />, onClick: () => openRead(report) },
+    { label: "Descargar PDF", icon: <Download size={22} />, onClick: () => downloadPdf(report) },
     { label: "Editar", icon: <Pencil size={22} />, disabled: report.enviado_al_tutor, hint: report.enviado_al_tutor ? SENT_HINT : undefined, onClick: () => setSheet({ kind: "edit", report }) },
     { label: "Volver a generar", icon: <RefreshCw size={22} />, disabled: report.enviado_al_tutor, hint: report.enviado_al_tutor ? SENT_HINT : undefined, onClick: () => setSheet({ kind: "new", replacing: report }) },
     { label: "Eliminar", icon: <Trash2 size={22} />, danger: true, onClick: () => setSheet({ kind: "delete", report }) },

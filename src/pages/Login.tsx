@@ -1405,7 +1405,7 @@ function DniFrontField({
       <div className="space-y-1">
         <p className="text-sm font-extrabold">Escaneo del frente de tu DNI</p>
         <p className="text-xs font-medium leading-relaxed text-[#6F518E]/70">
-          Vamos a capturar una imagen nítida desde la cámara para confirmar tu identidad.
+          Vamos a leer el código de barras de tu DNI (suele estar en el dorso) con la cámara para confirmar tu identidad.
         </p>
       </div>
 
