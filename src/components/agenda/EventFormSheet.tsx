@@ -21,6 +21,8 @@ export default function EventFormSheet({
   editing,
   date,
   patients,
+  personLabel = "Paciente (opcional)",
+  noPersonLabel = "Sin paciente",
   saving,
   onSave,
   onClose,
@@ -29,6 +31,8 @@ export default function EventFormSheet({
   /** Día inicial al crear. */
   date: string;
   patients: { id: string; name: string }[];
+  personLabel?: string;
+  noPersonLabel?: string;
   saving: boolean;
   onSave: (payload: EventPayload) => void;
   onClose: () => void;
@@ -90,9 +94,9 @@ export default function EventFormSheet({
       </div>
 
       <div>
-        <SheetLabel>Paciente (opcional)</SheetLabel>
+        <SheetLabel>{personLabel}</SheetLabel>
         <div className="flex flex-wrap gap-2">
-          <SheetChip selected={!form.patientId} onClick={() => set("patientId", "")}>Sin paciente</SheetChip>
+          <SheetChip selected={!form.patientId} onClick={() => set("patientId", "")}>{noPersonLabel}</SheetChip>
           {patients.map((patient) => (
             <SheetChip key={patient.id} selected={form.patientId === patient.id} onClick={() => set("patientId", patient.id)}>
               {patient.name}
