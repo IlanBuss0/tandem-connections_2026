@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CalendarDays, CheckCircle2, Heart, Info, ListChecks, MessageSquare, Sparkles } from 'lucide-react';
 import type { EmotionalRecord, ProfessionalSession, User } from '@/data/api';
 import { fetchUsageEvents, type UsageEventRecord } from '@/data/usageApi';
+import { sinceLastSession } from '@/lib/sinceLastSession';
 
 type Props = {
   user: User;
@@ -26,14 +27,10 @@ export default function ProfessionalPatientOverview({ user, emotions, sessions, 
   }, [user.id]);
 
   const data = useMemo(() => {
-    const orderedSessions = [...sessions].sort((a, b) => b.fecha_sesion.localeCompare(a.fecha_sesion));
-    const last = orderedSessions.find((session) => session.estado === 'completada');
+    const { last, recentEvents, recentEmotions } = sinceLastSession(sessions, events, emotions);
     const next = [...sessions]
       .filter((session) => session.estado === 'programada' && new Date(session.fecha_sesion).getTime() >= Date.now())
       .sort((a, b) => a.fecha_sesion.localeCompare(b.fecha_sesion))[0];
-    const since = last ? new Date(last.fecha_sesion).getTime() : 0;
-    const recentEvents = events.filter((event) => new Date(event.ocurrido_en).getTime() >= since);
-    const recentEmotions = emotions.filter((emotion) => new Date(emotion.date).getTime() >= since);
     const steps = recentEvents.filter((event) => event.tipo_evento === 'rutina_paso_completado').length;
     const supportCards = recentEvents.filter((event) => event.tipo_evento === 'tarjeta_autonomia_usada');
     const dayRequests = recentEvents.filter((event) => event.tipo_evento === 'pedido_dia');

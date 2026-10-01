@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
+  ArrowLeft,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -85,9 +86,10 @@ function labelDate(date: string) {
 }
 
 export default function UserCalendar({
+  onBack,
   initialRoutineId,
   initialItemId,
-}: { initialRoutineId?: string; initialItemId?: string } = {}) {
+}: { onBack: () => void; initialRoutineId?: string; initialItemId?: string }) {
   const { context: permissionContext } = usePermissionContext();
   const { events, addEvent, updateEvent, deleteEvent, eventTypePatterns } =
     useCalendar();
@@ -320,6 +322,15 @@ export default function UserCalendar({
 
   return (
     <div className="pb-24 lg:pb-6 space-y-6">
+      <button
+        type="button"
+        onClick={onBack}
+        className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-[#ddcfed] bg-white px-4 text-sm font-semibold text-[#6b4c9a] shadow-sm transition hover:bg-[#f5f0ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"
+      >
+        <ArrowLeft size={18} aria-hidden />
+        Volver
+      </button>
+
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}

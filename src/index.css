@@ -141,4 +141,37 @@
   .professional-surface :where(button, a):focus-visible {
     outline-color: #6f4ca6;
   }
+
+  .evolution-scope {
+    --evo-primary: #6F4CA6;
+    --evo-primary-text: #553588;
+    --evo-soft: #F1EAFB;
+    --evo-soft-2: #F5F0FC;
+    --evo-track: #EBE1F7;
+    --evo-before-bar: #C4B0E4;
+    --evo-border-1: #E6DCF5;
+    --evo-border-2: #DACBF0;
+    --evo-border-3: #EFE7F9;
+    --evo-border-4: #DDD0F0;
+    --evo-border-5: #E9DFF6;
+    --evo-text: #2B2145;
+    --evo-text-secondary: #675E78;
+    --evo-text-inactive: #584E6E;
+    --evo-good: #2FB585;
+    --evo-good-text: #0B6B4A;
+    --evo-good-bg: #DCF5EA;
+    --evo-info: #4DA8D8;
+    --evo-info-text: #14587A;
+    --evo-info-bg: #DDF0FA;
+    --evo-support: #F2A93B;
+    --evo-support-text: #7A4300;
+    --evo-support-bg: #FFEFCF;
+    --evo-mood-line: #0B8F63;
+    --evo-ring-support: #E0931A;
+    --evo-ring-support-bg: #FBE3B0;
+    --evo-block: #F7F3FC;
+    --evo-chip-bg: #EDEAF3;
+    --evo-chip-text: #4A4360;
+    --evo-tabs-bg: #EFE8FA;
+  }
 }

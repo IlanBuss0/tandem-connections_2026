@@ -97,6 +97,7 @@ export default function AppShell() {
   const { user, logout } = useAuth();
   const { state: wallet } = useWallet();
   const [activeTab, setActiveTab] = useState(loadActiveTab);
+  const [previousTab, setPreviousTab] = useState("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { unreadCount: unreadNotifs, setUnreadCount: setUnreadNotifs } =
     useUnreadNotifications(
@@ -148,6 +149,7 @@ export default function AppShell() {
     );
 
   const goToTab = (tab: string, params?: Record<string, any>) => {
+    if (tab !== activeTab) setPreviousTab(activeTab);
     setActiveTab(tab);
     setSidebarOpen(false);
     setProfilePanelOpen(false);
@@ -164,6 +166,7 @@ export default function AppShell() {
         return (
           <UserCalendar
             key={`calendar-${navKey}`}
+            onBack={() => goToTab(previousTab)}
             initialRoutineId={navParams?.routineId}
             initialItemId={navParams?.itemId}
           />
