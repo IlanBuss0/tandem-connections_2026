@@ -9,7 +9,7 @@ import BelongingMobileBottomNav from '@/components/belonging/BelongingMobileBott
 import ActivityManager from '@/components/ActivityManager';
 import AiPictogramStudio from '@/components/AiPictogramStudio';
 import ChatScreen from '@/components/ChatScreen';
-import PersonalEventCalendar from '@/components/PersonalEventCalendar';
+import TutorCalendar from '@/components/tutor/TutorCalendar';
 import ProfessionalDirectory from '@/components/ProfessionalDirectory';
 import TutorReportsPanel from '@/components/TutorReportsPanel';
 import TutorConnections from '@/pages/tutor/TutorConnections';
@@ -354,21 +354,16 @@ function ActivitiesPage({ activities, linkedUsers, preselectUserIds, onBuilderCl
 }
 
 function CalendarPage(props: Parameters<typeof TutorContent>[0]) {
-  const [saving, setSaving] = useState(false);
-  const upcomingEvents = props.events.filter(event => parseDate(`${event.date}T${event.time || '00:00'}`) >= Date.now() - 3600000).slice(0, 10);
   const refresh = async () => props.onTutorEventsChange(await fetchCalendarEventsForUser(props.userId).catch(() => props.tutorEvents));
-  return <div className="space-y-5"><PageHeading title="Calendario" subtitle="Organizá tu agenda. Cuando un evento corresponde a alguien, elegilo dentro del evento." />
-    <PersonalEventCalendar
-      heading="Agenda del tutor"
-      events={props.tutorEvents}
-      patients={props.linkedUsers.map(item => ({ id: item.id, name: item.name }))}
-      loading={saving}
-      onCreate={async payload => { setSaving(true); try { await createCalendarEvent(props.userId, payload); await refresh(); } finally { setSaving(false); } }}
-      onUpdate={async (id, patch) => { setSaving(true); try { await updateCalendarEvent(id, patch); await refresh(); } finally { setSaving(false); } }}
-      onDelete={async id => { setSaving(true); try { await deleteCalendarEvent(id); await refresh(); } finally { setSaving(false); } }}
-    />
-    <section className="rounded-3xl border border-border/80 bg-card p-4 shadow-sm"><h2 className="text-lg font-bold">Próximos eventos</h2><div className="mt-3 divide-y divide-border">{upcomingEvents.map(event => <div key={`${event.userId}-${event.id}`} className="grid min-h-14 grid-cols-[80px_1fr_auto] items-center gap-3 py-2"><span className="text-xs font-semibold text-primary">{event.date}<br />{event.time}</span><span className="truncate text-sm font-semibold">{event.title}</span><EventContextChip owner={event.owner} /></div>)}{upcomingEvents.length === 0 && <EmptyState text="No hay eventos futuros para mostrar." />}</div></section>
-  </div>;
+  return <TutorCalendar
+    tutorUserId={props.userId}
+    events={props.events}
+    tutorEvents={props.tutorEvents}
+    linkedUsers={props.linkedUsers}
+    onCreate={async payload => { await createCalendarEvent(props.userId, payload); await refresh(); }}
+    onUpdate={async (id, patch) => { await updateCalendarEvent(id, patch); await refresh(); }}
+    onDelete={async id => { await deleteCalendarEvent(id); await refresh(); }}
+  />;
 }
 
 function DashboardCard({ title, icon: Icon, action, onAction, children }: { title: string; icon: typeof Activity; action?: string; onAction?: () => void; children: React.ReactNode }) {

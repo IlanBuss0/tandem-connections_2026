@@ -1,4 +1,5 @@
 import type { GeneratedReport, ProfessionalSession } from "@/data/api";
+import { pdfDate } from "@/lib/reportsPdf";
 
 export type ReportFilter = "all" | "unsent" | "sent";
 export type PatientFolder = { pertenecienteId: number; name: string; reports: GeneratedReport[]; unsent: number; last: GeneratedReport };
@@ -22,6 +23,10 @@ export const weekdayDate = (value: string | null | undefined) => {
   const date = new Date(value || "");
   return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" }).replace(/[.,]/g, "");
 };
+
+/** Línea de fecha del PDF del profesional: "28 sep 2026 · Enviado". */
+export const professionalByline = (report: GeneratedReport) =>
+  `${pdfDate(report.fecha_envio || report.fecha_generacion)} · ${report.enviado_al_tutor ? "Enviado" : "Sin enviar"}`;
 
 export const reportTitle = (report: GeneratedReport) => report.titulo?.trim() || "Reporte de seguimiento";
 
