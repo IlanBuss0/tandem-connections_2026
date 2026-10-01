@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dialog';
 import type { ProfessionalDniVerificationResult, RegisterRole, RefepsProfessional, RefepsSearchResult } from '@/services/api';
 import { fetchProfessionalRegistryDetails, searchRefepsByDni, searchRefepsProfessional, verifyProfessionalDni } from '@/data/api';
+import { DniChecklist } from '@/components/auth/DniChecklist';
 import { DniScanner } from '@/components/auth/DniScanner';
 
 type AuthView = 'welcome' | 'login' | 'register';
@@ -119,7 +120,7 @@ function toDniVerificationState(result: ProfessionalDniVerificationResult): DniV
     };
   }
   if (result.status === 'EXPIRED_DOCUMENT') {
-    return { status: 'expired_document', message: 'Tu DNI no está vigente. Para continuar necesitás utilizar un DNI vigente.', result };
+    return { status: 'expired_document', message: 'Tu DNI ya expiró. Para continuar necesitás utilizar un DNI vigente.', result };
   }
   if (result.reason === 'NOT_ARGENTINE_DNI' || result.reason === 'MISSING_FIELDS') {
     return {
@@ -1454,6 +1455,12 @@ function DniFrontField({
         {isProcessing ? <Loader2 size={16} className="mt-0.5 shrink-0 animate-spin" /> : isOk ? <Check size={16} className="mt-0.5 shrink-0" /> : null}
         <span>{verification.message}</span>
       </p>
+      {verification.status !== 'idle' && verification.status !== 'processing' && verification.result?.steps && (
+        <DniChecklist
+          title={`Resultado de la verificación${verification.result.dni?.fuente ? ` (datos leídos por ${verification.result.dni.fuente === 'PDF417' ? 'código de barras' : 'OCR'})` : ''}`}
+          items={verification.result.steps}
+        />
+      )}
     </div>
   );
 }
