@@ -6,6 +6,11 @@ import { describePdf417, isPlausibleDniPdf417 } from '@/lib/dniPdf417';
 // Step-by-step trace to see where the scan stops. It never logs personal data.
 const scanLog = (step: string, info?: Record<string, unknown>) => console.info(`[DniScanner] ${step}`, info ?? '');
 
+// The PDF417 is the reliable source (OCR on a phone frame of a plastic card often fails), so the scanner
+// waits for the barcode before capturing. After this many seconds it captures anyway and the server uses OCR.
+const BARCODE_WAIT_SECONDS = 15;
+const BARCODE_HINT = 'Mostrá el código de barras del DNI (suele estar en el dorso) y acercalo hasta que se vea nítido.';
+
 type ScannerState = 'idle' | 'opening' | 'scanning' | 'capturing' | 'camera_error' | 'unavailable';
 
 export function DniScanner({ onCapture, disabled = false }: { onCapture: (file: File, pdf417Raw?: string) => void; disabled?: boolean }) {
@@ -51,11 +56,18 @@ export function DniScanner({ onCapture, disabled = false }: { onCapture: (file: 
   useEffect(() => {
     if (state !== 'scanning') return;
     let lastQualityMessage = '';
+    let elapsedSeconds = 0;
     const timer = window.setInterval(() => {
       const video = videoRef.current; if (!video || video.readyState < 2) return;
+      elapsedSeconds += 1;
       const quality = analyseFrame(video); setFeedback(quality.message);
       if (quality.message !== lastQualityMessage) { lastQualityMessage = quality.message; scanLog('calidad de imagen', { valida: quality.valid, mensaje: quality.message }); }
       if (!quality.valid) { stableSecondsRef.current = 0; setCountdown(null); return; }
+      if (!pdf417RawRef.current && elapsedSeconds < BARCODE_WAIT_SECONDS) {
+        if (lastQualityMessage !== BARCODE_HINT) { lastQualityMessage = BARCODE_HINT; scanLog('esperando el codigo de barras', { segundos: elapsedSeconds }); }
+        setFeedback(BARCODE_HINT); stableSecondsRef.current = 0; setCountdown(null); return;
+      }
+      if (!pdf417RawRef.current && stableSecondsRef.current === 0) scanLog('tiempo de espera agotado: se captura sin PDF417 (se usara OCR)', { segundos: elapsedSeconds });
       stableSecondsRef.current += 1;
       if (stableSecondsRef.current <= 3) { setCountdown(4 - stableSecondsRef.current); return; }
       setCountdown(null); setState('capturing'); capture(video);
@@ -64,7 +76,7 @@ export function DniScanner({ onCapture, disabled = false }: { onCapture: (file: 
   }, [capture, state]);
 
   const startPdf417Reader = async (video: HTMLVideoElement) => {
-    const reader = new BrowserPDF417Reader(); pdfReaderRef.current = reader;
+    const reader = new BrowserPDF417Reader(undefined, { delayBetweenScanAttempts: 150, delayBetweenScanSuccess: 300 }); pdfReaderRef.current = reader;
     try {
       pdfControlsRef.current = await reader.decodeFromVideoElement(video, result => {
         if (!result || pdf417RawRef.current) return;
@@ -87,7 +99,7 @@ export function DniScanner({ onCapture, disabled = false }: { onCapture: (file: 
     stop(); setState('opening'); setCountdown(null); stableSecondsRef.current = 0; pdf417RawRef.current = undefined; setPdf417Detected(false);
     try {
       if (!navigator.mediaDevices?.getUserMedia) { scanLog('camara no disponible en este navegador'); setState('unavailable'); return; }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
       streamRef.current = stream;
       const settings = stream.getVideoTracks?.()[0]?.getSettings?.();
       scanLog('camara abierta', { width: settings?.width, height: settings?.height });
