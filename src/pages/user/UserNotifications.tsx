@@ -49,7 +49,7 @@ function formatTimestamp(ts: string): string {
   }
 }
 
-function getNotificationDestination(notification: Notification): { tab: string; params?: Record<string, string> } {
+export function getNotificationDestination(notification: Notification): { tab: string; params?: Record<string, string> } {
   const source = notification.referenceType || notification.type;
   const tabMap: Record<string, string> = {
     chat: 'chat',
@@ -62,6 +62,7 @@ function getNotificationDestination(notification: Notification): { tab: string; 
     streak: 'achievements',
     payment: 'shop',
     recommendation: 'resources',
+    reporte_profesional: 'reports',
     alert: 'home',
     system: 'home',
   };
@@ -81,6 +82,7 @@ function getNotificationDestination(notification: Notification): { tab: string; 
     calendar: 'eventId',
     reminder: 'eventId',
     achievement: 'achievementId',
+    reporte_profesional: 'reportId',
   };
   const param = paramMap[source];
   if (param) params[param] = notification.referenceId;

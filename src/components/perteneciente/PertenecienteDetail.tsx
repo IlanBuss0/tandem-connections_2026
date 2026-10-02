@@ -4,7 +4,7 @@ import {
   MessageCircle, Network, Sparkles, Target, Users,
 } from 'lucide-react';
 import type { AcompanamientoData, CalendarEvent, EmotionalRecord, GeneratedReport, ProfessionalSession, SupportNetworkMember, User } from '@/data/api';
-import { ReportItem } from '@/components/TutorReportsPanel';
+import { ReportItem } from '@/components/tutor/reports/ReportItem';
 import { monthKey, reportTime } from '@/lib/reportGrouping';
 import { useRememberedTab } from '@/hooks/useRememberedTab';
 import { activityIsDone, buildEvolutionCopy } from '@/components/perteneciente/evolution/evolutionHelpers';

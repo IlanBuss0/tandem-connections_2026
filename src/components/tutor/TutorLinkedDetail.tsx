@@ -12,6 +12,8 @@ interface Props {
   data?: DetailData;
   onNavigate: (destination: Destination) => void;
   onOpenChat: (userId: string) => void;
+  /** Si viene, «Ver reportes» abre los reportes de esta persona. */
+  onOpenReports?: (owner: TutorHomeLinkedUser) => void;
 }
 
 const emotionFallbacks: Record<string, string> = {
@@ -39,7 +41,7 @@ function formatDate(date: string, time?: string) {
   return parsed.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' }) + (time ? ` · ${time}` : '');
 }
 
-export default function TutorLinkedDetail({ owner, data, onNavigate, onOpenChat }: Props) {
+export default function TutorLinkedDetail({ owner, data, onNavigate, onOpenChat, onOpenReports }: Props) {
   const activities = data?.activities || [];
   const emotions = data?.emotions || [];
   const events = data?.events || [];
@@ -59,7 +61,7 @@ export default function TutorLinkedDetail({ owner, data, onNavigate, onOpenChat 
       <DetailAction icon={MessageCircle} label="Abrir chat" onClick={() => onOpenChat(owner.id)} />
       <DetailAction icon={CalendarDays} label="Ver calendario" onClick={() => onNavigate('calendar')} />
       <DetailAction icon={Activity} label="Ver actividades" onClick={() => onNavigate('activities')} />
-      <DetailAction icon={FileText} label="Ver reportes" onClick={() => onNavigate('reports')} />
+      <DetailAction icon={FileText} label="Ver reportes" onClick={() => (onOpenReports ? onOpenReports(owner) : onNavigate('reports'))} />
     </section>
 
     <div className="grid grid-cols-3 gap-3">
