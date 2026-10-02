@@ -1642,7 +1642,7 @@ function DemoCredentials({
             Usuario: <span className="font-mono font-bold text-[#6F518E]">juan123</span>
           </p>
           <p>
-            Contraseña: <span className="font-mono font-bold text-[#6F518E]">123456</span>
+            Contraseña: <span className="font-mono font-bold text-[#6F518E]">juan123456</span>
           </p>
         </motion.div>
       )}

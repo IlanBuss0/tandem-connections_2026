@@ -1263,12 +1263,6 @@ export async function findUser(username: string, password: string): Promise<User
     const avatarUrl = auth.user?.id ? await fetchUserAvatarUrl(auth.user.id) : null;
     return toLegacyUser(auth.user, avatarUrl);
   } catch {
-    const localUser = legacy.findUser(username, password);
-    if (localUser) {
-      storeAuthToken();
-      return localUser;
-    }
-
     return null;
   }
 }
@@ -1368,25 +1362,16 @@ export async function fetchPertenecienteHome(
   },
 ): Promise<PertenecienteHomeData> {
   if (!isBackendUserId(userId)) {
-    const user = legacy.getUserById(userId);
-    const activities = legacy.getActivitiesForUser(userId);
     return {
-      perteneciente: null,
-      supportLevel: user?.supportLevel || 'Sin registrar',
+      pertenec: null,
+      supportLevel: 'Sin registrar',
       autonomy: 'Sin registrar',
-      canSelfManage: Boolean(user?.onboarded),
-      points: user?.points ?? 0,
-      level: user?.level ?? 1,
+      canSelfManage: false,
+      points: 0,
+      level: 1,
       experience: 0,
-      activities: activities.map(activity => ({
-        id: activity.id,
-        title: activity.title,
-        description: activity.description,
-        status: activity.status,
-        completed: activity.status === 'completada',
-        assignedAt: 'Hoy',
-      })),
-      notifications: legacy.getNotificationsForUser(userId),
+      activities: [],
+      notifications: [],
     };
   }
 
