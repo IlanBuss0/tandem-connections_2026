@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
@@ -1532,7 +1532,7 @@ function AuthField({
   id,
   ...props
 }: React.ComponentProps<typeof Input> & { label: string }) {
-  const generatedId = React.useId();
+  const generatedId = useId();
   const inputId = id ?? generatedId;
   return (
     <div className="relative">
@@ -1569,7 +1569,7 @@ function PasswordField({
   autoComplete?: string;
   id?: string;
 }) {
-  const generatedId = React.useId();
+  const generatedId = useId();
   const inputId = id ?? generatedId;
   return (
     <div className="relative">
