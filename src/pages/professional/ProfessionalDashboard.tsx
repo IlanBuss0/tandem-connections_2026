@@ -1,33 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  askAboutPatient, deleteProfessionalSession, downloadPatientHistoryPdf, fetchActivitiesForUser,
-  fetchEmotionRecordsForUser, fetchLinkedPertenecientesForSupportUser, fetchPersonalNotesForUser, fetchPrivateProfessionalNote,
-  fetchProfessionalSessions, joinProfessionalInviteByCode, prepareSessionSummary, updateProfessionalSession,
-  type Activity, type EmotionalRecord, type PersonalNote, type ProfessionalSession, type SessionPrepSummary, type User,
+  fetchActivitiesForUser,
+  fetchEmotionRecordsForUser, fetchLinkedPertenecientesForSupportUser, fetchPersonalNotesForUser, fetchProfessionalSessions, joinProfessionalInviteByCode, updateProfessionalSession,
+  type Activity, type EmotionalRecord, type PersonalNote, type ProfessionalSession, type User,
 } from '@/data/api';
-import PersonalNotesList from '@/components/PersonalNotesList';
-import { withGoogleToken } from '@/lib/googleAuth';
-import { getDocPlainText } from '@/lib/googleDocs';
-import { CheckCircle2, Heart, Calendar, Home, Target, Users, FileText, BarChart3, TrendingUp, ClipboardPlus, Sparkles, MessageCircle, Bell, KeyRound, Loader2, FolderOpen, CalendarClock, Download, Send, Info, Image } from 'lucide-react';
+import { CheckCircle2, Calendar, Home, Users, ClipboardPlus, Sparkles, MessageCircle, Bell, KeyRound, Loader2, Image, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { motion } from 'framer-motion';
 import ActivityManager from '@/components/ActivityManager';
-import AdvancedStats from '@/components/AdvancedStats';
 import ChatScreen from '@/components/ChatScreen';
 import { ChatProvider } from '@/contexts/ChatContext';
 import AppHeader from '@/components/AppHeader';
-import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
-import ProfessionalReportsPanel from '@/components/ProfessionalReportsPanel';
-import ProfessionalPrivateNote from '@/components/ProfessionalPrivateNote';
-import SessionCard from '@/components/SessionCard';
-import DriveExplorer from '@/components/DriveExplorer';
+import ProfessionalReports from '@/components/professional/reports/ProfessionalReports';
+import ProfessionalDocuments from '@/components/professional/documents/ProfessionalDocuments';
 import ProfessionalCalendar from '@/components/ProfessionalCalendar';
-import ProfessionalHome from '@/components/ProfessionalHome';
+import ProfessionalHome, { ProfessionalRecentActivity } from '@/components/ProfessionalHome';
+import EmotionalStatusScreen from '@/components/professional/emotions/EmotionalStatusScreen';
 import ProfessionalProfileSettings from '@/components/ProfessionalProfileSettings';
 import UserNotifications from '@/pages/user/UserNotifications';
 import { isPermissionEnabled, PROFESIONAL_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
@@ -38,41 +28,27 @@ import UserPictograms from '@/pages/user/UserPictograms';
 import { useToast } from '@/components/ui/use-toast';
 import { useSyncMobileMenuOpen } from '@/contexts/MobileMenuState';
 import BelongingMobileBottomNav, { type MobileDestination } from '@/components/belonging/BelongingMobileBottomNav';
-import { ProfessionalDrawer, ProfessionalProfileDrawer, ProfessionalQuickMenu, type ProfessionalTab, type ProfessionalQuickAction } from '@/components/professional/ProfessionalNavigation';
+import { ProfessionalAccountMenu, ProfessionalDrawer, ProfessionalQuickMenu, type ProfessionalTab, type ProfessionalQuickAction } from '@/components/professional/ProfessionalNavigation';
 import { useProfessionalNavigation } from '@/hooks/useProfessionalNavigation';
-
-function nextSessionForPatient(sessions: ProfessionalSession[], pertenecienteId: number | undefined) {
-  if (!pertenecienteId) return undefined;
-  const now = Date.now();
-  return sessions
-    .filter(session =>
-      Number(session.id_perteneciente) === pertenecienteId
-      && session.estado === 'programada'
-      && new Date(session.fecha_sesion).getTime() >= now,
-    )
-    .sort((a, b) => a.fecha_sesion.localeCompare(b.fecha_sesion))[0];
-}
+import ProfessionalPatients from '@/components/professional/patients/ProfessionalPatients';
+import ProfessionalPatientCenter from '@/components/professional/patients/ProfessionalPatientCenter';
+import PatientBreadcrumb from '@/components/professional/patients/PatientBreadcrumb';
+import PatientMissing from '@/components/professional/patients/PatientMissing';
+import type { PatientSessionsIntent } from '@/components/professional/patients/ProfessionalPatientSessions';
+import type { DetailTab } from '@/components/perteneciente/PertenecienteDetail';
+import { buildPatientLinks, nextSessionForPatient } from '@/lib/professionalPatientsModel';
 
 export default function ProfessionalDashboard() {
   const { user, logout } = useAuth();
-  const { context: permissionContext, refetch: refetchPermissionContext } = usePermissionContext();
+  const { context: permissionContext, loading: permissionLoading, refetch: refetchPermissionContext } = usePermissionContext();
   const { toast } = useToast();
-  const { tab, patientId: routePatientId, chatId: routeChatId, navigate: navigateRoute, goBack } = useProfessionalNavigation();
+  const { tab, patientId: routePatientId, chatId: routeChatId, navigate: navigateRoute } = useProfessionalNavigation();
   const [selectedPatient, setSelectedPatient] = useState<string | null>(routePatientId);
-  const [patientTab, setPatientTab] = useState<'overview' | 'stats' | 'sessions'>('overview');
-  const [patientNoteSession, setPatientNoteSession] = useState<ProfessionalSession | null>(null);
-  const [prepSession, setPrepSession] = useState<ProfessionalSession | null>(null);
-  const [prepLoading, setPrepLoading] = useState(false);
-  const [prepResult, setPrepResult] = useState<SessionPrepSummary | null>(null);
-  const [prepError, setPrepError] = useState<string | null>(null);
-  const [downloadingPatientPdf, setDownloadingPatientPdf] = useState(false);
-  const [askQuestion, setAskQuestion] = useState('');
-  const [askAnswer, setAskAnswer] = useState<string | null>(null);
-  const [askLoading, setAskLoading] = useState(false);
-  const [askError, setAskError] = useState<string | null>(null);
+  const [patientEntry, setPatientEntry] = useState<{ tab?: DetailTab; intent?: PatientSessionsIntent } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
+  const mainRef = useRef<HTMLElement>(null);
   useSyncMobileMenuOpen(menuOpen || profileOpen || quickOpen);
   useEffect(() => { setSelectedPatient(routePatientId); setSelectedNotificationChatId(routeChatId); }, [routePatientId, routeChatId]);
   const [linkedUsers, setLinkedUsers] = useState<User[]>([]);
@@ -84,9 +60,11 @@ export default function ProfessionalDashboard() {
   const [loadingPatients, setLoadingPatients] = useState(true);
   const [professionalInviteCode, setProfessionalInviteCode] = useState('');
   const [joiningProfessionalInvite, setJoiningProfessionalInvite] = useState(false);
-  const [patientSearch, setPatientSearch] = useState('');
   const [selectedNotificationChatId, setSelectedNotificationChatId] = useState<string | undefined>();
   const [agendaInitialPatientId, setAgendaInitialPatientId] = useState<number | undefined>();
+  const [reportsPatientId, setReportsPatientId] = useState<number | undefined>();
+  const [builderPreselect, setBuilderPreselect] = useState<string[] | undefined>(undefined);
+  const [activitiesReturnPatientId, setActivitiesReturnPatientId] = useState<string | null>(null);
   const { unreadCount, setUnreadCount } = useUnreadNotifications(
     user && user.role === 'professional' ? { id: String(user.id) } : null
   );
@@ -168,14 +146,10 @@ export default function ProfessionalDashboard() {
     }
   };
 
-  const deletePatientSession = async (session: ProfessionalSession) => {
-    if (!window.confirm('¿Eliminar esta sesion?')) return;
-    try {
-      await deleteProfessionalSession(session.id);
-      await reloadSessions();
-    } catch (err) {
-      toast({ title: 'No se pudo eliminar la sesion', description: err instanceof Error ? err.message : undefined, variant: 'destructive' });
-    }
+  const linkPatientWithCode = async (code: string) => {
+    await joinProfessionalInviteByCode(code);
+    await refetchPermissionContext();
+    await reloadPatients();
   };
 
   const acceptProfessionalInvite = async (event: React.FormEvent) => {
@@ -185,10 +159,8 @@ export default function ProfessionalDashboard() {
 
     setJoiningProfessionalInvite(true);
     try {
-      await joinProfessionalInviteByCode(code);
+      await linkPatientWithCode(code);
       setProfessionalInviteCode('');
-      await refetchPermissionContext();
-      await reloadPatients();
       toast({ title: 'Perteneciente vinculado', description: 'El nuevo vinculo ya aparece en tus pacientes.' });
     } catch (err) {
       toast({ title: 'No se pudo vincular', description: err instanceof Error ? err.message : 'Codigo invalido o expirado.', variant: 'destructive' });
@@ -221,6 +193,8 @@ export default function ProfessionalDashboard() {
     { id: 'chat', label: 'Chats', icon: MessageCircle },
   ];
   const patientDetail = selectedPatient ? linkedUsers.find(u => u.id === selectedPatient) : null;
+  const patientOpen = tab === 'patients' && Boolean(selectedPatient);
+  const patientLink = patientDetail ? buildPatientLinks(permissionContext, [patientDetail])[patientDetail.id] : undefined;
   const linkForUser = (userId: string) => vinculosByUsuarioPerteneciente.get(String(userId));
   const patientHasPermission = (userId: string, permission: string, fallback = false) => {
     const link = linkForUser(userId);
@@ -229,6 +203,9 @@ export default function ProfessionalDashboard() {
   };
   const agendaPatients = linkedUsers
     .filter(patient => patientHasPermission(patient.id, PROFESIONAL_PERMISSIONS.AGENDAR_SESIONES, true))
+    .map(patient => ({ ...patient, pertenecienteId: Number(linkForUser(patient.id)?.perteneciente.id) }));
+  const notePatients = linkedUsers
+    .filter(patient => linkForUser(patient.id)?.permisos_efectivos.vinculo_aprobado)
     .map(patient => ({ ...patient, pertenecienteId: Number(linkForUser(patient.id)?.perteneciente.id) }));
   const activityPatients = linkedUsers.filter(patient => patientHasPermission(patient.id, PROFESIONAL_PERMISSIONS.ASIGNAR_ACTIVIDADES, true));
 
@@ -251,7 +228,6 @@ export default function ProfessionalDashboard() {
     .filter(session => session.estado === 'programada' && new Date(session.fecha_sesion).getTime() < now)
     .sort((a, b) => a.fecha_sesion.localeCompare(b.fecha_sesion));
   const patientByPertenecienteId = new Map(agendaPatients.map(p => [p.pertenecienteId, p]));
-  const visiblePatients = linkedUsers.filter(patient => patient.name.toLocaleLowerCase('es').includes(patientSearch.trim().toLocaleLowerCase('es')));
 
   const navigateFromNotification = (nextTab: string, params?: Record<string, any>) => {
     const sourceUserId = params?.sourceUserId ? String(params.sourceUserId) : null;
@@ -268,7 +244,7 @@ export default function ProfessionalDashboard() {
 
     if (linkedPatient) {
       setSelectedPatient(linkedPatient);
-      setPatientTab(nextTab === 'activities' ? 'stats' : 'overview');
+      setPatientEntry(nextTab === 'activities' ? { tab: 'evolution' } : null);
       navigateRoute('patients', { patientId: linkedPatient });
       return;
     }
@@ -278,37 +254,64 @@ export default function ProfessionalDashboard() {
   };
 
   const navigate = (next: ProfessionalTab) => {
-    navigateRoute(next); setSelectedPatient(null); setMenuOpen(false); setProfileOpen(false); setQuickOpen(false);
-    window.scrollTo({ top: 0, behavior: 'auto' });
+    navigateRoute(next); setReportsPatientId(undefined); setSelectedPatient(null); setMenuOpen(false); setProfileOpen(false); setQuickOpen(false); setActivitiesReturnPatientId(null);
+    mainRef.current?.scrollTo({ top: 0, behavior: 'auto' });
   };
   const openPatient = (userId: string) => {
-    navigateRoute('patients', { patientId: userId }); setSelectedPatient(userId); setPatientTab('overview'); setMenuOpen(false); setProfileOpen(false); setQuickOpen(false);
-    window.scrollTo({ top: 0, behavior: 'auto' });
+    navigateRoute('patients', { patientId: userId }); setSelectedPatient(userId); setPatientEntry(null); setMenuOpen(false); setProfileOpen(false); setQuickOpen(false);
+    mainRef.current?.scrollTo({ top: 0, behavior: 'auto' });
   };
-  const professionalPageTitle = selectedPatient && patientDetail ? patientDetail.name : ({ home: 'Inicio', calendar: 'Calendario', patients: 'Pacientes', chat: 'Chats', notifications: 'Notificaciones', documents: 'Documentos y notas', create: 'Actividades', resources: 'Recursos y herramientas', reports: 'Reportes', tools: 'Herramientas', profile: 'Perfil', about: 'Acerca de TÁNDEM', pictograms: 'Pictograma IA', pictogramCatalog: 'Pictogramas' } satisfies Record<ProfessionalTab, string>)[tab];
-
+  const userIdForSession = (session: ProfessionalSession) =>
+    linkedUsers.find(patient => Number(linkForUser(patient.id)?.perteneciente.id) === Number(session.id_perteneciente))?.id;
+  const openPatientSessions = (session: ProfessionalSession, intent?: PatientSessionsIntent) => {
+    const userId = userIdForSession(session);
+    if (!userId) return;
+    openPatient(userId);
+    setPatientEntry({ tab: 'sessions', intent });
+  };
+  const prepareSessionFromHome = (session: ProfessionalSession) => openPatientSessions(session, { prepare: session });
+  const writeNoteFromHome = (session: ProfessionalSession) => openPatientSessions(session, { note: session });
+  const openReports = (pertenecienteId: number) => { navigate('reports'); setReportsPatientId(pertenecienteId); };
+  const scheduleFromHome = (userId: string) => {
+    setAgendaInitialPatientId(Number(linkForUser(userId)?.perteneciente.id) || undefined);
+    navigate('calendar');
+  };
+  const backToPatientFromActividades = () => {
+    if (!activitiesReturnPatientId) return;
+    const patientId = activitiesReturnPatientId;
+    setActivitiesReturnPatientId(null);
+    setBuilderPreselect(undefined);
+    setMenuOpen(false); setProfileOpen(false); setQuickOpen(false);
+    navigateRoute('patients', { patientId });
+    mainRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+  };
   return (
-    <div className="min-h-dvh overflow-x-hidden bg-[radial-gradient(circle_at_88%_4%,rgba(220,203,245,0.42),transparent_24rem),linear-gradient(180deg,#fbf9ff_0%,#f8f7fc_100%)] pb-24 lg:pb-0">
+    <div className="professional-surface flex h-dvh flex-col overflow-hidden bg-[radial-gradient(circle_at_88%_4%,rgba(220,203,245,0.42),transparent_24rem),linear-gradient(180deg,#fbf9ff_0%,#f8f7fc_100%)] pb-24 lg:pb-0">
       <a href="#professional-main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-[100] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2">Saltar al contenido</a>
       <AppHeader
-        onMenuClick={() => setMenuOpen(true)}
+        onMenuClick={() => { setProfileOpen(false); setQuickOpen(false); setMenuOpen(true); }}
         onLogoClick={() => navigate('home')}
-        onBack={tab !== 'home' ? () => { if (selectedPatient) { goBack('patients'); } else { goBack('home'); } } : undefined}
-        mobileBackOnly
-        contextTitle={professionalPageTitle}
-        menuButtonClassName="invisible pointer-events-none lg:visible lg:pointer-events-auto"
+        centerLogoMobile
+        onBack={patientOpen ? () => navigate('patients') : undefined}
+        mobileBackOnly={patientOpen}
+        contextTitle={patientOpen ? patientDetail?.name : undefined}
+        menuButtonClassName={patientOpen ? 'invisible pointer-events-none lg:visible lg:pointer-events-auto' : undefined}
         rightSlot={
-          <div className="flex items-center gap-2"><NotificationBellButton count={unreadCount} onClick={() => navigate('notifications')} className="border-0 bg-transparent" /><button type="button" onClick={() => setProfileOpen(true)} aria-label="Abrir perfil profesional" className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><HeaderUserAvatar avatar={user.avatar} name={user.name} /></button></div>
+          <div className="flex items-center gap-2">
+            <NotificationBellButton count={unreadCount} onClick={() => { setMenuOpen(false); setProfileOpen(false); navigate('notifications'); }} className="border-0 bg-transparent text-primary hover:bg-primary/10" />
+            <ProfessionalAccountMenu open={profileOpen} onOpenChange={(open) => { setProfileOpen(open); if (open) { setMenuOpen(false); setQuickOpen(false); } }} user={user} onNavigate={navigate} onLogout={logout} />
+          </div>
         }
       />
 
       <ProfessionalDrawer open={menuOpen} active={tab} permissions={navigationPermissions} onClose={() => setMenuOpen(false)} onNavigate={navigate} onLogout={logout} />
-      <ProfessionalProfileDrawer open={profileOpen} active={tab} user={user} permissions={navigationPermissions} onClose={() => setProfileOpen(false)} onNavigate={navigate} onLogout={logout} />
-
-      <main id="professional-main" tabIndex={-1} className="mx-auto w-full max-w-[1280px] space-y-5 px-4 py-6 sm:px-6 lg:px-8 lg:py-9">
+      <main ref={mainRef} id="professional-main" tabIndex={-1} className="min-h-0 w-full flex-1 overflow-y-auto">
+      <div className="mx-auto w-full max-w-[1536px] space-y-5 px-4 py-6 max-lg:pb-28 sm:px-6 lg:px-8 lg:py-9 xl:px-10">
         {tab === 'home' && loadingPatients && <ProfessionalHomeSkeleton />}
         {tab === 'home' && !loadingPatients && patientsError && <div role="alert" className="rounded-3xl border border-destructive/20 bg-white p-6 text-sm text-destructive shadow-sm">{patientsError}<Button type="button" variant="outline" className="ml-3" onClick={reloadPatients}>Reintentar</Button></div>}
-        {tab === 'home' && !loadingPatients && !patientsError && <ProfessionalHome professionalName={user.name} patients={linkedUsers} sessions={sessions} activitiesByUser={activitiesByUser} emotionsByUser={emotionsByUser} notesByUser={notesByUser} patientPertenecienteIds={Object.fromEntries(linkedUsers.map(patient => [patient.id, Number(linkForUser(patient.id)?.perteneciente.id)]))} onNavigate={navigate} onOpenPatient={openPatient} />}
+        {tab === 'home' && !loadingPatients && !patientsError && <ProfessionalHome professionalName={user.name} patients={linkedUsers} sessions={sessions} activitiesByUser={activitiesByUser} emotionsByUser={emotionsByUser} notesByUser={notesByUser} patientPertenecienteIds={Object.fromEntries(linkedUsers.map(patient => [patient.id, Number(linkForUser(patient.id)?.perteneciente.id)]))} onNavigate={navigate} onOpenPatient={openPatient} onPrepareSession={prepareSessionFromHome} onWriteNote={writeNoteFromHome} onSchedule={scheduleFromHome} unscheduledUserIds={patientsWithoutNextSession.map(patient => patient.id)} canOpenAgenda={canScheduleSessions} />}
+        {tab === 'recentActivity' && <ProfessionalRecentActivity patients={linkedUsers} emotionsByUser={emotionsByUser} notesByUser={notesByUser} onOpenPatient={openPatient} />}
+        {tab === 'emotionalStatus' && <EmotionalStatusScreen patients={linkedUsers} emotionsByUser={emotionsByUser} links={buildPatientLinks(permissionContext, linkedUsers)} loading={loadingPatients || (permissionLoading && !permissionContext)} />}
         {tab === 'chat' && canSendMessages && (
           <ChatProvider>
             <ChatScreen
@@ -322,336 +325,37 @@ export default function ProfessionalDashboard() {
           <UserNotifications onUnreadCountChange={setUnreadCount} onNavigate={navigateFromNotification} />
         )}
         {tab === 'patients' && !selectedPatient && (
-          <>
-            <header><h1 className="font-heading text-3xl font-bold text-foreground">Pacientes</h1><p className="mt-2 text-sm text-muted-foreground">Consultá tus vínculos sin cambiar el contexto general de la aplicación.</p></header>
-            <div className="flex flex-col gap-3 rounded-3xl border border-white/80 bg-white/85 p-4 shadow-sm sm:flex-row sm:items-center"><label htmlFor="professional-patient-search" className="sr-only">Buscar paciente</label><Input id="professional-patient-search" type="search" value={patientSearch} onChange={event => setPatientSearch(event.target.value)} placeholder="Buscar por nombre" className="min-h-11 flex-1" /><span className="text-sm font-semibold text-muted-foreground">{visiblePatients.length} de {linkedUsers.length}</span><Button type="button" variant="outline" onClick={() => navigate('tools')} className="min-h-11"><KeyRound size={16} className="mr-2" aria-hidden />Vincular paciente</Button></div>
-            {loadingPatients && (
-              <div className="bg-card rounded-xl border border-border p-6 text-sm text-muted-foreground">
-                Cargando pertenecientes vinculados...
-              </div>
-            )}
-            {!loadingPatients && linkedUsers.length === 0 && (
-              <div className="bg-card rounded-xl border border-border p-6 text-sm text-muted-foreground">
-                No hay pertenecientes vinculados a este profesional.
-              </div>
-            )}
-            {patientsError && <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">{patientsError}</div>}
-            <div className="grid gap-3 xl:grid-cols-2">{visiblePatients.map(u => {
-              const acts = activitiesByUser[u.id] || [];
-              const completed = acts.filter(a => a.status === 'completada').length;
-              const adherence = acts.length > 0 ? Math.round((completed / acts.length) * 100) : 0;
-              const emotions = emotionsByUser[u.id] || [];
-              const nextSession = nextSessionForPatient(sessions, Number(linkForUser(u.id)?.perteneciente.id));
-              const linkPermissions = vinculosByUsuarioPerteneciente.get(String(u.id))?.permisos_efectivos;
-              const canViewPatientHistory = Boolean(permissionContext) && isPermissionEnabled(linkPermissions?.permisos, PROFESIONAL_PERMISSIONS.VER_HISTORIAL, false);
-
-              return (
-                <motion.button key={u.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} onClick={() => { setSelectedPatient(u.id); setPatientTab('overview'); }} className="w-full overflow-hidden rounded-3xl border border-border/80 bg-card text-left shadow-sm transition-all hover:border-primary/30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <div className="p-4 flex items-center gap-4">
-                    <span className="text-4xl">{u.avatar}</span>
-                    <div className="flex-1">
-                      <p className="font-heading font-bold text-foreground">{u.name}</p>
-                      <p className="text-xs text-muted-foreground">{u.age ? `${u.age} años · ` : ''}Nivel {u.level} · Racha {u.streak} días</p>
-                    </div>
-                    <div className="text-right">
-                      <p className={`text-lg font-bold ${canViewPatientHistory ? adherence >= 70 ? 'text-success' : adherence >= 40 ? 'text-amber-500' : 'text-destructive' : 'text-muted-foreground'}`}>{canViewPatientHistory ? `${adherence}%` : '-'}</p>
-                      <p className="text-[10px] text-muted-foreground">{canViewPatientHistory ? 'adherencia' : 'sin historial'}</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-4 gap-2 px-4 pb-4">
-                    <div className="bg-muted/50 rounded-lg p-2 text-center"><p className="text-xs text-muted-foreground">Actividades</p><p className="font-bold text-foreground">{canViewPatientHistory ? `${completed}/${acts.length}` : '-'}</p></div>
-                    <div className="bg-muted/50 rounded-lg p-2 text-center"><p className="text-xs text-muted-foreground">Emociones</p><p className="font-bold text-foreground">{canViewPatientHistory ? emotions.length : '-'}</p></div>
-                    <div className="bg-muted/50 rounded-lg p-2 text-center"><p className="text-xs text-muted-foreground">Historial</p><p className="font-bold text-foreground text-xs">{canViewPatientHistory ? 'Habilitado' : 'Privado'}</p></div>
-                    <div className="bg-muted/50 rounded-lg p-2 text-center"><p className="text-xs text-muted-foreground">Próx. sesión</p><p className="font-bold text-foreground text-xs">{nextSession ? nextSession.fecha_sesion.slice(5, 10) : '-'}</p></div>
-                  </div>
-                  <div className="px-4 pb-3 flex gap-1">
-                    {emotions.slice(0, 5).map(em => <span key={em.id} className="text-lg">{em.emoji}</span>)}
-                  </div>
-                </motion.button>
-              );
-            })}</div>
-          </>
+          <ProfessionalPatients patients={linkedUsers} sessions={sessions} permissionContext={permissionContext} loading={loadingPatients} error={patientsError} onRetry={reloadPatients} onOpenPatient={openPatient} onSchedule={scheduleFromHome} onLinkWithCode={linkPatientWithCode} />
         )}
 
-        {tab === 'patients' && selectedPatient && patientDetail && (() => {
-          const acts = activitiesByUser[patientDetail.id] || [];
-          const completed = acts.filter(a => a.status === 'completada').length;
-          const adherence = acts.length > 0 ? Math.round((completed / acts.length) * 100) : 0;
-          const emotions = emotionsByUser[patientDetail.id] || [];
-          const personalNotes = notesByUser[patientDetail.id] || [];
-          const patientPermissions = vinculosByUsuarioPerteneciente.get(String(patientDetail.id))?.permisos_efectivos?.permisos;
-          const canViewPatientHistory = Boolean(permissionContext) && isPermissionEnabled(patientPermissions, PROFESIONAL_PERMISSIONS.VER_HISTORIAL, false);
-          const canSchedulePatient = isPermissionEnabled(patientPermissions, PROFESIONAL_PERMISSIONS.AGENDAR_SESIONES, true);
-          const pertenecienteId = Number(linkForUser(patientDetail.id)?.perteneciente.id);
-          const patientSessions = sessions
-            .filter(session => Number(session.id_perteneciente) === pertenecienteId)
-            .sort((a, b) => b.fecha_sesion.localeCompare(a.fecha_sesion));
-          const patientCompletadas = patientSessions.filter(s => s.estado === 'completada').length;
-          const patientAusentes = patientSessions.filter(s => s.estado === 'ausente').length;
-          const patientAsistencia = patientCompletadas + patientAusentes > 0
-            ? Math.round((patientCompletadas / (patientCompletadas + patientAusentes)) * 100)
-            : null;
+        {patientOpen && <PatientBreadcrumb patientName={patientDetail?.name} onBack={() => navigate('patients')} />}
+        {patientOpen && !(patientDetail && patientLink) && <PatientMissing loading={loadingPatients || (permissionLoading && !permissionContext)} onBack={() => navigate('patients')} />}
+        {tab === 'patients' && selectedPatient && patientDetail && patientLink && (
+          <ProfessionalPatientCenter
+            key={patientDetail.id}
+            patient={patientDetail}
+            link={patientLink}
+            currentUserId={user.id}
+            activities={activitiesByUser[patientDetail.id] || []}
+            emotions={emotionsByUser[patientDetail.id] || []}
+            sessions={sessions}
+            initialTab={patientEntry?.tab}
+            sessionsIntent={patientEntry?.intent}
+            onSchedule={() => scheduleFromHome(patientDetail.id)}
+            onOpenReports={() => openReports(patientLink.pertenecienteId)}
+            onCreateActivity={patientLink.canAssignActivities ? () => { setBuilderPreselect([patientDetail.id]); navigate('create'); setActivitiesReturnPatientId(patientDetail.id); } : undefined}
+            onSessionsChanged={reloadSessions}
+          />
+        )}
 
-          const gatherNotesFor = async (candidatas: ProfessionalSession[]) => {
-            return Promise.all(
-              candidatas.map(async (s) => {
-                let notasTexto: string | undefined;
-                try {
-                  const note = await fetchPrivateProfessionalNote(s.id);
-                  const fileId = note?.documento_drive?.google_file_id;
-                  if (fileId) {
-                    notasTexto = await withGoogleToken((token) => getDocPlainText(token, fileId));
-                  }
-                } catch {
-                  // si falla la lectura de un doc puntual, seguimos sin su texto
-                }
-                return { id: s.id, fecha_sesion: s.fecha_sesion, titulo: s.titulo, estado: s.estado, notas_texto: notasTexto };
-              }),
-            );
-          };
-
-          const runPrepareSession = async (session: ProfessionalSession) => {
-            setPrepSession(session);
-            setPrepLoading(true);
-            setPrepError(null);
-            setPrepResult(null);
-            try {
-              const pastWithNotes = patientSessions
-                .filter(s => s.estado !== 'programada' && s.has_note)
-                .sort((a, b) => b.fecha_sesion.localeCompare(a.fecha_sesion))
-                .slice(0, 3);
-              if (pastWithNotes.length === 0) {
-                setPrepError('No hay sesiones pasadas con notas para este paciente todavía.');
-                return;
-              }
-              const sesionesPayload = await gatherNotesFor(pastWithNotes);
-              const prep = await prepareSessionSummary({
-                id_perteneciente: pertenecienteId,
-                sesion_objetivo: { titulo: session.titulo, fecha_sesion: session.fecha_sesion },
-                sesiones_pasadas: sesionesPayload,
-              });
-              setPrepResult(prep);
-            } catch (err) {
-              setPrepError(err instanceof Error ? err.message : 'No se pudo generar la preparación.');
-            } finally {
-              setPrepLoading(false);
-            }
-          };
-
-          const runAskQuestion = async () => {
-            if (!askQuestion.trim()) return;
-            setAskLoading(true);
-            setAskError(null);
-            setAskAnswer(null);
-            try {
-              const withNotes = patientSessions
-                .filter(s => s.has_note)
-                .slice(0, 6);
-              if (withNotes.length === 0) {
-                setAskError('Este paciente todavía no tiene sesiones con notas para consultar.');
-                return;
-              }
-              const sesionesPayload = await gatherNotesFor(withNotes);
-              const { respuesta } = await askAboutPatient({
-                id_perteneciente: pertenecienteId,
-                pregunta: askQuestion.trim(),
-                sesiones: sesionesPayload,
-              });
-              setAskAnswer(respuesta);
-            } catch (err) {
-              setAskError(err instanceof Error ? err.message : 'No se pudo responder la pregunta.');
-            } finally {
-              setAskLoading(false);
-            }
-          };
-
-          const downloadPatientPdf = async () => {
-            setDownloadingPatientPdf(true);
-            try {
-              const blob = await downloadPatientHistoryPdf(pertenecienteId);
-              const url = URL.createObjectURL(blob);
-              const link = document.createElement('a');
-              link.href = url;
-              link.download = `historial-${patientDetail.name.replace(/\s+/g, '-').toLowerCase()}.pdf`;
-              link.click();
-              URL.revokeObjectURL(url);
-            } catch (err) {
-              toast({
-                title: 'No se pudo generar el PDF',
-                description: err instanceof Error ? err.message : undefined,
-                variant: 'destructive',
-              });
-            } finally {
-              setDownloadingPatientPdf(false);
-            }
-          };
-
-          return (
-            <div className="space-y-4">
-              <button onClick={() => { setSelectedPatient(null); setPatientTab('overview'); setPatientNoteSession(null); }} className="text-sm text-primary font-medium">← Volver a pacientes</button>
-              {!canViewPatientHistory && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                  El tutor deshabilito ver historial para este perteneciente.
-                </div>
-              )}
-              <div className="grid grid-cols-3 gap-2">
-                {([
-                  { id: 'overview', label: 'Resumen', icon: BarChart3 },
-                  { id: 'stats', label: 'Estadísticas', icon: TrendingUp },
-                  { id: 'sessions', label: 'Sesiones', icon: CalendarClock },
-                ] as const).map(t => (
-                  <button key={t.id} onClick={() => { setPatientTab(t.id); setPatientNoteSession(null); }} className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs sm:text-sm ${patientTab === t.id ? 'gradient-primary text-primary-foreground' : 'bg-card border border-border text-muted-foreground'}`}>
-                    <t.icon size={14} /> {t.label}
-                  </button>
-                ))}
-              </div>
-
-              {patientTab === 'sessions' && (
-                patientNoteSession ? (
-                  <div className="space-y-4">
-                    <Button variant="ghost" onClick={() => setPatientNoteSession(null)}>← Volver a sesiones</Button>
-                    <ProfessionalPrivateNote session={patientNoteSession} patientName={patientDetail.name} />
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {patientSessions.length > 0 && (
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <Button size="sm" variant="outline" onClick={downloadPatientPdf} disabled={downloadingPatientPdf}>
-                          {downloadingPatientPdf ? <Loader2 size={13} className="mr-1 animate-spin" /> : <Download size={13} className="mr-1" />}
-                          Historial (PDF)
-                        </Button>
-                      </div>
-                    )}
-                    {patientAsistencia !== null && (
-                      <div className="rounded-xl border bg-muted/30 p-3 text-center">
-                        <p className="text-lg font-bold">{patientAsistencia}%</p>
-                        <p className="text-xs text-muted-foreground">Asistencia ({patientCompletadas} completadas / {patientAusentes} ausencias)</p>
-                      </div>
-                    )}
-                    {patientSessions.some(s => s.has_note) && (
-                      <div className="rounded-xl border bg-card p-3 space-y-2">
-                        <p className="text-sm font-semibold flex items-center gap-1.5">
-                          <Sparkles size={14} className="text-primary" /> Preguntale a la IA sobre este paciente
-                        </p>
-                        <div className="flex gap-2">
-                          <Input
-                            value={askQuestion}
-                            onChange={e => setAskQuestion(e.target.value)}
-                            placeholder="Ej: ¿cómo venía trabajando las rutinas visuales?"
-                            onKeyDown={e => e.key === 'Enter' && runAskQuestion()}
-                          />
-                          <Button size="sm" onClick={runAskQuestion} disabled={askLoading || !askQuestion.trim()}>
-                            {askLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                          </Button>
-                        </div>
-                        {askError && <p className="text-xs text-destructive">{askError}</p>}
-                        {askAnswer && <p className="text-sm whitespace-pre-wrap border-t pt-2">{askAnswer}</p>}
-                      </div>
-                    )}
-                    {patientSessions.length === 0 && (
-                      <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-                        Todavia no hay sesiones agendadas con este paciente.
-                      </div>
-                    )}
-                    {patientSessions.map(session => (
-                      <SessionCard
-                        key={session.id}
-                        session={session}
-                        patientName={patientDetail.name}
-                        onOpenNote={() => setPatientNoteSession(session)}
-                        onEdit={() => {
-                          setAgendaInitialPatientId(pertenecienteId || undefined);
-                          setSelectedPatient(null);
-                          navigate('calendar');
-                        }}
-                        onDelete={() => deletePatientSession(session)}
-                        onPrepare={session.estado === 'programada' ? () => runPrepareSession(session) : undefined}
-                      />
-                    ))}
-                  </div>
-                )
-              )}
-
-              <Dialog open={Boolean(prepSession)} onOpenChange={(open) => !open && setPrepSession(null)}>
-                <DialogContent className="sm:max-w-lg">
-                  <DialogHeader>
-                    <DialogTitle>Preparación — {prepSession?.titulo}</DialogTitle>
-                  </DialogHeader>
-                  {prepLoading && (
-                    <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-                      <Loader2 size={16} className="animate-spin" /> Generando preparación con IA…
-                    </div>
-                  )}
-                  {prepError && !prepLoading && (
-                    <p className="text-sm text-destructive">{prepError}</p>
-                  )}
-                  {prepResult && !prepLoading && (
-                    <Textarea readOnly value={prepResult.contenido} className="min-h-[280px] text-sm" />
-                  )}
-                  <Button variant="outline" onClick={() => setPrepSession(null)}>Cerrar</Button>
-                </DialogContent>
-              </Dialog>
-
-              {patientTab === 'stats' && canViewPatientHistory && <AdvancedStats user={patientDetail} activities={acts} emotions={emotions} />}
-              {patientTab === 'overview' && canViewPatientHistory && (<>
-              <div className="bg-card rounded-xl p-5 border border-border">
-                <div className="flex items-center gap-4 mb-4">
-                  <span className="text-5xl">{patientDetail.avatar}</span>
-                  <div>
-                    <h3 className="font-heading font-bold text-xl text-foreground">{patientDetail.name}</h3>
-                    <p className="text-sm text-muted-foreground">{patientDetail.age} años · {patientDetail.bio}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Nivel {patientDetail.level} · {patientDetail.points} pts · Racha {patientDetail.streak} días</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="text-center p-3 bg-muted/50 rounded-lg"><p className="text-2xl font-bold text-foreground">{adherence}%</p><p className="text-xs text-muted-foreground">Adherencia</p></div>
-                  <div className="text-center p-3 bg-muted/50 rounded-lg"><p className="text-2xl font-bold text-foreground">{completed}</p><p className="text-xs text-muted-foreground">Completadas</p></div>
-                  <div className="text-center p-3 bg-muted/50 rounded-lg"><p className="text-2xl font-bold text-foreground">{emotions.length}</p><p className="text-xs text-muted-foreground">Registros emoc.</p></div>
-                </div>
-              </div>
-
-              <div className="space-y-5 rounded-xl border border-border bg-card p-4">
-                <h4 className="font-heading font-semibold text-foreground flex items-center gap-2"><FileText size={16} className="text-primary" /> Registro personal</h4>
-                <section>
-                  <h5 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground"><Heart size={15} className="text-rose-500" />Emociones registradas</h5>
-                  <div className="flex gap-2 overflow-x-auto pb-2">
-                    {emotions.slice(0, 10).map(em => (
-                      <div key={em.id} className="flex min-w-[48px] flex-col items-center">
-                        <span className="text-2xl">{em.emoji}</span>
-                        <span className="text-[8px] text-muted-foreground">{em.date.slice(5)}</span>
-                        <div className="mt-0.5 flex gap-0.5">{Array.from({length:5}).map((_,i)=><span key={i} className={`h-1 w-1 rounded-full ${i<em.intensity?'bg-primary':'bg-muted'}`}/>)}</div>
-                      </div>
-                    ))}
-                    {emotions.length === 0 && <p className="text-sm text-muted-foreground">No hay emociones registradas.</p>}
-                  </div>
-                </section>
-                <section className="border-t border-border pt-4">
-                  <h5 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground"><FileText size={15} className="text-primary" />Notas del paciente</h5>
-                  <PersonalNotesList notes={personalNotes} emptyText="Este paciente todavía no tiene notas personales guardadas." />
-                </section>
-              </div>
-
-              <div className="flex gap-2">
-                {canSchedulePatient && (
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => {
-                      setAgendaInitialPatientId(Number(linkForUser(patientDetail.id)?.perteneciente.id) || undefined);
-                      setSelectedPatient(null);
-                      navigate('calendar');
-                    }}
-                  >
-                    <Calendar size={14} className="mr-1" /> Proponer sesión
-                  </Button>
-                )}
-              </div>
-              </>)}
-            </div>
-          );
-        })()}
-
-        {tab === 'create' && (canAssignActivities || canCreateCustomActivities) && <ActivityManager assignableUsers={activityPatients} />}
+        {tab === 'create' && (canAssignActivities || canCreateCustomActivities) && (
+          <div className="space-y-4">
+            {activitiesReturnPatientId && (
+              <button type="button" onClick={backToPatientFromActividades} className="inline-flex min-h-10 items-center rounded-lg border border-primary/20 bg-white px-4 text-sm font-semibold text-primary shadow-sm"><ChevronLeft size={16} className="mr-1" />Volver a {linkedUsers.find(p => p.id === activitiesReturnPatientId)?.name || 'pacientes'}</button>
+            )}
+            <ActivityManager assignableUsers={activityPatients} initialPreselectUserIds={builderPreselect} onBuilderClose={() => setBuilderPreselect(undefined)} onBack={backToPatientFromActividades} />
+          </div>
+        )}
         {tab === 'create' && !(canAssignActivities || canCreateCustomActivities) && (
           <PermissionBlocked
             title="Creacion de actividades deshabilitada"
@@ -660,17 +364,17 @@ export default function ProfessionalDashboard() {
         )}
 
         {tab === 'calendar' && canScheduleSessions && (
-          <ProfessionalCalendar patients={agendaPatients} initialPatientId={agendaInitialPatientId} />
+          <ProfessionalCalendar patients={agendaPatients} initialPatientId={agendaInitialPatientId} onPrepareSession={prepareSessionFromHome} />
         )}
         {tab === 'calendar' && !canScheduleSessions && (
           <PermissionBlocked title="Calendario deshabilitado" description="No tenés permisos activos para gestionar sesiones con tus pacientes vinculados." />
         )}
-        {tab === 'documents' && <ProfessionalDocumentsArea onOpenPatients={() => navigate('patients')} />}
-        {tab === 'reports' && <ProfessionalReportsPanel patients={agendaPatients} />}
+        {tab === 'documents' && <ProfessionalDocuments sessions={sessions} patients={notePatients} onRefresh={reloadSessions} />}
+        {tab === 'reports' && <ProfessionalReports patients={agendaPatients} initialPatientId={reportsPatientId} />}
         {tab === 'resources' && <ProfessionalResourceHub onNavigate={navigate} />}
         {tab === 'pictograms' && <AiPictogramStudio />}
         {tab === 'pictogramCatalog' && <UserPictograms />}
-        {tab === 'profile' && <ProfessionalProfileSettings />}
+        {tab === 'profile' && <ProfessionalProfileSettings patients={linkedUsers} />}
         {tab === 'about' && <AboutTandem />}
 
         {tab === 'tools' && (
@@ -775,16 +479,18 @@ export default function ProfessionalDashboard() {
 
             <div className="bg-card rounded-xl p-4 border border-border">
               <h3 className="font-heading font-semibold text-foreground mb-3">📄 Reportes</h3>
-              <ProfessionalReportsPanel patients={agendaPatients} />
+              <p className="mb-3 text-sm text-muted-foreground">Armá, leé y mandá reportes a las familias.</p>
+              <Button type="button" className="min-h-11" onClick={() => navigate('reports')}>Ir a Reportes</Button>
             </div>
           </div>
         )}
 
+      </div>
       </main>
-      <BelongingMobileBottomNav activeTab={tab} onNavigate={(next) => navigate(next as ProfessionalTab)} destinations={mobileDestinations} forceExpanded={quickOpen} center={(compactProgress) => <ProfessionalQuickMenu open={quickOpen} onOpenChange={setQuickOpen} compactProgress={compactProgress} permissions={navigationPermissions} onAction={(action: ProfessionalQuickAction) => {
-        if (action === 'session') { setAgendaInitialPatientId(undefined); navigate('calendar'); }
-        if (action === 'note') { navigate('patients'); toast({ title: 'Elegí una sesión', description: 'La nota clínica se guarda dentro de la sesión del paciente correspondiente.' }); }
+      <BelongingMobileBottomNav activeTab={tab} onNavigate={(next) => navigate(next as ProfessionalTab)} destinations={mobileDestinations} forceExpanded={quickOpen} scrollContainerRef={mainRef} center={(compactProgress) => <ProfessionalQuickMenu open={quickOpen} onOpenChange={setQuickOpen} compactProgress={compactProgress} permissions={navigationPermissions} onAction={(action: ProfessionalQuickAction) => {
         if (action === 'activity') navigate('create');
+        if (action === 'resources') navigate('resources');
+        if (action === 'documents') navigate('documents');
         if (action === 'pictogram') navigate('pictograms');
       }} />}/>
     </div>
@@ -797,7 +503,7 @@ function ProfessionalResourceHub({ onNavigate }: { onNavigate: (tab: Professiona
     { id: 'pictogramCatalog' as const, title: 'Explorar pictogramas', text: 'Buscá recursos visuales por categorías y temas.', icon: Image },
     { id: 'tools' as const, title: 'Herramientas profesionales', text: 'Vínculos, métricas y seguimiento operativo.', icon: ClipboardPlus },
   ];
-  return <div className="space-y-5"><header><h1 className="font-heading text-3xl font-bold">Recursos y herramientas</h1><p className="mt-2 text-sm text-muted-foreground sm:text-base">Materiales visuales y utilidades para tu práctica.</p></header><div className="grid gap-4 md:grid-cols-3">{areas.map(area => <button key={area.id} type="button" onClick={() => onNavigate(area.id)} className="min-h-44 rounded-[26px] border border-white/80 bg-white/90 p-5 text-left shadow-[0_12px_36px_rgba(70,45,96,.075)] transition hover:-translate-y-0.5 hover:border-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary"><area.icon size={22} aria-hidden /></span><h2 className="mt-4 font-bold">{area.title}</h2><p className="mt-1 text-sm text-muted-foreground">{area.text}</p></button>)}</div></div>;
+  return <div className="space-y-5"><header><h1 className="font-heading text-3xl font-bold">Recursos y herramientas</h1><p className="mt-2 text-sm text-muted-foreground sm:text-base">Materiales visuales y utilidades para tu práctica.</p></header><div className="grid gap-4 md:grid-cols-3">{areas.map(area => <button key={area.id} type="button" onClick={() => onNavigate(area.id)} className="min-h-44 rounded-[24px] border border-[#ece3f8] bg-white p-5 text-left shadow-[0_8px_24px_#f0e8f8] transition hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary"><area.icon size={22} aria-hidden /></span><h2 className="mt-4 font-bold text-[#2e2344]">{area.title}</h2><p className="mt-1 text-sm text-muted-foreground">{area.text}</p></button>)}</div></div>;
 }
 
 function ProfessionalHomeSkeleton() {
@@ -808,6 +514,3 @@ function ProfessionalHomeSkeleton() {
   </div>;
 }
 
-function ProfessionalDocumentsArea({ onOpenPatients }: { onOpenPatients: () => void }) {
-  return <div className="space-y-5"><header><h1 className="font-heading text-3xl font-bold">Documentos y notas</h1><p className="mt-2 text-sm text-muted-foreground sm:text-base">Archivos de Drive y notas clínicas organizados dentro de tu práctica.</p></header><button type="button" onClick={onOpenPatients} className="flex min-h-24 w-full items-center gap-4 rounded-3xl border border-white/80 bg-white/90 p-4 text-left shadow-sm transition hover:border-primary/20 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600"><FileText size={21} aria-hidden /></span><span className="min-w-0 flex-1"><span className="block font-bold">Notas clínicas</span><span className="block text-sm text-muted-foreground">Elegí un paciente y una sesión para consultar o escribir su nota privada.</span></span><span className="text-sm font-semibold text-primary">Ver pacientes</span></button><section className="rounded-3xl border border-white/80 bg-white/90 p-4 shadow-sm sm:p-5"><h2 className="mb-4 flex items-center gap-2 text-lg font-bold"><FolderOpen className="text-primary" aria-hidden />Documentos</h2><DriveExplorer /></section></div>;
-}

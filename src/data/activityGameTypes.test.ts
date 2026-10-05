@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { ACTIVITY_GAME_TYPES, emptyGameData, gameTypeOrder, isGameTypeAvailable } from './activityGameTypes';
 
 describe('activity game type catalog', () => {
-  it('prioritizes the five manually developed game types', () => {
-    expect(ACTIVITY_GAME_TYPES.slice(0, 5).map(option => option.type)).toEqual([
-      'multiple-choice', 'drag-word', 'wheel', 'memory', 'routine-sequence',
+  it('prioritizes the manually developed game types', () => {
+    expect(ACTIVITY_GAME_TYPES.slice(0, 6).map(option => option.type)).toEqual([
+      'multiple-choice', 'drag-word', 'wheel', 'memory', 'routine-sequence', 'resource-scenario',
     ]);
-    expect(ACTIVITY_GAME_TYPES.slice(0, 5).every(option => option.available)).toBe(true);
-    expect(ACTIVITY_GAME_TYPES.slice(5).every(option => !option.available)).toBe(true);
+    expect(ACTIVITY_GAME_TYPES.slice(0, 6).every(option => option.available)).toBe(true);
+    expect(ACTIVITY_GAME_TYPES.slice(6).every(option => !option.available)).toBe(true);
   });
 
   it('orders available templates before future types', () => {
@@ -20,5 +20,6 @@ describe('activity game type catalog', () => {
     expect(emptyGameData('drag-word').dragRounds?.[0].correct).toBe('');
     expect(emptyGameData('memory').memory?.pairs).toEqual([]);
     expect(emptyGameData('routine-sequence').routineSequence?.cards).toEqual([]);
+    expect(emptyGameData('resource-scenario').resourceScenario).toMatchObject({ kind: 'shopping-budget', budget: 10 });
   });
 });

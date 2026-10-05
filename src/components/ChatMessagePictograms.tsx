@@ -17,23 +17,30 @@ export default function ChatMessagePictograms({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
   const [results, setResults] = useState<PictogramizedPhrase[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
 
-  const toggle = async () => {
+  const translate = async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const phrases = splitIntoPhrases(text).map((t, i) => ({ id: String(i), text: t }));
+      const translated = await pictogramizePhrases(phrases, { throwOnError: true });
+      setResults(translated);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggle = () => {
     if (open) {
       setOpen(false);
       return;
     }
     setOpen(true);
     if (results) return;
-
-    setLoading(true);
-    try {
-      const phrases = splitIntoPhrases(text).map((t, i) => ({ id: String(i), text: t }));
-      const translated = await pictogramizePhrases(phrases);
-      setResults(translated);
-    } finally {
-      setLoading(false);
-    }
+    void translate();
   };
 
   return (
@@ -47,7 +54,18 @@ export default function ChatMessagePictograms({ text }: { text: string }) {
       </button>
       {open && (
         loading ? (
-          <p className="mt-1 text-[10px] opacity-70">Traduciendo…</p>
+          <p className="mt-1 text-[10px] opacity-70">Cargando pictogramas…</p>
+        ) : error ? (
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 rounded-lg bg-red-50 px-2 py-1.5">
+            <span className="text-[10px] text-red-600">No se pudieron cargar los pictogramas.</span>
+            <button
+              type="button"
+              onClick={() => void translate()}
+              className="text-[10px] font-bold text-red-600 underline underline-offset-2 hover:text-red-700"
+            >
+              Reintentar
+            </button>
+          </div>
         ) : results && results.length > 0 ? (
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {results.map((r) => (

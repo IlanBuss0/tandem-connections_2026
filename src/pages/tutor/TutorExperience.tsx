@@ -1,16 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Activity, Bell, CalendarDays, CheckCircle2, ChevronRight, Clock,
-  Heart, Image, Link2, MessageCircle, Settings, Sparkles, Users,
+  Activity, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock,
+  Heart, Image, Link2, MessageCircle, Sparkles, Users,
 } from 'lucide-react';
 import AppHeader from '@/components/AppHeader';
-import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 import NotificationBellButton, { useUnreadNotifications } from '@/components/NotificationBellButton';
 import BelongingMobileBottomNav from '@/components/belonging/BelongingMobileBottomNav';
 import ActivityManager from '@/components/ActivityManager';
 import AiPictogramStudio from '@/components/AiPictogramStudio';
 import ChatScreen from '@/components/ChatScreen';
-import PersonalEventCalendar from '@/components/PersonalEventCalendar';
+import TutorCalendar from '@/components/tutor/TutorCalendar';
 import ProfessionalDirectory from '@/components/ProfessionalDirectory';
 import TutorReportsPanel from '@/components/TutorReportsPanel';
 import TutorConnections from '@/pages/tutor/TutorConnections';
@@ -18,9 +17,10 @@ import UserNotifications from '@/pages/user/UserNotifications';
 import UserPictograms from '@/pages/user/UserPictograms';
 import AboutTandem from '@/pages/AboutTandem';
 import { aggregateTutorEvents, type TutorAggregateEvent } from '@/lib/tutorEventAggregation';
-import { TutorDrawer, TutorProfileDrawer, TutorQuickMenu, type TutorTab } from '@/components/tutor/TutorNavigation';
-import TutorLinkedDetail from '@/components/tutor/TutorLinkedDetail';
+import { TutorAccountMenu, TutorDrawer, TutorQuickMenu, type TutorTab } from '@/components/tutor/TutorNavigation';
+import PertenecienteDetail from '@/components/perteneciente/PertenecienteDetail';
 import TutorHome from '@/components/tutor/TutorHome';
+import TutorAccountSettings from '@/components/tutor/TutorAccountSettings';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSyncMobileMenuOpen } from '@/contexts/MobileMenuState';
@@ -29,7 +29,11 @@ import type { TutorAggregateActivity as AggregateActivity, TutorAggregateEmotion
 import {
   createCalendarEvent, deleteCalendarEvent, fetchCalendarEventsForUser, fetchPictograms,
   fetchTutorHome, updateCalendarEvent, type CalendarEvent, type Pictogram, type TutorHomeData,
-  type TutorHomeLinkedUser,
+  type TutorHomeLinkedUser, fetchAcompanamiento, createSharedSupportNote, deleteSharedSupportNote,
+  createSharedSupportAgreement, updateSharedSupportAgreement, askSharedSupportQuestion,
+  createSharedSupportObjective, updateSharedSupportObjective,
+  fetchSupportNetwork, fetchProfessionalSessions, fetchTutorReports,
+  type AcompanamientoData, type GeneratedReport, type ProfessionalSession, type SupportNetworkMember,
 } from '@/data/api';
 
 const tutorPageLabels: Partial<Record<TutorTab, string>> = {
@@ -62,6 +66,14 @@ export default function TutorExperience() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
   const [selectedNotificationChatId, setSelectedNotificationChatId] = useState<string | undefined>();
+  const [chatFocusUserId, setChatFocusUserId] = useState<string | undefined>();
+  const [activityPreselect, setActivityPreselect] = useState<string[] | undefined>();
+  const [activitiesReturnOwnerId, setActivitiesReturnOwnerId] = useState<string | null>(null);
+  const [supportData, setSupportData] = useState<AcompanamientoData | null>(null);
+  const [supportNetwork, setSupportNetwork] = useState<SupportNetworkMember[]>([]);
+  const [detailSessions, setDetailSessions] = useState<ProfessionalSession[]>([]);
+  const [reports, setReports] = useState<GeneratedReport[]>([]);
+  const mainRef = useRef<HTMLElement>(null);
   const { unreadCount, setUnreadCount } = useUnreadNotifications(user?.role === 'tutor' ? { id: String(user.id) } : null);
   useSyncMobileMenuOpen(menuOpen || profileOpen || quickOpen);
 
@@ -69,12 +81,13 @@ export default function TutorExperience() {
     if (!user || user.role !== 'tutor') return;
     setLoading(true); setError(null);
     try {
-      const [home, ownEvents, pics] = await Promise.all([
+      const [home, ownEvents, pics, tutorReports] = await Promise.all([
         fetchTutorHome(user.id),
         fetchCalendarEventsForUser(user.id).catch(() => []),
         fetchPictograms({ limit: 6 }).catch(() => []),
+        fetchTutorReports().catch(() => []),
       ]);
-      setData(home); setTutorEvents(ownEvents); setPictograms(pics);
+      setData(home); setTutorEvents(ownEvents); setPictograms(pics); setReports(tutorReports);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'No pudimos cargar la experiencia del tutor.');
     } finally { setLoading(false); }
@@ -99,16 +112,40 @@ export default function TutorExperience() {
     return { activities, emotions, events };
   }, [data, linkedUsers, tutorEvents]);
 
+  const detailOwner = linkedUsers.find(item => item.id === detailUserId);
+  const reloadSupport = useCallback(async () => {
+    if (!detailOwner) { setSupportData(null); return; }
+    setSupportData(await fetchAcompanamiento(Number(detailOwner.pertenecienteId)));
+  }, [detailOwner]);
+  useEffect(() => {
+    setSupportData(null);
+    setSupportNetwork([]);
+    setDetailSessions([]);
+    if (detailOwner) {
+      const pertenecienteId = Number(detailOwner.pertenecienteId);
+      void reloadSupport().catch(() => setSupportData(null));
+      void fetchSupportNetwork(pertenecienteId).then(setSupportNetwork).catch(() => setSupportNetwork([]));
+      void fetchProfessionalSessions(pertenecienteId).then(setDetailSessions).catch(() => setDetailSessions([]));
+    }
+  }, [detailOwner, reloadSupport]);
   if (!user || user.role !== 'tutor') return null;
 
-  const navigate = (next: TutorTab, context?: { detailUserId?: string | null; chatId?: string }) => { setMenuOpen(false); setProfileOpen(false); setQuickOpen(false); navigateRoute(next, context); };
+  const navigate = (next: TutorTab, context?: { detailUserId?: string | null; chatId?: string }) => { setMenuOpen(false); setProfileOpen(false); setQuickOpen(false); mainRef.current?.scrollTo({ top: 0 }); navigateRoute(next, context); };
   const openDetail = (id: string) => navigate('detail', { detailUserId: id });
+  const focusChatWith = (ownerId: string) => { setSelectedNotificationChatId(undefined); setChatFocusUserId(ownerId); navigate('chat'); };
+  const createActivityFor = (ownerId: string) => { setActivityPreselect([ownerId]); setActivitiesReturnOwnerId(ownerId); navigate('activities'); };
+  const backToOwnerFromActivities = () => {
+    if (!activitiesReturnOwnerId) return;
+    const ownerId = activitiesReturnOwnerId;
+    setActivitiesReturnOwnerId(null);
+    setActivityPreselect(undefined);
+    openDetail(ownerId);
+  };
   const chatProfiles = [{ id: String(user.id), name: user.name, avatar: user.avatar, label: 'Tutor' }, ...linkedUsers.map(item => ({ id: item.id, name: item.name, avatar: item.avatar, label: 'Perteneciente' }))];
-  const detailOwner = linkedUsers.find(item => item.id === detailUserId);
   const pageTitle = tab === 'detail' ? detailOwner?.name || 'Detalle' : tutorPageLabels[tab] || 'TÁNDEM';
 
   return (
-    <div className="min-h-dvh overflow-x-hidden bg-[radial-gradient(circle_at_88%_4%,rgba(220,203,245,0.48),transparent_24rem),linear-gradient(180deg,#fbf9ff_0%,#f8f7fc_100%)] pb-24 lg:pb-0">
+    <div className="flex h-dvh flex-col overflow-hidden bg-[radial-gradient(circle_at_88%_4%,rgba(220,203,245,0.48),transparent_24rem),linear-gradient(180deg,#fbf9ff_0%,#f8f7fc_100%)] pb-24 lg:pb-0">
       <a href="#tutor-main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-[100] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2">Saltar al contenido</a>
       <AppHeader
         onMenuClick={() => setMenuOpen(true)}
@@ -119,14 +156,14 @@ export default function TutorExperience() {
         menuButtonClassName="invisible pointer-events-none lg:visible lg:pointer-events-auto"
         rightSlot={<div className="flex items-center gap-2">
           <NotificationBellButton count={unreadCount} onClick={() => navigate('notifications')} className="border-0 bg-transparent" />
-          <button type="button" onClick={() => setProfileOpen(true)} aria-label="Abrir perfil y cuenta" className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><HeaderUserAvatar avatar={user.avatar} name={user.name} /></button>
+          <TutorAccountMenu open={profileOpen} onOpenChange={(open) => { setProfileOpen(open); if (open) { setMenuOpen(false); setQuickOpen(false); } }} user={user} onNavigate={navigate} onLogout={logout} />
         </div>}
       />
 
       <TutorDrawer open={menuOpen} active={tab} onClose={() => setMenuOpen(false)} onNavigate={navigate} onLogout={logout} />
-      <TutorProfileDrawer open={profileOpen} user={user} onClose={() => setProfileOpen(false)} onNavigate={navigate} onLogout={logout} />
 
-      <main id="tutor-main" tabIndex={-1} className="mx-auto w-full max-w-[1280px] px-4 py-6 sm:px-6 lg:px-8 lg:py-9">
+      <main ref={mainRef} id="tutor-main" tabIndex={-1} className="min-h-0 w-full flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 lg:py-9">
+       <div className="mx-auto w-full max-w-[1280px]">
         {tab !== 'home' && <TutorBreadcrumb current={pageTitle} parent={tab === 'detail' ? 'Personas vinculadas' : undefined} onBack={() => goBack('home')} />}
         {loading ? <TutorSkeleton /> : error ? <ErrorState message={error} onRetry={load} /> : (
           <TutorContent
@@ -134,17 +171,22 @@ export default function TutorExperience() {
             activities={aggregates.activities} emotions={aggregates.emotions} events={aggregates.events}
             tutorEvents={tutorEvents} pictograms={pictograms}
             detailUserId={detailUserId} chatProfiles={chatProfiles} selectedNotificationChatId={selectedNotificationChatId}
-            onNavigate={navigate} onOpenDetail={openDetail}
+            chatFocusUserId={chatFocusUserId} activityPreselect={activityPreselect} activitiesReturnOwnerId={activitiesReturnOwnerId}
+            supportData={supportData} supportNetwork={supportNetwork} detailSessions={detailSessions} reports={reports} onReloadSupport={reloadSupport}
+            onNavigate={navigate} onOpenDetail={openDetail} onFocusChat={focusChatWith} onCreateActivityFor={createActivityFor}
+            onClearActivityPreselect={() => setActivityPreselect(undefined)} onBackToOwnerFromActivities={backToOwnerFromActivities}
             onUnreadCountChange={setUnreadCount} onSelectNotificationChat={setSelectedNotificationChatId}
             onTutorEventsChange={setTutorEvents}
           />
         )}
+       </div>
       </main>
 
       <BelongingMobileBottomNav
         activeTab={tab === 'home' ? 'home' : tab}
         onNavigate={(id) => navigate(id as TutorTab)}
         forceExpanded={quickOpen}
+        scrollContainerRef={mainRef}
         center={(compactProgress) => <TutorQuickMenu open={quickOpen} onOpenChange={setQuickOpen} compactProgress={compactProgress} onAction={(action) => {
           if (action === 'activity') navigate('activities');
           if (action === 'event') navigate('calendar');
@@ -161,15 +203,24 @@ function TutorContent(props: {
   activities: AggregateActivity[]; emotions: AggregateEmotion[]; events: TutorAggregateEvent[]; tutorEvents: CalendarEvent[];
   pictograms: Pictogram[]; detailUserId: string | null;
   chatProfiles: { id: string; name: string; avatar?: string | null; label: string }[]; selectedNotificationChatId?: string;
+  chatFocusUserId?: string; activityPreselect?: string[]; activitiesReturnOwnerId: string | null;
+  supportData: AcompanamientoData | null; supportNetwork: SupportNetworkMember[]; detailSessions: ProfessionalSession[]; reports: GeneratedReport[]; onReloadSupport: () => Promise<void>;
   onNavigate: (tab: TutorTab, context?: { detailUserId?: string | null; chatId?: string }) => void; onOpenDetail: (id: string) => void;
+  onFocusChat: (ownerId: string) => void; onCreateActivityFor: (ownerId: string) => void;
+  onClearActivityPreselect: () => void; onBackToOwnerFromActivities: () => void;
   onUnreadCountChange: (count: number) => void; onSelectNotificationChat: (id?: string) => void;
   onTutorEventsChange: (events: CalendarEvent[]) => void;
 }) {
   const { tab } = props;
   if (tab === 'home') return <TutorHome userName={props.userName} data={props.data} linkedUsers={props.linkedUsers} activities={props.activities} emotions={props.emotions} events={props.events} pictograms={props.pictograms} onNavigate={props.onNavigate} onOpenDetail={props.onOpenDetail} />;
-  if (tab === 'activities') return <ActivitiesPage activities={props.activities} linkedUsers={props.linkedUsers} />;
+  if (tab === 'activities') return <ActivitiesPage
+    activities={props.activities} linkedUsers={props.linkedUsers}
+    preselectUserIds={props.activityPreselect} onBuilderClose={props.onClearActivityPreselect}
+    returnOwnerName={props.activitiesReturnOwnerId ? props.linkedUsers.find(item => item.id === props.activitiesReturnOwnerId)?.name : undefined}
+    onBackToOwner={props.activitiesReturnOwnerId ? props.onBackToOwnerFromActivities : undefined}
+  />;
   if (tab === 'calendar') return <CalendarPage {...props} />;
-  if (tab === 'chat') return <ChatProvider><ChatScreen key={props.selectedNotificationChatId || 'tutor-chat'} profiles={props.chatProfiles} defaultProfileId={props.userId} defaultSelectedId={props.selectedNotificationChatId} /></ChatProvider>;
+  if (tab === 'chat') return <ChatProvider><ChatScreen key={props.selectedNotificationChatId || 'tutor-chat'} profiles={props.chatProfiles} defaultProfileId={props.userId} defaultSelectedId={props.selectedNotificationChatId} focusUserId={props.chatFocusUserId} /></ChatProvider>;
   if (tab === 'notifications') return <UserNotifications onUnreadCountChange={props.onUnreadCountChange} onNavigate={(next, params) => {
     if (next === 'chat') { const chatId = params?.chatId ? String(params.chatId) : undefined; props.onSelectNotificationChat(chatId); props.onNavigate('chat', { chatId }); }
     else if (next === 'calendar') props.onNavigate('calendar');
@@ -180,12 +231,36 @@ function TutorContent(props: {
   if (tab === 'professionals') return <ProfessionalDirectory />;
   if (tab === 'pictograms') return <AiPictogramStudio />;
   if (tab === 'pictogramCatalog') return <UserPictograms />;
-  if (tab === 'connections') return <ConnectionsPage users={props.linkedUsers} onOpenDetail={props.onOpenDetail} />;
+  if (tab === 'connections') return <TutorConnections onOpenDetail={props.onOpenDetail} />;
   if (tab === 'about') return <AboutTandem />;
-  if (tab === 'profile') return <AccountPage name={props.userName} />;
+  if (tab === 'profile') return <TutorAccountSettings linkedUsers={props.linkedUsers} onManageConnections={() => props.onNavigate('connections')} />;
   if (tab === 'detail') {
     const owner = props.linkedUsers.find(item => item.id === props.detailUserId);
-    return owner ? <TutorLinkedDetail owner={owner} data={props.data.byUserId[owner.id]} onNavigate={props.onNavigate} onOpenChat={(id) => { props.onSelectNotificationChat(id); props.onNavigate('chat', { chatId: id }); }} /> : <ErrorState message="No encontramos a esa persona vinculada." onRetry={() => props.onNavigate('connections')} />;
+    const detail = owner && props.data.byUserId[owner.id];
+    const ownerReports = owner ? props.reports.filter(report => String(report.id_perteneciente) === String(owner.pertenecienteId)) : [];
+    return owner ? <PertenecienteDetail
+      person={owner}
+      role="tutor"
+      activities={detail?.activities}
+      emotions={detail?.emotions}
+      events={detail?.events}
+      sessions={props.detailSessions}
+      supportData={props.supportData || undefined}
+      reports={ownerReports}
+      supportNetwork={props.supportNetwork}
+      currentUserId={props.userId}
+      canViewHistory
+      onCreateSharedNote={async content => { await createSharedSupportNote(Number(owner.pertenecienteId), content); await props.onReloadSupport(); }}
+      onDeleteSharedNote={async id => { await deleteSharedSupportNote(Number(owner.pertenecienteId), id); await props.onReloadSupport(); }}
+      onCreateObjective={async input => { await createSharedSupportObjective(Number(owner.pertenecienteId), input); await props.onReloadSupport(); }}
+      onUpdateObjective={async (id, input) => { await updateSharedSupportObjective(Number(owner.pertenecienteId), id, input); await props.onReloadSupport(); }}
+      onCreateAgreement={async texto => { await createSharedSupportAgreement(Number(owner.pertenecienteId), texto); await props.onReloadSupport(); }}
+      onToggleAgreement={async (id, completado) => { await updateSharedSupportAgreement(Number(owner.pertenecienteId), id, { completado }); await props.onReloadSupport(); }}
+      onAskAI={async question => (await askSharedSupportQuestion(Number(owner.pertenecienteId), question)).respuesta}
+      onOpenChat={() => props.onFocusChat(owner.id)}
+      onCreateActivity={() => props.onCreateActivityFor(owner.id)}
+      onOpenCalendar={() => props.onNavigate('calendar')}
+    /> : <ErrorState message="No encontramos a esa persona vinculada." onRetry={() => props.onNavigate('connections')} />;
   }
   return null;
 }
@@ -259,44 +334,36 @@ function TutorHomeLegacy(props: Parameters<typeof TutorContent>[0]) {
   </div>;
 }
 
-function ActivitiesPage({ activities, linkedUsers }: { activities: AggregateActivity[]; linkedUsers: TutorHomeLinkedUser[] }) {
+function ActivitiesPage({ activities, linkedUsers, preselectUserIds, onBuilderClose, returnOwnerName, onBackToOwner }: {
+  activities: AggregateActivity[]; linkedUsers: TutorHomeLinkedUser[];
+  preselectUserIds?: string[]; onBuilderClose?: () => void;
+  returnOwnerName?: string; onBackToOwner?: () => void;
+}) {
   const completed = activities.filter(item => item.completed).length;
-  return <div className="space-y-5"><PageHeading title="Actividades" subtitle="Creá, asigná y seguí actividades sin cambiar el contexto general de la aplicación." />
+  const [visibleCount, setVisibleCount] = useState(3);
+  const visible = activities.slice(0, visibleCount);
+  return <div className="space-y-5">
+    {onBackToOwner && <button type="button" onClick={onBackToOwner} className="inline-flex min-h-10 items-center rounded-lg border border-primary/20 bg-white px-4 text-sm font-semibold text-primary shadow-sm"><ChevronLeft size={16} className="mr-1" />Volver a {returnOwnerName || 'la persona'}</button>}
+    <PageHeading title="Actividades" subtitle="Creá, asigná y seguí actividades sin cambiar el contexto general de la aplicación." />
     <div className="grid grid-cols-3 gap-3"><MetricCard value={activities.length} label="Total asignadas" /><MetricCard value={completed} label="Completadas" /><MetricCard value={activities.length - completed} label="Pendientes" /></div>
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,.75fr)]">
-      <section className="rounded-3xl border border-border/80 bg-card p-4 shadow-[0_12px_34px_rgba(67,45,96,0.06)] sm:p-5"><h2 className="text-lg font-bold">Actividad de todos los vinculados</h2><p className="mb-4 text-sm text-muted-foreground">La persona aparece como contexto, no como filtro obligatorio.</p><div className="divide-y divide-border">{activities.map(item => <div key={`${item.owner.id}-${item.id}`} className="grid min-h-16 grid-cols-[1fr_auto] items-center gap-3 py-3"><span className="min-w-0"><span className="flex items-center gap-2"><span className="truncate text-sm font-semibold">{item.title}</span><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${item.completed ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{item.status}</span></span><span className="mt-1 block truncate text-xs text-muted-foreground">{item.description}</span></span><PersonChip owner={item.owner} /></div>)}{activities.length === 0 && <EmptyState text="Todavía no hay actividades asignadas." />}</div></section>
-      <ActivityManager assignableUsers={linkedUsers} />
+      <section className="order-2 xl:order-none rounded-3xl border border-border/80 bg-card p-4 shadow-[0_12px_34px_rgba(67,45,96,0.06)] sm:p-5"><h2 className="text-lg font-bold">Actividad de todos los vinculados</h2><p className="mb-4 text-sm text-muted-foreground">La persona aparece como contexto, no como filtro obligatorio.</p><div className="divide-y divide-border">{visible.map(item => <div key={`${item.owner.id}-${item.id}`} className="grid min-h-16 grid-cols-[1fr_auto] items-center gap-3 py-3"><span className="min-w-0"><span className="flex items-center gap-2"><span className="truncate text-sm font-semibold">{item.title}</span><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${item.completed ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{item.status}</span></span><span className="mt-1 block truncate text-xs text-muted-foreground">{item.description}</span></span><PersonChip owner={item.owner} /></div>)}{activities.length === 0 && <EmptyState text="Todavía no hay actividades asignadas." />}</div>{visibleCount > 3 && <button type="button" onClick={() => setVisibleCount(3)} className="mt-3 w-full min-h-11 rounded-xl border border-border bg-card text-sm font-semibold text-primary transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Ver menos</button>}{visibleCount < activities.length && <button type="button" onClick={() => setVisibleCount(v => v + 5)} className="mt-2 w-full min-h-11 rounded-xl border border-border bg-card text-sm font-semibold text-primary transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Ver más</button>}</section>
+       <ActivityManager assignableUsers={linkedUsers} initialPreselectUserIds={preselectUserIds} onBuilderClose={onBuilderClose} onBack={onBackToOwner} />
     </div>
   </div>;
 }
 
 function CalendarPage(props: Parameters<typeof TutorContent>[0]) {
-  const [saving, setSaving] = useState(false);
-  const upcomingEvents = props.events.filter(event => parseDate(`${event.date}T${event.time || '00:00'}`) >= Date.now() - 3600000).slice(0, 10);
   const refresh = async () => props.onTutorEventsChange(await fetchCalendarEventsForUser(props.userId).catch(() => props.tutorEvents));
-  return <div className="space-y-5"><PageHeading title="Calendario" subtitle="Organizá tu agenda. Cuando un evento corresponde a alguien, elegilo dentro del evento." />
-    <PersonalEventCalendar
-      heading="Agenda del tutor"
-      events={props.tutorEvents}
-      patients={props.linkedUsers.map(item => ({ id: item.id, name: item.name }))}
-      loading={saving}
-      onCreate={async payload => { setSaving(true); try { await createCalendarEvent(props.userId, payload); await refresh(); } finally { setSaving(false); } }}
-      onUpdate={async (id, patch) => { setSaving(true); try { await updateCalendarEvent(id, patch); await refresh(); } finally { setSaving(false); } }}
-      onDelete={async id => { setSaving(true); try { await deleteCalendarEvent(id); await refresh(); } finally { setSaving(false); } }}
-    />
-    <section className="rounded-3xl border border-border/80 bg-card p-4 shadow-sm"><h2 className="text-lg font-bold">Próximos eventos</h2><div className="mt-3 divide-y divide-border">{upcomingEvents.map(event => <div key={`${event.userId}-${event.id}`} className="grid min-h-14 grid-cols-[80px_1fr_auto] items-center gap-3 py-2"><span className="text-xs font-semibold text-primary">{event.date}<br />{event.time}</span><span className="truncate text-sm font-semibold">{event.title}</span><EventContextChip owner={event.owner} /></div>)}{upcomingEvents.length === 0 && <EmptyState text="No hay eventos futuros para mostrar." />}</div></section>
-  </div>;
-}
-
-function ConnectionsPage({ users, onOpenDetail }: { users: TutorHomeLinkedUser[]; onOpenDetail: (id: string) => void }) {
-  return <div className="space-y-5"><PageHeading title="Personas vinculadas" subtitle="Consultá perfiles y administrá vínculos sin convertir a una persona en el contexto global." />
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{users.map(owner => <button key={owner.id} type="button" onClick={() => onOpenDetail(owner.id)} className="flex min-h-24 items-center gap-4 rounded-3xl border border-border/80 bg-card p-4 text-left shadow-sm transition hover:border-primary/30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{ownerAvatar(owner, 'h-14 w-14')}<span className="min-w-0 flex-1"><span className="block truncate font-bold">{owner.name}</span><span className="block truncate text-xs text-muted-foreground">{owner.supportLevel} · {owner.linkStatus}</span></span><ChevronRight className="text-muted-foreground" aria-hidden /></button>)}{users.length === 0 && <EmptyState text="Todavía no hay personas vinculadas." />}</div>
-    <TutorConnections />
-  </div>;
-}
-
-function AccountPage({ name }: { name: string }) {
-  return <div className="space-y-5"><PageHeading title="Perfil y cuenta" subtitle="Tu información como Tutor y las preferencias generales de la aplicación." /><section className="rounded-3xl border border-border/80 bg-card p-6 shadow-sm"><div className="flex items-center gap-4"><HeaderUserAvatar name={name} /><div><h2 className="font-bold">{name}</h2><p className="text-sm text-muted-foreground">Tutor de TÁNDEM</p></div></div><div className="mt-6 grid gap-3 sm:grid-cols-2"><div className="rounded-2xl bg-muted/50 p-4"><Settings className="text-primary" aria-hidden /><p className="mt-2 font-semibold">Configuración</p><p className="text-sm text-muted-foreground">Las preferencias de accesibilidad se mantienen disponibles desde el widget global.</p></div><div className="rounded-2xl bg-muted/50 p-4"><Bell className="text-primary" aria-hidden /><p className="mt-2 font-semibold">Notificaciones</p><p className="text-sm text-muted-foreground">Abrilas desde la campana del encabezado.</p></div></div></section></div>;
+  return <TutorCalendar
+    tutorUserId={props.userId}
+    events={props.events}
+    tutorEvents={props.tutorEvents}
+    linkedUsers={props.linkedUsers}
+    onCreate={async payload => { await createCalendarEvent(props.userId, payload); await refresh(); }}
+    onUpdate={async (id, patch) => { await updateCalendarEvent(id, patch); await refresh(); }}
+    onDelete={async id => { await deleteCalendarEvent(id); await refresh(); }}
+  />;
 }
 
 function DashboardCard({ title, icon: Icon, action, onAction, children }: { title: string; icon: typeof Activity; action?: string; onAction?: () => void; children: React.ReactNode }) {

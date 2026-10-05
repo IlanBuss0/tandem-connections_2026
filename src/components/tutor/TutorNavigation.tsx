@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { BarChart3, CalendarDays, CheckCircle2, FileText, Image, Info, Link2, LogOut, MessageCircle, Plus, Sparkles, UserRound, Users, X } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { BarChart3, CalendarDays, CheckCircle2, FileText, Image, Info, Link2, LogOut, MessageCircle, Plus, Settings, Sparkles, UserRound, Users, X } from 'lucide-react';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 
 export type TutorTab = 'home' | 'calendar' | 'activities' | 'chat' | 'notifications' | 'reports' | 'professionals' | 'pictograms' | 'pictogramCatalog' | 'connections' | 'profile' | 'about' | 'detail';
@@ -27,11 +28,11 @@ export function TutorDrawer({ open, active, onClose, onNavigate, onLogout }: Dra
   const ref = useRef<HTMLElement>(null);
   const reduceMotion = useReducedMotion();
   useEscapeClose(open, onClose);
-  return <AnimatePresence>{open && <motion.div className="fixed inset-0 z-[70] bg-slate-950/35 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.aside ref={ref} aria-label="Navegación del Tutor" className="flex h-full w-[min(88vw,22rem)] flex-col overflow-y-auto rounded-r-[32px] bg-[#fbf9ff] p-5 shadow-2xl" initial={reduceMotion ? { opacity: 0 } : { x: '-100%' }} animate={{ x: 0, opacity: 1 }} exit={reduceMotion ? { opacity: 0 } : { x: '-100%' }} transition={{ duration: reduceMotion ? .1 : .23, ease: 'easeOut' }} onClick={event => event.stopPropagation()}>
+  return <AnimatePresence>{open && <motion.div className="fixed inset-0 z-[70] bg-slate-950/40 backdrop-blur-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.aside ref={ref} aria-label="Navegación del Tutor" className="flex h-full w-[min(88vw,22rem)] flex-col overflow-y-auto rounded-r-[32px] bg-[#fbf9ff] p-5 shadow-2xl" initial={reduceMotion ? { opacity: 0 } : { x: '-100%' }} animate={{ x: 0, opacity: 1 }} exit={reduceMotion ? { opacity: 0 } : { x: '-100%' }} transition={{ duration: reduceMotion ? .1 : .23, ease: 'easeOut' }} onClick={event => event.stopPropagation()}>
     <div className="mb-5 flex items-center justify-between"><h2 className="text-xl font-bold">Menú</h2><CloseButton onClick={onClose} label="Cerrar menú" /></div>
     <nav className="space-y-6">{navGroups.map(group => <NavSection key={group.title} title={group.title} items={group.items} active={active} onNavigate={onNavigate} />)}</nav>
     <div className="mt-auto border-t border-border pt-4"><button type="button" onClick={() => onNavigate('about')} className="flex min-h-11 w-full items-center gap-3 rounded-2xl px-3 text-sm font-semibold hover:bg-primary/5"><Info size={19} aria-hidden />Acerca de TÁNDEM</button><button type="button" onClick={onLogout} className="mt-1 flex min-h-11 w-full items-center gap-3 rounded-2xl px-3 text-sm font-semibold text-primary hover:bg-primary/5"><LogOut size={19} aria-hidden />Cerrar sesión</button></div>
-  </motion.aside></motion.div>}</AnimatePresence>;
+</motion.aside></motion.div>}</AnimatePresence>;
 }
 
 export function TutorProfileDrawer({ open, user, onClose, onNavigate, onLogout }: Omit<DrawerProps, 'active'> & { user: { name: string; avatar?: string | null } }) {
@@ -49,6 +50,11 @@ export function TutorProfileDrawer({ open, user, onClose, onNavigate, onLogout }
     <nav className="mt-5 space-y-5">{sections.map(section => <NavSection key={section.title} title={section.title} items={section.items} onNavigate={onNavigate} />)}</nav>
     <button type="button" onClick={onLogout} className="mt-auto flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 text-sm font-semibold text-primary hover:bg-primary/5"><LogOut size={20} aria-hidden />Cerrar sesión</button>
   </motion.aside></div>}</AnimatePresence>;
+}
+
+export function TutorAccountMenu({ open, onOpenChange, user, onNavigate, onLogout }: { open: boolean; onOpenChange: (open: boolean) => void; user: { name: string; avatar?: string | null }; onNavigate: (tab: TutorTab) => void; onLogout: () => void }) {
+  const select = (tab: TutorTab) => { onOpenChange(false); onNavigate(tab); };
+  return <DropdownMenu open={open} onOpenChange={onOpenChange}><DropdownMenuTrigger asChild><button type="button" aria-label="Abrir opciones de cuenta" aria-expanded={open} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><HeaderUserAvatar avatar={user.avatar} name={user.name} /></button></DropdownMenuTrigger><DropdownMenuContent align="end" sideOffset={10} className="z-[80] w-[min(19rem,calc(100vw-2rem))] rounded-2xl border-violet-100 p-2 shadow-xl"><DropdownMenuLabel className="flex items-center gap-3 p-3"><HeaderUserAvatar avatar={user.avatar} name={user.name} /><span className="min-w-0"><span className="block truncate font-bold">{user.name}</span><span className="block text-xs font-normal text-muted-foreground">Tutor</span></span></DropdownMenuLabel><DropdownMenuSeparator /><DropdownMenuItem onSelect={() => select('profile')} className="min-h-11 cursor-pointer rounded-xl text-sm font-semibold focus:bg-primary/10 focus:text-primary"><UserRound className="mr-3 h-5 w-5 text-primary" aria-hidden />Mi perfil</DropdownMenuItem><DropdownMenuItem onSelect={() => select('profile')} className="min-h-11 cursor-pointer rounded-xl text-sm font-semibold focus:bg-primary/10 focus:text-primary"><Settings className="mr-3 h-5 w-5 text-primary" aria-hidden />Configuración</DropdownMenuItem><DropdownMenuItem onSelect={() => select('about')} className="min-h-11 cursor-pointer rounded-xl text-sm font-semibold focus:bg-primary/10 focus:text-primary"><Info className="mr-3 h-5 w-5 text-primary" aria-hidden />Acerca de TÁNDEM</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem onSelect={() => { onOpenChange(false); onLogout(); }} className="min-h-11 cursor-pointer rounded-xl text-sm font-semibold text-destructive focus:bg-destructive/10 focus:text-destructive"><LogOut className="mr-3 h-5 w-5" aria-hidden />Cerrar sesión</DropdownMenuItem></DropdownMenuContent></DropdownMenu>;
 }
 
 export function TutorQuickMenu({ open, onOpenChange, compactProgress, onAction }: { open: boolean; onOpenChange: (value: boolean) => void; compactProgress: number; onAction: (action: 'activity' | 'event' | 'link' | 'pictogram') => void }) {

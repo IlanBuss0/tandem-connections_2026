@@ -165,6 +165,8 @@ export interface Activity {
   status: 'pendiente' | 'en progreso' | 'completada';
   recommendedBy: 'tutor' | 'profesional' | 'app';
   recommendedByName?: string;
+  assignedByName?: string;
+  assignedByRole?: 'tutor' | 'profesional';
   progress: number;
   assignedTo?: string;
   points: number;
@@ -270,6 +272,11 @@ export interface CalendarEvent {
   userId: string;
   color: string;
   reminders?: number[];
+  // Marca los eventos derivados de actividades asignadas (por ejemplo las
+  // que asigna un tutor/profesional). Es un campo SOLO de frontend: apunta al
+  // id de la actividad asignada (DbActividadAsignada.id) para poder
+  // distinguirlas de los eventos manuales del calendario y evitar duplicados.
+  assignedActivityId?: string | null;
   // Resueltos por el motor de pictogramizacion (Sesion 3), mismo patron que
   // RoutineItem. pictogramResolvedFor es el titulo con el que se resolvio:
   // mientras coincida con `title`, no se vuelve a pedir (evita quemar cuota
@@ -825,6 +832,13 @@ export function getUserById(id: string): User | undefined { return users.find(u 
 export function getTutorById(id: string): Tutor | undefined { return tutors.find(t => t.id === id); }
 export function getProfessionalById(id: string): Professional | undefined { return professionals.find(p => p.id === id); }
 export function getActivitiesForUser(userId: string): Activity[] { return activities.filter(a => a.assignedTo === userId); }
+
+export function completeActivityForUser(activityId: string, userId: string): void {
+  const activity = activities.find(item => item.id === activityId && item.assignedTo === userId);
+  if (!activity) return;
+  activity.status = 'completada';
+  activity.progress = 100;
+}
 export function getEventsForUser(userId: string): CalendarEvent[] { return calendarEvents.filter(e => e.userId === userId); }
 export function getConversationsForUser(userId: string): Conversation[] { return conversations.filter(c => c.participants.includes(userId)); }
 export function getMessagesForConversation(convId: string): ChatMessage[] { return chatMessages.filter(m => m.conversationId === convId); }

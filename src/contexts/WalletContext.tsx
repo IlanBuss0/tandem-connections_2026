@@ -1,9 +1,10 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { tandemApi } from '@/services/api';
+import { fetchPertenecienteByUsuarioId } from '@/data/api';
 import { SHOP_ITEMS, ShopCategory, getItemById } from '@/data/shopItems';
 import { buildDiceBearAvatarUrl } from '@/lib/dicebearAvatar';
-import type { Avatar, InventarioAvatar, ItemAvatar, Perteneciente, SaldoPuntos, TipoItemAvatar } from '@/types/database';
+import type { Avatar, InventarioAvatar, ItemAvatar, SaldoPuntos, TipoItemAvatar } from '@/types/database';
 
 export interface CoinTxn {
   id: string;
@@ -177,14 +178,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
 
     const [
-      pertenecientes,
+      perteneciente,
       avatares,
       saldos,
       tipos,
       itemsBeforeSync,
       inventarios,
     ] = await Promise.all([
-      tandemApi.pertenecientes.getAll(),
+      fetchPertenecienteByUsuarioId(Number(user.id)),
       tandemApi.avatares.getAll(),
       tandemApi.saldosPuntos.getAll(),
       tandemApi.tiposItemsAvatares.getAll(),
@@ -192,7 +193,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       tandemApi.inventariosAvatares.getAll(),
     ]);
 
-    const perteneciente = (pertenecientes as Perteneciente[]).find(item => Number(item.id_usuario) === Number(user.id));
     if (!perteneciente) {
       throw new Error('No se encontro el perfil perteneciente para este usuario.');
     }

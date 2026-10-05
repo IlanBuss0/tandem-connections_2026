@@ -8,6 +8,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { isPermissionEnabled, PERTENECIENTE_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 import ActivityExecution from './ActivityExecution';
+import { useToast } from '@/components/ui/use-toast';
+import { deduplicateActivities, findActivityByNavigationId, getActivityIdentity, moveSelectedActivityFirst } from '@/lib/activityNavigation';
+import { isCompletedActivityStatus, isPendingActivity } from '@/lib/activityStatus';
 
 const categoryEmoji: Record<string, string> = {
   'autonomía personal': '🦸', higiene: '🧼', organización: '📋', escuela: '📚', 'cocina básica': '🍳',
@@ -142,6 +145,7 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
   const { user } = useAuth();
   const { forUser, complete: completeCustomActivity } = useCustomActivities();
   const { context: permissionContext } = usePermissionContext();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('todas');
   const [selectedType, setSelectedType] = useState<ActivityTypeFilter>('todos');
@@ -152,6 +156,8 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
   const [dateFilter, setDateFilter] = useState<ActivityDateFilter>('all');
   const [recommendedOnly, setRecommendedOnly] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showPreviousActivities, setShowPreviousActivities] = useState(false);
+  const [completedVisibleCount, setCompletedVisibleCount] = useState(5);
   const [localActivities, setLocalActivities] = useState<Activity[]>([]);
   const [executingActivity, setExecutingActivity] = useState<Activity | null>(null);
   const canCompleteActivities = isPermissionEnabled(
@@ -174,20 +180,34 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
   // Custom activities asignadas a este usuario
   const customForUser = useMemo(() => user ? forUser(user.id) : [], [user, forUser]);
   const merged = useMemo(() => {
-    // Custom siempre van primero (más recientes)
-    const customBackendIds = new Set(customForUser.map(activity => activity.backendId).filter(Boolean));
-    const localWithoutDuplicatedCustom = localActivities.filter(activity => {
-      const backendCustomId = (activity as any).backendCustomActivityId;
-      return !backendCustomId || !customBackendIds.has(Number(backendCustomId));
-    });
-    return [...customForUser, ...localWithoutDuplicatedCustom] as Activity[];
-  }, [customForUser, localActivities, user]);
+    // La asignación del backend va primero porque contiene el id real que usa Inicio.
+    return deduplicateActivities([...localActivities, ...customForUser] as Activity[]);
+  }, [customForUser, localActivities]);
+
+  const availableActivities = useMemo(
+    () => merged.filter(isPendingActivity),
+    [merged],
+  );
+  const completedActivities = useMemo(
+    () => merged.filter(activity => isCompletedActivityStatus(activity.status)),
+    [merged],
+  );
 
   useEffect(() => {
     if (!initialAssignedActivityId) return;
-    const activity = merged.find(item => String((item as any).assignedActivityId) === String(initialAssignedActivityId));
-    if (activity) setExpandedId(activity.id);
-  }, [initialAssignedActivityId, merged]);
+    const activity = findActivityByNavigationId(availableActivities, initialAssignedActivityId);
+    if (!activity) return;
+    setSearchTerm('');
+    setRecommendedOnly(false);
+    setDateFilter('all');
+    setSelectedCategory('todas');
+    setSelectedType('todos');
+    setSelectedStatus('todos');
+    setSelectedDifficulty('todos');
+    setSelectedOrigin('todos');
+    setSelectedLauncher('todos');
+    setExpandedId(activity.id);
+  }, [initialAssignedActivityId, availableActivities]);
 
   useEffect(() => {
     const storedId = localStorage.getItem('tandem:execute-activity-id');
@@ -204,18 +224,18 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
       <ActivityExecution
         activity={executingActivity}
         onBack={() => setExecutingActivity(null)}
-        onComplete={(id) => { void completeActivity(id); }}
+        onComplete={(id, score) => { void completeActivity(id, score); }}
       />
     );
   }
 
-  const categories = ['todas', ...Array.from(new Set(merged.map(a => a.category)))];
-  const types: ActivityTypeFilter[] = ['todos', ...Array.from(new Set(merged.map(a => a.type)))] as ActivityTypeFilter[];
-  const statuses: ActivityStatusFilter[] = ['todos', ...Array.from(new Set(merged.map(a => a.status)))] as ActivityStatusFilter[];
-  const difficulties: ActivityDifficultyFilter[] = ['todos', ...Array.from(new Set(merged.map(a => a.difficulty)))] as ActivityDifficultyFilter[];
-  const launchers = ['todos', ...Array.from(new Set(merged.map(getActivityLauncherName).filter(Boolean)))];
+  const categories = ['todas', ...Array.from(new Set(availableActivities.map(a => a.category)))];
+  const types: ActivityTypeFilter[] = ['todos', ...Array.from(new Set(availableActivities.map(a => a.type)))] as ActivityTypeFilter[];
+  const statuses: ActivityStatusFilter[] = ['todos', ...Array.from(new Set(availableActivities.map(a => a.status)))] as ActivityStatusFilter[];
+  const difficulties: ActivityDifficultyFilter[] = ['todos', ...Array.from(new Set(availableActivities.map(a => a.difficulty)))] as ActivityDifficultyFilter[];
+  const launchers = ['todos', ...Array.from(new Set(availableActivities.map(getActivityLauncherName).filter(Boolean)))];
 
-  let filtered = [...merged];
+  let filtered = [...availableActivities];
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
   if (normalizedSearch) {
@@ -257,6 +277,9 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
       .map(({ activity }) => activity);
   }
 
+  const selectedActivity = findActivityByNavigationId(availableActivities, initialAssignedActivityId);
+  filtered = moveSelectedActivityFirst(filtered, selectedActivity);
+
   const activeFilterCount = [
     recommendedOnly,
     dateFilter !== 'all',
@@ -280,20 +303,166 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
     setSelectedLauncher('todos');
   };
 
-  async function completeActivity(id: string) {
+  async function completeActivity(id: string, score?: number) {
     if (!canCompleteActivities) return;
     const activity = merged.find(item => item.id === id);
     if (!activity || !user) return;
-    if ((activity as any).isCustom) {
-      await completeCustomActivity(id, user.id);
-    } else {
-      await completeAssignedActivity(activity, user.id).catch(() => undefined);
+    try {
+      if ((activity as any).isCustom) {
+        await completeCustomActivity(id, user.id, score);
+      } else {
+        await completeAssignedActivity(activity, user.id, score);
+      }
+    } catch (error) {
+      toast({
+        title: 'No pudimos guardar el resultado',
+        description: error instanceof Error ? error.message : 'Intentá nuevamente.',
+        variant: 'destructive',
+      });
+      return;
     }
-    setLocalActivities(prev => prev.map(a => a.id === id ? { ...a, status: 'completada' as const, progress: 100 } : a));
+    const completedIdentity = getActivityIdentity(activity);
+    setLocalActivities(prev => prev.map(item =>
+      getActivityIdentity(item) === completedIdentity
+        ? { ...item, status: 'completada' as const, progress: 100 }
+        : item
+    ));
+    setExpandedId(current => current === id ? null : current);
   }
 
   // Daily challenge
-  const dailyActivity = localActivities.find(a => a.assignedTo === user.id && a.status === 'pendiente' && a.type === 'regulación') || localActivities.find(a => a.assignedTo === user.id && a.status === 'pendiente');
+  const dailyActivity = availableActivities.find(a => a.assignedTo === user.id && a.type === 'regulación')
+    || availableActivities.find(a => a.assignedTo === user.id);
+  const showDailyActivity = Boolean(
+    dailyActivity
+    && !initialAssignedActivityId
+    && !searchTerm.trim()
+    && activeFilterCount === 0
+  );
+  const displayedActivities = showDailyActivity && dailyActivity
+    ? filtered.filter(activity => getActivityIdentity(activity) !== getActivityIdentity(dailyActivity))
+    : filtered;
+  const visibleCompletedActivities = completedActivities.slice(0, completedVisibleCount);
+  const renderActivityCard = (activity: Activity, i: number) => {
+    const sourceMeta = getSourceMeta(activity);
+    const isCompleted = isCompletedActivityStatus(activity.status);
+
+    return (
+      <motion.div
+        key={activity.id}
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: i * 0.04 }}
+        className={`w-full overflow-hidden rounded-3xl border bg-white shadow-lg ${isCompleted ? 'border-[#d0e8d0]' : 'border-[#f0e8f8]'}`}
+      >
+        <button
+          type="button"
+          onClick={() => setExpandedId(expandedId === activity.id ? null : activity.id)}
+          className="flex w-full items-start gap-4 p-4 text-left sm:p-5"
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f5f0ff] text-xl">
+            {categoryEmoji[activity.category] || '📌'}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className={`text-sm font-bold sm:text-base ${isCompleted ? 'line-through text-[#8b7aa0]' : 'text-[#4a4a5a]'}`}>
+                {activity.title}
+              </p>
+              {(activity as any).isCustom && (
+                <span className="flex items-center gap-0.5 rounded-full bg-[#f5f0ff] px-2 py-0.5 text-[9px] font-semibold text-[#6b4c9a]">
+                  <Sparkles size={9} /> Personalizada
+                </span>
+              )}
+            </div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${isCompleted ? 'bg-green-100 text-green-700' : 'bg-violet-100 text-violet-700'}`}>
+                {isCompleted ? <CheckCircle2 size={11} /> : <Clock size={11} />}
+                {isCompleted ? 'Completada' : 'Pendiente'}
+              </span>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${difficultyColors[activity.difficulty]}`}>
+                {activity.difficulty}
+              </span>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${typeColors[activity.type]}`}>
+                {activity.type}
+              </span>
+              <span className="flex items-center gap-1 text-[10px] text-[#8b7aa0]">
+                <Clock size={10} /> {activity.duration}
+              </span>
+              <span className="flex items-center gap-1 text-[10px] text-[#8b7aa0]">
+                <Award size={10} /> {activity.points} pts
+              </span>
+            </div>
+            {activity.recommendedByName && (
+              activity.assignedByName && (activity.assignedByRole === 'tutor' || activity.assignedByRole === 'profesional') ? (
+                <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${activity.assignedByRole === 'tutor' ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700'}`}>
+                  Asignada por {activity.recommendedByName} ({activity.assignedByRole === 'tutor' ? 'Tutor' : 'Profesional'})
+                </span>
+              ) : (
+                <p className="mt-1.5 text-[10px] font-medium text-[#6b4c9a]">
+                  Recomendada por {activity.recommendedByName}
+                </p>
+              )
+            )}
+            {sourceMeta.label && !activity.recommendedByName && (
+              <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${sourceMeta.badgeClass}`}>
+                {sourceMeta.label}
+              </span>
+            )}
+            {activity.progress > 0 && activity.progress < 100 && (
+              <div className="mt-2.5 h-2 w-full rounded-full bg-[#f0e8f8]">
+                <div className="h-2 rounded-full bg-[#6b4c9a]" style={{ width: `${activity.progress}%` }} />
+              </div>
+            )}
+          </div>
+          {expandedId === activity.id
+            ? <ChevronUp size={18} className="shrink-0 text-[#8b7aa0]" />
+            : <ChevronDown size={18} className="shrink-0 text-[#8b7aa0]" />}
+        </button>
+
+        {expandedId === activity.id && (
+          <motion.div
+            initial={{ height: 0 }}
+            animate={{ height: 'auto' }}
+            className="space-y-3 border-t border-[#f0e8f8] px-4 pb-5 pt-4 sm:px-5"
+          >
+            <p className="text-sm leading-relaxed text-[#8b7aa0]">{activity.description}</p>
+            <p className="text-xs font-bold text-[#6b4c9a]">🎯 Objetivo: {activity.objective}</p>
+            <div>
+              <p className="mb-2 text-xs font-bold text-[#6b4c9a]">Pasos:</p>
+              <ol className="space-y-2">
+                {activity.steps.map((step, si) => (
+                  <li key={si} className="flex items-start gap-3 text-xs text-[#8b7aa0]">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#f5f0ff] text-[10px] font-bold text-[#6b4c9a]">
+                      <StepIcon value={activity.stepIcons?.[si]} fallback={si + 1} className="h-7 w-7" />
+                    </span>
+                    {step}
+                  </li>
+                ))}
+              </ol>
+            </div>
+            {!isCompleted && canCompleteActivities && (
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setExecutingActivity(activity)}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-200 transition hover:bg-[#5a3c8a] active:scale-95"
+                >
+                  <Play size={14} /> Empezar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => completeActivity(activity.id)}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-4 py-2.5 text-sm font-semibold text-[#6b4c9a] transition hover:bg-[#f5f0ff]"
+                >
+                  <CheckCircle2 size={14} /> Completada
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </motion.div>
+    );
+  };
 
   return (
     <div className="pb-24 lg:pb-6 space-y-6">
@@ -311,41 +480,9 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
           </p>
         </div>
         <span className="text-xs text-[#8b7aa0] font-medium">
-          {filtered.length} de {merged.length} actividades
+          {filtered.length} de {availableActivities.length} actividades
         </span>
       </motion.div>
-
-      {/* Daily challenge — restyled as white card */}
-      {dailyActivity && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full bg-white rounded-3xl shadow-lg border border-[#f0e8f8] p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
-        >
-          <div>
-            <p className="text-xs font-semibold text-[#8b7aa0] uppercase tracking-wide flex items-center gap-1">
-              <Sparkles size={12} /> Actividad del día
-            </p>
-            <p className="text-lg font-bold text-[#6b4c9a] mt-1">{dailyActivity.title}</p>
-            <p className="text-sm text-[#8b7aa0] mt-0.5">{dailyActivity.description.slice(0, 100)}...</p>
-          </div>
-          <button
-            onClick={() => setExecutingActivity(dailyActivity)}
-            disabled={!canCompleteActivities}
-            className="shrink-0 inline-flex items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 transition disabled:opacity-50"
-          >
-            <Play size={15} />
-            Empezar ahora
-          </button>
-        </motion.div>
-      )}
-
-      {/* Warning */}
-      {!canCompleteActivities && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-800">
-          Tu tutor deshabilito completar actividades por ahora.
-        </div>
-      )}
 
       {/* Search + filters — white card like Calendar */}
       <motion.section
@@ -386,7 +523,7 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-foreground">Filtrar actividades</p>
-                  <p className="text-xs text-muted-foreground">{filtered.length} de {merged.length} resultados</p>
+                  <p className="text-xs text-muted-foreground">{filtered.length} de {availableActivities.length} resultados</p>
                 </div>
                 <button onClick={resetFilters} className="text-xs font-medium text-primary hover:underline">
                   Limpiar
@@ -465,119 +602,90 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
       </div>
       </motion.section>
 
-      {/* Activity cards — same style as Calendar */}
-      <div className="space-y-4">
-        {filtered.map((activity, i) => {
-          const sourceMeta = getSourceMeta(activity);
-
-          return (
-          <motion.div
-            key={activity.id}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.04 }}
-            className={`w-full bg-white rounded-3xl shadow-lg border ${activity.status === 'completada' ? 'border-[#d0e8d0]' : 'border-[#f0e8f8]'} overflow-hidden`}
+      {/* Daily challenge — shown separately, never duplicated in the list */}
+      {showDailyActivity && dailyActivity && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full bg-white rounded-3xl shadow-lg border border-[#f0e8f8] p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+        >
+          <div>
+            <p className="text-xs font-semibold text-[#8b7aa0] uppercase tracking-wide flex items-center gap-1">
+              <Sparkles size={12} /> Actividad del día
+            </p>
+            <p className="text-lg font-bold text-[#6b4c9a] mt-1">{dailyActivity.title}</p>
+            <p className="text-sm text-[#8b7aa0] mt-0.5">{dailyActivity.description.slice(0, 100)}...</p>
+          </div>
+          <button
+            onClick={() => setExecutingActivity(dailyActivity)}
+            disabled={!canCompleteActivities}
+            className="shrink-0 inline-flex items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 transition disabled:opacity-50"
           >
-            <button
-              onClick={() => setExpandedId(expandedId === activity.id ? null : activity.id)}
-              className="w-full p-4 sm:p-5 flex items-start gap-4 text-left"
-            >
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f5f0ff] text-xl">
-                {categoryEmoji[activity.category] || '📌'}
-              </span>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className={`text-sm sm:text-base font-bold ${activity.status === 'completada' ? 'line-through text-[#8b7aa0]' : 'text-[#4a4a5a]'}`}>
-                    {activity.title}
-                  </p>
-                  {(activity as any).isCustom && (
-                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#f5f0ff] text-[#6b4c9a] font-semibold flex items-center gap-0.5">
-                      <Sparkles size={9} /> Personalizada
-                    </span>
-                  )}
-                  {activity.status === 'completada' && <CheckCircle2 size={16} className="text-green-500" />}
-                </div>
-                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${difficultyColors[activity.difficulty]}`}>
-                    {activity.difficulty}
-                  </span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${typeColors[activity.type]}`}>
-                    {activity.type}
-                  </span>
-                  <span className="text-[10px] text-[#8b7aa0] flex items-center gap-1">
-                    <Clock size={10} /> {activity.duration}
-                  </span>
-                  <span className="text-[10px] text-[#8b7aa0] flex items-center gap-1">
-                    <Award size={10} /> {activity.points} pts
-                  </span>
-                </div>
-                {activity.recommendedByName && (
-                  <p className="text-[10px] text-[#6b4c9a] mt-1.5 font-medium">
-                    Recomendada por {activity.recommendedByName}
-                  </p>
-                )}
-                {sourceMeta.label && !activity.recommendedByName && (
-                  <span className={`inline-flex mt-2 text-[10px] px-2 py-0.5 rounded-full font-medium ${sourceMeta.badgeClass}`}>
-                    {sourceMeta.label}
-                  </span>
-                )}
-                {activity.progress > 0 && activity.progress < 100 && (
-                  <div className="w-full bg-[#f0e8f8] rounded-full h-2 mt-2.5">
-                    <div className="bg-[#6b4c9a] h-2 rounded-full" style={{ width: `${activity.progress}%` }} />
-                  </div>
-                )}
-              </div>
-              {expandedId === activity.id
-                ? <ChevronUp size={18} className="text-[#8b7aa0] shrink-0" />
-                : <ChevronDown size={18} className="text-[#8b7aa0] shrink-0" />}
-            </button>
+            <Play size={15} />
+            Empezar ahora
+          </button>
+        </motion.div>
+      )}
 
-            {expandedId === activity.id && (
-              <motion.div
-                initial={{ height: 0 }}
-                animate={{ height: 'auto' }}
-                className="px-4 sm:px-5 pb-5 border-t border-[#f0e8f8] pt-4 space-y-3"
-              >
-                <p className="text-sm text-[#8b7aa0] leading-relaxed">{activity.description}</p>
-                <p className="text-xs font-bold text-[#6b4c9a]">🎯 Objetivo: {activity.objective}</p>
-                <div>
-                  <p className="text-xs font-bold text-[#6b4c9a] mb-2">Pasos:</p>
-                  <ol className="space-y-2">
-                    {activity.steps.map((step, si) => (
-                      <li key={si} className="flex items-start gap-3 text-xs text-[#8b7aa0]">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f5f0ff] text-[#6b4c9a] text-[10px] font-bold overflow-hidden">
-                          <StepIcon value={activity.stepIcons?.[si]} fallback={si + 1} className="w-7 h-7" />
-                        </span>
-                        {step}
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-                {activity.status !== 'completada' && canCompleteActivities && (
-                  <div className="flex gap-3 pt-1">
-                    <button
-                      onClick={() => setExecutingActivity(activity)}
-                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 transition"
-                    >
-                      <Play size={14} /> Empezar
-                    </button>
-                    <button
-                      onClick={() => completeActivity(activity.id)}
-                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-4 py-2.5 text-sm font-semibold text-[#6b4c9a] hover:bg-[#f5f0ff] transition"
-                    >
-                      <CheckCircle2 size={14} /> Completada
-                    </button>
-                  </div>
-                )}
-              </motion.div>
-            )}
-          </motion.div>
-          );
-        })}
-      </div>
+      {!canCompleteActivities && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-800">
+          Tu tutor deshabilito completar actividades por ahora.
+        </div>
+      )}
+
+      {/* Activity cards — same style as Calendar */}
+      <section aria-labelledby="pending-activities-title" className="space-y-3">
+        <h2 id="pending-activities-title" className="px-1 text-sm font-extrabold uppercase tracking-wide text-[#5f477c]">
+          Actividades pendientes
+        </h2>
+        <div className="space-y-4">
+          {displayedActivities.map(renderActivityCard)}
+        </div>
+      </section>
+
+      {completedActivities.length > 0 && (
+        <section className="overflow-hidden rounded-3xl border border-[#ddcfed] bg-white shadow-sm">
+          <button
+            type="button"
+            onClick={() => {
+              const nextOpen = !showPreviousActivities;
+              setShowPreviousActivities(nextOpen);
+              if (nextOpen) setCompletedVisibleCount(5);
+            }}
+            aria-expanded={showPreviousActivities}
+            aria-controls="previous-activities-list"
+            className="flex min-h-14 w-full items-center gap-3 bg-[#faf8ff] px-4 py-3 text-sm font-semibold text-[#6b4c9a] transition hover:bg-[#f5f0ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#7c3aed]"
+          >
+            <span aria-hidden className="h-px flex-1 bg-[#ddcfed]" />
+            <span>Ver actividades anteriores ({completedActivities.length})</span>
+            {showPreviousActivities ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+            <span aria-hidden className="h-px flex-1 bg-[#ddcfed]" />
+          </button>
+
+          {showPreviousActivities && (
+            <div id="previous-activities-list" className="space-y-4 p-3 sm:p-5">
+              <div className="space-y-4">
+                {visibleCompletedActivities.map(renderActivityCard)}
+              </div>
+              {completedActivities.length > 5 && (
+                <button
+                  type="button"
+                  onClick={() => setCompletedVisibleCount(count => count < completedActivities.length
+                    ? Math.min(count + 5, completedActivities.length)
+                    : Math.max(5, count - 5))}
+                  className="mx-auto flex min-h-11 items-center gap-2 rounded-2xl border border-[#ddcfed] px-5 text-sm font-semibold text-[#6b4c9a] transition hover:bg-[#f5f0ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"
+                >
+                  {completedVisibleCount < completedActivities.length ? 'Mostrar más' : 'Mostrar menos'}
+                  {completedVisibleCount < completedActivities.length ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                </button>
+              )}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Empty state — same style as Calendar */}
-      {filtered.length === 0 && (
+      {displayedActivities.length === 0 && !showDailyActivity && (
         <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-[#e0d8f0] bg-[#faf8ff] px-6 py-14 text-center shadow-sm">
           <Sparkles size={40} className="text-[#6b4c9a]/60 mb-4" />
           <p className="text-base font-bold text-[#4a4a5a]">No hay actividades</p>

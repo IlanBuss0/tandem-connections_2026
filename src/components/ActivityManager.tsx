@@ -1,19 +1,28 @@
-import { useState } from 'react';
-import { Plus, Edit2, Copy, Trash2, Send, EyeOff, Sparkles, Users, Calendar } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Edit2, Copy, Trash2, Send, EyeOff, Sparkles, Users, Calendar, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCustomActivities, type CustomActivity } from '@/contexts/CustomActivitiesContext';
 import type { User } from '@/data/api';
 import ActivityBuilder from './ActivityBuilder';
 import { useToast } from '@/components/ui/use-toast';
+import { tandemApi } from '@/services/api';
+import type { ResultadoActividadPersonalizada } from '@/types/database';
 
-export default function ActivityManager({ assignableUsers }: { assignableUsers?: User[] }) {
+export default function ActivityManager({ assignableUsers, initialPreselectUserIds, onBuilderClose, onBack }: { assignableUsers?: User[]; initialPreselectUserIds?: string[]; onBuilderClose?: () => void; onBack?: () => void }) {
   const { user } = useAuth();
   const { byCreator, remove, duplicate, publish, unpublish } = useCustomActivities();
   const { toast } = useToast();
   const [builderOpen, setBuilderOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
   const [publishingId, setPublishingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialPreselectUserIds && initialPreselectUserIds.length > 0) {
+      setEditingId(undefined);
+      setBuilderOpen(true);
+    }
+  }, [initialPreselectUserIds]);
 
   if (!user) return null;
   const list = byCreator(user.id);
@@ -22,7 +31,8 @@ export default function ActivityManager({ assignableUsers }: { assignableUsers?:
   const userNameById = new Map((assignableUsers || []).map(item => [item.id, item.name]));
 
   const open = (id?: string) => { setEditingId(id); setBuilderOpen(true); };
-  const close = () => { setBuilderOpen(false); setEditingId(undefined); };
+  const close = () => { setBuilderOpen(false); setEditingId(undefined); onBuilderClose?.(); };
+  const back = () => { setBuilderOpen(false); setEditingId(undefined); onBack?.(); };
   const publishDraft = async (id: string) => {
     setPublishingId(id);
     try {
@@ -86,7 +96,7 @@ export default function ActivityManager({ assignableUsers }: { assignableUsers?:
         </div>
       )}
 
-      {builderOpen && <ActivityBuilder initialId={editingId} onClose={close} assignableUsersOverride={assignableUsers} />}
+      {builderOpen && <ActivityBuilder initialId={editingId} onClose={close} onBack={onBack ? back : undefined} assignableUsersOverride={assignableUsers} preselectUserIds={initialPreselectUserIds} />}
     </div>
   );
 }
@@ -107,6 +117,21 @@ interface RowProps {
 
 function Row({ a, draft, userNameById, onEdit, onDuplicate, onRemove, onPublish, onUnpublish, publishing }: RowProps) {
   const assignedNames = (a.assignedToIds || []).map((id: string) => a.assignedNames?.[id] || userNameById?.get(id) || `Usuario ${id}`);
+  const [resultsOpen, setResultsOpen] = useState(false);
+  const [results, setResults] = useState<ResultadoActividadPersonalizada[] | null>(null);
+  const [resultsError, setResultsError] = useState('');
+
+  const toggleResults = async () => {
+    const nextOpen = !resultsOpen;
+    setResultsOpen(nextOpen);
+    if (!nextOpen || results || !a.backendId) return;
+    setResultsError('');
+    try {
+      setResults(await tandemApi.actividadesPersonalizadas.getResults(a.backendId));
+    } catch (error) {
+      setResultsError(error instanceof Error ? error.message : 'No pudimos cargar los resultados.');
+    }
+  };
   return (
     <div className="bg-card rounded-lg border border-border p-3">
       <div className="flex items-start gap-3">
@@ -129,8 +154,22 @@ function Row({ a, draft, userNameById, onEdit, onDuplicate, onRemove, onPublish,
         {draft
           ? <Button size="sm" className="h-7 px-2 text-xs gradient-primary text-primary-foreground" onClick={onPublish} disabled={publishing}><Send size={12} className="mr-1" />{publishing ? 'Publicando...' : 'Publicar'}</Button>
           : <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={onUnpublish}><EyeOff size={12} className="mr-1" />Despublicar</Button>}
+        {!draft && a.backendId && <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => { void toggleResults(); }}><BarChart3 size={12} className="mr-1" />Resultados</Button>}
         <Button size="sm" variant="outline" className="h-7 px-2 text-xs text-destructive border-destructive/30 hover:bg-destructive/10" onClick={onRemove}><Trash2 size={12} /></Button>
       </div>
+      {resultsOpen && <div className="mt-3 rounded-xl border border-border bg-muted/30 p-3 text-xs" aria-live="polite">
+        {!results && !resultsError && <p className="text-muted-foreground">Cargando resultados...</p>}
+        {resultsError && <p className="text-destructive">{resultsError}</p>}
+        {results?.length === 0 && <p className="text-muted-foreground">Todavía no hay asignaciones para mostrar.</p>}
+        {results && results.length > 0 && <div className="space-y-2">
+          {results.map(result => <div key={result.id_actividad_asignada} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-card p-2">
+            <span className="font-semibold text-foreground">{result.nombre || `Usuario ${result.id_usuario_perteneciente}`}</span>
+            <span className="text-muted-foreground">{result.completada ? 'Completada' : 'Pendiente'}</span>
+            <span className="font-medium text-primary">Mejor: {result.puntaje_mejor ?? '—'}/100</span>
+            <span className="text-muted-foreground">Último: {result.puntaje_ultimo ?? '—'}/100{result.fecha_ultimo_intento ? ` · ${new Date(result.fecha_ultimo_intento).toLocaleDateString('es-AR')}` : ''}</span>
+          </div>)}
+        </div>}
+      </div>}
     </div>
   );
 }

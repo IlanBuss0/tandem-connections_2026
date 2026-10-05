@@ -100,11 +100,28 @@ export interface EvolutionWeek {
 }
 
 // Item 44 "evolucion en el tiempo": pasos completados y animo semana a
-// semana (ultimas 8 semanas con datos). Sin piso minimo — es descriptivo,
-// no una conclusion causal (esa es /patrones, ver PatternsReportView).
-export async function fetchEvolutionReport(userId: string): Promise<EvolutionWeek[]> {
+// semana. Sin piso minimo — es descriptivo, no una conclusion causal (esa
+// es /patrones, ver PatternsReportView). `weeks` (8 o 13) es el selector
+// de periodo "Este mes" / "Ultimos 3 meses" de la sub-tab Cambios; el
+// backend whitelistea el valor, asi que solo se manda cuando no es el
+// default para no romper contra un backend viejo que todavia no lo lea.
+export async function fetchEvolutionReport(userId: string, weeks = 8): Promise<EvolutionWeek[]> {
   try {
-    return await apiRequest<EvolutionWeek[]>(`/api/eventos-uso/usuario/${encodeURIComponent(userId)}/evolucion`);
+    const qs = weeks !== 8 ? `?semanas=${weeks}` : '';
+    return await apiRequest<EvolutionWeek[]>(`/api/eventos-uso/usuario/${encodeURIComponent(userId)}/evolucion${qs}`);
+  } catch {
+    return [];
+  }
+}
+
+// Periodos "Hoy" / "Última semana": mismo shape que EvolutionWeek (con la
+// fecha YYYY-MM-DD en `week`) para reusar el resumen. Devuelve [] si no hubo
+// nada en toda la ventana, así la pantalla dice "sin datos" en vez de ceros.
+export async function fetchEvolutionDaily(userId: string, days: number): Promise<EvolutionWeek[]> {
+  try {
+    const rows = await apiRequest<(Omit<EvolutionWeek, 'week'> & { day: string })[]>(`/api/eventos-uso/usuario/${encodeURIComponent(userId)}/evolucion-diaria?dias=${days}`);
+    if (rows.every(row => row.routineCompletions === 0 && row.positiveEmotionRatio === null)) return [];
+    return rows.map(({ day, ...rest }) => ({ week: day, ...rest }));
   } catch {
     return [];
   }

@@ -19,7 +19,7 @@ const TYPE_LABEL: Record<UsageEventType, string> = {
   rutina_secuencia_completada: 'Completó una actividad de secuencias y rutinas',
 };
 
-const TYPE_ICON: Record<UsageEventType, typeof Activity> = {
+export const TYPE_ICON: Record<UsageEventType, typeof Activity> = {
   rutina_paso_completado: CheckCircle2,
   emocion_registrada: Heart,
   pictograma_elegido: Wand2,
@@ -30,7 +30,7 @@ const TYPE_ICON: Record<UsageEventType, typeof Activity> = {
   rutina_secuencia_completada: CheckCircle2,
 };
 
-function describe(event: UsageEventRecord): string {
+export function describe(event: UsageEventRecord): string {
   const title = event.valor?.title as string | undefined;
   const emotion = event.valor?.emotion as string | undefined;
   const cardLabel = event.valor?.label as string | undefined;
@@ -43,7 +43,7 @@ function describe(event: UsageEventRecord): string {
   return TYPE_LABEL[event.tipo_evento];
 }
 
-function formatWhen(iso: string): string {
+export function formatWhen(iso: string): string {
   try {
     return new Date(iso).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   } catch {

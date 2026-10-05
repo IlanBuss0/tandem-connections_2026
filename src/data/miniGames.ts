@@ -14,9 +14,11 @@ export type GameType =
   | 'category-sort'     // arrastrar a la categoría correcta
   | 'sound-match'       // ¿qué emoji hace este sonido? (texto onomatopéyico)
   | 'tap-correct'       // tocar todas las opciones correctas (selección múltiple)
-  | 'routine-sequence'; // familia compartida de secuencias y rutinas
+  | 'routine-sequence'  // familia compartida de secuencias y rutinas
+  | 'resource-scenario'; // compra con presupuesto; conserva escenarios ramificados anteriores
 
 import type { RoutineSequenceData, RoutineSequenceResult } from './routineSequence';
+import type { ResourceScenarioData, ShoppingBudgetScenarioData } from './resourceScenario';
 export type MiniGameResult = RoutineSequenceResult | { gameType: GameType; score: number };
 
 // Una "ronda" o ítem dentro del juego
@@ -58,6 +60,7 @@ export interface GameData {
   sound?: SoundMatchItem[];
   tap?: TapCorrectItem[];
   routineSequence?: RoutineSequenceData;
+  resourceScenario?: ResourceScenarioData;
 }
 
 // ===== Plantillas de mini-juegos =====
@@ -413,7 +416,54 @@ export const GAME_TEMPLATES: GameTemplate[] = [
     },
   },
   ...buildRoutineSequenceTemplates(),
+  ...buildShoppingBudgetTemplates(),
 ];
+
+function buildShoppingBudgetTemplates(): GameTemplate[] {
+  const make = (id: string, name: string, emoji: string, objective: string, data: ShoppingBudgetScenarioData): GameTemplate => ({
+    id,
+    name,
+    emoji,
+    category: 'compras',
+    type: 'juego',
+    difficulty: 'fácil',
+    duration: '8 min',
+    objective,
+    description: 'Buscá los productos de la lista y cuidá el presupuesto.',
+    steps: ['Revisar la lista', 'Elegir productos', 'Revisar el presupuesto'],
+    stepIcons: ['📝', '🛒', '💰'],
+    points: 80,
+    completionMessage: '¡Muy bien! Completaste la compra.',
+    tags: ['compras', 'presupuesto', 'supermercado', 'comida'],
+    gameType: 'resource-scenario',
+    gameData: { resourceScenario: data },
+  });
+
+  return [
+    make('gtpl-shopping-basic', 'Compra básica en el supermercado', '🛒', 'Encontrar los productos de una lista sin superar el presupuesto', {
+      kind: 'shopping-budget', schemaVersion: 1, prompt: 'Comprá pan, leche y manzanas sin superar el presupuesto.', currencySymbol: '$', budget: 10,
+      products: [
+        { id: 'basic-bread', name: 'Pan', image: '🍞', price: 3, required: true },
+        { id: 'basic-milk', name: 'Leche', image: '🥛', price: 3, required: true },
+        { id: 'basic-apples', name: 'Manzanas', image: '🍎', price: 2, required: true },
+        { id: 'basic-cookies', name: 'Galletitas', image: '🍪', price: 3, required: false },
+        { id: 'basic-soda', name: 'Gaseosa', image: '🥤', price: 4, required: false },
+        { id: 'basic-soap', name: 'Jabón', image: '🧼', price: 2, required: false },
+      ],
+    }),
+    make('gtpl-shopping-pancakes', 'Ingredientes para preparar panqueques', '🥞', 'Encontrar los ingredientes de una receta cuidando el presupuesto', {
+      kind: 'shopping-budget', schemaVersion: 1, prompt: 'Comprá los ingredientes necesarios para preparar panqueques.', currencySymbol: '$', budget: 12,
+      products: [
+        { id: 'pancakes-flour', name: 'Harina', image: '🌾', price: 3, required: true },
+        { id: 'pancakes-milk', name: 'Leche', image: '🥛', price: 3, required: true },
+        { id: 'pancakes-eggs', name: 'Huevos', image: '🥚', price: 4, required: true },
+        { id: 'pancakes-tomato', name: 'Tomate', image: '🍅', price: 2, required: false },
+        { id: 'pancakes-rice', name: 'Arroz', image: '🍚', price: 3, required: false },
+        { id: 'pancakes-cheese', name: 'Queso', image: '🧀', price: 4, required: false },
+      ],
+    }),
+  ];
+}
 
 function buildRoutineSequenceTemplates(): GameTemplate[] {
   const make = (id: string, name: string, emoji: string, mode: RoutineSequenceData['mode'], texts: string[], extras: Partial<RoutineSequenceData> = {}): GameTemplate => {
