@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
 import { BriefcaseMedical, Loader2, Plus, QrCode, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { deleteProfessionalPertenecienteLink, deleteTutorPertenecienteLink, generateProfessionalInvite, generateTutorInvite, fetchPermissionContext, setPertenecientePermissionByName, setProfessionalPermissionByName, type EffectivePertenecientePermissions, type EffectiveProfessionalPermissions, type PermissionContext, type ProfessionalInvite, type TutorInvite, type TutorPermissionContextPerteneciente } from '@/data/api';
+import { deleteProfessionalPertenecienteLink, deleteTutorPertenecienteLink, generateProfessionalInvite, generateTutorInvite, fetchPermissionContext, setPertenecientePermissionByName, setProfessionalPermissionByName, type EffectivePertenecientePermissions, type EffectiveProfessionalPermissions, type PermissionContext, type ProfessionalInvite, type TutorInvite, type TutorPermissionContextPerteneciente, type GeneratedReport } from '@/data/api';
+import { reportsOfPerson, reportsSummary } from '@/lib/tutorReports';
 import { toast } from '@/hooks/ui/use-toast';
 import InvitePanel from './personas/InvitePanel';
 import type { PermissionRow } from './personas/PermissionSwitchRow';
@@ -49,7 +50,7 @@ function sourceLabel(source: string) {
   return source === 'otorgado' ? 'Definido' : 'Default';
 }
 
-export default function TutorConnections({ initialPertenecienteId, onOpenDetail }: { initialPertenecienteId?: number; onOpenDetail?: (id: string) => void }) {
+export default function TutorConnections({ initialPertenecienteId, onOpenDetail, reports = [], onOpenReports }: { initialPertenecienteId?: number; onOpenDetail?: (id: string) => void; reports?: GeneratedReport[]; onOpenReports?: (pertenecienteId: number) => void }) {
   const [context, setContext] = useState<PermissionContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -438,6 +439,8 @@ export default function TutorConnections({ initialPertenecienteId, onOpenDetail 
                 deleting={deletingKey === `tutor:${selected.vinculo.id}`}
                 onOpenDetail={onOpenDetail && (() => onOpenDetail(String(selected.usuario.id)))}
                 onDelete={deleteTutorLink}
+                reportsSummary={reportsSummary(reportsOfPerson(reports, selected.id))}
+                onOpenReports={onOpenReports && (() => onOpenReports(selected.id))}
               />
               <PersonPermissionsCard
                 key={selected.id}

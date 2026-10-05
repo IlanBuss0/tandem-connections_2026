@@ -23,7 +23,7 @@ export default function TutorHome(props: Props) {
     <HomeGreeting userName={props.userName} />
     <QuickActions onNavigate={props.onNavigate} />
     <div className="grid gap-5 xl:grid-cols-2">
-      <LinkedSummary model={model} linkedCount={props.linkedUsers.length} activityCount={props.activities.length} onOpen={() => props.onNavigate('reports')} />
+      <LinkedSummary model={model} linkedCount={props.linkedUsers.length} activityCount={props.activities.length} onOpen={() => props.onNavigate('connections')} />
       <UpcomingEvents events={model.upcomingEvents} onOpen={() => props.onNavigate('calendar')} />
       <RecentActivity items={model.recentItems} onOpenActivities={() => props.onNavigate('activities')} onOpenDetail={props.onOpenDetail} />
       <PictogramTools pictograms={props.pictograms} onCreate={() => props.onNavigate('pictograms')} onExplore={() => props.onNavigate('pictogramCatalog')} />
