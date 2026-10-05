@@ -62,7 +62,7 @@ export default function ChatScreen({
   focusUserId?: string;
 }) {
   const { user } = useAuth();
-  const { conversationsForUser, messagesFor, send, edit, remove, markRead, createDirect, createGroup, updateConversation, uploadConversationAvatar, hideConversation, setActiveConversation, sendTyping, typingUsersFor, allContacts, getPersonById, connectionStatus } = useChat();
+  const { conversationsForUser, messagesFor, send, edit, remove, markRead, createDirect, createGroup, updateConversation, uploadConversationAvatar, hideConversation, setActiveConversation, sendTyping, typingUsersFor, allContacts, getPersonById, connectionStatus, loading: loadingConversations } = useChat();
   const { toast } = useToast();
   const [activeProfileId, setActiveProfileId] = useState(defaultProfileId || '');
   const [profileConvs, setProfileConvs] = useState<Conversation[]>([]);
@@ -1078,7 +1078,13 @@ export default function ChatScreen({
         </div>
       )}
 
-      {myConvs.length === 0 && (
+      {!loadingProfileChats && loadingConversations && myConvs.length === 0 && (
+        <div className="bg-white border border-[#f0e8f8] rounded-xl p-4 text-sm text-[#8b7aa0]">
+          Cargando chats...
+        </div>
+      )}
+
+      {myConvs.length === 0 && !loadingProfileChats && !loadingConversations && (
         <div className="bg-white border border-[#f0e8f8] rounded-xl p-6 text-center">
           <MessageCircle size={32} className="mx-auto text-[#8b7aa0] mb-2" />
           <p className="text-sm text-[#6b4c9a] font-medium">Todavía no tenés conversaciones</p>
