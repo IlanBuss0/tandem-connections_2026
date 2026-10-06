@@ -100,6 +100,8 @@ export interface Activity {
   points: number;
   type: ActivityType;
   completionMessage?: string;
+  /** Alternativa que se muestra en "No puedo seguir". */
+  planB?: string;
   // Mini-juego (opcional)
   gameType?: import('./miniGames').GameType;
   gameData?: import('./miniGames').GameData;

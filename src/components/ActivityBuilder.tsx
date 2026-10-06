@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCustomActivities } from "@/contexts/CustomActivitiesContext";
 import {
@@ -1713,6 +1714,7 @@ export default function ActivityBuilder({
         stepIcons: [...(editing.stepIcons || editing.steps.map(() => "📌"))],
         points: editing.points,
         completionMessage: editing.completionMessage || "¡Bien hecho!",
+        planB: editing.planB || "",
         assignedToIds:
           editing.assignedToIds ||
           (editing.assignedTo ? [editing.assignedTo] : []),
@@ -1736,6 +1738,7 @@ export default function ActivityBuilder({
       stepIcons: ["📌"],
       points: 30,
       completionMessage: "¡Bien hecho!",
+      planB: "",
       assignedToIds: preselectUserIds ? [...preselectUserIds] : [],
       dueDate: "",
       notes: "",
@@ -1765,6 +1768,7 @@ export default function ActivityBuilder({
       stepIcons: [...tpl.stepIcons],
       points: tpl.points,
       completionMessage: tpl.completionMessage,
+      planB: (tpl as { planB?: string }).planB || "",
       gameType: nextGameType,
       gameData: nextGameData,
     }));
@@ -1788,6 +1792,7 @@ export default function ActivityBuilder({
       stepIcons: ["📌"],
       points: 30,
       completionMessage: "¡Bien hecho!",
+      planB: "",
       gameType,
       gameData: nextGameData,
     }));
@@ -1976,6 +1981,7 @@ export default function ActivityBuilder({
         stepIcons: cleanSteps.map((x) => x.ic),
         points: form.points,
         completionMessage: form.completionMessage,
+        planB: form.planB.trim() || undefined,
         assignedToIds: form.assignedToIds,
         assignedTo: form.assignedToIds[0],
         dueDate: form.dueDate || undefined,
@@ -2622,6 +2628,30 @@ export default function ActivityBuilder({
                     placeholder="¡Excelente trabajo!"
                   />
                 </div>
+                <div>
+                  <label
+                    htmlFor="activity-plan-b"
+                    className="text-xs font-medium text-[#0B6B4A]"
+                  >
+                    💡 Plan B (opcional)
+                  </label>
+                  <p className="text-xs text-muted-foreground mb-1">
+                    Si algo sale distinto, ¿qué puede hacer? Se lo mostramos cuando toque «No puedo seguir».
+                  </p>
+                  <Textarea
+                    id="activity-plan-b"
+                    value={form.planB}
+                    rows={3}
+                    maxLength={200}
+                    onChange={(e) =>
+                      setForm({ ...form, planB: e.target.value })
+                    }
+                    placeholder="Ej: Si no encontrás un cuaderno, poné una carpeta con hojas."
+                  />
+                  <p className="text-right text-xs text-muted-foreground">
+                    {form.planB.length} / 200
+                  </p>
+                </div>
               </div>
             )}
 
@@ -2715,6 +2745,11 @@ export default function ActivityBuilder({
                     {form.duration} · {form.points} pts
                   </p>
                   <p className="text-sm text-foreground">🎯 {form.objective}</p>
+                  {form.planB.trim() && (
+                    <p className="text-sm text-[#0B6B4A]">
+                      💡 Plan B: {form.planB.trim()}
+                    </p>
+                  )}
                   {form.description && (
                     <p className="text-sm text-muted-foreground">
                       {form.description}
