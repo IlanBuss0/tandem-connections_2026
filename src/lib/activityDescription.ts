@@ -1,5 +1,5 @@
-const METADATA_LINE = /^(?:Objetivo|Pasos|Juego):/i;
-const INLINE_METADATA = /\s+(?:Objetivo|Pasos|Juego):/i;
+const METADATA_LINE = /^(?:Objetivo|Pasos|PlanB|Juego):/i;
+const INLINE_METADATA = /\s+(?:Objetivo|Pasos|PlanB|Juego):/i;
 
 function parsedObject(value: string): Record<string, unknown> | null {
   if (!value.startsWith('{') && !value.startsWith('[')) return null;

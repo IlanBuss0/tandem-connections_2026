@@ -450,6 +450,12 @@ function extractCustomSteps(description?: string | null): string[] {
   return steps.length > 0 ? steps : [description || 'Completar la actividad asignada.'];
 }
 
+export function extractPlanB(description?: string | null): string | undefined {
+  const planBLine = (description || '').split('\n').find(line => line.trim().startsWith('PlanB:'));
+  if (!planBLine) return undefined;
+  return planBLine.trim().replace(/^PlanB:\s*/i, '').trim() || undefined;
+}
+
 function parseActivityGameMetadata(description?: string | null): { gameType?: GameType; gameData?: GameData } {
   const line = (description || '').split('\n').find(item => item.trim().startsWith('Juego:'));
   if (!line) return {};
@@ -484,6 +490,7 @@ function toAssignedLegacyActivity(
   const completed = isCompletedStatus(status, assignment);
   const customDescription = 'id_actividad_base' in activity ? activityDisplayDescription(activity.descripcion) : '';
   const customSteps = 'id_actividad_base' in activity ? extractCustomSteps(activity.descripcion) : null;
+  const customPlanB = 'id_actividad_base' in activity ? extractPlanB(activity.descripcion) : undefined;
   const gameMetadata = parseActivityGameMetadata(activity.descripcion);
   const asignadorRol = assignment.asignador_rol;
   const recommendedBy = asignadorRol === 'tutor' || asignadorRol === 'profesional' ? asignadorRol : base.recommendedBy;
@@ -496,6 +503,7 @@ function toAssignedLegacyActivity(
     objective: activity.descripcion?.match(/Objetivo:\s*([^\n]+)/)?.[1] || base.objective,
     steps: customSteps || base.steps,
     stepIcons: customSteps ? customSteps.map((_, index) => String(index + 1)) : base.stepIcons,
+    planB: customPlanB,
     status: completed ? 'completada' : 'pendiente',
     progress: completed ? 100 : 0,
     assignedTo: userId,

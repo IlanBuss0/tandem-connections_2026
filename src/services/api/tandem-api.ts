@@ -419,6 +419,16 @@ class AssignedActivityApiService extends CrudApiService<ActividadAsignada> {
       body: score === undefined ? {} : { puntaje: score },
     });
   }
+
+  requestHelp(
+    id: number,
+    body: { motivo: 'ayuda' | 'no_entiende' | 'pausa'; paso: number; totalPasos?: number; pasoTexto?: string },
+  ): Promise<{ avisados: string[]; repetido: boolean }> {
+    return apiRequest<{ avisados: string[]; repetido: boolean }>(`/api/actividades-asignadas/${encodeURIComponent(String(id))}/ayuda`, {
+      method: 'POST',
+      body,
+    });
+  }
 }
 
 class FileApiService extends CrudApiService<Archivo> {

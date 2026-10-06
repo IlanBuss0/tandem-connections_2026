@@ -1,12 +1,21 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Activity } from '@/data/api';
-import { ArrowLeft, CheckCircle2, Pause, Play, HelpCircle, Volume2, PartyPopper, Coins } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Pause, Play, PartyPopper, Coins } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 import MiniGame from '@/components/MiniGame';
 import type { MiniGameResult } from '@/data/miniGames';
 import type { RoutineSequenceResult } from '@/data/routineSequence';
 import { logUsageEvent } from '@/data/usageApi';
+import { isSpeechSupported, speakText } from '@/lib/speech';
+import CantContinueSheet from '@/components/activity-help/CantContinueSheet';
+import PlanBNotice from '@/components/activity-help/PlanBNotice';
+import StepExplainView from '@/components/activity-help/StepExplainView';
+import ShowSomeoneView from '@/components/activity-help/ShowSomeoneView';
+import CalmMode from '@/components/activity-help/CalmMode';
+import HelpSentView from '@/components/activity-help/HelpSentView';
+import { useHelpRequest, type HelpMotivo } from '@/components/activity-help/useHelpRequest';
+import { helpRecipientLabel } from '@/components/activity-help/helpRecipientLabel';
 
 interface Props {
   activity: Activity;
@@ -32,7 +41,11 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
   const [paused, setPaused] = useState(false);
   const [finished, setFinished] = useState(false);
   const [completionReported, setCompletionReported] = useState(false);
-  const [showHelp, setShowHelp] = useState(false);
+  const [helpView, setHelpView] = useState<null | 'sheet' | 'explain' | 'sent' | 'calm'>(null);
+  const [planBActive, setPlanBActive] = useState(false);
+  const [lastHelpMotivo, setLastHelpMotivo] = useState<HelpMotivo>('ayuda');
+  const helpRequest = useHelpRequest(activity);
+  const calmNotify = useHelpRequest(activity);
   const [gameResult, setGameResult] = useState<MiniGameResult | null>(null);
 
   const progress = (completedSteps.filter(Boolean).length / activity.steps.length) * 100;
@@ -48,6 +61,9 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
       setTimeout(() => setFinished(true), 500);
     }
   };
+
+  // El Plan B se apaga solo al cambiar de paso.
+  useEffect(() => { setPlanBActive(false); }, [currentStep]);
 
   // Otorgar monedas una sola vez al terminar
   useEffect(() => {
@@ -141,6 +157,62 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
     );
   }
 
+  const sendHelp = (motivo: HelpMotivo) => {
+    setLastHelpMotivo(motivo);
+    setHelpView('sent');
+    void helpRequest.send(motivo, currentStep);
+  };
+  const openCalm = () => { calmNotify.reset(); setHelpView('calm'); };
+
+  const recipientLabel = helpRecipientLabel(activity.assignedByName, activity.assignedByRole);
+  const stepIcon = <StepIcon value={activity.stepIcons?.[currentStep]} fallback={currentStep + 1} className="w-[120px] h-[120px]" />;
+
+  if (helpView === 'explain') {
+    return (
+      <StepExplainView
+        activityTitle={activity.title}
+        stepNumber={currentStep + 1}
+        totalSteps={activity.steps.length}
+        stepText={activity.steps[currentStep]}
+        previousStepText={currentStep > 0 ? activity.steps[currentStep - 1] : undefined}
+        nextStepText={currentStep < activity.steps.length - 1 ? activity.steps[currentStep + 1] : undefined}
+        recipientLabel={recipientLabel}
+        icon={stepIcon}
+        onBack={() => setHelpView(null)}
+        onContinue={() => setHelpView(null)}
+        onAskForHelp={() => sendHelp('no_entiende')}
+      />
+    );
+  }
+
+  if (helpView === 'sent') {
+    if (helpRequest.status === 'failed') {
+      return (
+        <ShowSomeoneView
+          activityTitle={activity.title}
+          stepNumber={currentStep + 1}
+          stepText={activity.steps[currentStep]}
+          onBack={() => setHelpView(null)}
+          onRetry={() => void helpRequest.send(lastHelpMotivo, currentStep)}
+          onCalm={openCalm}
+        />
+      );
+    }
+    return (
+      <HelpSentView
+        sending={helpRequest.status !== 'sent'}
+        avisados={helpRequest.avisados}
+        activityTitle={activity.title}
+        stepNumber={currentStep + 1}
+        stepText={activity.steps[currentStep]}
+        planB={activity.planB}
+        onUsePlanB={() => { setPlanBActive(true); setHelpView(null); }}
+        onCalm={openCalm}
+        onBack={() => setHelpView(null)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4 pb-20 lg:pb-6">
       {/* Header */}
@@ -171,6 +243,10 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
         </div>
       </div>
 
+      {planBActive && activity.planB && (
+        <PlanBNotice text={activity.planB} onClose={() => setPlanBActive(false)} />
+      )}
+
       {/* Current step */}
       <AnimatePresence mode="wait">
         <motion.div
@@ -178,8 +254,17 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
           initial={{ opacity: 0, x: 30 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -30 }}
-          className="bg-white rounded-2xl p-6 border border-[#f0e8f8] shadow-sm text-center min-h-[200px] flex flex-col items-center justify-center"
+          className="relative bg-white rounded-2xl p-6 border border-[#f0e8f8] shadow-sm text-center min-h-[200px] flex flex-col items-center justify-center"
         >
+          {isSpeechSupported() && (
+            <button
+              type="button"
+              onClick={() => void speakText(activity.steps[currentStep])}
+              className="absolute right-3 top-3 inline-flex min-h-11 items-center gap-1.5 rounded-full border border-[#ede4f8] bg-[#f3eefc] px-4 text-sm font-bold text-[#6b4c9a] hover:bg-[#ece4fa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <span aria-hidden>🔊</span> Escuchar
+            </button>
+          )}
           <span className="w-28 h-28 mb-4 rounded-2xl bg-[#6b4c9a]/10 flex items-center justify-center overflow-hidden text-5xl">
             <StepIcon value={activity.stepIcons?.[currentStep]} fallback={currentStep + 1} className="w-24 h-24" />
           </span>
@@ -190,27 +275,17 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
 
       {/* Actions */}
       <div className="flex gap-3">
-        <button onClick={() => setPaused(!paused)} className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-4 py-2 text-sm font-medium text-[#6b4c9a] hover:bg-[#f5f0ff] transition">
+        <button onClick={() => setPaused(!paused)} className="flex-1 min-h-[48px] inline-flex items-center justify-center gap-2 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-4 py-2 text-sm font-medium text-[#6b4c9a] hover:bg-[#f5f0ff] transition">
           {paused ? <><Play size={14} className="mr-1" /> Continuar</> : <><Pause size={14} className="mr-1" /> Pausar</>}
         </button>
-        <button onClick={() => setShowHelp(!showHelp)} className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-4 py-2 text-sm font-medium text-[#6b4c9a] hover:bg-[#f5f0ff] transition">
-          <HelpCircle size={14} className="mr-1" /> Necesito ayuda
-        </button>
-        <button className="w-10 h-10 inline-flex items-center justify-center rounded-2xl border border-[#ede4f8] bg-[#faf8ff] text-[#6b4c9a] hover:bg-[#f5f0ff] transition">
-          <Volume2 size={14} />
+        <button
+          type="button"
+          onClick={() => setHelpView('sheet')}
+          className="flex-[1.25] min-h-[48px] inline-flex items-center justify-center gap-2 rounded-2xl border border-[#F6C3B5] bg-[#FDEDE8] px-4 py-2 text-sm font-bold text-[#9A3A24] hover:bg-[#fbe3db] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition"
+        >
+          <span aria-hidden>🙋</span> No puedo seguir
         </button>
       </div>
-
-      {showHelp && (
-        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="bg-sky/50 rounded-xl p-4 border border-[#6b4c9a]/20">
-          <p className="text-sm text-[#6b4c9a] font-medium mb-1">💡 ¿Necesitás ayuda?</p>
-          <p className="text-xs text-[#8b7aa0]">Si no sabés cómo seguir, pedile a un adulto de confianza que te acompañe en este paso. También podés pausar y volver después.</p>
-          <div className="flex gap-2 mt-3">
-            <button className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-3 py-1.5 text-xs font-medium text-[#6b4c9a] hover:bg-[#f5f0ff] transition">Avisar a mi tutor</button>
-            <button className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-3 py-1.5 text-xs font-medium text-[#6b4c9a] hover:bg-[#f5f0ff] transition">Saltar paso</button>
-          </div>
-        </motion.div>
-      )}
 
       {/* Complete step button */}
       {!paused && !completedSteps[currentStep] && (
@@ -236,6 +311,28 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
           ))}
         </div>
       </div>
+
+      {helpView === 'sheet' && (
+        <CantContinueSheet
+          planB={activity.planB}
+          assignedByName={activity.assignedByName}
+          recipientLabel={recipientLabel}
+          onClose={() => setHelpView(null)}
+          onUsePlanB={() => { setPlanBActive(true); setHelpView(null); }}
+          onNeedHelp={() => sendHelp('ayuda')}
+          onNotUnderstand={() => setHelpView('explain')}
+          onPause={openCalm}
+        />
+      )}
+
+      {helpView === 'calm' && (
+        <CalmMode
+          onClose={() => setHelpView(null)}
+          onNotify={() => void calmNotify.send('pausa', currentStep)}
+          notifyStatus={calmNotify.status}
+          recipientLabel={recipientLabel}
+        />
+      )}
     </div>
   );
 }
