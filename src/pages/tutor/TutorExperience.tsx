@@ -26,7 +26,7 @@ import { ChatProvider } from '@/contexts/ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSyncMobileMenuOpen } from '@/contexts/MobileMenuState';
 import { useTutorNavigation } from '@/hooks/useTutorNavigation';
-import type { TutorAggregateActivity as AggregateActivity, TutorAggregateEmotion as AggregateEmotion } from '@/lib/tutorHomeModel';
+import { tutorRelativeTime, type TutorAggregateActivity as AggregateActivity, type TutorAggregateEmotion as AggregateEmotion } from '@/lib/tutorHomeModel';
 import {
   createCalendarEvent, deleteCalendarEvent, fetchCalendarEventsForUser, fetchPictograms,
   fetchTutorHome, updateCalendarEvent, type CalendarEvent, type Pictogram, type TutorHomeData,
@@ -355,7 +355,7 @@ function TutorHomeLegacy(props: Parameters<typeof TutorContent>[0]) {
       </DashboardCard>
 
       <DashboardCard title="Actividad reciente" icon={Activity} action="Ver actividades" onAction={() => props.onNavigate('activities')}>
-        <div className="divide-y divide-border">{recentItems.map(item => <button type="button" key={item.id} onClick={() => props.onOpenDetail(item.owner.id)} aria-label={`Ver información de ${item.owner.name}: ${item.kind}`} className="grid min-h-14 w-full grid-cols-[36px_1fr_auto] items-center gap-3 py-2 text-left transition-colors hover:bg-primary/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className={`flex h-9 w-9 items-center justify-center rounded-xl ${item.color}`}><item.icon size={18} aria-hidden /></span><span className="min-w-0"><span className="block truncate text-sm font-semibold">{item.kind}</span><span className="block truncate text-xs text-muted-foreground">{item.detail} · {item.category}</span></span><span className="flex items-center gap-3"><PersonChip owner={item.owner} /><span className="hidden min-w-16 text-right text-xs text-muted-foreground sm:block">{relativeTime(item.date)}</span><ChevronRight size={16} className="text-muted-foreground" aria-hidden /></span></button>)}{recentItems.length === 0 && <EmptyState text="Todavía no hay actividad reciente." />}</div>
+        <div className="divide-y divide-border">{recentItems.map(item => <button type="button" key={item.id} onClick={() => props.onOpenDetail(item.owner.id)} aria-label={`Ver información de ${item.owner.name}: ${item.kind}`} className="grid min-h-14 w-full grid-cols-[36px_1fr_auto] items-center gap-3 py-2 text-left transition-colors hover:bg-primary/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className={`flex h-9 w-9 items-center justify-center rounded-xl ${item.color}`}><item.icon size={18} aria-hidden /></span><span className="min-w-0"><span className="block truncate text-sm font-semibold">{item.kind}</span><span className="block truncate text-xs text-muted-foreground">{item.detail} · {item.category}</span></span><span className="flex items-center gap-3"><PersonChip owner={item.owner} /><span className="hidden min-w-16 text-right text-xs text-muted-foreground sm:block">{tutorRelativeTime(item.date)}</span><ChevronRight size={16} className="text-muted-foreground" aria-hidden /></span></button>)}{recentItems.length === 0 && <EmptyState text="Todavía no hay actividad reciente." />}</div>
       </DashboardCard>
 
       <DashboardCard title="Pictogramas" icon={Image} action="Ver todos" onAction={() => props.onNavigate('pictogramCatalog')}>
