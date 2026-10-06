@@ -56,7 +56,7 @@ describe('No puedo seguir', () => {
     fireEvent.click(screen.getByRole('button', { name: /No puedo seguir/ }));
     expect(screen.getByText('¿Qué necesitás?')).toBeInTheDocument();
     expect(screen.getByText('Le aviso a Laura')).toBeInTheDocument();
-    expect(screen.getByText('Te lo dejó Laura Gómez')).toBeInTheDocument();
+    expect(screen.getByText('Te lo dejó Laura')).toBeInTheDocument();
     expect(screen.getByText('Necesito una pausa')).toBeInTheDocument();
   });
 

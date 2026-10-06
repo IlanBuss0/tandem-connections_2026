@@ -1,6 +1,7 @@
 import { ChevronRight } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { AgendaSheet } from '@/components/agenda/AgendaSheet';
+import { helpRecipientLabel } from './helpRecipientLabel';
 
 interface Props {
   planB?: string;
@@ -50,7 +51,7 @@ export default function CantContinueSheet({ planB, assignedByName, recipientLabe
           >
             Lo hago así
           </button>
-          {assignedByName && <p className="mt-2 text-center text-sm text-[#0B6B4A]">Te lo dejó {assignedByName}</p>}
+          {assignedByName && <p className="mt-2 text-center text-sm text-[#0B6B4A]">Te lo dejó {helpRecipientLabel(assignedByName, 'tutor')}</p>}
         </div>
       )}
       <div className="space-y-3">

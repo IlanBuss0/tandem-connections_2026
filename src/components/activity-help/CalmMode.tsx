@@ -83,7 +83,7 @@ export default function CalmMode({ onClose, onNotify, notifyStatus = 'idle', rec
           </div>
         </motion.div>
         {/* El texto va fuera del círculo animado para que no cambie de tamaño. */}
-        <div aria-live="polite" className="-mt-[250px] flex h-[250px] w-[138px] flex-col items-center justify-center text-white">
+        <div aria-live="polite" className="relative z-10 -mt-[250px] flex h-[250px] w-[138px] flex-col items-center justify-center text-white">
           <p className="font-heading text-[26px] font-bold leading-none">{inhaling ? 'Tomá aire' : 'Soltá el aire'}</p>
           <p className="mt-1 text-sm font-bold">{inhaling ? 'contá hasta 4' : 'despacito'}</p>
         </div>
