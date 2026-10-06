@@ -260,7 +260,7 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
             <button
               type="button"
               onClick={() => void speakText(activity.steps[currentStep])}
-              className="absolute right-3 top-3 inline-flex min-h-11 items-center gap-1.5 rounded-full border border-[#ede4f8] bg-[#f3eefc] px-4 text-sm font-bold text-[#6b4c9a] hover:bg-[#ece4fa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="mb-2 self-end sm:absolute sm:right-3 sm:top-3 sm:mb-0 inline-flex min-h-11 items-center gap-1.5 rounded-full border border-[#ede4f8] bg-[#f3eefc] px-4 text-sm font-bold text-[#6b4c9a] hover:bg-[#ece4fa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <span aria-hidden>🔊</span> Escuchar
             </button>
