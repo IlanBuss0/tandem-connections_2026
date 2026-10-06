@@ -150,6 +150,7 @@ export type ProfessionalDniVerificationResult = {
   verified: boolean;
   reason: string | null;
   messageCode: string;
+  steps?: Array<{ id: string; label: string; status: "ok" | "fail" | "skipped"; detail?: string | null }>;
   dni?: {
     nombre: string | null;
     apellido: string | null;
@@ -157,6 +158,7 @@ export type ProfessionalDniVerificationResult = {
     nombreCompleto?: string | null;
     fechaVencimiento?: string | null;
     fechaVencimientoEstimada?: boolean;
+    fuente?: "PDF417" | "OCR";
     confidence: number;
     structureScore?: number;
     detectedFields?: string[];
@@ -415,6 +417,16 @@ class AssignedActivityApiService extends CrudApiService<ActividadAsignada> {
     return apiRequest<ActividadAsignada>(`/api/actividades-asignadas/${encodeURIComponent(String(id))}/completar`, {
       method: 'POST',
       body: score === undefined ? {} : { puntaje: score },
+    });
+  }
+
+  requestHelp(
+    id: number,
+    body: { motivo: 'ayuda' | 'no_entiende' | 'pausa'; paso: number; totalPasos?: number; pasoTexto?: string },
+  ): Promise<{ avisados: string[]; repetido: boolean }> {
+    return apiRequest<{ avisados: string[]; repetido: boolean }>(`/api/actividades-asignadas/${encodeURIComponent(String(id))}/ayuda`, {
+      method: 'POST',
+      body,
     });
   }
 }

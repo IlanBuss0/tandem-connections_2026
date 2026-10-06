@@ -22,9 +22,10 @@ function untilLabel(session: ProfessionalSession, now: number) {
   return minutes < 60 ? `En ${minutes} min` : `En ${Math.round(minutes / 60)} h`;
 }
 
-function Row({ time, dotClass, avatar, title, badges, detail, action, onMenu, menuLabel }: {
+/** Fila base de la agenda. Sin `onMenu` no muestra el botón ⋯ (ítems de solo lectura). */
+export function Row({ time, dotClass, avatar, title, badges, detail, note, action, onMenu, menuLabel }: {
   time: string; dotClass: string; avatar: ReactNode; title: string; badges: ReactNode; detail: string;
-  action?: ReactNode; onMenu: () => void; menuLabel: string;
+  note?: ReactNode; action?: ReactNode; onMenu?: () => void; menuLabel?: string;
 }) {
   return (
     <li className="flex gap-3 py-4">
@@ -40,18 +41,23 @@ function Row({ time, dotClass, avatar, title, badges, detail, action, onMenu, me
             {badges}
           </div>
           <p className="mt-1 text-sm text-muted-foreground [overflow-wrap:anywhere]">{detail}</p>
+          {note}
         </div>
-        <div className="mt-3 flex items-center justify-end gap-2 sm:mt-0">
-          {action}
-          <button
-            type="button"
-            onClick={onMenu}
-            aria-label={menuLabel}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary transition hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <MoreHorizontal size={20} aria-hidden />
-          </button>
-        </div>
+        {(action || onMenu) && (
+          <div className="mt-3 flex items-center justify-end gap-2 sm:mt-0">
+            {action}
+            {onMenu && (
+              <button
+                type="button"
+                onClick={onMenu}
+                aria-label={menuLabel}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary transition hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <MoreHorizontal size={20} aria-hidden />
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </li>
   );

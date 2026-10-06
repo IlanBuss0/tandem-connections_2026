@@ -76,13 +76,13 @@ export function PatientPickerSheet({ patients, onPick, onClose }: { patients: Ag
 }
 
 /** Chips de paciente: hasta 4 completos; con más, 4 + "Ver más". */
-export function PatientChips({ patients, value, onChange }: { patients: AgendaPatient[]; value: string; onChange: (id: string) => void }) {
+export function PatientChips({ patients, value, onChange, label = "Paciente" }: { patients: AgendaPatient[]; value: string; onChange: (id: string) => void; label?: string }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const visible = useMemo(() => visiblePatients(patients, value), [patients, value]);
 
   return (
     <div>
-      <SheetLabel>Paciente</SheetLabel>
+      <SheetLabel>{label}</SheetLabel>
       <div className="flex flex-wrap gap-2">
         {visible.map((patient) => (
           <SheetChip key={patient.pertenecienteId} selected={String(patient.pertenecienteId) === value} onClick={() => onChange(String(patient.pertenecienteId))}>

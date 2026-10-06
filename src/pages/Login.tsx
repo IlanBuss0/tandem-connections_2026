@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dialog';
 import type { ProfessionalDniVerificationResult, RegisterRole, RefepsProfessional, RefepsSearchResult } from '@/services/api';
 import { fetchProfessionalRegistryDetails, searchRefepsByDni, searchRefepsProfessional, verifyProfessionalDni } from '@/data/api';
+import { DniChecklist } from '@/components/auth/DniChecklist';
 import { DniScanner } from '@/components/auth/DniScanner';
 
 type AuthView = 'welcome' | 'login' | 'register';
@@ -119,7 +120,7 @@ function toDniVerificationState(result: ProfessionalDniVerificationResult): DniV
     };
   }
   if (result.status === 'EXPIRED_DOCUMENT') {
-    return { status: 'expired_document', message: 'Tu DNI no está vigente. Para continuar necesitás utilizar un DNI vigente.', result };
+    return { status: 'expired_document', message: 'Tu DNI ya expiró. Para continuar necesitás utilizar un DNI vigente.', result };
   }
   if (result.reason === 'NOT_ARGENTINE_DNI' || result.reason === 'MISSING_FIELDS') {
     return {
@@ -245,6 +246,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
 
   const verifyDniFrente = async (file: File, professional: RefepsProfessional, pdf417Raw?: string) => {
     setDniVerification({ status: 'processing', message: 'Verificando tu DNI...' });
+    console.info('[DniVerify] enviando al servidor', { bytes: file.size, conPdf417: Boolean(pdf417Raw), pdf417Largo: pdf417Raw?.length ?? 0 });
     try {
       const result = await verifyProfessionalDni({
         dniFrente: file,
@@ -258,8 +260,10 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
         profesion: professional.profesion || undefined,
         selectionId: professional.selectionId || undefined,
       });
+      console.info('[DniVerify] respuesta del servidor', { status: result.status, reason: result.reason, estimado: result.dni?.fechaVencimientoEstimada ?? null });
       setDniVerification(toDniVerificationState(result));
-    } catch {
+    } catch (error) {
+      console.error('[DniVerify] fallo la solicitud', error instanceof Error ? error.message : error);
       setDniVerification({
         status: 'technical_error',
         message: 'No pudimos verificar tu DNI en este momento. Intentá nuevamente.',
@@ -589,7 +593,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     <img
       src="/tandem-logo.png"
       alt="Tandem"
-      className={compact ? 'mx-auto h-auto w-[224px]' : 'mx-auto h-auto w-[294px] max-w-[78vw]'}
+      className={compact ? 'mx-auto h-auto w-[224px] md:w-[280px]' : 'mx-auto h-auto w-[294px] max-w-[78vw] md:w-[360px]'}
     />
   );
 
@@ -597,7 +601,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
 
   return (
     <main className="min-h-screen bg-[#F8FAFB] text-[#6F518E]">
-      <section className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col px-8 py-10">
+      <section className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col px-8 py-10 md:max-w-[620px] md:px-10 md:py-14">
         {view === 'welcome' ? (
           <motion.div
             initial={{ opacity: 0, y: 14 }}
@@ -649,13 +653,14 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
               <form onSubmit={handleLoginSubmit} className="space-y-5">
                 <AuthField
                   label="Usuario o email"
+                  autoComplete="username"
                   value={username}
                   onChange={e => setUsername(e.target.value)}
-                  placeholder="ej: juan123"
                 />
 
                 <PasswordField
                   label="Contraseña"
+                  autoComplete="current-password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   showPassword={showPassword}
@@ -767,28 +772,28 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
                   <>
                     <AuthField
                       label="Nombre"
+                      autoComplete="given-name"
                       value={registerNombre}
                       onChange={e => setRegisterNombre(e.target.value)}
-                      placeholder="Tu nombre"
                     />
                     <AuthField
                       label="Apellido"
+                      autoComplete="family-name"
                       value={registerApellido}
                       onChange={e => setRegisterApellido(e.target.value)}
-                      placeholder="Tu apellido"
                     />
                     <AuthField
                       label="Usuario"
+                      autoComplete="username"
                       value={registerUsername}
                       onChange={e => setRegisterUsername(e.target.value)}
-                      placeholder="ej: juan123"
                     />
                     <AuthField
                       label="Email"
                       type="email"
+                      autoComplete="email"
                       value={registerEmail}
                       onChange={e => setRegisterEmail(e.target.value)}
-                      placeholder="tu@email.com"
                     />
                   </>
                 )}
@@ -798,7 +803,6 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
                     label="Parentesco (opcional)"
                     value={registerParentesco}
                     onChange={e => setRegisterParentesco(e.target.value)}
-                    placeholder="ej: Madre, padre, hermano..."
                   />
                 )}
 
@@ -806,6 +810,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
                   <>
                     <PasswordField
                       label="Contraseña"
+                      autoComplete="new-password"
                       value={registerPassword}
                       onChange={e => setRegisterPassword(e.target.value)}
                       showPassword={showRegisterPassword}
@@ -813,6 +818,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
                     />
                     <PasswordField
                       label="Repetir contraseña"
+                      autoComplete="new-password"
                       value={registerConfirmPassword}
                       onChange={e => setRegisterConfirmPassword(e.target.value)}
                       showPassword={showRegisterPassword}
@@ -1402,7 +1408,7 @@ function DniFrontField({
       <div className="space-y-1">
         <p className="text-sm font-extrabold">Escaneo del frente de tu DNI</p>
         <p className="text-xs font-medium leading-relaxed text-[#6F518E]/70">
-          Vamos a capturar una imagen nítida desde la cámara para confirmar tu identidad.
+          Vamos a leer el código de barras de tu DNI (suele estar en el dorso) con la cámara para confirmar tu identidad.
         </p>
       </div>
 
@@ -1451,6 +1457,12 @@ function DniFrontField({
         {isProcessing ? <Loader2 size={16} className="mt-0.5 shrink-0 animate-spin" /> : isOk ? <Check size={16} className="mt-0.5 shrink-0" /> : null}
         <span>{verification.message}</span>
       </p>
+      {verification.status !== 'idle' && verification.status !== 'processing' && verification.result?.steps && (
+        <DniChecklist
+          title={`Resultado de la verificación${verification.result.dni?.fuente ? ` (datos leídos por ${verification.result.dni.fuente === 'PDF417' ? 'código de barras' : 'OCR'})` : ''}`}
+          items={verification.result.steps}
+        />
+      )}
     </div>
   );
 }
@@ -1517,16 +1529,26 @@ function AuthActionButton({
 function AuthField({
   label,
   className,
+  id,
   ...props
 }: React.ComponentProps<typeof Input> & { label: string }) {
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
   return (
-    <label className="block space-y-2 text-sm font-bold text-[#6F518E]">
-      <span>{label}</span>
+    <div className="relative">
       <Input
+        id={inputId}
+        placeholder=" "
         {...props}
-        className={`h-12 rounded-2xl border-[#C9A7EB]/60 bg-white px-5 text-[#6F518E] placeholder:text-[#6F518E]/45 focus-visible:ring-[#C9A7EB] ${className ?? ''}`}
+        className={`peer h-16 rounded-2xl border-[#C9A7EB]/60 bg-white px-5 pt-6 pb-2 text-base leading-snug text-[#6F518E] transition placeholder:text-transparent focus-visible:border-[#6F518E] focus-visible:ring-4 focus-visible:ring-[#C9A7EB]/25 md:text-lg ${className ?? ''}`}
       />
-    </label>
+      <label
+        htmlFor={inputId}
+        className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-sm font-bold text-[#6F518E]/55 transition-all duration-200 ease-out peer-focus:top-[10px] peer-focus:translate-y-0 peer-focus:text-[11px] peer-focus:text-[#6F518E] peer-[:not(:placeholder-shown)]:top-[10px] peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[11px]"
+      >
+        {label}
+      </label>
+    </div>
   );
 }
 
@@ -1536,34 +1558,45 @@ function PasswordField({
   onChange,
   showPassword,
   onTogglePassword,
+  autoComplete,
+  id,
 }: {
   label: string;
   value: string;
   onChange: React.ChangeEventHandler<HTMLInputElement>;
   showPassword: boolean;
   onTogglePassword: () => void;
+  autoComplete?: string;
+  id?: string;
 }) {
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
   return (
-    <label className="block space-y-2 text-sm font-bold text-[#6F518E]">
-      <span>{label}</span>
-      <span className="relative block">
-        <Input
-          type={showPassword ? 'text' : 'password'}
-          value={value}
-          onChange={onChange}
-          placeholder="••••••"
-          className="h-12 rounded-2xl border-[#C9A7EB]/60 bg-white px-5 pr-12 text-[#6F518E] placeholder:text-[#6F518E]/45 focus-visible:ring-[#C9A7EB]"
-        />
-        <button
-          type="button"
-          onClick={onTogglePassword}
-          className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6F518E]/70 hover:text-[#6F518E]"
-          aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-        >
-          {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-        </button>
-      </span>
-    </label>
+    <div className="relative">
+      <Input
+        id={inputId}
+        type={showPassword ? 'text' : 'password'}
+        value={value}
+        onChange={onChange}
+        placeholder=" "
+        autoComplete={autoComplete}
+        className="peer h-16 rounded-2xl border-[#C9A7EB]/60 bg-white px-5 pr-12 pt-6 pb-2 text-base leading-snug text-[#6F518E] transition placeholder:text-transparent focus-visible:border-[#6F518E] focus-visible:ring-4 focus-visible:ring-[#C9A7EB]/25 md:text-lg"
+      />
+      <label
+        htmlFor={inputId}
+        className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-sm font-bold text-[#6F518E]/55 transition-all duration-200 ease-out peer-focus:top-[10px] peer-focus:translate-y-0 peer-focus:text-[11px] peer-focus:text-[#6F518E] peer-[:not(:placeholder-shown)]:top-[10px] peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[11px]"
+      >
+        {label}
+      </label>
+      <button
+        type="button"
+        onClick={onTogglePassword}
+        className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6F518E]/70 hover:text-[#6F518E]"
+        aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+      >
+        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+      </button>
+    </div>
   );
 }
 
@@ -1609,7 +1642,7 @@ function DemoCredentials({
             Usuario: <span className="font-mono font-bold text-[#6F518E]">juan123</span>
           </p>
           <p>
-            Contraseña: <span className="font-mono font-bold text-[#6F518E]">123456</span>
+            Contraseña: <span className="font-mono font-bold text-[#6F518E]">juan123456</span>
           </p>
         </motion.div>
       )}

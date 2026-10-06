@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { BarChart3, CalendarDays, CheckCircle2, FileText, Image, Info, Link2, LogOut, MessageCircle, Plus, Settings, Sparkles, UserRound, Users, X } from 'lucide-react';
+import { BarChart3, CalendarDays, CheckCircle2, Image, Info, Link2, LogOut, MessageCircle, Plus, Settings, Sparkles, UserRound, Users, X } from 'lucide-react';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 
 export type TutorTab = 'home' | 'calendar' | 'activities' | 'chat' | 'notifications' | 'reports' | 'professionals' | 'pictograms' | 'pictogramCatalog' | 'connections' | 'profile' | 'about' | 'detail';
@@ -14,7 +14,6 @@ const navGroups = [
     { id: 'chat' as const, label: 'Chats', icon: MessageCircle },
   ] },
   { title: 'Seguimiento y herramientas', items: [
-    { id: 'reports' as const, label: 'Reportes', icon: FileText },
     { id: 'connections' as const, label: 'Personas vinculadas', icon: Users },
     { id: 'professionals' as const, label: 'Profesionales', icon: UserRound },
     { id: 'pictograms' as const, label: 'Pictogramas IA', icon: Sparkles },
@@ -41,7 +40,7 @@ export function TutorProfileDrawer({ open, user, onClose, onNavigate, onLogout }
   const sections = [
     { title: 'Cuenta', items: [{ id: 'profile' as const, label: 'Perfil y configuración', icon: UserRound }] },
     { title: 'Red de apoyo', items: [{ id: 'connections' as const, label: 'Personas vinculadas', icon: Users }, { id: 'professionals' as const, label: 'Profesionales', icon: Link2 }] },
-    { title: 'Seguimiento y herramientas', items: [{ id: 'reports' as const, label: 'Reportes', icon: FileText }, { id: 'pictograms' as const, label: 'Pictogramas y herramientas visuales', icon: Image }] },
+    { title: 'Seguimiento y herramientas', items: [{ id: 'pictograms' as const, label: 'Pictogramas y herramientas visuales', icon: Image }] },
     { title: 'TÁNDEM', items: [{ id: 'about' as const, label: 'Acerca de TÁNDEM', icon: Info }] },
   ];
   return <AnimatePresence>{open && <div className="fixed inset-0 z-[75]"><motion.button type="button" aria-label="Cerrar perfil" onClick={onClose} className="absolute inset-0 h-full w-full bg-slate-950/20 backdrop-blur-[2px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} /><motion.aside role="dialog" aria-modal="true" aria-labelledby="tutor-profile-title" className="absolute right-0 top-0 flex h-full w-[min(92vw,27rem)] flex-col overflow-y-auto rounded-l-[32px] bg-[#fbf9ff] p-5 shadow-2xl" initial={reduceMotion ? { opacity: 0 } : { x: '100%' }} animate={{ x: 0, opacity: 1 }} exit={reduceMotion ? { opacity: 0 } : { x: '100%' }} transition={{ duration: reduceMotion ? .1 : .22, ease: 'easeOut' }}>
