@@ -101,7 +101,36 @@ describe('GuidedRoutineMode: No puedo seguir', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Ya estoy mejor' }));
 
     expect(screen.getByRole('heading', { name: 'Lavarse la cara' })).toBeInTheDocument();
-    expect(screen.getByText('Paso 1 de 2')).toBeInTheDocument();
+    expect(screen.getByText('Paso 2 de 3')).toBeInTheDocument();
     expect(toggleItem).not.toHaveBeenCalled();
+  });
+});
+
+describe('GuidedRoutineMode: un solo número de paso', () => {
+  beforeEach(() => { request.mockReset(); toggleItem.mockReset(); });
+
+  // 6 pasos; los 3 primeros ya están hechos, así que el actual es el 4.
+  const six = (done: number) => ['Despertarse', 'Lavarse la cara', 'Vestirse', 'Desayunar', 'Cepillarse', 'Salir']
+    .map((title, index) => item(`s${index + 1}`, title, index < done));
+
+  it('el encabezado y "No entiendo este paso" muestran el mismo número y el mismo total', () => {
+    render(<GuidedRoutineMode routineId="r1" items={six(3)} />);
+    fireEvent.click(screen.getByRole('button', { name: /Modo guiado/ }));
+    expect(screen.getByText('Paso 4 de 6')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /No puedo seguir/ }));
+    fireEvent.click(screen.getByText('No entiendo este paso'));
+    expect(screen.getByText('Paso 4 de 6 · Ahora')).toBeInTheDocument();
+    expect(screen.getByText('Paso 4 de 6')).toBeInTheDocument();
+  });
+
+  it('el número avanza al tocar "Listo, siguiente": 4 de 6 y después 5 de 6', () => {
+    const { rerender } = render(<GuidedRoutineMode routineId="r1" items={six(3)} />);
+    fireEvent.click(screen.getByRole('button', { name: /Modo guiado/ }));
+    expect(screen.getByText('Paso 4 de 6')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Listo, siguiente/ }));
+    expect(toggleItem).toHaveBeenCalledWith('r1', 's4');
+    rerender(<GuidedRoutineMode routineId="r1" items={six(4)} />);
+    expect(screen.getByText('Paso 5 de 6')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Cepillarse' })).toBeInTheDocument();
   });
 });
