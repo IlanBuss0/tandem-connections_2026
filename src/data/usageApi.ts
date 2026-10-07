@@ -148,6 +148,32 @@ export async function fetchAutonomyCardUsage(userId: string): Promise<AutonomyCa
   }
 }
 
+export interface HelpSpot {
+  contexto: string;
+  titulo: string | null;
+  paso: number | null;
+  pasoTexto: string | null;
+  cantidad: number;
+  ultimaVez: string;
+}
+
+export interface HelpSpotsReport {
+  dias: number;
+  total: number;
+  porMotivo: { ayuda: number; no_entiende: number; pausa: number };
+  lugares: HelpSpot[];
+}
+
+// Pasos donde la persona más pidió ayuda. Devuelve null si falla, para poder
+// distinguir "no se pudo cargar" de "no hay datos" (reporte con total 0).
+export async function fetchHelpSpots(userId: string, dias = 30): Promise<HelpSpotsReport | null> {
+  try {
+    return await apiRequest<HelpSpotsReport>(`/api/eventos-uso/usuario/${encodeURIComponent(userId)}/ayudas?dias=${dias}`);
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchUsageEvents(userId: string, options?: { tipoEvento?: UsageEventType; limit?: number }): Promise<UsageEventRecord[]> {
   try {
     const params = new URLSearchParams();

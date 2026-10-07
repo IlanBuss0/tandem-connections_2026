@@ -5,9 +5,10 @@ vi.mock('@/data/usageApi', async importOriginal => ({
   ...(await importOriginal<typeof import('@/data/usageApi')>()),
   fetchEvolutionReport: vi.fn(async () => []),
   fetchEvolutionDaily: vi.fn(async () => []),
+  fetchHelpSpots: vi.fn(async () => ({ dias: 30, total: 0, porMotivo: { ayuda: 0, no_entiende: 0, pausa: 0 }, lugares: [] })),
 }));
 
-import { fetchEvolutionReport } from '@/data/usageApi';
+import { fetchEvolutionReport, fetchHelpSpots } from '@/data/usageApi';
 import PertenecienteDetail, { type PertenecienteDetailProps } from './PertenecienteDetail';
 
 const NOTICE = 'El historial no está habilitado para este vínculo.';
@@ -17,6 +18,7 @@ const open = (name: string) => fireEvent.click(screen.getByRole('button', { name
 beforeEach(() => {
   window.sessionStorage.clear();
   vi.mocked(fetchEvolutionReport).mockClear();
+  vi.mocked(fetchHelpSpots).mockClear();
 });
 
 describe('PertenecienteDetail con role="tutor"', () => {
@@ -109,5 +111,26 @@ describe('PertenecienteDetail con role="professional"', () => {
     expect(screen.queryByText(NOTICE)).not.toBeInTheDocument();
     expect(screen.getByText('Contenido del Profesional')).toBeInTheDocument();
     expect(fetchEvolutionReport).not.toHaveBeenCalled();
+  });
+});
+
+describe('Colaboración: tarjeta "Dónde se traba"', () => {
+  it('se monta en las dos columnas pero pide los datos una sola vez', async () => {
+    render(<PertenecienteDetail person={person} role="tutor" currentUserId="1" initialTab="collaboration" />);
+    expect(screen.getAllByText('Dónde se traba')).toHaveLength(2);
+    expect(await screen.findAllByText('Todavía no pidió ayuda en este período.')).toHaveLength(2);
+    expect(fetchHelpSpots).toHaveBeenCalledTimes(1);
+    expect(fetchHelpSpots).toHaveBeenCalledWith('7');
+  });
+
+  it('sin permiso de historial no se muestra ni se pide', () => {
+    render(<PertenecienteDetail person={person} role="tutor" currentUserId="1" initialTab="collaboration" canViewHistory={false} />);
+    expect(screen.queryByText('Dónde se traba')).not.toBeInTheDocument();
+    expect(fetchHelpSpots).not.toHaveBeenCalled();
+  });
+
+  it('no pide los datos hasta abrir Colaboración', () => {
+    render(<PertenecienteDetail person={person} role="tutor" currentUserId="1" initialTab="summary" />);
+    expect(fetchHelpSpots).not.toHaveBeenCalled();
   });
 });
