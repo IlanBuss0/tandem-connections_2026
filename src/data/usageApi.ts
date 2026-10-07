@@ -161,6 +161,8 @@ export interface HelpSpotsReport {
   dias: number;
   total: number;
   porMotivo: { ayuda: number; no_entiende: number; pausa: number };
+  /** Usos del botón "No puedo hablar"; total = suma de porMotivo + comunicacion. */
+  comunicacion?: number;
   lugares: HelpSpot[];
 }
 
