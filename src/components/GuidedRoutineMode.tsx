@@ -97,7 +97,7 @@ export default function GuidedRoutineMode({ routineId, items }: { routineId: str
   return (
     <div className="fixed inset-0 z-[60] flex flex-col bg-white">
       <div className="flex items-center justify-between border-b border-[#ede4f8] p-4">
-        <span className="text-xs font-semibold text-[#8b7aa0]">Paso {index + 1} de {pending.length}</span>
+        <span className="text-xs font-semibold text-[#8b7aa0]">Paso {stepNumber} de {items.length}</span>
         <button type="button" onClick={() => setOpen(false)} aria-label="Cerrar" className="rounded-full p-2 text-[#8b7aa0] hover:bg-[#f5f0ff]">
           <X size={22} />
         </button>
