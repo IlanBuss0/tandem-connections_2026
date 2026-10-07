@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useCallback, ReactNode,
 import { useAuth } from './AuthContext';
 import { DayRoutine as ApiDayRoutine, fetchRoutinesForUser, RoutineItem, saveRoutinesForUser, CustomCategory, fetchCustomCategoriesForUser, saveCustomCategoriesForUser } from '@/data/api';
 import { logUsageEvent } from '@/data/usageApi';
+import { localDateKey, resetStaleCompletions } from '@/lib/routineDay';
 
 // Day of the week index: 0 = Domingo ... 6 = Sábado. -1 = "default/today"
 export type DayKey = 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -71,7 +72,9 @@ export function RoutinesProvider({ children }: { children: ReactNode }) {
       fetchCustomCategoriesForUser(user.id),
     ]).then(([rows, data]) => {
       if (!mounted) return;
-      setRoutines(rows as DayRoutine[]);
+      // Lo completado otro dia vuelve a empezar; si hay algo que reiniciar, el
+      // guardado automatico de abajo lo persiste.
+      setRoutines(resetStaleCompletions(rows as DayRoutine[], localDateKey()));
       setCustomCategories(data.customCategories);
       setHiddenPredefined(data.hiddenPredefined);
       setLoadedUserId(user.id);
@@ -84,6 +87,24 @@ export function RoutinesProvider({ children }: { children: ReactNode }) {
     });
     return () => { mounted = false; };
   }, [user]);
+
+  // Con la app abierta al pasar la medianoche: al volver a la pestana y cada
+  // 60 s se reinician los pasos de un dia anterior. resetStaleCompletions
+  // devuelve el mismo array si no hay nada que reiniciar, asi que React no
+  // re-renderiza ni guarda de mas.
+  useEffect(() => {
+    if (!user || user.role !== 'user' || loadedUserId !== user.id) return;
+    const resetIfNewDay = () => setRoutines(prev => resetStaleCompletions(prev, localDateKey()));
+    const onVisible = () => { if (document.visibilityState === 'visible') resetIfNewDay(); };
+    const interval = window.setInterval(resetIfNewDay, 60_000);
+    window.addEventListener('focus', resetIfNewDay);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', resetIfNewDay);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [user, loadedUserId]);
 
   useEffect(() => {
     if (!user || user.role !== 'user' || loadedUserId !== user.id) return;
@@ -127,7 +148,7 @@ export function RoutinesProvider({ children }: { children: ReactNode }) {
         name: `${orig.name} (copia)`,
         dayOfWeek: null,
         date: todayDate(),
-        items: orig.items.map(it => ({ ...it, id: `${it.id}-c${Date.now().toString().slice(-4)}`, completed: false })),
+        items: orig.items.map(it => ({ ...it, id: `${it.id}-c${Date.now().toString().slice(-4)}`, completed: false, completedOn: undefined })),
       };
       return [...prev, copy];
     });
@@ -166,7 +187,8 @@ export function RoutinesProvider({ children }: { children: ReactNode }) {
           if (nextCompleted) {
             void logUsageEvent({ tipoEvento: 'rutina_paso_completado', entidadTipo: 'rutina_item', entidadId: itemId, valor: { title: it.title } });
           }
-          return { ...it, completed: nextCompleted };
+          // completedOn: el paso cuenta como hecho solo hoy (ver resetStaleCompletions).
+          return { ...it, completed: nextCompleted, completedOn: nextCompleted ? localDateKey() : undefined };
         }),
       };
     }));
