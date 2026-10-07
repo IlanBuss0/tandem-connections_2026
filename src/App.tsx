@@ -22,7 +22,7 @@ import AppShell from '@/components/AppShell';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { fetchOnboardingStatus } from '@/data/api';
 import '@/styles/accessibility.css';
 
@@ -73,6 +73,27 @@ function AuthGate() {
     window.addEventListener('popstate', syncPublicView);
     return () => window.removeEventListener('popstate', syncPublicView);
   }, []);
+
+  // Al pasar de "con sesion" a "sin sesion" (boton Cerrar sesion de cualquier
+  // rol, o sesion vencida) se vuelve a la pagina de inicio: sin esto, la URL
+  // interna (/tutor/...) quedaba en la barra o mostraba la 404. Solo actua en
+  // la transicion, no al cargar la pagina sin sesion (ahi la 404 sigue igual).
+  // useLayoutEffect: corre antes de pintar, asi no hay parpadeo de la 404.
+  const wasAuthenticated = useRef(false);
+  useLayoutEffect(() => {
+    if (isLoading) return;
+    if (wasAuthenticated.current && !isAuthenticated) {
+      window.history.replaceState(null, '', '/');
+      setPublicView('landing');
+      setPasswordRecoveryPath('/');
+      setInviteToken(null);
+      setProfessionalInviteToken(null);
+      setVerifyEmailToken(null);
+      setIsVerifyEmailRoute(false);
+      window.scrollTo(0, 0);
+    }
+    wasAuthenticated.current = isAuthenticated;
+  }, [isAuthenticated, isLoading]);
 
   // Cuestionario de onboarding (Fase 6): se muestra una sola vez, solo a
   // pertenecientes (role 'user'), y solo despues de que el mail este

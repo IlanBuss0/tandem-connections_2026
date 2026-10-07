@@ -419,6 +419,37 @@ class AssignedActivityApiService extends CrudApiService<ActividadAsignada> {
       body: score === undefined ? {} : { puntaje: score },
     });
   }
+
+  requestHelp(
+    id: number,
+    body: { motivo: 'ayuda' | 'no_entiende' | 'pausa'; paso: number; totalPasos?: number; pasoTexto?: string },
+  ): Promise<{ avisados: string[]; repetido: boolean }> {
+    return apiRequest<{ avisados: string[]; repetido: boolean }>(`/api/actividades-asignadas/${encodeURIComponent(String(id))}/ayuda`, {
+      method: 'POST',
+      body,
+    });
+  }
+}
+
+export type HelpRequestMotivo = 'ayuda' | 'no_entiende' | 'pausa';
+
+/** Pedido de ayuda general (rutinas y "No puedo hablar"). Rutina: titulo y paso obligatorios. Comunicador: solo ayuda o pausa, sin paso. */
+export interface HelpRequestBody {
+  contexto: 'rutina' | 'comunicador';
+  motivo: HelpRequestMotivo;
+  titulo?: string;
+  paso?: number;
+  totalPasos?: number;
+  pasoTexto?: string;
+  frase?: string;
+}
+
+export type HelpRequestResult = { avisados: string[]; repetido: boolean };
+
+class HelpApiService {
+  request(body: HelpRequestBody): Promise<HelpRequestResult> {
+    return apiRequest<HelpRequestResult>("/api/ayuda", { method: "POST", body });
+  }
 }
 
 class FileApiService extends CrudApiService<Archivo> {
@@ -450,6 +481,7 @@ export const tandemApi = {
   actividades: new CrudApiService<Actividad>("/api/actividades"),
   actividadesPersonalizadas: new CustomActivityApiService("/api/actividades-personalizadas"),
   actividadesAsignadas: new AssignedActivityApiService("/api/actividades-asignadas"),
+  ayuda: new HelpApiService(),
   favoritosActividades: new CrudApiService<FavoritoActividad>("/api/favoritos-actividades"),
   calificacionesActividades: new CrudApiService<CalificacionActividad>("/api/calificaciones-actividades"),
   avatares: new CrudApiService<Avatar>("/api/avatares"),

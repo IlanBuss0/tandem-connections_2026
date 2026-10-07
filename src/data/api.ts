@@ -427,11 +427,11 @@ function toLegacyActivity(activity: DbActividad, userId?: string): Activity {
     id: String(activity.id),
     title: activity.titulo,
     category: 'autonomía personal',
-    objective: activity.descripcion || activity.titulo,
-    description: activity.descripcion || activity.titulo,
+    objective: activityDisplayDescription(activity.descripcion) || activity.titulo,
+    description: activityDisplayDescription(activity.descripcion) || activity.titulo,
     difficulty: 'medio',
     duration: '10 min',
-    steps: [activity.descripcion || activity.titulo],
+    steps: [activityDisplayDescription(activity.descripcion) || activity.titulo],
     stepIcons: ['1'],
     status: 'pendiente',
     recommendedBy: 'app',
@@ -448,6 +448,12 @@ function extractCustomSteps(description?: string | null): string[] {
   if (!stepsLine) return [description || 'Completar la actividad asignada.'];
   const steps = stepsLine.replace(/^Pasos:\s*/i, '').split('|').map(step => step.trim()).filter(Boolean);
   return steps.length > 0 ? steps : [description || 'Completar la actividad asignada.'];
+}
+
+export function extractPlanB(description?: string | null): string | undefined {
+  const planBLine = (description || '').split('\n').find(line => line.trim().startsWith('PlanB:'));
+  if (!planBLine) return undefined;
+  return planBLine.trim().replace(/^PlanB:\s*/i, '').trim() || undefined;
 }
 
 function parseActivityGameMetadata(description?: string | null): { gameType?: GameType; gameData?: GameData } {
@@ -484,6 +490,7 @@ function toAssignedLegacyActivity(
   const completed = isCompletedStatus(status, assignment);
   const customDescription = 'id_actividad_base' in activity ? activityDisplayDescription(activity.descripcion) : '';
   const customSteps = 'id_actividad_base' in activity ? extractCustomSteps(activity.descripcion) : null;
+  const customPlanB = 'id_actividad_base' in activity ? extractPlanB(activity.descripcion) : undefined;
   const gameMetadata = parseActivityGameMetadata(activity.descripcion);
   const asignadorRol = assignment.asignador_rol;
   const recommendedBy = asignadorRol === 'tutor' || asignadorRol === 'profesional' ? asignadorRol : base.recommendedBy;
@@ -492,10 +499,11 @@ function toAssignedLegacyActivity(
     ...base,
     id: String(assignment.id),
     title: activity.titulo,
-    description: customDescription || activity.descripcion || base.description,
+    description: customDescription || base.description,
     objective: activity.descripcion?.match(/Objetivo:\s*([^\n]+)/)?.[1] || base.objective,
     steps: customSteps || base.steps,
     stepIcons: customSteps ? customSteps.map((_, index) => String(index + 1)) : base.stepIcons,
+    planB: customPlanB,
     status: completed ? 'completada' : 'pendiente',
     progress: completed ? 100 : 0,
     assignedTo: userId,
@@ -1263,12 +1271,6 @@ export async function findUser(username: string, password: string): Promise<User
     const avatarUrl = auth.user?.id ? await fetchUserAvatarUrl(auth.user.id) : null;
     return toLegacyUser(auth.user, avatarUrl);
   } catch {
-    const localUser = legacy.findUser(username, password);
-    if (localUser) {
-      storeAuthToken();
-      return localUser;
-    }
-
     return null;
   }
 }
@@ -1368,25 +1370,16 @@ export async function fetchPertenecienteHome(
   },
 ): Promise<PertenecienteHomeData> {
   if (!isBackendUserId(userId)) {
-    const user = legacy.getUserById(userId);
-    const activities = legacy.getActivitiesForUser(userId);
     return {
-      perteneciente: null,
-      supportLevel: user?.supportLevel || 'Sin registrar',
+      pertenec: null,
+      supportLevel: 'Sin registrar',
       autonomy: 'Sin registrar',
-      canSelfManage: Boolean(user?.onboarded),
-      points: user?.points ?? 0,
-      level: user?.level ?? 1,
+      canSelfManage: false,
+      points: 0,
+      level: 1,
       experience: 0,
-      activities: activities.map(activity => ({
-        id: activity.id,
-        title: activity.title,
-        description: activity.description,
-        status: activity.status,
-        completed: activity.status === 'completada',
-        assignedAt: 'Hoy',
-      })),
-      notifications: legacy.getNotificationsForUser(userId),
+      activities: [],
+      notifications: [],
     };
   }
 

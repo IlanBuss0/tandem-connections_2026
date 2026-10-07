@@ -1,10 +1,10 @@
-import { ChevronRight, Loader2, Shield, Trash2 } from 'lucide-react';
+import { ChevronRight, FileText, Loader2, Shield, Trash2 } from 'lucide-react';
 import PersonAvatar from './PersonAvatar';
 import SurfaceCard from './SurfaceCard';
 
-type Props = { name: string; isPrincipal: boolean; deleting: boolean; onOpenDetail?: () => void; onDelete: () => void };
+type Props = { name: string; isPrincipal: boolean; deleting: boolean; onOpenDetail?: () => void; onDelete: () => void; reportsSummary?: string; onOpenReports?: () => void };
 
-export default function SelectedPersonCard({ name, isPrincipal, deleting, onOpenDetail, onDelete }: Props) {
+export default function SelectedPersonCard({ name, isPrincipal, deleting, onOpenDetail, onDelete, reportsSummary, onOpenReports }: Props) {
   return (
     <SurfaceCard>
       <div className="flex items-center gap-3">
@@ -31,6 +31,16 @@ export default function SelectedPersonCard({ name, isPrincipal, deleting, onOpen
           </button>
         )}
       </div>
+      {onOpenReports && (
+        <button type="button" onClick={onOpenReports} className="mt-3.5 flex min-h-14 w-full items-center gap-3 rounded-2xl bg-[var(--evo-soft-2)] px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--evo-primary)]">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[var(--evo-soft)] text-[var(--evo-primary-text)]"><FileText size={19} aria-hidden /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-extrabold text-[var(--evo-text)]">Reportes de los profesionales</span>
+            <span className="block text-xs text-[var(--evo-text-secondary)]">{reportsSummary}</span>
+          </span>
+          <ChevronRight size={18} className="shrink-0 text-[var(--evo-primary-text)]" aria-hidden />
+        </button>
+      )}
       <button
         type="button"
         onClick={onDelete}

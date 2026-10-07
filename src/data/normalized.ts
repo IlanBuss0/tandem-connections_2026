@@ -9,10 +9,6 @@
 // disponible para vistas/hooks que ya migran al esquema definitivo.
 // ============================================================================
 import {
-  users as legacyUsers,
-  tutors as legacyTutors,
-  professionals as legacyProfessionals,
-  admins as legacyAdmins,
   activities as legacyActivities,
 } from './mockData';
 import type {
@@ -62,143 +58,34 @@ const supportLevelToId = (lvl?: 'bajo' | 'medio' | 'alto'): number => {
 };
 
 // --- Pertenecientes ---------------------------------------------------------
-for (const u of legacyUsers) {
-  const id = nextId();
-  usuarioIdMap.set(u.id, id);
-  const [nombre, apellido] = splitName(u.name);
-  usuarios.push({
-    id, id_tipo_usuario: TIPO_PERT,
-    nombre_usuario: u.username, contrasena_hash: u.password,
-    nombre, apellido, correo: u.email, telefono: null,
-    fecha_nacimiento: null, fecha_ingreso: today(), activo: true,
-  });
-  pertenecientes.push({
-    id: pertenecientes.length + 1, id_usuario: id,
-    id_nivel_apoyo: supportLevelToId(u.supportLevel),
-    id_autonomia_operativa: catalogIdByName(autonomiasOperativas,
-      u.supportLevel === 'bajo' ? 'Autogestionada' : u.supportLevel === 'alto' ? 'Tutelada' : 'Asistida'),
-    puede_autogestionarse: u.supportLevel === 'bajo',
-    observacion_general: u.bio ?? null,
-    nivel_apoyo_sugerido: false,
-  });
-}
+// (sin datos estáticos: los usuarios ahora viven en el backend)
 
 // --- Tutores ----------------------------------------------------------------
-for (const t of legacyTutors) {
-  const id = nextId();
-  usuarioIdMap.set(t.id, id);
-  const [nombre, apellido] = splitName(t.name);
-  usuarios.push({
-    id, id_tipo_usuario: TIPO_TUT,
-    nombre_usuario: t.username, contrasena_hash: t.password,
-    nombre, apellido, correo: t.email,
-    telefono: Number((t.phone || '').replace(/\D/g, '')) || null,
-    fecha_nacimiento: null, fecha_ingreso: today(), activo: true,
-  });
-  tutores.push({ id: tutores.length + 1, id_usuario: id, parentesco: t.relation });
-}
+// (sin datos estáticos: los usuarios ahora viven en el backend)
 
 // --- Profesionales ----------------------------------------------------------
-const ESTADO_VAL_APROBADO = catalogIdByName(estadosValidacionesProfesionales, 'Aprobado');
-for (const p of legacyProfessionals) {
-  const id = nextId();
-  usuarioIdMap.set(p.id, id);
-  const [nombre, apellido] = splitName(p.name);
-  usuarios.push({
-    id, id_tipo_usuario: TIPO_PROF,
-    nombre_usuario: p.username, contrasena_hash: p.password,
-    nombre, apellido, correo: p.email,
-    telefono: Number((p.phone || '').replace(/\D/g, '')) || null,
-    fecha_nacimiento: null, fecha_ingreso: today(), activo: true,
-  });
-  profesionales.push({
-    id: profesionales.length + 1, id_usuario: id,
-    profesion: p.specialty.split(' - ')[0] ?? p.specialty,
-    especialidad: p.specialty.split(' - ')[1] ?? null,
-    matricula: `MAT-${p.id.toUpperCase()}`,
-    institucion: null,
-    id_estado_validacion: ESTADO_VAL_APROBADO,
-  });
-}
+// (sin datos estáticos: los usuarios ahora viven en el backend)
 
 // --- Administradores --------------------------------------------------------
-for (const a of legacyAdmins) {
-  const id = nextId();
-  usuarioIdMap.set(a.id, id);
-  const [nombre, apellido] = splitName(a.name);
-  usuarios.push({
-    id, id_tipo_usuario: TIPO_ADM,
-    nombre_usuario: a.username, contrasena_hash: a.password,
-    nombre, apellido, correo: a.email, telefono: null,
-    fecha_nacimiento: null, fecha_ingreso: today(), activo: true,
-  });
-  administradores.push({
-    id: administradores.length + 1, id_usuario: id,
-    id_rol: catalogIdByName(rolesAdministradores,
-      a.clearance === 'developer' ? 'Developer' : 'SuperAdmin'),
-  });
-}
+// (sin datos estáticos: los usuarios ahora viven en el backend)
 
+// ============================================================================
+// VÍNCULOS (Tutor-Perteneciente / Profesional-Perteneciente)
 // ============================================================================
 // VÍNCULOS (Tutor-Perteneciente / Profesional-Perteneciente)
 // ============================================================================
 export const vinculosTutorPertenecientes: VinculoTutorPerteneciente[] = [];
 export const vinculosProfesionalPertenecientes: VinculoProfesionalPerteneciente[] = [];
 
-const ESTADO_VINC_ACTIVO = catalogIdByName(estadosVinculos, 'Activo');
-const pertByUsuarioId = new Map(pertenecientes.map(p => [p.id_usuario, p.id]));
-const tutorByUsuarioId = new Map(tutores.map(t => [t.id_usuario, t.id]));
-const profByUsuarioId = new Map(profesionales.map(p => [p.id_usuario, p.id]));
-
-for (const t of legacyTutors) {
-  const tutorPK = tutorByUsuarioId.get(usuarioIdMap.get(t.id)!);
-  if (!tutorPK) continue;
-  t.linkedUserIds.forEach((uId, idx) => {
-    const pertPK = pertByUsuarioId.get(usuarioIdMap.get(uId)!);
-    if (!pertPK) return;
-    vinculosTutorPertenecientes.push({
-      id: vinculosTutorPertenecientes.length + 1,
-      id_tutor: tutorPK, id_perteneciente: pertPK,
-      es_tutor_principal: idx === 0,
-      id_estado_vinculo: ESTADO_VINC_ACTIVO,
-      fecha_alta: today(), fecha_fin: null,
-      id_usuario_creador: null,
-    });
-  });
-}
-
-for (const p of legacyProfessionals) {
-  const profPK = profByUsuarioId.get(usuarioIdMap.get(p.id)!);
-  if (!profPK) continue;
-  p.linkedUserIds.forEach(uId => {
-    const pertPK = pertByUsuarioId.get(usuarioIdMap.get(uId)!);
-    if (!pertPK) return;
-    vinculosProfesionalPertenecientes.push({
-      id: vinculosProfesionalPertenecientes.length + 1,
-      id_profesional: profPK, id_perteneciente: pertPK,
-      id_estado_vinculo: ESTADO_VINC_ACTIVO,
-      requiere_aprobacion_tutor: true, fue_aprobado_por_tutor: true,
-      id_tutor_aprobador: null,
-      fecha_solicitud: today(), fecha_resolucion: today(),
-    });
-  });
-}
+// (sin datos estáticos: los vínculos ahora viven en el backend)
 
 // ============================================================================
-// PUNTOS Y AVATARES (saldo derivado de legacy points)
+// PUNTOS Y AVATARES
 // ============================================================================
-export const saldosPuntos: SaldoPuntos[] = legacyUsers.map((u, i) => ({
-  id: i + 1,
-  id_perteneciente: pertByUsuarioId.get(usuarioIdMap.get(u.id)!)!,
-  saldo: u.points,
-}));
+export const saldosPuntos: SaldoPuntos[] = [];
+export const avatares: Avatar[] = [];
 
-export const avatares: Avatar[] = legacyUsers.map((u, i) => ({
-  id: i + 1,
-  id_perteneciente: pertByUsuarioId.get(usuarioIdMap.get(u.id)!)!,
-  nivel: u.level, experiencia: u.points,
-  avatar_api: 'emoji', avatar_externo_id: u.avatar, avatar_json: null,
-}));
+// (sin datos estáticos: los saldos y avatares ahora viven en el backend)
 
 // ============================================================================
 // ACTIVIDADES (modelo base + asignaciones)
@@ -230,25 +117,8 @@ const actividadIdMap = new Map<string, number>(
   legacyActivities.map((a, i) => [a.id, i + 1]),
 );
 
-export const actividadesAsignadas: ActividadAsignada[] = legacyActivities
-  .filter(a => !!a.assignedTo)
-  .map((a, i) => {
-    const pertPK = pertByUsuarioId.get(usuarioIdMap.get(a.assignedTo!)!);
-    return {
-      id: i + 1,
-      id_actividad: actividadIdMap.get(a.id)!,
-      id_actividad_personalizada: null,
-      id_perteneciente: pertPK!,
-      id_usuario_asignador: pertPK ? (
-        // Asume primer tutor vinculado como asignador, sino el propio usuario
-        usuarios.find(u => u.id_tipo_usuario === TIPO_TUT)?.id ?? usuarios[0].id
-      ) : usuarios[0].id,
-      id_estado_actividad: estadoActividadIdByLegacy[a.status] ?? estadoActividadIdByLegacy.pendiente,
-      fecha_asignacion: today(),
-      fecha_completada: a.status === 'completada' ? today() : null,
-    };
-  })
-  .filter(a => !!a.id_perteneciente);
+export const actividadesAsignadas: ActividadAsignada[] = [];
+// (sin datos estáticos: las actividades asignadas ahora viven en el backend)
 
 // ============================================================================
 // HELPERS DE LECTURA (estilo SQL: getXxxById, joinXxx)

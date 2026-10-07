@@ -17,6 +17,16 @@ describe('activityDisplayDescription', () => {
     )).toBe('Descripción común.');
   });
 
+  it('oculta la línea PlanB, en línea propia y en línea inline', () => {
+    expect(activityDisplayDescription([
+      'Preparar la mochila.',
+      'Objetivo: Organizarse',
+      'Pasos: Sacar útiles | Guardar',
+      'PlanB: Si no encontrás un cuaderno, poné una carpeta.',
+    ].join('\n'))).toBe('Preparar la mochila.');
+    expect(activityDisplayDescription('Descripción común. PlanB: Usar una carpeta')).toBe('Descripción común.');
+  });
+
   it('conserva una descripción común sin metadatos', () => {
     expect(activityDisplayDescription('Preparar la merienda siguiendo los apoyos visuales.'))
       .toBe('Preparar la merienda siguiendo los apoyos visuales.');

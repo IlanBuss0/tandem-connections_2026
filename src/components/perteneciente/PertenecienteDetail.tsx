@@ -4,13 +4,15 @@ import {
   MessageCircle, Network, Sparkles, Target, Users,
 } from 'lucide-react';
 import type { AcompanamientoData, CalendarEvent, EmotionalRecord, GeneratedReport, ProfessionalSession, SupportNetworkMember, User } from '@/data/api';
-import { ReportItem } from '@/components/TutorReportsPanel';
+import { ReportItem } from '@/components/tutor/reports/ReportItem';
 import { monthKey, reportTime } from '@/lib/reportGrouping';
 import { useRememberedTab } from '@/hooks/useRememberedTab';
 import { activityIsDone, buildEvolutionCopy } from '@/components/perteneciente/evolution/evolutionHelpers';
 import { useEvolutionSummary } from '@/components/perteneciente/evolution/useEvolutionSummary';
 import EvolutionTab from '@/components/perteneciente/evolution/EvolutionTab';
 import NowCard from '@/components/perteneciente/collaboration/NowCard';
+import HelpSpotsCard from '@/components/perteneciente/collaboration/HelpSpotsCard';
+import { useHelpSpots } from '@/components/perteneciente/collaboration/useHelpSpots';
 import CollaborationComposer from '@/components/perteneciente/collaboration/CollaborationComposer';
 import CollaborationFeed from '@/components/perteneciente/collaboration/CollaborationFeed';
 
@@ -99,6 +101,7 @@ export default function PertenecienteDetail({
   const [answer, setAnswer] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const evolution = useEvolutionSummary(String(person.id), 8, canViewHistory);
+  const helpSpots = useHelpSpots(String(person.id), canViewHistory && tab === 'collaboration');
   const completed = activities.filter(activityIsDone).length;
   const upcoming = useMemo(() => events.filter(event => new Date(`${event.date}T${event.time || '00:00'}`).getTime() >= Date.now() - 3600000).slice(0, 3), [events]);
   const nextSession = sessions.find(session => session.estado === 'programada' && new Date(session.fecha_sesion).getTime() >= Date.now());
@@ -116,6 +119,7 @@ export default function PertenecienteDetail({
     onToggleAgreement={onToggleAgreement}
     onUpdateObjective={onUpdateObjective}
   />;
+  const helpSpotsSection = <HelpSpotsCard state={helpSpots} />;
   const sortedReports = useMemo(() => [...reports].sort((a, b) => reportTime(b) - reportTime(a)), [reports]);
   const latestReport = sortedReports[0];
   const reportMonths = useMemo(() => Object.entries(sortedReports.reduce((result, report) => {
@@ -185,6 +189,7 @@ export default function PertenecienteDetail({
     {canViewHistory && tab === 'collaboration' && <div className="evolution-scope grid gap-5 lg:grid-cols-[1.15fr_.85fr]">
       <div className="min-w-0 space-y-4 lg:hidden">
         {nowCardSection}
+        {helpSpotsSection}
         {supportNetworkSection}
       </div>
       <div className="min-w-0 space-y-5">
@@ -201,6 +206,7 @@ export default function PertenecienteDetail({
       </div>
       <div className="hidden min-w-0 space-y-4 lg:block">
         {nowCardSection}
+        {helpSpotsSection}
         {supportNetworkSection}
       </div>
     </div>}

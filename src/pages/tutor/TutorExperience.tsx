@@ -11,12 +11,13 @@ import AiPictogramStudio from '@/components/AiPictogramStudio';
 import ChatScreen from '@/components/ChatScreen';
 import TutorCalendar from '@/components/tutor/TutorCalendar';
 import ProfessionalDirectory from '@/components/ProfessionalDirectory';
-import TutorReportsPanel from '@/components/TutorReportsPanel';
+import TutorPersonReports from '@/components/tutor/reports/TutorPersonReports';
 import TutorConnections from '@/pages/tutor/TutorConnections';
 import UserNotifications from '@/pages/user/UserNotifications';
 import UserPictograms from '@/pages/user/UserPictograms';
 import AboutTandem from '@/pages/AboutTandem';
 import { aggregateTutorEvents, type TutorAggregateEvent } from '@/lib/tutorEventAggregation';
+import { resolveReportsPerson } from '@/lib/tutorReports';
 import { TutorAccountMenu, TutorDrawer, TutorQuickMenu, type TutorTab } from '@/components/tutor/TutorNavigation';
 import PertenecienteDetail from '@/components/perteneciente/PertenecienteDetail';
 import TutorHome from '@/components/tutor/TutorHome';
@@ -25,7 +26,7 @@ import { ChatProvider } from '@/contexts/ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSyncMobileMenuOpen } from '@/contexts/MobileMenuState';
 import { useTutorNavigation } from '@/hooks/useTutorNavigation';
-import type { TutorAggregateActivity as AggregateActivity, TutorAggregateEmotion as AggregateEmotion } from '@/lib/tutorHomeModel';
+import { tutorRelativeTime, type TutorAggregateActivity as AggregateActivity, type TutorAggregateEmotion as AggregateEmotion } from '@/lib/tutorHomeModel';
 import {
   createCalendarEvent, deleteCalendarEvent, fetchCalendarEventsForUser, fetchPictograms,
   fetchTutorHome, updateCalendarEvent, type CalendarEvent, type Pictogram, type TutorHomeData,
@@ -34,7 +35,10 @@ import {
   createSharedSupportObjective, updateSharedSupportObjective,
   fetchSupportNetwork, fetchProfessionalSessions, fetchTutorReports,
   type AcompanamientoData, type GeneratedReport, type ProfessionalSession, type SupportNetworkMember,
+  markNotificationAsRead, type Notification,
 } from '@/data/api';
+import HelpAlertBanner from '@/components/tutor/HelpAlertBanner';
+import { pendingHelpAlerts } from '@/lib/helpAlerts';
 
 const tutorPageLabels: Partial<Record<TutorTab, string>> = {
   calendar: 'Calendario', activities: 'Actividades', chat: 'Chats', notifications: 'Notificaciones',
@@ -73,8 +77,12 @@ export default function TutorExperience() {
   const [supportNetwork, setSupportNetwork] = useState<SupportNetworkMember[]>([]);
   const [detailSessions, setDetailSessions] = useState<ProfessionalSession[]>([]);
   const [reports, setReports] = useState<GeneratedReport[]>([]);
+  const [reportsFailed, setReportsFailed] = useState(false);
+  const [reportsPersonId, setReportsPersonId] = useState<number | undefined>();
   const mainRef = useRef<HTMLElement>(null);
-  const { unreadCount, setUnreadCount } = useUnreadNotifications(user?.role === 'tutor' ? { id: String(user.id) } : null);
+  const { unreadCount, setUnreadCount, notifications } = useUnreadNotifications(user?.role === 'tutor' ? { id: String(user.id) } : null);
+  const [dismissedHelpIds, setDismissedHelpIds] = useState<string[]>([]);
+  const helpAlerts = pendingHelpAlerts(notifications, dismissedHelpIds);
   useSyncMobileMenuOpen(menuOpen || profileOpen || quickOpen);
 
   const load = useCallback(async () => {
@@ -85,7 +93,7 @@ export default function TutorExperience() {
         fetchTutorHome(user.id),
         fetchCalendarEventsForUser(user.id).catch(() => []),
         fetchPictograms({ limit: 6 }).catch(() => []),
-        fetchTutorReports().catch(() => []),
+        fetchTutorReports().then(list => { setReportsFailed(false); return list; }).catch(() => { setReportsFailed(true); return []; }),
       ]);
       setData(home); setTutorEvents(ownEvents); setPictograms(pics); setReports(tutorReports);
     } catch (reason) {
@@ -131,8 +139,21 @@ export default function TutorExperience() {
   if (!user || user.role !== 'tutor') return null;
 
   const navigate = (next: TutorTab, context?: { detailUserId?: string | null; chatId?: string }) => { setMenuOpen(false); setProfileOpen(false); setQuickOpen(false); mainRef.current?.scrollTo({ top: 0 }); navigateRoute(next, context); };
+  const reloadReports = async () => {
+    try { setReports(await fetchTutorReports()); setReportsFailed(false); } catch { setReportsFailed(true); }
+  };
+  const openReports = (pertenecienteId?: number) => { setReportsPersonId(pertenecienteId); navigate('reports'); };
   const openDetail = (id: string) => navigate('detail', { detailUserId: id });
   const focusChatWith = (ownerId: string) => { setSelectedNotificationChatId(undefined); setChatFocusUserId(ownerId); navigate('chat'); };
+  const dismissHelpAlert = (alert: Notification) => {
+    setDismissedHelpIds(ids => [...ids, alert.id]);
+    if (!alert.read) setUnreadCount(count => Math.max(0, count - 1));
+    void markNotificationAsRead(alert.id).catch(() => undefined);
+  };
+  const writeToHelpAlertSender = (alert: Notification) => {
+    dismissHelpAlert(alert);
+    if (alert.sourceUserId) focusChatWith(alert.sourceUserId);
+  };
   const createActivityFor = (ownerId: string) => { setActivityPreselect([ownerId]); setActivitiesReturnOwnerId(ownerId); navigate('activities'); };
   const backToOwnerFromActivities = () => {
     if (!activitiesReturnOwnerId) return;
@@ -162,9 +183,11 @@ export default function TutorExperience() {
 
       <TutorDrawer open={menuOpen} active={tab} onClose={() => setMenuOpen(false)} onNavigate={navigate} onLogout={logout} />
 
+      <HelpAlertBanner alerts={helpAlerts} onWrite={writeToHelpAlertSender} onDismiss={dismissHelpAlert} />
+
       <main ref={mainRef} id="tutor-main" tabIndex={-1} className="min-h-0 w-full flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 lg:py-9">
        <div className="mx-auto w-full max-w-[1280px]">
-        {tab !== 'home' && <TutorBreadcrumb current={pageTitle} parent={tab === 'detail' ? 'Personas vinculadas' : undefined} onBack={() => goBack('home')} />}
+        {tab !== 'home' && <TutorBreadcrumb current={pageTitle} parent={tab === 'detail' || tab === 'reports' ? 'Personas vinculadas' : undefined} onBack={() => goBack('home')} />}
         {loading ? <TutorSkeleton /> : error ? <ErrorState message={error} onRetry={load} /> : (
           <TutorContent
             tab={tab} userName={user.name} userId={user.id} data={data!} linkedUsers={linkedUsers}
@@ -173,6 +196,7 @@ export default function TutorExperience() {
             detailUserId={detailUserId} chatProfiles={chatProfiles} selectedNotificationChatId={selectedNotificationChatId}
             chatFocusUserId={chatFocusUserId} activityPreselect={activityPreselect} activitiesReturnOwnerId={activitiesReturnOwnerId}
             supportData={supportData} supportNetwork={supportNetwork} detailSessions={detailSessions} reports={reports} onReloadSupport={reloadSupport}
+            reportsFailed={reportsFailed} reportsPersonId={reportsPersonId} onOpenReports={openReports} onRetryReports={reloadReports}
             onNavigate={navigate} onOpenDetail={openDetail} onFocusChat={focusChatWith} onCreateActivityFor={createActivityFor}
             onClearActivityPreselect={() => setActivityPreselect(undefined)} onBackToOwnerFromActivities={backToOwnerFromActivities}
             onUnreadCountChange={setUnreadCount} onSelectNotificationChat={setSelectedNotificationChatId}
@@ -205,6 +229,7 @@ function TutorContent(props: {
   chatProfiles: { id: string; name: string; avatar?: string | null; label: string }[]; selectedNotificationChatId?: string;
   chatFocusUserId?: string; activityPreselect?: string[]; activitiesReturnOwnerId: string | null;
   supportData: AcompanamientoData | null; supportNetwork: SupportNetworkMember[]; detailSessions: ProfessionalSession[]; reports: GeneratedReport[]; onReloadSupport: () => Promise<void>;
+  reportsFailed: boolean; reportsPersonId?: number; onOpenReports: (pertenecienteId?: number) => void; onRetryReports: () => Promise<void>;
   onNavigate: (tab: TutorTab, context?: { detailUserId?: string | null; chatId?: string }) => void; onOpenDetail: (id: string) => void;
   onFocusChat: (ownerId: string) => void; onCreateActivityFor: (ownerId: string) => void;
   onClearActivityPreselect: () => void; onBackToOwnerFromActivities: () => void;
@@ -225,13 +250,19 @@ function TutorContent(props: {
     if (next === 'chat') { const chatId = params?.chatId ? String(params.chatId) : undefined; props.onSelectNotificationChat(chatId); props.onNavigate('chat', { chatId }); }
     else if (next === 'calendar') props.onNavigate('calendar');
     else if (next === 'activities') props.onNavigate('activities');
+    else if (next === 'reports') props.onOpenReports(props.reports.find(report => String(report.id) === params?.reportId)?.id_perteneciente);
     else props.onNavigate('home');
   }} />;
-  if (tab === 'reports') return <TutorReportsPanel />;
+  if (tab === 'reports') {
+    const person = resolveReportsPerson(props.linkedUsers, props.reports, props.reportsPersonId);
+    return person
+      ? <TutorPersonReports person={{ id: person.pertenecienteId, name: person.name }} reports={props.reports} failed={props.reportsFailed} onRetry={props.onRetryReports} onBack={() => props.onNavigate('connections')} />
+      : <EmptyState text="Todavía no hay personas vinculadas." />;
+  }
   if (tab === 'professionals') return <ProfessionalDirectory />;
   if (tab === 'pictograms') return <AiPictogramStudio />;
   if (tab === 'pictogramCatalog') return <UserPictograms />;
-  if (tab === 'connections') return <TutorConnections onOpenDetail={props.onOpenDetail} />;
+  if (tab === 'connections') return <TutorConnections initialPertenecienteId={props.reportsPersonId} onOpenDetail={props.onOpenDetail} reports={props.reports} onOpenReports={props.onOpenReports} />;
   if (tab === 'about') return <AboutTandem />;
   if (tab === 'profile') return <TutorAccountSettings linkedUsers={props.linkedUsers} onManageConnections={() => props.onNavigate('connections')} />;
   if (tab === 'detail') {
@@ -260,6 +291,7 @@ function TutorContent(props: {
       onOpenChat={() => props.onFocusChat(owner.id)}
       onCreateActivity={() => props.onCreateActivityFor(owner.id)}
       onOpenCalendar={() => props.onNavigate('calendar')}
+      onViewReports={() => props.onOpenReports(owner.pertenecienteId)}
     /> : <ErrorState message="No encontramos a esa persona vinculada." onRetry={() => props.onNavigate('connections')} />;
   }
   return null;
@@ -323,7 +355,7 @@ function TutorHomeLegacy(props: Parameters<typeof TutorContent>[0]) {
       </DashboardCard>
 
       <DashboardCard title="Actividad reciente" icon={Activity} action="Ver actividades" onAction={() => props.onNavigate('activities')}>
-        <div className="divide-y divide-border">{recentItems.map(item => <button type="button" key={item.id} onClick={() => props.onOpenDetail(item.owner.id)} aria-label={`Ver información de ${item.owner.name}: ${item.kind}`} className="grid min-h-14 w-full grid-cols-[36px_1fr_auto] items-center gap-3 py-2 text-left transition-colors hover:bg-primary/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className={`flex h-9 w-9 items-center justify-center rounded-xl ${item.color}`}><item.icon size={18} aria-hidden /></span><span className="min-w-0"><span className="block truncate text-sm font-semibold">{item.kind}</span><span className="block truncate text-xs text-muted-foreground">{item.detail} · {item.category}</span></span><span className="flex items-center gap-3"><PersonChip owner={item.owner} /><span className="hidden min-w-16 text-right text-xs text-muted-foreground sm:block">{relativeTime(item.date)}</span><ChevronRight size={16} className="text-muted-foreground" aria-hidden /></span></button>)}{recentItems.length === 0 && <EmptyState text="Todavía no hay actividad reciente." />}</div>
+        <div className="divide-y divide-border">{recentItems.map(item => <button type="button" key={item.id} onClick={() => props.onOpenDetail(item.owner.id)} aria-label={`Ver información de ${item.owner.name}: ${item.kind}`} className="grid min-h-14 w-full grid-cols-[36px_1fr_auto] items-center gap-3 py-2 text-left transition-colors hover:bg-primary/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className={`flex h-9 w-9 items-center justify-center rounded-xl ${item.color}`}><item.icon size={18} aria-hidden /></span><span className="min-w-0"><span className="block truncate text-sm font-semibold">{item.kind}</span><span className="block truncate text-xs text-muted-foreground">{item.detail} · {item.category}</span></span><span className="flex items-center gap-3"><PersonChip owner={item.owner} /><span className="hidden min-w-16 text-right text-xs text-muted-foreground sm:block">{tutorRelativeTime(item.date)}</span><ChevronRight size={16} className="text-muted-foreground" aria-hidden /></span></button>)}{recentItems.length === 0 && <EmptyState text="Todavía no hay actividad reciente." />}</div>
       </DashboardCard>
 
       <DashboardCard title="Pictogramas" icon={Image} action="Ver todos" onAction={() => props.onNavigate('pictogramCatalog')}>

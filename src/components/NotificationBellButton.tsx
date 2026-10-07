@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Bell } from "lucide-react";
-import { fetchMyNotifications } from "@/data/api";
+import { fetchMyNotifications, type Notification } from "@/data/api";
 
 type NotificationUser = {
   id: string;
@@ -8,16 +8,19 @@ type NotificationUser = {
 
 export function useUnreadNotifications(user: NotificationUser) {
   const [unreadCount, setUnreadCount] = useState(0);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const userId = user?.id;
 
   const refresh = useCallback(() => {
     if (!userId) {
       setUnreadCount(0);
+      setNotifications([]);
       return;
     }
 
     fetchMyNotifications(userId)
       .then((notifications) => {
+        setNotifications(notifications);
         setUnreadCount(
           notifications.filter((notification) => !notification.read).length,
         );
@@ -49,7 +52,7 @@ export function useUnreadNotifications(user: NotificationUser) {
     };
   }, [refresh, userId]);
 
-  return { unreadCount, setUnreadCount };
+  return { unreadCount, setUnreadCount, notifications };
 }
 
 type NotificationBellButtonProps = {

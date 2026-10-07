@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   deleteFavoritePictogram,
@@ -113,6 +113,10 @@ export default function UserPictograms() {
   );
 
   const activeCount = active.categories.size + active.styles.size + active.collections.size;
+  // Hay busqueda activa cuando el usuario escribio algo, aplico filtros o esta
+  // en "Me gusta". Sin eso no se pide el catalogo: al entrar por primera vez
+  // en una sesion nueva no se muestra nada.
+  const hasQuery = showFavorites || activeCount > 0 || search.trim() !== '';
   const asParam = (axis: FilterAxis) => (active[axis].size > 0 ? Array.from(active[axis]).join(',') : undefined);
   // Se serializan para usarlos como dependencia del efecto: un Set nuevo en
   // cada render dispararia el fetch en loop.
@@ -156,6 +160,35 @@ export default function UserPictograms() {
     return () => { mounted = false; };
   }, [canUsePictograms, user?.id]);
 
+  // Restaurar la busqueda dentro de la misma sesion (misma pestana): si el
+  // usuario vuelve a esta pantalla, se muestra su ultima busqueda. En una
+  // sesion nueva sessionStorage esta vacio y no aparece nada.
+  const restoredSearchRef = useRef(false);
+  useEffect(() => {
+    if (restoredSearchRef.current || !user?.id) return;
+    restoredSearchRef.current = true;
+    try {
+      const raw = sessionStorage.getItem('tandem:pictograms:search');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.userId === user.id && typeof parsed.search === 'string') {
+          setSearch(parsed.search);
+        }
+      }
+    } catch {
+      // sessionStorage no disponible o valor corrupto: se ignora.
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!restoredSearchRef.current || !user?.id) return;
+    try {
+      sessionStorage.setItem('tandem:pictograms:search', JSON.stringify({ userId: user.id, search }));
+    } catch {
+      // Sin sessionStorage, la busqueda simplemente no se conserva.
+    }
+  }, [search, user?.id]);
+
   // Volver a la pagina 1 cuando cambia cualquier filtro: una pagina 5 del
   // filtro viejo no tiene sentido con una busqueda o un estilo nuevo.
   useEffect(() => {
@@ -165,6 +198,13 @@ export default function UserPictograms() {
   useEffect(() => {
     if (!canUsePictograms || showFavorites) {
       if (!canUsePictograms) setPictograms([]);
+      return;
+    }
+    if (!hasQuery) {
+      // Sin busqueda ni filtros: no pedir el catalogo y limpiar resultados.
+      setPictograms([]);
+      setTotal(0);
+      setTotalPages(1);
       return;
     }
     let mounted = true;
@@ -192,7 +232,7 @@ export default function UserPictograms() {
       })
       .finally(() => { if (mounted) setLoadingPage(false); });
     return () => { mounted = false; };
-  }, [canUsePictograms, filterKey, search, targetPertenecienteId, page, showFavorites]);
+  }, [canUsePictograms, filterKey, search, targetPertenecienteId, page, showFavorites, hasQuery]);
 
   const toggleFilter = (axis: FilterAxis, id: string) => {
     setShowFavorites(false);
@@ -330,7 +370,7 @@ export default function UserPictograms() {
           </button>
         )}
 
-        {!showFavorites && (
+        {!showFavorites && hasQuery && (
           <span className="ml-auto text-xs text-[#8b7aa0]">
             {loadingPage ? 'Buscando...' : `${total} pictograma${total === 1 ? '' : 's'}`}
           </span>
@@ -384,6 +424,10 @@ export default function UserPictograms() {
         )}
       </AnimatePresence>
 
+      {!showFavorites && !hasQuery && (
+        <p className="py-10 text-center text-sm text-[#8b7aa0]">Busca el pictograma que quieras</p>
+      )}
+
       <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-6 gap-2">
         {visiblePictograms.map((pic, i) => (
           <motion.button
@@ -405,7 +449,7 @@ export default function UserPictograms() {
         <p className="py-8 text-center text-sm text-[#8b7aa0]">Todavía no guardaste pictogramas.</p>
       )}
 
-      {!showFavorites && !loadingPage && visiblePictograms.length === 0 && (
+      {!showFavorites && hasQuery && !loadingPage && visiblePictograms.length === 0 && (
         <div className="py-10 text-center">
           <p className="text-sm text-[#8b7aa0]">No hay pictogramas con esos filtros.</p>
           {activeCount > 0 && (

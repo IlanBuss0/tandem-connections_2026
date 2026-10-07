@@ -14,11 +14,6 @@ export interface Admin {
   emailVerified?: boolean;
 }
 
-export const admins: Admin[] = [
-  { id: 'a1', username: 'root', password: 'root', name: 'Root Developer', role: 'admin', email: 'root@tandem.dev', avatar: '🛡️', clearance: 'developer' },
-  { id: 'a2', username: 'admin', password: 'admin', name: 'Super Admin', role: 'admin', email: 'admin@tandem.dev', avatar: '⚡', clearance: 'superadmin' },
-];
-
 export interface User {
   id: string;
   username: string;
@@ -45,29 +40,6 @@ export interface User {
 
 const emojiAvatars = ['😊','🧑','👩','👨','🧒','👧','👦','🧔','👩‍🦰','👨‍🦱','👩‍🔬','👨‍⚕️','👩‍💼','🧑‍🏫','👩‍⚕️','🧑‍💻','👨‍🎨','👩‍🎓','🧑‍🔧','👨‍🍳','👩‍🚀','🧑‍🎤'];
 
-export const users: User[] = [
-  { id: 'u1', username: 'juan123', password: '123456', name: 'Juan García', role: 'user', email: 'juan@tandem.app', avatar: '🧒', age: 16, bio: 'Me gusta la música y los videojuegos. Estoy aprendiendo a organizarme mejor cada día.', linkedTutorIds: ['t1'], linkedProfessionalIds: ['p1'], points: 2450, streak: 12, level: 8, plan: 'premium', onboarded: true, supportLevel: 'medio', goals: ['Ser más independiente', 'Organizarme mejor'] },
-  { id: 'u2', username: 'sofia_m', password: '123456', name: 'Sofía Martínez', role: 'user', email: 'sofia@tandem.app', avatar: '👧', age: 14, bio: 'Amo dibujar y los animales.', linkedTutorIds: ['t2'], linkedProfessionalIds: ['p2'], points: 1800, streak: 7, level: 6, plan: 'free', onboarded: true, supportLevel: 'alto', goals: ['Mejorar mi higiene', 'Hacer amigos'] },
-  { id: 'u3', username: 'mateo_r', password: '123456', name: 'Mateo Rodríguez', role: 'user', email: 'mateo@tandem.app', avatar: '👦', age: 18, bio: 'Estudiante de computación, me interesa la tecnología.', linkedTutorIds: ['t3'], linkedProfessionalIds: ['p3'], points: 3100, streak: 20, level: 10, plan: 'premium', onboarded: true, supportLevel: 'bajo', goals: ['Trabajar de forma independiente'] },
-  { id: 'u4', username: 'vale_l', password: '123456', name: 'Valentina López', role: 'user', email: 'vale@tandem.app', avatar: '👩', age: 15, bio: 'Me gusta cocinar y leer cuentos.', linkedTutorIds: ['t4'], linkedProfessionalIds: ['p1'], points: 950, streak: 3, level: 4, plan: 'free', onboarded: true, supportLevel: 'medio' },
-  { id: 'u5', username: 'tomas_b', password: '123456', name: 'Tomás Benítez', role: 'user', email: 'tomas@tandem.app', avatar: '🧑', age: 17, bio: 'Fanático del fútbol y los rompecabezas.', linkedTutorIds: ['t5'], linkedProfessionalIds: ['p4'], points: 1200, streak: 5, level: 5, plan: 'free', onboarded: true, supportLevel: 'medio' },
-  { id: 'u6', username: 'camila_s', password: '123456', name: 'Camila Sánchez', role: 'user', email: 'camila@tandem.app', avatar: '👧', age: 13, bio: 'Me encanta la natación.', linkedTutorIds: ['t6'], linkedProfessionalIds: ['p2'], points: 700, streak: 2, level: 3, plan: 'free', onboarded: true, supportLevel: 'alto' },
-  { id: 'u7', username: 'nico_f', password: '123456', name: 'Nicolás Fernández', role: 'user', email: 'nico@tandem.app', avatar: '👦', age: 19, bio: 'Trabajo en un taller y aprendo cosas nuevas.', linkedTutorIds: ['t7'], linkedProfessionalIds: ['p5'], points: 2800, streak: 15, level: 9, plan: 'premium', onboarded: true, supportLevel: 'bajo' },
-  { id: 'u8', username: 'lucia_d', password: '123456', name: 'Lucía Domínguez', role: 'user', email: 'lucia@tandem.app', avatar: '👩', age: 16, bio: 'Toco el piano y me gusta el arte.', linkedTutorIds: ['t8'], linkedProfessionalIds: ['p6'], points: 1600, streak: 8, level: 6, plan: 'free', onboarded: true, supportLevel: 'medio' },
-  { id: 'u9', username: 'benja_v', password: '123456', name: 'Benjamín Vargas', role: 'user', email: 'benja@tandem.app', avatar: '🧒', age: 14, bio: 'Me gustan los trenes y los mapas.', linkedTutorIds: ['t9'], linkedProfessionalIds: ['p3'], points: 500, streak: 1, level: 2, plan: 'free', onboarded: true, supportLevel: 'alto' },
-  { id: 'u10', username: 'mia_c', password: '123456', name: 'Mía Castro', role: 'user', email: 'mia@tandem.app', avatar: '👧', age: 17, bio: 'Quiero ser veterinaria.', linkedTutorIds: ['t10'], linkedProfessionalIds: ['p7'], points: 2100, streak: 10, level: 7, plan: 'premium', onboarded: true, supportLevel: 'bajo' },
-  { id: 'u11', username: 'agus_p', password: '123456', name: 'Agustín Pérez', role: 'user', email: 'agus@tandem.app', avatar: '👦', age: 15, bio: 'Me gusta armar cosas con las manos.', linkedTutorIds: ['t1'], linkedProfessionalIds: ['p8'], points: 900, streak: 4, level: 4, plan: 'free', onboarded: true, supportLevel: 'medio' },
-  { id: 'u12', username: 'emma_g', password: '123456', name: 'Emma González', role: 'user', email: 'emma@tandem.app', avatar: '👩', age: 13, bio: 'Amo los gatos y los juegos de mesa.', linkedTutorIds: ['t2'], linkedProfessionalIds: ['p9'], points: 400, streak: 2, level: 2, plan: 'free', onboarded: true, supportLevel: 'alto' },
-  { id: 'u13', username: 'fede_m', password: '123456', name: 'Federico Morales', role: 'user', email: 'fede@tandem.app', avatar: '🧑', age: 20, bio: 'Estudio gastronomía, me apasiona cocinar.', linkedTutorIds: ['t3'], linkedProfessionalIds: ['p10'], points: 3500, streak: 25, level: 11, plan: 'premium', onboarded: true, supportLevel: 'bajo' },
-  { id: 'u14', username: 'caro_h', password: '123456', name: 'Carolina Herrera', role: 'user', email: 'caro@tandem.app', avatar: '👧', age: 16, bio: 'Me gusta la fotografía y los viajes.', linkedTutorIds: ['t4'], linkedProfessionalIds: ['p1'], points: 1100, streak: 6, level: 5, plan: 'free', onboarded: true, supportLevel: 'medio' },
-  { id: 'u15', username: 'santi_r', password: '123456', name: 'Santiago Ruiz', role: 'user', email: 'santi@tandem.app', avatar: '👦', age: 18, bio: 'Me relaja escuchar podcasts.', linkedTutorIds: ['t5'], linkedProfessionalIds: ['p2'], points: 1900, streak: 9, level: 7, plan: 'free', onboarded: true, supportLevel: 'medio' },
-  { id: 'u16', username: 'isa_n', password: '123456', name: 'Isabella Navarro', role: 'user', email: 'isa@tandem.app', avatar: '👩', age: 14, bio: 'Me gusta bailar y hacer yoga.', linkedTutorIds: ['t6'], linkedProfessionalIds: ['p5'], points: 750, streak: 3, level: 3, plan: 'free', onboarded: true, supportLevel: 'medio' },
-  { id: 'u17', username: 'martin_a', password: '123456', name: 'Martín Álvarez', role: 'user', email: 'martin@tandem.app', avatar: '🧒', age: 17, bio: 'Hago deporte y me gusta la naturaleza.', linkedTutorIds: ['t7'], linkedProfessionalIds: ['p6'], points: 2200, streak: 11, level: 8, plan: 'premium', onboarded: true, supportLevel: 'bajo' },
-  { id: 'u18', username: 'renata_t', password: '123456', name: 'Renata Torres', role: 'user', email: 'renata@tandem.app', avatar: '👧', age: 15, bio: 'Me encanta la música y cantar.', linkedTutorIds: ['t8'], linkedProfessionalIds: ['p7'], points: 1300, streak: 5, level: 5, plan: 'free', onboarded: true, supportLevel: 'medio' },
-  { id: 'u19', username: 'leo_c', password: '123456', name: 'Leonardo Cruz', role: 'user', email: 'leo@tandem.app', avatar: '👦', age: 19, bio: 'Aprendo carpintería, me gusta crear.', linkedTutorIds: ['t9'], linkedProfessionalIds: ['p8'], points: 2700, streak: 14, level: 9, plan: 'premium', onboarded: true, supportLevel: 'bajo' },
-  { id: 'u20', username: 'pau_e', password: '123456', name: 'Paula Espinoza', role: 'user', email: 'pau@tandem.app', avatar: '👩', age: 16, bio: 'Me gusta escribir historias cortas.', linkedTutorIds: ['t10'], linkedProfessionalIds: ['p9'], points: 1050, streak: 4, level: 4, plan: 'free', onboarded: true, supportLevel: 'medio' },
-];
-
 // ==================== TUTORS ====================
 export interface Tutor {
   id: string;
@@ -82,29 +54,6 @@ export interface Tutor {
   phone: string;
   emailVerified?: boolean;
 }
-
-export const tutors: Tutor[] = [
-  { id: 't1', username: 'laura_g', password: '123456', name: 'Laura Gómez', role: 'tutor', email: 'laura@tandem.app', avatar: '👩', relation: 'Madre', linkedUserIds: ['u1','u11'], phone: '+54 11 5555-0001' },
-  { id: 't2', username: 'carlos_m', password: '123456', name: 'Carlos Martínez', role: 'tutor', email: 'carlos@tandem.app', avatar: '👨', relation: 'Padre', linkedUserIds: ['u2','u12'], phone: '+54 11 5555-0002' },
-  { id: 't3', username: 'ana_r', password: '123456', name: 'Ana Rodríguez', role: 'tutor', email: 'ana@tandem.app', avatar: '👩', relation: 'Madre', linkedUserIds: ['u3','u13'], phone: '+54 11 5555-0003' },
-  { id: 't4', username: 'pedro_l', password: '123456', name: 'Pedro López', role: 'tutor', email: 'pedro@tandem.app', avatar: '👨', relation: 'Padre', linkedUserIds: ['u4','u14'], phone: '+54 11 5555-0004' },
-  { id: 't5', username: 'maria_b', password: '123456', name: 'María Benítez', role: 'tutor', email: 'maria@tandem.app', avatar: '👩', relation: 'Madre', linkedUserIds: ['u5','u15'], phone: '+54 11 5555-0005' },
-  { id: 't6', username: 'roberto_s', password: '123456', name: 'Roberto Sánchez', role: 'tutor', email: 'roberto@tandem.app', avatar: '👨', relation: 'Padre', linkedUserIds: ['u6','u16'], phone: '+54 11 5555-0006' },
-  { id: 't7', username: 'elena_f', password: '123456', name: 'Elena Fernández', role: 'tutor', email: 'elena@tandem.app', avatar: '👩', relation: 'Madre', linkedUserIds: ['u7','u17'], phone: '+54 11 5555-0007' },
-  { id: 't8', username: 'jorge_d', password: '123456', name: 'Jorge Domínguez', role: 'tutor', email: 'jorge@tandem.app', avatar: '👨', relation: 'Padre', linkedUserIds: ['u8','u18'], phone: '+54 11 5555-0008' },
-  { id: 't9', username: 'silvia_v', password: '123456', name: 'Silvia Vargas', role: 'tutor', email: 'silvia@tandem.app', avatar: '👩', relation: 'Madre', linkedUserIds: ['u9','u19'], phone: '+54 11 5555-0009' },
-  { id: 't10', username: 'diego_c', password: '123456', name: 'Diego Castro', role: 'tutor', email: 'diego@tandem.app', avatar: '👨', relation: 'Padre', linkedUserIds: ['u10','u20'], phone: '+54 11 5555-0010' },
-  { id: 't11', username: 'patricia_a', password: '123456', name: 'Patricia Agüero', role: 'tutor', email: 'patricia@tandem.app', avatar: '👩', relation: 'Abuela', linkedUserIds: ['u1'], phone: '+54 11 5555-0011' },
-  { id: 't12', username: 'raul_m', password: '123456', name: 'Raúl Méndez', role: 'tutor', email: 'raul@tandem.app', avatar: '👨', relation: 'Tío', linkedUserIds: ['u3'], phone: '+54 11 5555-0012' },
-  { id: 't13', username: 'clara_h', password: '123456', name: 'Clara Herrera', role: 'tutor', email: 'clara@tandem.app', avatar: '👩', relation: 'Madrina', linkedUserIds: ['u5'], phone: '+54 11 5555-0013' },
-  { id: 't14', username: 'oscar_t', password: '123456', name: 'Óscar Torres', role: 'tutor', email: 'oscar@tandem.app', avatar: '👨', relation: 'Padre', linkedUserIds: ['u7'], phone: '+54 11 5555-0014' },
-  { id: 't15', username: 'marta_p', password: '123456', name: 'Marta Paz', role: 'tutor', email: 'marta@tandem.app', avatar: '👩', relation: 'Madre', linkedUserIds: ['u9'], phone: '+54 11 5555-0015' },
-  { id: 't16', username: 'fernando_g', password: '123456', name: 'Fernando Giménez', role: 'tutor', email: 'fernando@tandem.app', avatar: '👨', relation: 'Padre', linkedUserIds: ['u2'], phone: '+54 11 5555-0016' },
-  { id: 't17', username: 'rosa_n', password: '123456', name: 'Rosa Navarro', role: 'tutor', email: 'rosa@tandem.app', avatar: '👩', relation: 'Abuela', linkedUserIds: ['u4'], phone: '+54 11 5555-0017' },
-  { id: 't18', username: 'hugo_r', password: '123456', name: 'Hugo Rivas', role: 'tutor', email: 'hugo@tandem.app', avatar: '👨', relation: 'Tutor legal', linkedUserIds: ['u6'], phone: '+54 11 5555-0018' },
-  { id: 't19', username: 'lucia_s', password: '123456', name: 'Lucía Sosa', role: 'tutor', email: 'luciasosa@tandem.app', avatar: '👩', relation: 'Madre', linkedUserIds: ['u8'], phone: '+54 11 5555-0019' },
-  { id: 't20', username: 'andres_c', password: '123456', name: 'Andrés Campos', role: 'tutor', email: 'andres@tandem.app', avatar: '👨', relation: 'Padre', linkedUserIds: ['u10'], phone: '+54 11 5555-0020' },
-];
 
 // ==================== PROFESSIONALS ====================
 export interface Professional {
@@ -124,28 +73,7 @@ export interface Professional {
   emailVerified?: boolean;
 }
 
-export const professionals: Professional[] = [
-  { id: 'p1', username: 'martina_p', password: '123456', name: 'Lic. Martina Pérez', role: 'professional', email: 'martina@tandem.app', avatar: '👩‍⚕️', specialty: 'Psicología - TEA', description: 'Especialista en intervenciones cognitivo-conductuales para adolescentes con TEA. 10 años de experiencia.', modality: 'Presencial y virtual', availability: 'Lunes a viernes 9-18h', linkedUserIds: ['u1','u4','u14'], phone: '+54 11 6666-0001' },
-  { id: 'p2', username: 'lucas_o', password: '123456', name: 'Dr. Lucas Ortega', role: 'professional', email: 'lucas@tandem.app', avatar: '👨‍⚕️', specialty: 'Psiquiatría infanto-juvenil', description: 'Médico psiquiatra especializado en neurodesarrollo. Abordaje integral y familiar.', modality: 'Virtual', availability: 'Martes y jueves 10-16h', linkedUserIds: ['u2','u6','u15'], phone: '+54 11 6666-0002' },
-  { id: 'p3', username: 'carolina_v', password: '123456', name: 'Lic. Carolina Vega', role: 'professional', email: 'carolina@tandem.app', avatar: '👩‍💼', specialty: 'Terapia Ocupacional', description: 'Acompaño a jóvenes en el desarrollo de habilidades para la vida diaria y autonomía.', modality: 'Presencial', availability: 'Lunes, miércoles y viernes 8-14h', linkedUserIds: ['u3','u9'], phone: '+54 11 6666-0003' },
-  { id: 'p4', username: 'pablo_i', password: '123456', name: 'Lic. Pablo Ibáñez', role: 'professional', email: 'pablo@tandem.app', avatar: '👨‍⚕️', specialty: 'Fonoaudiología', description: 'Trabajo en comunicación aumentativa y alternativa. Enfoque pragmático del lenguaje.', modality: 'Presencial y virtual', availability: 'Lunes a viernes 14-20h', linkedUserIds: ['u5'], phone: '+54 11 6666-0004' },
-  { id: 'p5', username: 'natalia_j', password: '123456', name: 'Dra. Natalia Juárez', role: 'professional', email: 'natalia@tandem.app', avatar: '👩‍⚕️', specialty: 'Neurología pediátrica', description: 'Neuróloga con enfoque en diagnóstico y seguimiento de condiciones del neurodesarrollo.', modality: 'Presencial', availability: 'Miércoles y viernes 9-13h', linkedUserIds: ['u7','u16'], phone: '+54 11 6666-0005' },
-  { id: 'p6', username: 'marcos_d', password: '123456', name: 'Lic. Marcos Delgado', role: 'professional', email: 'marcos@tandem.app', avatar: '👨‍⚕️', specialty: 'Psicopedagogía', description: 'Apoyo en estrategias de aprendizaje y adaptaciones escolares para jóvenes con TEA.', modality: 'Virtual', availability: 'Martes a jueves 10-18h', linkedUserIds: ['u8','u17'], phone: '+54 11 6666-0006' },
-  { id: 'p7', username: 'valeria_m', password: '123456', name: 'Lic. Valeria Moreno', role: 'professional', email: 'valeria@tandem.app', avatar: '👩‍💼', specialty: 'Trabajo Social', description: 'Acompaño familias en la articulación de redes de apoyo y recursos comunitarios.', modality: 'Presencial y virtual', availability: 'Lunes a viernes 8-16h', linkedUserIds: ['u10','u18'], phone: '+54 11 6666-0007' },
-  { id: 'p8', username: 'gabriel_r', password: '123456', name: 'Lic. Gabriel Ríos', role: 'professional', email: 'gabriel@tandem.app', avatar: '👨‍⚕️', specialty: 'Psicología - ABA', description: 'Analista de conducta aplicada con enfoque en adolescentes y jóvenes adultos.', modality: 'Presencial', availability: 'Lunes, miércoles y viernes 14-20h', linkedUserIds: ['u11','u19'], phone: '+54 11 6666-0008' },
-  { id: 'p9', username: 'andrea_l', password: '123456', name: 'Lic. Andrea Luna', role: 'professional', email: 'andrea@tandem.app', avatar: '👩‍⚕️', specialty: 'Musicoterapia', description: 'Uso la música como herramienta terapéutica para la expresión emocional y la comunicación.', modality: 'Presencial', availability: 'Martes y jueves 15-19h', linkedUserIds: ['u12','u20'], phone: '+54 11 6666-0009' },
-  { id: 'p10', username: 'sergio_a', password: '123456', name: 'Dr. Sergio Acosta', role: 'professional', email: 'sergio@tandem.app', avatar: '👨‍⚕️', specialty: 'Pediatría del desarrollo', description: 'Pediatra especializado en seguimiento integral de niños y adolescentes con TEA.', modality: 'Presencial y virtual', availability: 'Lunes a viernes 8-12h', linkedUserIds: ['u13'], phone: '+54 11 6666-0010' },
-  { id: 'p11', username: 'daniela_f', password: '123456', name: 'Lic. Daniela Flores', role: 'professional', email: 'daniela@tandem.app', avatar: '👩‍💼', specialty: 'Psicología positiva', description: 'Enfoque en fortalezas, bienestar y calidad de vida en personas neurodivergentes.', modality: 'Virtual', availability: 'Lunes a viernes 10-14h', linkedUserIds: [], phone: '+54 11 6666-0011' },
-  { id: 'p12', username: 'hernan_b', password: '123456', name: 'Lic. Hernán Bustos', role: 'professional', email: 'hernan@tandem.app', avatar: '👨‍⚕️', specialty: 'Kinesiología', description: 'Trabajo corporal y sensorial para mejorar la regulación y el bienestar físico.', modality: 'Presencial', availability: 'Miércoles y viernes 8-12h', linkedUserIds: [], phone: '+54 11 6666-0012' },
-  { id: 'p13', username: 'camila_r', password: '123456', name: 'Lic. Camila Romero', role: 'professional', email: 'camilar@tandem.app', avatar: '👩‍⚕️', specialty: 'Arte-terapia', description: 'El arte como vía de expresión y comunicación. Grupos e individual.', modality: 'Presencial y virtual', availability: 'Martes y jueves 10-14h', linkedUserIds: [], phone: '+54 11 6666-0013' },
-  { id: 'p14', username: 'ignacio_m', password: '123456', name: 'Lic. Ignacio Medina', role: 'professional', email: 'ignacio@tandem.app', avatar: '👨‍⚕️', specialty: 'Integración sensorial', description: 'Especialista en procesamiento sensorial y estrategias de regulación.', modality: 'Presencial', availability: 'Lunes a viernes 14-18h', linkedUserIds: [], phone: '+54 11 6666-0014' },
-  { id: 'p15', username: 'paula_g', password: '123456', name: 'Lic. Paula Gutiérrez', role: 'professional', email: 'paulag@tandem.app', avatar: '👩‍💼', specialty: 'Coaching TEA adultos', description: 'Acompaño a jóvenes adultos con TEA en la transición a la vida independiente.', modality: 'Virtual', availability: 'Lunes y miércoles 16-20h', linkedUserIds: [], phone: '+54 11 6666-0015' },
-  { id: 'p16', username: 'facundo_s', password: '123456', name: 'Lic. Facundo Silva', role: 'professional', email: 'facundo@tandem.app', avatar: '👨‍⚕️', specialty: 'Nutrición TEA', description: 'Abordaje nutricional considerando selectividad alimentaria y necesidades especiales.', modality: 'Presencial y virtual', availability: 'Martes a jueves 9-13h', linkedUserIds: [], phone: '+54 11 6666-0016' },
-  { id: 'p17', username: 'florencia_h', password: '123456', name: 'Lic. Florencia Heredia', role: 'professional', email: 'florencia@tandem.app', avatar: '👩‍⚕️', specialty: 'Psicomotricidad', description: 'Trabajo el vínculo entre cuerpo, emoción y pensamiento a través del movimiento.', modality: 'Presencial', availability: 'Lunes y viernes 10-14h', linkedUserIds: [], phone: '+54 11 6666-0017' },
-  { id: 'p18', username: 'esteban_p', password: '123456', name: 'Dr. Esteban Parodi', role: 'professional', email: 'esteban@tandem.app', avatar: '👨‍⚕️', specialty: 'Genética médica', description: 'Asesoramiento genético para familias con diagnóstico de TEA.', modality: 'Virtual', availability: 'Jueves 9-13h', linkedUserIds: [], phone: '+54 11 6666-0018' },
-  { id: 'p19', username: 'sol_d', password: '123456', name: 'Lic. Sol Domínguez', role: 'professional', email: 'sol@tandem.app', avatar: '👩‍💼', specialty: 'Terapia asistida con animales', description: 'Intervenciones con perros de terapia para trabajar habilidades sociales y emocionales.', modality: 'Presencial', availability: 'Sábados 9-13h', linkedUserIds: [], phone: '+54 11 6666-0019' },
-  { id: 'p20', username: 'nicolas_v', password: '123456', name: 'Lic. Nicolás Villalba', role: 'professional', email: 'nicolasv@tandem.app', avatar: '👨‍⚕️', specialty: 'Habilidades sociales', description: 'Grupos de entrenamiento en habilidades sociales para adolescentes con TEA.', modality: 'Presencial y virtual', availability: 'Martes y jueves 16-20h', linkedUserIds: [], phone: '+54 11 6666-0020' },
-];
+
 
 // ==================== ACTIVITIES ====================
 export type ActivityCategory = 'autonomía personal' | 'higiene' | 'organización' | 'escuela' | 'cocina básica' | 'transporte' | 'compras' | 'manejo del dinero' | 'emociones' | 'comunicación' | 'vida social' | 'seguridad personal' | 'rutinas del hogar' | 'regulación emocional' | 'preparación para salidas' | 'anticipación de cambios';
@@ -172,6 +100,8 @@ export interface Activity {
   points: number;
   type: ActivityType;
   completionMessage?: string;
+  /** Alternativa que se muestra en "No puedo seguir". */
+  planB?: string;
   // Mini-juego (opcional)
   gameType?: import('./miniGames').GameType;
   gameData?: import('./miniGames').GameData;
@@ -223,6 +153,8 @@ export interface RoutineItem {
   title: string;
   icon: string;
   completed: boolean;
+  /** Día local (YYYY-MM-DD) en que se completó: el paso cuenta como hecho solo ese día. */
+  completedOn?: string;
   category: string;
   pictogramLabel?: string;
   reminders?: number[];
@@ -816,21 +748,6 @@ export const pricingPlans: PricingPlan[] = [
 ];
 
 // ==================== HELPER FUNCTIONS ====================
-export function findUser(username: string, password: string): (User | Tutor | Professional | Admin) | null {
-  const u = users.find(u => u.username === username && u.password === password);
-  if (u) return u;
-  const t = tutors.find(t => t.username === username && t.password === password);
-  if (t) return t;
-  const p = professionals.find(p => p.username === username && p.password === password);
-  if (p) return p;
-  const a = admins.find(a => a.username === username && a.password === password);
-  if (a) return a;
-  return null;
-}
-
-export function getUserById(id: string): User | undefined { return users.find(u => u.id === id); }
-export function getTutorById(id: string): Tutor | undefined { return tutors.find(t => t.id === id); }
-export function getProfessionalById(id: string): Professional | undefined { return professionals.find(p => p.id === id); }
 export function getActivitiesForUser(userId: string): Activity[] { return activities.filter(a => a.assignedTo === userId); }
 
 export function completeActivityForUser(activityId: string, userId: string): void {
