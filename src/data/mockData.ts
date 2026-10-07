@@ -153,6 +153,8 @@ export interface RoutineItem {
   title: string;
   icon: string;
   completed: boolean;
+  /** Día local (YYYY-MM-DD) en que se completó: el paso cuenta como hecho solo ese día. */
+  completedOn?: string;
   category: string;
   pictogramLabel?: string;
   reminders?: number[];
