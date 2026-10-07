@@ -6,6 +6,7 @@ type Props = {
   activeTab: string;
   onNavigate: (tab: string) => void;
   onOpenCantSpeak: () => void;
+  onOpenHelpCard: () => void;
   centerContent?: (open: boolean) => ReactNode;
   compactProgress?: number;
   onOpenChange?: (open: boolean) => void;
@@ -18,7 +19,7 @@ const actions = [
   { id: 'communicate', label: 'Comunicarme', icon: MessageCircle, color: 'text-sky-600' },
 ] as const;
 
-export default function BelongingQuickActionsMenu({ activeTab, onNavigate, onOpenCantSpeak, centerContent, compactProgress = 0, onOpenChange }: Props) {
+export default function BelongingQuickActionsMenu({ activeTab, onNavigate, onOpenCantSpeak, onOpenHelpCard, centerContent, compactProgress = 0, onOpenChange }: Props) {
   const [open, setOpen] = useState(false);
   const [communicateOpen, setCommunicateOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -99,6 +100,7 @@ export default function BelongingQuickActionsMenu({ activeTab, onNavigate, onOpe
                     >
                       <button type="button" onClick={() => navigate('communicator')} className="min-h-11 w-full rounded-xl px-3 text-left text-sm font-semibold text-[#49385c] hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]">Armar una frase</button>
                       <button type="button" onClick={() => { close(); onOpenCantSpeak(); }} className="min-h-11 w-full rounded-xl px-3 text-left text-sm font-semibold text-[#49385c] hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]">No puedo hablar</button>
+                      <button type="button" onClick={() => { close(); onOpenHelpCard(); }} className="min-h-11 w-full rounded-xl px-3 text-left text-sm font-semibold text-[#49385c] hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"><span aria-hidden>🪪</span> Mi tarjeta</button>
                     </motion.div>
                   )}
                 </AnimatePresence>
