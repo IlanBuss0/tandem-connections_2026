@@ -8,7 +8,7 @@ import CoinBadge from '@/components/CoinBadge';
 import { toast } from '@/hooks/ui/use-toast';
 import { CompactRelations, ProfileGrid, ProfileHero, ProfileInfoGrid, ProfileLayout, ProfileSection } from '@/components/account/ProfileLayout';
 
-export default function UserProfile({ onOpenSettings, onOpenShop }: { onOpenSettings?: () => void; onOpenShop?: () => void }) {
+export default function UserProfile({ onOpenSettings, onOpenShop, onOpenHelpCard }: { onOpenSettings?: () => void; onOpenShop?: () => void; onOpenHelpCard?: () => void }) {
   const { user, refreshUser } = useAuth();
   const { state: wallet } = useWallet();
   const [profile, setProfile] = useState<UserProfileDashboard | null>(null);
@@ -78,6 +78,7 @@ export default function UserProfile({ onOpenSettings, onOpenShop }: { onOpenSett
       <ProfileSection title="Mis datos" description="Información de tu cuenta" icon={UserRound}><ProfileInfoGrid items={[{ label: 'Correo', value: email }, { label: 'Teléfono', value: profile?.usuario?.telefono ? String(profile.usuario.telefono) : 'Sin registrar' }, { label: 'Nacimiento', value: birthDate }, { label: 'Usuario', value: `@${username}` }, { label: 'Ingreso', value: joinedAt, wide: true }]} /></ProfileSection>
       <div className="space-y-5">
         <ProfileSection title="Mi autonomía" description="Tu configuración de apoyo" icon={ShieldCheck}><ProfileInfoGrid items={[{ label: 'Nivel de apoyo', value: profile?.supportLevel || 'Sin registrar' }, { label: 'Autonomía', value: profile?.autonomy || 'Sin registrar' }, { label: 'Autogestión', value: profile?.canSelfManage ? 'Habilitada' : 'Asistida', wide: true }, ...(profile?.observation ? [{ label: 'Observación', value: profile.observation, wide: true }] : [])]} /></ProfileSection>
+        {onOpenHelpCard && <button type="button" onClick={onOpenHelpCard} className="hidden min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-[#e6daf1] bg-white px-4 text-sm font-bold text-[#6933b4] shadow-sm transition-colors hover:bg-[#f5effc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 lg:inline-flex"><span aria-hidden>🪪</span>Mi tarjeta de ayuda</button>}
         {onOpenShop && <ProfileSection title="Tienda y avatar" description="Personalizá tu avatar y administrá tus objetos" icon={ShoppingBag}><button type="button" onClick={onOpenShop} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-bold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><ShoppingBag size={18} aria-hidden />Abrir Tienda y avatar</button></ProfileSection>}
       </div>
     </ProfileGrid>
