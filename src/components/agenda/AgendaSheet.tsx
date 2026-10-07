@@ -11,6 +11,7 @@ export function AgendaSheet({
   footer,
   small = false,
   large = false,
+  raised = false,
   children,
 }: {
   title: string;
@@ -21,12 +22,14 @@ export function AgendaSheet({
   small?: boolean;
   /** Hoja más grande y de animación más lenta (ej. detalle del día). */
   large?: boolean;
+  /** Por encima de pantallas completas (z-[60], ej. el modo guiado de rutinas). */
+  raised?: boolean;
   children: ReactNode;
 }) {
   return (
     <DialogPrimitive.Root open onOpenChange={(open) => !open && onClose()}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-[#2b2145]/50 data-[state=open]:animate-in data-[state=open]:fade-in-0 motion-reduce:animate-none" />
+        <DialogPrimitive.Overlay className={cn("fixed inset-0 z-50 bg-[#2b2145]/50 data-[state=open]:animate-in data-[state=open]:fade-in-0 motion-reduce:animate-none", raised && "z-[70]")} />
         <DialogPrimitive.Content
           aria-describedby={undefined}
           className={cn(
@@ -35,6 +38,7 @@ export function AgendaSheet({
             "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-full sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[28px]",
             small && "max-h-[70dvh]",
             large && "min-h-[60dvh] duration-500 sm:min-h-[32rem] sm:max-w-2xl",
+            raised && "z-[70]",
           )}
         >
           <div className="mx-auto mt-3 h-1.5 w-11 shrink-0 rounded-full bg-primary/20 sm:hidden" aria-hidden />
