@@ -13,6 +13,8 @@ interface Props {
   onNotUnderstand: () => void;
   /** Si no viene, la opción de pausa no se muestra. */
   onPause?: () => void;
+  /** Para mostrarla por encima de una pantalla completa (modo guiado de rutinas). */
+  raised?: boolean;
 }
 
 function OptionRow({ icon, iconBg, title, subtitle, onClick }: { icon: string; iconBg: string; title: string; subtitle: string; onClick: () => void }) {
@@ -34,10 +36,10 @@ function OptionRow({ icon, iconBg, title, subtitle, onClick }: { icon: string; i
   );
 }
 
-export default function CantContinueSheet({ planB, assignedByName, recipientLabel, onClose, onUsePlanB, onNeedHelp, onNotUnderstand, onPause }: Props): ReactNode {
+export default function CantContinueSheet({ planB, assignedByName, recipientLabel, onClose, onUsePlanB, onNeedHelp, onNotUnderstand, onPause, raised }: Props): ReactNode {
   const cleanPlanB = planB?.trim();
   return (
-    <AgendaSheet title="¿Qué necesitás?" subtitle="Elegí una. Está bien trabarse." onClose={onClose}>
+    <AgendaSheet title="¿Qué necesitás?" subtitle="Elegí una. Está bien trabarse." onClose={onClose} raised={raised}>
       {cleanPlanB && (
         <div className="rounded-[18px] border border-[#A8E3C9] bg-[#DCF5EA] p-4">
           <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#0B6B4A]">
