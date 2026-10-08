@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Download, Info, Loader2, Pencil, Send, X } from "lucide-react";
-import { AgendaSheet } from "@/components/agenda/AgendaSheet";
+import ReportReader from "@/components/shared/ReportReader";
 import { useToast } from "@/components/ui/use-toast";
 import { sendReportToTutor, type GeneratedReport } from "@/data/api";
 import { professionalByline, reportTitle, shortDate } from "@/lib/professionalReports";
@@ -46,10 +46,10 @@ export default function ReadReportSheet({ report, patientName, onClose, onSent, 
   };
 
   return (
-    <AgendaSheet
-      large
+    <ReportReader
       title={reportTitle(report)}
       subtitle={`${patientName} · generado el ${shortDate(report.fecha_generacion)}`}
+      content={report.contenido}
       onClose={onClose}
       footer={
         <div className="space-y-2">
@@ -72,8 +72,7 @@ export default function ReadReportSheet({ report, patientName, onClose, onSent, 
           </div>
         </div>
       }
-    >
-      {sent ? (
+      notice={sent ? (
         <p className="text-sm font-bold text-emerald-800">Se envió al tutor el {shortDate(report.fecha_envio)}</p>
       ) : (
         <p className="flex items-start gap-2.5 rounded-2xl bg-[#FFEFCF] p-3 text-sm font-semibold text-[#7A4300]">
@@ -81,8 +80,7 @@ export default function ReadReportSheet({ report, patientName, onClose, onSent, 
           Lo armó la IA con tus notas. Leelo antes de mandarlo a la familia.
         </p>
       )}
-      <div className="whitespace-pre-wrap rounded-2xl bg-[#F5EFFC] p-4 text-sm leading-relaxed text-[#2b2145]">{report.contenido}</div>
-      {!sent && <p className="text-sm text-muted-foreground">Queda guardado en «Para enviar» hasta que lo mandes.</p>}
-    </AgendaSheet>
+      afterContent={!sent && <p className="text-sm text-muted-foreground">Queda guardado en «Para enviar» hasta que lo mandes.</p>}
+    />
   );
 }
