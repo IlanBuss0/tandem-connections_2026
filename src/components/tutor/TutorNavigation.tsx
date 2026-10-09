@@ -1,12 +1,12 @@
 import { useRef } from 'react';
 import { RoleCloseButton, RoleNavSection, RoleQuickActionGrid } from '@/components/shared/RoleNavigationPrimitives';
+import RoleAccountMenu from '@/components/shared/RoleAccountMenu';
 import { useEscapeClose } from '@/hooks/useEscapeClose';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { BarChart3, CalendarDays, CheckCircle2, Image, Info, Link2, LogOut, MessageCircle, Plus, Settings, Sparkles, UserRound, Users, X } from 'lucide-react';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
 
-export type TutorTab = 'home' | 'calendar' | 'activities' | 'chat' | 'notifications' | 'reports' | 'professionals' | 'pictograms' | 'pictogramCatalog' | 'connections' | 'profile' | 'about' | 'detail';
+export type TutorTab = 'home' | 'calendar' | 'activities' | 'chat' | 'notifications' | 'reports' | 'professionals' | 'pictograms' | 'pictogramCatalog' | 'connections' | 'profile' | 'profile-settings' | 'about' | 'detail';
 
 const navGroups = [
   { title: 'Principal', items: [
@@ -55,7 +55,18 @@ export function TutorProfileDrawer({ open, user, onClose, onNavigate, onLogout }
 
 export function TutorAccountMenu({ open, onOpenChange, user, onNavigate, onLogout }: { open: boolean; onOpenChange: (open: boolean) => void; user: { name: string; avatar?: string | null }; onNavigate: (tab: TutorTab) => void; onLogout: () => void }) {
   const select = (tab: TutorTab) => { onOpenChange(false); onNavigate(tab); };
-  return <DropdownMenu open={open} onOpenChange={onOpenChange}><DropdownMenuTrigger asChild><button type="button" aria-label="Abrir opciones de cuenta" aria-expanded={open} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><HeaderUserAvatar avatar={user.avatar} name={user.name} /></button></DropdownMenuTrigger><DropdownMenuContent align="end" sideOffset={10} className="z-[80] w-[min(19rem,calc(100vw-2rem))] rounded-2xl border-violet-100 p-2 shadow-xl"><DropdownMenuLabel className="flex items-center gap-3 p-3"><HeaderUserAvatar avatar={user.avatar} name={user.name} /><span className="min-w-0"><span className="block truncate font-bold">{user.name}</span><span className="block text-xs font-normal text-muted-foreground">Tutor</span></span></DropdownMenuLabel><DropdownMenuSeparator /><DropdownMenuItem onSelect={() => select('profile')} className="min-h-11 cursor-pointer rounded-xl text-sm font-semibold focus:bg-primary/10 focus:text-primary"><UserRound className="mr-3 h-5 w-5 text-primary" aria-hidden />Mi perfil</DropdownMenuItem><DropdownMenuItem onSelect={() => select('profile')} className="min-h-11 cursor-pointer rounded-xl text-sm font-semibold focus:bg-primary/10 focus:text-primary"><Settings className="mr-3 h-5 w-5 text-primary" aria-hidden />Configuración</DropdownMenuItem><DropdownMenuItem onSelect={() => select('about')} className="min-h-11 cursor-pointer rounded-xl text-sm font-semibold focus:bg-primary/10 focus:text-primary"><Info className="mr-3 h-5 w-5 text-primary" aria-hidden />Acerca de TÁNDEM</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem onSelect={() => { onOpenChange(false); onLogout(); }} className="min-h-11 cursor-pointer rounded-xl text-sm font-semibold text-destructive focus:bg-destructive/10 focus:text-destructive"><LogOut className="mr-3 h-5 w-5" aria-hidden />Cerrar sesión</DropdownMenuItem></DropdownMenuContent></DropdownMenu>;
+  return <RoleAccountMenu
+    open={open}
+    onOpenChange={onOpenChange}
+    user={user}
+    roleLabel="Tutor"
+    onLogout={onLogout}
+    options={[
+      { id: 'profile', label: 'Mi perfil', icon: UserRound, onSelect: () => select('profile') },
+      { id: 'settings', label: 'Configuración', icon: Settings, onSelect: () => select('profile-settings') },
+      { id: 'about', label: 'Acerca de TÁNDEM', icon: Info, onSelect: () => select('about') },
+    ]}
+  />;
 }
 
 export function TutorQuickMenu({ open, onOpenChange, compactProgress, onAction }: { open: boolean; onOpenChange: (value: boolean) => void; compactProgress: number; onAction: (action: 'activity' | 'event' | 'link' | 'pictogram') => void }) {

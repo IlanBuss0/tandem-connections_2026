@@ -43,7 +43,7 @@ import { pendingHelpAlerts } from '@/lib/helpAlerts';
 const tutorPageLabels: Partial<Record<TutorTab, string>> = {
   calendar: 'Calendario', activities: 'Actividades', chat: 'Chats', notifications: 'Notificaciones',
   reports: 'Reportes', professionals: 'Profesionales', pictograms: 'Crear pictograma',
-  pictogramCatalog: 'Pictogramas', connections: 'Personas vinculadas', profile: 'Perfil', about: 'Acerca de TÁNDEM',
+  pictogramCatalog: 'Pictogramas', connections: 'Personas vinculadas', profile: 'Perfil', 'profile-settings': 'Configuración', about: 'Acerca de TÁNDEM',
 };
 
 function parseDate(value?: string | null) {
@@ -264,7 +264,7 @@ function TutorContent(props: {
   if (tab === 'pictogramCatalog') return <UserPictograms />;
   if (tab === 'connections') return <TutorConnections initialPertenecienteId={props.reportsPersonId} onOpenDetail={props.onOpenDetail} reports={props.reports} onOpenReports={props.onOpenReports} />;
   if (tab === 'about') return <AboutTandem />;
-  if (tab === 'profile') return <TutorAccountSettings linkedUsers={props.linkedUsers} onManageConnections={() => props.onNavigate('connections')} />;
+  if (tab === 'profile' || tab === 'profile-settings') return <TutorAccountSettings linkedUsers={props.linkedUsers} onManageConnections={() => props.onNavigate('connections')} view={tab === 'profile-settings' ? 'settings' : 'profile'} onNavigate={props.onNavigate} />;
   if (tab === 'detail') {
     const owner = props.linkedUsers.find(item => item.id === props.detailUserId);
     const detail = owner && props.data.byUserId[owner.id];

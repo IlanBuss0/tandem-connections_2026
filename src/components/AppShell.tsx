@@ -211,9 +211,9 @@ export default function AppShell() {
       case "professional-directory":
         return <ProfessionalDirectory />;
       case "profile":
-        return <UserProfile onOpenSettings={() => goToTab("profile-settings")} onOpenShop={() => goToTab("shop")} onOpenHelpCard={() => helpCardRef.current?.open()} />;
+        return <UserProfile onOpenSettings={() => goToTab("profile-settings")} onOpenHelpCard={() => helpCardRef.current?.open()} />;
       case "profile-settings":
-        return <UserProfileSettings onBack={() => goToTab("profile")} />;
+        return <UserProfileSettings onBack={() => goToTab("profile")} onOpenShop={() => goToTab("shop")} />;
       case "about":
         return <AboutTandem />;
       default:

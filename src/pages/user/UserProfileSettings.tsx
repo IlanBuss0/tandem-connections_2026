@@ -1,11 +1,13 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Accessibility, AlertCircle, ArrowLeft, Bell, Loader2, Save, Shield, UserRound } from 'lucide-react';
+import { Accessibility, AlertCircle, Bell, Check, Loader2, Shield, ShoppingBag, Sparkles, UserRound } from 'lucide-react';
 import { ACCESSIBILITY_PROFILES, DEFAULT_SETTINGS, useAccessibility, type AccessibilitySettings } from '@/contexts/AccessibilityContext';
 import { useAuth } from '@/contexts/AuthContext';
 import {
+  fetchPricingPlans,
   fetchUserProfileSettings,
   saveOwnUserSettings,
   saveUserProfileSettings,
+  type PricingPlan,
   type UserProfileSettings,
   type UserProfileSettingsPayload,
 } from '@/data/api';
@@ -16,7 +18,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { toast } from '@/hooks/ui/use-toast';
 import AccountSecuritySettings from '@/components/account/AccountSecuritySettings';
-import SettingsLayout, { SettingsSectionHeader, type SettingsCategory } from '@/components/account/SettingsLayout';
+import SettingsLayout, { SettingsFooter, SettingsSaveButton, SettingsSection, SettingsSectionHeader, type SettingsCategory } from '@/components/account/SettingsLayout';
+import { ProfileCardAction } from '@/components/account/ProfileLayout';
 
 type FormState = UserProfileSettingsPayload & {
   telefonoText: string;
@@ -65,24 +68,6 @@ const categories: SettingsCategory<SettingsTab>[] = [
 function dateInputValue(value?: string | null) {
   if (!value) return '';
   return value.split('T')[0];
-}
-
-function SectionHeader({ icon: Icon, title, description }: {
-  icon: typeof UserRound;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="mb-4 flex items-start gap-3">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f5f0ff] text-[#6b4c9a]">
-        <Icon size={20} />
-      </div>
-      <div>
-        <h3 className="text-lg font-semibold text-[#6b4c9a]">{title}</h3>
-        <p className="text-sm text-[#8b7aa0]">{description}</p>
-      </div>
-    </div>
-  );
 }
 
 function ToggleRow({ label, description, checked, onChange }: {
@@ -175,7 +160,7 @@ function describeAccessibilityChanges(settings: AccessibilitySettings): string[]
   return changes;
 }
 
-export default function UserProfileSettings({ onBack }: { onBack?: () => void }) {
+export default function UserProfileSettings({ onBack, onOpenShop }: { onBack?: () => void; onOpenShop?: () => void }) {
   const { user, refreshUser } = useAuth();
   const { settings: accessibilitySettings } = useAccessibility();
   const [settings, setSettings] = useState<UserProfileSettings | null>(null);
@@ -197,6 +182,8 @@ export default function UserProfileSettings({ onBack }: { onBack?: () => void })
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarProgress, setAvatarProgress] = useState(0);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [plans, setPlans] = useState<PricingPlan[]>([]);
+  const [plansLoaded, setPlansLoaded] = useState(false);
 
   const handleAvatarSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -290,6 +277,13 @@ export default function UserProfileSettings({ onBack }: { onBack?: () => void })
     load();
   }, [user]);
 
+  useEffect(() => {
+    let active = true;
+    const finish = (next: PricingPlan[]) => { if (active) { setPlans(next); setPlansLoaded(true); } };
+    fetchPricingPlans().then(finish).catch(() => finish([]));
+    return () => { active = false; };
+  }, []);
+
   const updateUsuario = <K extends keyof FormState['usuario']>(key: K, value: FormState['usuario'][K]) => {
     setForm(prev => ({ ...prev, usuario: { ...prev.usuario, [key]: value } }));
   };
@@ -357,6 +351,8 @@ export default function UserProfileSettings({ onBack }: { onBack?: () => void })
 
   if (!user || user.role !== 'user') return null;
 
+  const selectedPlan = plans.find(plan => plan.highlighted) || plans[0];
+
   return (
     <form onSubmit={handleSubmit}>
       {error && (
@@ -366,7 +362,7 @@ export default function UserProfileSettings({ onBack }: { onBack?: () => void })
         </div>
       )}
 
-      <SettingsLayout categories={categories} active={activeTab} onChange={setActiveTab} footer={<div className="flex flex-col items-center justify-between gap-3 rounded-[24px] border border-[#ebe3f3] bg-white p-4 shadow-[0_10px_30px_rgba(73,45,103,.065)] sm:flex-row sm:px-6"><div className="flex items-center gap-2">{onBack && <button type="button" onClick={onBack} className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-[#ddd0eb] px-4 text-sm font-bold text-[#6330a8]"><ArrowLeft size={16} />Volver al perfil</button>}<p className="hidden text-sm text-[#80748c] md:block">Guardá los cambios de esta configuración.</p></div><button type="submit" disabled={loading || saving || !canSave} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-[#6530ad] px-6 text-sm font-bold text-white shadow-md disabled:opacity-60 sm:w-auto">{saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}Guardar cambios</button></div>}>
+      <SettingsLayout categories={categories} active={activeTab} onChange={setActiveTab} footer={<SettingsFooter onBack={onBack} hint="Guardá los cambios de esta configuración." action={<SettingsSaveButton type="submit" disabled={loading || saving || !canSave} loading={saving} />} />}>
       {(!settings && !error) || loading ? (
         <div className="flex items-center gap-2 rounded-2xl border border-[#f0e8f8] bg-white p-4 text-sm text-[#8b7aa0] shadow-lg">
           <Loader2 size={16} className="animate-spin" />
@@ -377,12 +373,7 @@ export default function UserProfileSettings({ onBack }: { onBack?: () => void })
           {activeTab === 'account' && <div className="space-y-5">
           <SettingsSectionHeader icon={UserRound} title="Cuenta" description="Administrá tu acceso y tus datos personales." />
           <AccountSecuritySettings compact />
-          <section className="rounded-[28px] border border-white/80 bg-white/90 p-5 shadow-[0_12px_36px_rgba(70,45,96,.075)] sm:p-6">
-              <SectionHeader
-                icon={UserRound}
-                title="Datos personales"
-                description="Información visible para tu cuenta y tu red de apoyo."
-              />
+          <SettingsSection icon={UserRound} title="Datos personales" description="Información visible para tu cuenta y tu red de apoyo.">
               <div className="mb-4 flex items-center gap-4 rounded-lg border border-border bg-background p-3">
                 <div className="relative w-16 h-16 rounded-full overflow-hidden bg-muted flex items-center justify-center text-3xl shrink-0">
                   {avatarPreview ? (
@@ -444,16 +435,32 @@ export default function UserProfileSettings({ onBack }: { onBack?: () => void })
                   />
                 </div>
               </div>
-          </section>
+          </SettingsSection>
+          <SettingsSection icon={Sparkles} title="Personalización" description="Tu plan actual y la apariencia de tu avatar.">
+            {plansLoaded ? (
+              selectedPlan ? (
+                <div className="rounded-2xl bg-[#f5effc] p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-bold text-[#552593]">{selectedPlan.name}</p>
+                      <p className="mt-1 text-xl font-bold text-[#6933b4]">{selectedPlan.price}<span className="text-xs font-medium text-[#80748c]"> {selectedPlan.period}</span></p>
+                    </div>
+                    {selectedPlan.badge && <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-[#6933b4]">{selectedPlan.badge}</span>}
+                  </div>
+                  <ul className="mt-3 space-y-1.5">
+                    {selectedPlan.features.slice(0, 3).map(feature => <li key={feature} className="flex gap-2 text-xs text-[#716581]"><Check size={13} className="shrink-0 text-[#6933b4]" aria-hidden />{feature}</li>)}
+                  </ul>
+                </div>
+              ) : (
+                <p className="rounded-2xl border border-dashed border-[#ddd0eb] p-6 text-center text-sm text-[#80748c]">Sin plan registrado.</p>
+              )
+            ) : <div className="h-20 animate-pulse rounded-2xl bg-[#f5effc]" aria-hidden />}
+            {onOpenShop && <ProfileCardAction onClick={onOpenShop} icon={ShoppingBag} className="mt-3 w-full">Abrir Tienda y avatar</ProfileCardAction>}
+          </SettingsSection>
           </div>}
           {activeTab === 'privacy' && <div className="space-y-5">
           <SettingsSectionHeader icon={Shield} title="Privacidad" description="Elegí qué funciones pueden usar tu información." />
-          <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 sm:p-5 shadow-lg">
-            <SectionHeader
-              icon={Shield}
-              title="Perfil perteneciente"
-              description="Información definida por tu tutor o profesional a cargo."
-            />
+          <SettingsSection icon={Shield} title="Perfil perteneciente" description="Información definida por tu tutor o profesional a cargo.">
             <div className="grid gap-3 md:grid-cols-2">
               <ReadOnlyInfo
                 label="Nivel de apoyo"
@@ -481,27 +488,27 @@ export default function UserProfileSettings({ onBack }: { onBack?: () => void })
             <p className="mt-3 rounded-2xl border border-[#6b4c9a]/20 bg-[#f5f0ff] p-3 text-xs text-[#8b7aa0]">
               Estos datos no se editan desde tu cuenta porque requieren criterio de tu red de apoyo.
             </p>
-          </section>
+          </SettingsSection>
           </div>}
           {activeTab === 'notifications' && <div className="space-y-5">
           <SettingsSectionHeader icon={Bell} title="Avisos" description="Configurá los recordatorios y resúmenes que querés recibir." />
-          <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 sm:p-5 shadow-lg">
+          <SettingsSection>
             <div className="grid gap-3 md:grid-cols-2">
               <ToggleRow label="Notificaciones" description="Recibir avisos importantes." checked={form.preferences.recibir_notificaciones} onChange={value => updatePreference('recibir_notificaciones', value)} />
               <ToggleRow label="Recordatorios" description="Avisos de actividades pendientes." checked={form.preferences.recordatorios_actividad} onChange={value => updatePreference('recordatorios_actividad', value)} />
               <ToggleRow label="Resumen semanal" description="Guardar preferencia de reporte semanal." checked={form.preferences.resumen_semanal} onChange={value => updatePreference('resumen_semanal', value)} />
             </div>
-          </section>
+          </SettingsSection>
           </div>}
-          {activeTab === 'privacy' && <section className="grid gap-3 md:grid-cols-2"><ToggleRow label="Compartir ubicación" description="Permitir uso de ubicación con apoyo autorizado." checked={form.preferences.compartir_ubicacion} onChange={value => updatePreference('compartir_ubicacion', value)} /><ToggleRow label="Mensajes" description="Permitir mensajes dentro de TÁNDEM." checked={form.preferences.permitir_mensajes} onChange={value => updatePreference('permitir_mensajes', value)} /><ToggleRow label="Progreso visible" description="Mostrar progreso a la red de apoyo." checked={form.preferences.mostrar_progreso_red_apoyo} onChange={value => updatePreference('mostrar_progreso_red_apoyo', value)} /></section>}
+          {activeTab === 'privacy' && <SettingsSection><div className="grid gap-3 md:grid-cols-2"><ToggleRow label="Compartir ubicación" description="Permitir uso de ubicación con apoyo autorizado." checked={form.preferences.compartir_ubicacion} onChange={value => updatePreference('compartir_ubicacion', value)} /><ToggleRow label="Mensajes" description="Permitir mensajes dentro de TÁNDEM." checked={form.preferences.permitir_mensajes} onChange={value => updatePreference('permitir_mensajes', value)} /><ToggleRow label="Progreso visible" description="Mostrar progreso a la red de apoyo." checked={form.preferences.mostrar_progreso_red_apoyo} onChange={value => updatePreference('mostrar_progreso_red_apoyo', value)} /></div></SettingsSection>}
           {activeTab === 'accessibility' && <div className="space-y-5">
           <SettingsSectionHeader icon={Accessibility} title="Accesibilidad" description="Revisá el perfil visual que está activo en TÁNDEM." />
-          <section className="rounded-3xl border border-[#f0e8f8] bg-white p-4 sm:p-5 shadow-lg">
+          <SettingsSection>
             <AccessibilityProfileSummary settings={accessibilitySettings} />
             <div className="mt-3 rounded-2xl border border-[#f0e8f8] bg-[#faf8ff] p-3 text-xs text-[#8b7aa0]">
               Para cambiar estos ajustes usa la burbuja flotante de accesibilidad. La configuración se guarda y se carga automáticamente después del login.
             </div>
-          </section>
+          </SettingsSection>
           </div>}
         </>
       )}

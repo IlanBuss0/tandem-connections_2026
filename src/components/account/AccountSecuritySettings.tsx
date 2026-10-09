@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/ui/use-toast';
 import { tandemApi } from '@/services/api';
+import { SettingsSection } from '@/components/account/SettingsLayout';
 
 const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 
@@ -73,3 +74,15 @@ export default function AccountSecuritySettings({ className = '', compact = fals
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) { return <div className="space-y-2"><Label>{label}</Label>{children}</div>; }
+
+/**
+ * Tarjeta "Sesión actual" compartida: cierra la sesión del dispositivo.
+ * La usan los perfiles de Configuración que no tienen más acciones de cuenta.
+ */
+export function AccountSessionSettings() {
+  const { logout } = useAuth();
+
+  return (
+    <SettingsSection icon={ShieldCheck} title="Sesión actual" description="Cerrá tu sesión en este dispositivo." action={<Button type="button" variant="outline" onClick={logout}>Cerrar sesión</Button>} />
+  );
+}

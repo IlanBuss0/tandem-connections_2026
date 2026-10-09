@@ -8,7 +8,8 @@ const paths: Partial<Record<ProfessionalTab, string>> = {
   chat: '/professional/chats', notifications: '/professional/notificaciones', documents: '/professional/documentos',
   create: '/professional/actividades', resources: '/professional/recursos', reports: '/professional/reportes',
   recentActivity: '/professional/actividad-reciente', emotionalStatus: '/professional/estado-emocional',
-  profile: '/professional/perfil', about: '/professional/acerca-de', tools: '/professional/herramientas',
+  profile: '/professional/perfil', 'profile-settings': '/professional/configuracion',
+  about: '/professional/acerca-de', tools: '/professional/herramientas',
   pictograms: '/professional/pictogramas/ia', pictogramCatalog: '/professional/pictogramas',
 };
 

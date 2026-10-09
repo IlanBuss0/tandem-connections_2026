@@ -18,7 +18,8 @@ import ProfessionalDocuments from '@/components/professional/documents/Professio
 import ProfessionalCalendar from '@/components/ProfessionalCalendar';
 import ProfessionalHome, { ProfessionalRecentActivity } from '@/components/ProfessionalHome';
 import EmotionalStatusScreen from '@/components/professional/emotions/EmotionalStatusScreen';
-import ProfessionalProfileSettings from '@/components/ProfessionalProfileSettings';
+import ProfessionalProfile from '@/components/professional/ProfessionalProfile';
+import ProfessionalSettings from '@/components/professional/ProfessionalSettings';
 import UserNotifications from '@/pages/user/UserNotifications';
 import { isPermissionEnabled, PROFESIONAL_PERMISSIONS, usePermissionContext } from '@/hooks/usePermissions';
 import PermissionBlocked from '@/components/PermissionBlocked';
@@ -374,7 +375,8 @@ export default function ProfessionalDashboard() {
         {tab === 'resources' && <ProfessionalResourceHub onNavigate={navigate} />}
         {tab === 'pictograms' && <AiPictogramStudio />}
         {tab === 'pictogramCatalog' && <UserPictograms />}
-        {tab === 'profile' && <ProfessionalProfileSettings patients={linkedUsers} />}
+        {tab === 'profile' && <ProfessionalProfile patients={linkedUsers} onNavigate={navigate} />}
+        {tab === 'profile-settings' && <ProfessionalSettings onNavigate={navigate} />}
         {tab === 'about' && <AboutTandem />}
 
         {tab === 'tools' && (

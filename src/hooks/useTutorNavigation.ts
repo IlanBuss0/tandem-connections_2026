@@ -12,7 +12,7 @@ const tabPaths: Partial<Record<TutorTab, string>> = {
   chat: '/tutor/chats', notifications: '/tutor/notificaciones', reports: '/tutor/reportes',
   professionals: '/tutor/profesionales', pictograms: '/tutor/pictogramas/ia',
   pictogramCatalog: '/tutor/pictogramas', connections: '/tutor/personas',
-  profile: '/tutor/perfil', about: '/tutor/acerca-de',
+  profile: '/tutor/perfil', 'profile-settings': '/tutor/configuracion', about: '/tutor/acerca-de',
 };
 
 export function tutorLocationFromPath(pathname: string): TutorLocation {
