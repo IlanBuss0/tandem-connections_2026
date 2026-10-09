@@ -1,0 +1,241 @@
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  Activity, ArrowRight, CalendarDays, Check, CheckCircle2, ClipboardPlus, Clock3, FileText, Heart,
+  MessageCircle, Network, Sparkles, Target, Users,
+} from 'lucide-react';
+import type { AcompanamientoData, CalendarEvent, EmotionalRecord, GeneratedReport, ProfessionalSession, SupportNetworkMember, User } from '@/data/api';
+import { ReportItem } from '@/components/tutor/reports/ReportItem';
+import { monthKey, reportTime } from '@/lib/reportGrouping';
+import { useRememberedTab } from '@/hooks/useRememberedTab';
+import { activityIsDone, buildEvolutionCopy } from '@/components/perteneciente/evolution/evolutionHelpers';
+import { useEvolutionSummary } from '@/components/perteneciente/evolution/useEvolutionSummary';
+import EvolutionTab from '@/components/perteneciente/evolution/EvolutionTab';
+import NowCard from '@/components/perteneciente/collaboration/NowCard';
+import HelpSpotsCard from '@/components/perteneciente/collaboration/HelpSpotsCard';
+import { useHelpSpots } from '@/components/perteneciente/collaboration/useHelpSpots';
+import CollaborationComposer from '@/components/perteneciente/collaboration/CollaborationComposer';
+import CollaborationFeed from '@/components/perteneciente/collaboration/CollaborationFeed';
+
+export type DetailTab = 'summary' | 'evolution' | 'collaboration' | 'sessions' | 'ai';
+
+export interface PertenecienteDetailProps {
+  person: Pick<User, 'id' | 'name' | 'avatar' | 'age'> & {
+    supportLevel?: string;
+    autonomy?: string;
+    observation?: string;
+    linkStatus?: string;
+  };
+  activities?: Array<{ id: string; title: string; status: string; completed?: boolean; objective?: string; completedAt?: string | null }>;
+  emotions?: EmotionalRecord[];
+  events?: CalendarEvent[];
+  sessions?: ProfessionalSession[];
+  supportData?: AcompanamientoData;
+  supportNetwork?: SupportNetworkMember[];
+  reports?: GeneratedReport[];
+  currentUserId?: string | number;
+  role: 'tutor' | 'professional';
+  canViewHistory?: boolean;
+  canManageSessions?: boolean;
+  onOpenChat?: () => void;
+  onOpenCalendar?: () => void;
+  onCreateActivity?: () => void;
+  onScheduleSession?: () => void;
+  onOpenPrivateNote?: (session: ProfessionalSession) => void;
+  onCreateSharedNote?: (content: string) => Promise<void>;
+  onDeleteSharedNote?: (noteId: number) => Promise<void>;
+  onCreateObjective?: (payload: { titulo: string; descripcion?: string }) => Promise<void>;
+  onUpdateObjective?: (objectiveId: number, payload: { progreso?: number; estado?: 'activo' | 'pausado' | 'completado' }) => Promise<void>;
+  onCreateAgreement?: (text: string) => Promise<void>;
+  onToggleAgreement?: (agreementId: number, completed: boolean) => Promise<void>;
+  onAskAI?: (question: string) => Promise<string>;
+  /** Si viene, reemplaza el cuerpo de la pestaña Sesiones (solo lo pasa el Profesional). */
+  sessionsSlot?: ReactNode;
+  /** Pestaña con la que se abre; manda sobre la recordada. */
+  initialTab?: DetailTab;
+  /** Se dibuja arriba de todo en la pestaña Resumen (solo lo pasa el Profesional). */
+  summaryTop?: ReactNode;
+  /** Si viene, "Ver los N reportes" lo llama en lugar de solo abrir Sesiones. */
+  onViewReports?: () => void;
+}
+
+const dateLabel = (value?: string | null) => {
+  if (!value) return 'Sin fecha';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+};
+
+const HISTORY_NOTICE = 'El historial no está habilitado para este vínculo.';
+
+const initialsOf = (name: string) => name.trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('') || '?';
+
+function Avatar({ person }: { person: PertenecienteDetailProps['person'] }) {
+  const avatar = person.avatar?.trim();
+  const isImage = Boolean(avatar && (/^(https?:|data:image\/|\/)/.test(avatar) || /\.(png|jpe?g|webp|svg)$/i.test(avatar)));
+  return <span className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[26px] border-4 border-white bg-[#e9f5ff] text-3xl font-bold text-primary shadow-[0_10px_24px_rgba(55,100,140,.16)] sm:h-24 sm:w-24 sm:text-4xl">
+    {isImage ? <img src={avatar} alt="" className="h-full w-full object-cover" /> : avatar || '🙂'}
+  </span>;
+}
+
+function Section({ title, eyebrow, icon: Icon, children, className = '' }: { title: string; eyebrow?: string; icon: typeof Heart; children: React.ReactNode; className?: string }) {
+  return <section className={`min-w-0 rounded-[28px] border border-white/80 bg-white/90 p-4 shadow-[0_14px_34px_rgba(65,76,110,.08)] backdrop-blur sm:p-5 ${className}`}>
+    <header className="mb-4 flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Icon size={19} aria-hidden /></span><div className="min-w-0"><p className="text-[11px] font-bold uppercase tracking-[.14em] text-primary/75">{eyebrow}</p><h2 className="font-heading text-lg font-bold text-foreground">{title}</h2></div></header>{children}
+  </section>;
+}
+
+function Empty({ children }: { children: React.ReactNode }) { return <p className="rounded-2xl bg-muted/45 p-4 text-sm text-muted-foreground">{children}</p>; }
+
+export default function PertenecienteDetail({
+  person, activities = [], emotions = [], events = [], sessions = [], supportData, supportNetwork = [], reports = [],
+  currentUserId, role, canViewHistory = true, canManageSessions = false, onOpenChat,
+  onCreateActivity, onScheduleSession, onOpenPrivateNote, onCreateSharedNote, onDeleteSharedNote,
+  onCreateObjective, onUpdateObjective, onCreateAgreement, onToggleAgreement, onAskAI,
+  sessionsSlot, initialTab, summaryTop, onViewReports,
+}: PertenecienteDetailProps) {
+  const tabStorageKey = `tandem:perteneciente-tab:${currentUserId ?? 'anon'}:${person.id}`;
+  const [rememberedTab, setRememberedTab] = useRememberedTab<DetailTab>(tabStorageKey, ['summary', 'evolution', 'collaboration', 'sessions', 'ai'], 'summary');
+  const [forcedTab, setForcedTab] = useState(initialTab);
+  useEffect(() => { if (initialTab) setForcedTab(initialTab); }, [initialTab]);
+  const tab = forcedTab ?? rememberedTab;
+  const setTab = (next: DetailTab) => { setForcedTab(undefined); setRememberedTab(next); };
+  const [question, setQuestion] = useState('');
+  const [answer, setAnswer] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const evolution = useEvolutionSummary(String(person.id), 8, canViewHistory);
+  const helpSpots = useHelpSpots(String(person.id), canViewHistory && tab === 'collaboration');
+  const completed = activities.filter(activityIsDone).length;
+  const upcoming = useMemo(() => events.filter(event => new Date(`${event.date}T${event.time || '00:00'}`).getTime() >= Date.now() - 3600000).slice(0, 3), [events]);
+  const nextSession = sessions.find(session => session.estado === 'programada' && new Date(session.fecha_sesion).getTime() >= Date.now());
+  const sharedNotes = supportData?.notas || [];
+  const sharedObjectives = supportData?.objetivos || [];
+  const activeObjectives = sharedObjectives.filter(objective => objective.estado !== 'completado');
+  const historyObjectives = sharedObjectives.filter(objective => objective.estado === 'completado');
+  const sharedAgreements = supportData?.acuerdos || [];
+  const supportNetworkSection = <Section title="Personas acompañando" eyebrow="Red de apoyo" icon={Users}>{supportNetwork.length ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">{supportNetwork.map(member => { const isYou = currentUserId != null && String(member.id_usuario) === String(currentUserId); return <div key={`${member.rol}-${member.id_usuario}`} className={`flex items-center gap-3 rounded-2xl p-3 ${isYou ? 'bg-violet-50 text-violet-800' : 'bg-muted/40 text-foreground'}`}><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/80 text-xs font-bold">{initialsOf(member.nombre)}</span><span className="min-w-0 flex-1"><span className="flex items-center gap-2 truncate text-sm font-bold">{member.nombre}{isYou && <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">Vos</span>}</span><span className="block text-xs capitalize opacity-80">{member.rol}</span></span></div>; })}</div> : <Empty>Todavía no hay tutores ni profesionales vinculados.</Empty>}</Section>;
+  const nowCardSection = <NowCard
+    sharedAgreements={sharedAgreements}
+    activeObjectives={activeObjectives}
+    nextSession={nextSession}
+    supportNetwork={supportNetwork}
+    onToggleAgreement={onToggleAgreement}
+    onUpdateObjective={onUpdateObjective}
+  />;
+  const helpSpotsSection = <HelpSpotsCard state={helpSpots} />;
+  const sortedReports = useMemo(() => [...reports].sort((a, b) => reportTime(b) - reportTime(a)), [reports]);
+  const latestReport = sortedReports[0];
+  const reportMonths = useMemo(() => Object.entries(sortedReports.reduce((result, report) => {
+    const key = monthKey(report);
+    (result[key] ||= []).push(report);
+    return result;
+  }, {} as Record<string, GeneratedReport[]>)), [sortedReports]);
+
+  const evolutionCopy = useMemo(() => {
+    const copy = buildEvolutionCopy(evolution, activities.length);
+    if (!evolution.hasData) return { weeklyHighlight: '', ...copy };
+
+    const { recentSteps, recentMood } = evolution;
+    const highlightParts = [
+      recentSteps !== null ? `esta semana hizo unos ${Math.round(recentSteps)} pasos de rutina` : null,
+      recentMood !== null ? `${Math.round(recentMood * 10)} de cada 10 registros emocionales fueron positivos` : null,
+    ].filter(Boolean);
+
+    return {
+      weeklyHighlight: highlightParts.length ? `${highlightParts.join(' y ')}.`.replace(/^./, first => first.toUpperCase()) : '',
+      ...copy,
+    };
+  }, [evolution, activities.length]);
+
+  const ask = async () => {
+    if (!onAskAI || !question.trim()) return;
+    setAiLoading(true); setAnswer('');
+    try { setAnswer(await onAskAI(question.trim())); } catch (error) { setAnswer(error instanceof Error ? error.message : 'No pudimos responder ahora.'); } finally { setAiLoading(false); }
+  };
+
+  const tabs: { id: DetailTab; label: string; icon: typeof Heart }[] = [
+    { id: 'summary', label: 'Resumen', icon: Sparkles },
+    { id: 'evolution', label: 'Evolución', icon: Activity },
+    { id: 'collaboration', label: 'Colaboración', icon: Network },
+    { id: 'sessions', label: 'Sesiones', icon: CalendarDays },
+    { id: 'ai', label: 'IA', icon: MessageCircle },
+  ];
+
+  return <div className="space-y-5 pb-8">
+    <section className="overflow-hidden rounded-[32px] border border-white/80 bg-[linear-gradient(135deg,#fff 0%,#eef8ff 58%,#f4efff 100%)] p-5 shadow-[0_18px_42px_rgba(55,88,128,.11)] sm:p-7">
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-center"><Avatar person={person} /><div className="min-w-0 flex-1"><p className="text-xs font-bold uppercase tracking-[.16em] text-primary">Centro de acompañamiento</p><h1 className="mt-1 truncate font-heading text-3xl font-bold tracking-tight sm:text-4xl">{person.name}</h1><div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full bg-white/80 px-3 py-1.5 text-muted-foreground">{person.age ? `${person.age} años` : 'Edad sin registrar'}</span><span className="rounded-full bg-emerald-100/80 px-3 py-1.5 text-emerald-800">{person.linkStatus || 'Acompañamiento activo'}</span><span className="rounded-full bg-violet-100/80 px-3 py-1.5 text-violet-800">{role === 'professional' ? 'Profesional vinculado' : 'Tutor vinculado'}</span></div></div><div className="flex flex-wrap gap-2 sm:self-start">{onOpenChat && <button type="button" onClick={onOpenChat} className="flex min-h-11 items-center gap-2 rounded-2xl border border-white bg-white/90 px-3 text-sm font-bold text-primary shadow-sm"><MessageCircle size={17} /> <span className="hidden sm:inline">Conversar</span></button>}{onCreateActivity && <button type="button" onClick={onCreateActivity} className="gradient-primary flex min-h-11 items-center gap-2 rounded-2xl px-4 text-sm font-bold text-primary-foreground shadow-sm"><ClipboardPlus size={17} /> <span>Crear actividad</span></button>}</div></div>
+    </section>
+
+    <nav aria-label="Secciones del centro" className="grid grid-cols-5 gap-1 rounded-2xl border border-white/80 bg-white/75 p-1 shadow-sm">
+      {tabs.map(item => <button key={item.id} type="button" onClick={() => setTab(item.id)} aria-label={item.label} className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-1 text-[11px] font-bold transition sm:min-h-12 sm:gap-2 sm:px-3 sm:text-sm ${tab === item.id ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-primary/5 hover:text-foreground'}`}><item.icon size={18} aria-hidden /><span className="hidden sm:inline">{item.label}</span></button>)}
+    </nav>
+
+    {tab === 'summary' && summaryTop}
+
+    {!canViewHistory && tab !== 'sessions' && !(tab === 'summary' && summaryTop) && <Empty>{HISTORY_NOTICE}</Empty>}
+
+    {canViewHistory && tab === 'summary' && <div className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
+      <div className="space-y-5"><section className="rounded-[28px] bg-[#f6fbff] p-5 shadow-inner"><p className="text-sm font-semibold text-primary">Una mirada de esta semana</p><h2 className="mt-2 font-heading text-3xl font-bold">{completed > activities.length / 2 ? 'Semana estable' : 'Acompañamiento en marcha'}</h2><p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{evolutionCopy.weeklyHighlight || 'Lo importante es observar pequeños avances y sostener apoyos que le resulten claros y posibles.'}</p><div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3"><MiniStat value={`${completed}/${activities.length}`} label="actividades" icon={CheckCircle2} /><MiniStat value={emotions.length} label="registros emocionales" icon={Heart} /><MiniStat value={upcoming.length} label="próximos momentos" icon={CalendarDays} /></div></section><Section title="Qué pasó recientemente" eyebrow="Señales para conversar" icon={Clock3}><div className="space-y-3">{emotions.slice(0, 3).map(emotion => <div key={emotion.id} className="flex items-start gap-3 rounded-2xl bg-rose-50/60 p-3"><span className="text-2xl" role="img" aria-label={emotion.emotion}>{emotion.emoji || '🙂'}</span><div className="min-w-0"><p className="font-semibold">{emotion.emotion}</p><p className="text-sm text-muted-foreground">{emotion.context || 'Registro emocional compartido.'}</p><p className="mt-1 text-xs text-muted-foreground">{dateLabel(emotion.date)}</p></div></div>)}{!emotions.length && <Empty>Todavía no hay registros emocionales para compartir.</Empty>}</div></Section></div>
+      <div className="space-y-5"><Section title="En qué estamos trabajando" eyebrow="Objetivos activos" icon={Target}>{activeObjectives.length ? <div className="space-y-3">{activeObjectives.slice(0, 2).map(objective => <ObjectiveCard key={objective.id} objective={objective} editable={false} />)}{activeObjectives.length > 2 && <button type="button" onClick={() => setTab('collaboration')} className="text-xs font-bold text-primary hover:underline">Ver los {activeObjectives.length} objetivos</button>}</div> : <Empty>Todavía no hay objetivos activos.</Empty>}{nextSession && <p className="mt-4 border-t border-border/60 pt-3 text-sm text-muted-foreground"><span className="font-bold text-foreground">Próxima sesión · </span>{nextSession.titulo}, {new Date(nextSession.fecha_sesion).toLocaleDateString('es-AR', { day: 'numeric', month: 'long' })}</p>}</Section>{latestReport && <Section title="Último reporte" eyebrow={latestReport.profesional_nombre ? `De ${latestReport.profesional_nombre}` : 'Reporte profesional'} icon={FileText}><p className="text-sm font-bold">{latestReport.titulo || 'Reporte de seguimiento'}</p><p className="mt-1 text-xs text-muted-foreground">{dateLabel(latestReport.fecha_envio || latestReport.fecha_generacion)}</p><p className="mt-2 line-clamp-3 text-sm text-muted-foreground">{latestReport.contenido}</p><button type="button" onClick={() => (onViewReports ? onViewReports() : setTab('sessions'))} className="mt-3 text-xs font-bold text-primary hover:underline">Ver los {sortedReports.length} reportes</button></Section>}<button type="button" onClick={() => setTab('ai')} className="w-full rounded-[28px] bg-[linear-gradient(135deg,#7350ad,#9b78d0)] p-5 text-left text-white shadow-[0_14px_30px_rgba(115,80,173,.25)] transition hover:-translate-y-0.5"><span className="text-2xl">✨</span><p className="mt-3 font-heading text-xl font-bold">Preguntale a TÁNDEM</p><p className="mt-1 text-sm text-white/80">Una mirada basada en la información autorizada de {person.name}.</p><span className="mt-4 inline-flex items-center gap-2 text-sm font-bold">Abrir acompañamiento IA <ArrowRight size={16} /></span></button></div>
+    </div>}
+
+    {canViewHistory && tab === 'evolution' && <EvolutionTab
+      person={person}
+      activities={activities}
+      emotions={emotions}
+      sessions={sessions}
+      historyObjectives={historyObjectives}
+      currentUserId={currentUserId}
+      canViewHistory={canViewHistory}
+    />}
+
+    {canViewHistory && tab === 'collaboration' && <div className="evolution-scope grid gap-5 lg:grid-cols-[1.15fr_.85fr]">
+      <div className="min-w-0 space-y-4 lg:hidden">
+        {nowCardSection}
+        {helpSpotsSection}
+        {supportNetworkSection}
+      </div>
+      <div className="min-w-0 space-y-5">
+        <CollaborationComposer onCreateSharedNote={onCreateSharedNote} onCreateAgreement={onCreateAgreement} onCreateObjective={onCreateObjective} />
+        <CollaborationFeed
+          notes={sharedNotes}
+          agreements={sharedAgreements}
+          objectives={sharedObjectives}
+          supportNetwork={supportNetwork}
+          onDeleteSharedNote={onDeleteSharedNote}
+          onToggleAgreement={onToggleAgreement}
+          onUpdateObjective={onUpdateObjective}
+        />
+      </div>
+      <div className="hidden min-w-0 space-y-4 lg:block">
+        {nowCardSection}
+        {helpSpotsSection}
+        {supportNetworkSection}
+      </div>
+    </div>}
+
+    {tab === 'sessions' && (sessionsSlot ?? <div className="grid gap-5 lg:grid-cols-2"><Section title="Sesiones permitidas" eyebrow="Acompañamiento profesional" icon={CalendarDays}><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><p className="max-w-xl text-sm text-muted-foreground">Las notas privadas profesionales quedan protegidas y nunca se muestran en este espacio compartido.</p>{canManageSessions && onScheduleSession && <button type="button" onClick={onScheduleSession} className="min-h-11 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground">Programar sesión</button>}</div>{nextSession && <div className="mb-4 rounded-2xl bg-violet-50 p-4"><p className="text-xs font-bold uppercase tracking-wider text-violet-700">Próxima sesión</p><p className="mt-1 font-heading text-xl font-bold text-violet-950">{nextSession.titulo}</p><p className="text-sm text-violet-800/75">{new Date(nextSession.fecha_sesion).toLocaleString('es-AR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })} · {nextSession.duracion_minutos} min</p></div>} {!canViewHistory ? <Empty>El historial no está habilitado para este vínculo.</Empty> : sessions.length ? <div className="space-y-2">{sessions.slice(0, 8).map(session => <div key={session.id} className="flex items-center gap-3 rounded-2xl border border-border/70 p-3"><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${session.estado === 'completada' ? 'bg-emerald-50 text-emerald-600' : 'bg-violet-50 text-violet-600'}`}><CalendarDays size={18} /></span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold">{session.titulo}</span><span className="block text-xs text-muted-foreground">{dateLabel(session.fecha_sesion)} · {session.estado}</span></span>{role === 'professional' && session.has_note && onOpenPrivateNote && <button type="button" onClick={() => onOpenPrivateNote(session)} className="min-h-10 rounded-xl px-3 text-xs font-bold text-primary hover:bg-primary/5">Nota privada</button>}</div>)}</div> : <Empty>Todavía no hay sesiones para mostrar.</Empty>}</Section><Section title="Reportes" eyebrow="Enviados por profesionales" icon={FileText}>{reportMonths.length ? <div className="space-y-3">{reportMonths.map(([month, monthReports], index) => <details key={month} open={index === 0} className="group overflow-hidden rounded-2xl border border-border/70 bg-white"><summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"><span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold capitalize">{month}</span><span className="block text-xs text-muted-foreground">{monthReports.length} {monthReports.length === 1 ? 'reporte' : 'reportes'}</span></span></summary><div className="border-t border-border/60 px-3">{monthReports.map(report => <ReportItem key={report.id} report={report} />)}</div></details>)}</div> : <Empty>Todavía no hay reportes para mostrar acá.</Empty>}</Section></div>)}
+
+    {canViewHistory && tab === 'ai' && <Section title="Preguntale a TÁNDEM" eyebrow="Información autorizada" icon={Sparkles}><div className="max-w-2xl"><p className="text-sm leading-6 text-muted-foreground">La IA puede ayudarte a conectar actividades, emociones, sesiones y objetivos compartidos. No diagnostica ni completa datos que no existan.</p>{onAskAI ? <><div className="mt-4 flex flex-col gap-2 sm:flex-row"><input value={question} onChange={event => setQuestion(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void ask(); }} placeholder="¿Qué querés saber sobre esta persona?" className="min-h-12 flex-1 rounded-2xl border border-border bg-white px-4 text-sm outline-none focus:ring-2 focus:ring-primary/30" /><button type="button" onClick={() => void ask()} disabled={aiLoading || !question.trim()} className="min-h-12 rounded-2xl bg-primary px-5 text-sm font-bold text-primary-foreground disabled:opacity-50">{aiLoading ? 'Pensando…' : 'Preguntar'}</button></div>{answer && <p className="mt-4 whitespace-pre-wrap rounded-2xl bg-primary/5 p-4 text-sm leading-6">{answer}</p>}</> : <div className="mt-4 rounded-2xl bg-muted/45 p-4 text-sm text-muted-foreground">La conversación IA compartida se habilita cuando el vínculo tenga un proveedor autorizado.</div>}</div></Section>}
+  </div>;
+}
+
+function MiniStat({ value, label, icon: Icon }: { value: string | number; label: string; icon: typeof Heart }) { return <div className="rounded-2xl bg-white/80 p-3"><Icon size={17} className="text-primary" /><strong className="mt-2 block text-2xl font-bold text-foreground">{value}</strong><span className="text-xs text-muted-foreground">{label}</span></div>; }
+function ObjectiveCard({ objective, editable, onUpdate }: { objective: NonNullable<PertenecienteDetailProps['supportData']>['objetivos'][number]; editable: boolean; onUpdate?: PertenecienteDetailProps['onUpdateObjective'] }) {
+  const [value, setValue] = useState(objective.progreso);
+  const [saving, setSaving] = useState(false);
+  const dirty = value !== objective.progreso;
+  const commit = async (next: number, estado?: 'activo' | 'completado') => {
+    if (!onUpdate) return;
+    setSaving(true);
+    try { await onUpdate(objective.id, estado ? { progreso: next, estado } : { progreso: next }); }
+    finally { setSaving(false); }
+  };
+  return <div className="rounded-2xl bg-amber-50/70 p-4">
+    <div className="flex items-start justify-between gap-3"><div><p className="font-bold text-amber-950">{objective.titulo}</p>{objective.descripcion && <p className="mt-1 text-sm text-amber-900/70">{objective.descripcion}</p>}</div><span className="text-xs font-bold text-amber-800">{value}%</span></div>
+    {editable ? <>
+      <input type="range" min={0} max={100} step={5} value={value} disabled={saving} onChange={event => setValue(Number(event.target.value))} onPointerUp={() => { if (value !== objective.progreso) void commit(value); }} onKeyUp={() => { if (value !== objective.progreso) void commit(value); }} aria-label={`Progreso de ${objective.titulo}`} className="mt-3 w-full accent-primary" />
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <button type="button" disabled={saving} onClick={() => void commit(100, 'completado')} className="min-h-9 rounded-xl bg-white px-3 text-xs font-bold text-primary disabled:opacity-50">Completar</button>
+        {dirty && <button type="button" disabled={saving} onClick={() => void commit(value)} className="min-h-9 rounded-xl bg-primary px-3 text-xs font-bold text-primary-foreground disabled:opacity-50">Guardar {value}%</button>}
+      </div>
+    </> : <div className="mt-3 h-2 overflow-hidden rounded-full bg-amber-200/70"><div className="h-full rounded-full bg-amber-500" style={{ width: `${objective.progreso}%` }} /></div>}
+  </div>;
+}

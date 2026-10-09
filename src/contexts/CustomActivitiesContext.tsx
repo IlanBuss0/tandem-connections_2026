@@ -128,7 +128,7 @@ interface Ctx {
   duplicate: (id: string) => void;
   publish: (id: string) => Promise<AssignmentResult>;
   unpublish: (id: string) => void;
-  complete: (id: string, userId: string) => Promise<void>;
+  complete: (id: string, userId: string, score?: number) => Promise<void>;
   byCreator: (creatorId: string) => CustomActivity[];
   forUser: (userId: string) => CustomActivity[];
 }
@@ -155,6 +155,7 @@ export function CustomActivitiesProvider({ children }: { children: ReactNode }) 
         data.description?.trim(),
         data.objective?.trim() ? `Objetivo: ${data.objective.trim()}` : '',
         data.steps?.length ? `Pasos: ${data.steps.join(' | ')}` : '',
+        data.planB?.trim() ? `PlanB: ${data.planB.trim().replace(/\s+/g, ' ')}` : '',
         data.gameType && data.gameData ? `Juego: ${JSON.stringify({ gameType: data.gameType, gameData: data.gameData })}` : '',
       ].filter(Boolean).join('\n'),
       fecha_creacion: existing?.createdAt ? new Date(existing.createdAt).toISOString() : new Date(now).toISOString(),
@@ -260,10 +261,10 @@ export function CustomActivitiesProvider({ children }: { children: ReactNode }) 
   const unpublish = useCallback((id: string) =>
     setItems(prev => prev.map(a => a.id === id ? { ...a, draft: true, updatedAt: Date.now() } : a)), []);
 
-  const complete: Ctx['complete'] = useCallback(async (id, userId) => {
+  const complete: Ctx['complete'] = useCallback(async (id, userId, score) => {
     const activity = items.find(a => a.id === id);
     if (activity) {
-      await completeAssignedActivity(activity, userId).catch(() => undefined);
+      await completeAssignedActivity(activity, userId, score);
     }
     setItems(prev => prev.map(a => a.id === id ? { ...a, status: 'completada', progress: 100, updatedAt: Date.now() } : a));
   }, [items]);

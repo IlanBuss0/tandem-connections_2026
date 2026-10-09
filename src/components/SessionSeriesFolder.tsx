@@ -1,19 +1,11 @@
 import { useMemo, useState } from "react";
-import { CheckCheck, ChevronDown, ChevronUp, Loader2, Pencil, Repeat, Save } from "lucide-react";
+import { CheckCheck, ChevronDown, ChevronUp, Loader2, Pencil, Repeat } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useToast } from "@/components/ui/use-toast";
 import SessionCard from "@/components/SessionCard";
+import SeriesEditSheet from "@/components/agenda/SeriesEditSheet";
+import { countPastScheduled, useSeriesCompletion } from "@/hooks/useSeriesCompletion";
 import { recurrenceLabels, type RecurrenceFrequency } from "@/lib/sessionRecurrence";
-import { resizeSessionSeries, type ProfessionalSession } from "@/data/api";
+import type { ProfessionalSession } from "@/data/api";
 
 export default function SessionSeriesFolder({
   groupId,
@@ -23,6 +15,7 @@ export default function SessionSeriesFolder({
   onEditSession,
   onDeleteSession,
   onSeriesChanged,
+  compact = false,
 }: {
   groupId: string;
   /** Todas las sesiones de esta serie, ya ordenadas por fecha ascendente. */
@@ -32,91 +25,24 @@ export default function SessionSeriesFolder({
   onEditSession: (session: ProfessionalSession) => void;
   onDeleteSession: (session: ProfessionalSession) => void;
   onSeriesChanged: () => void;
+  compact?: boolean;
 }) {
-  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [titulo, setTitulo] = useState("");
-  const [count, setCount] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [completing, setCompleting] = useState(false);
+  const { completing, markPastAsCompleted } = useSeriesCompletion(onSeriesChanged);
 
   const first = sessions[0];
   const last = sessions[sessions.length - 1];
   const frequency = (first.recurrence_rule?.frequency || "none") as RecurrenceFrequency;
   const frequencyLabel = recurrenceLabels[frequency] || recurrenceLabels.none;
+  const firstSessionDate = new Date(first.fecha_sesion);
+  const compactSchedule = `${firstSessionDate.toLocaleDateString("es-AR", { weekday: "long" })} · ${firstSessionDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`;
 
-  const pendingCompletionCount = useMemo(() => {
-    const now = Date.now();
-    return sessions.filter(
-      (session) => session.estado === "programada" && new Date(session.fecha_sesion).getTime() <= now,
-    ).length;
-  }, [sessions]);
-
-  const markPastAsCompleted = async () => {
-    setCompleting(true);
-    try {
-      const result = await resizeSessionSeries(groupId, { markPastAsCompleted: true });
-      toast({
-        title: `${result.completedSessionIds.length} sesion${result.completedSessionIds.length === 1 ? "" : "es"} marcada${result.completedSessionIds.length === 1 ? "" : "s"} como completadas`,
-      });
-      onSeriesChanged();
-    } catch (error) {
-      toast({
-        title: "No se pudo actualizar el estado",
-        description: error instanceof Error ? error.message : undefined,
-        variant: "destructive",
-      });
-    } finally {
-      setCompleting(false);
-    }
-  };
-
-  const openEditDialog = () => {
-    setTitulo(first.titulo);
-    setCount(String(sessions.length));
-    setEditOpen(true);
-  };
-
-  const submitEdit = async () => {
-    const trimmedTitulo = titulo.trim();
-    const nextCount = Number(count);
-    if (!trimmedTitulo || !Number.isInteger(nextCount) || nextCount < 1 || nextCount > 52) return;
-
-    const payload: { titulo?: string; count?: number } = {};
-    if (trimmedTitulo !== first.titulo) payload.titulo = trimmedTitulo;
-    if (nextCount !== sessions.length) payload.count = nextCount;
-    if (!Object.keys(payload).length) {
-      setEditOpen(false);
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const result = await resizeSessionSeries(groupId, payload);
-      setEditOpen(false);
-      toast({
-        title: "Serie actualizada",
-        description:
-          result.deletedNotesCount > 0
-            ? `Se eliminaron ${result.deletedSessionIds.length} sesiones futuras, ${result.deletedNotesCount} con nota ya escrita.`
-            : undefined,
-      });
-      onSeriesChanged();
-    } catch (error) {
-      toast({
-        title: "No se pudo actualizar la serie",
-        description: error instanceof Error ? error.message : undefined,
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
+  const pendingCompletionCount = useMemo(() => countPastScheduled(sessions), [sessions]);
 
   return (
     <div className="rounded-xl border border-primary/20 bg-card">
-      <div className="flex items-center gap-3 p-4">
+      <div className={`flex items-center gap-3 ${compact ? "p-3" : "p-4"}`}>
         <button
           type="button"
           className="flex flex-1 items-center gap-3 text-left"
@@ -124,23 +50,33 @@ export default function SessionSeriesFolder({
           aria-expanded={open}
           aria-controls={`series-${groupId}`}
         >
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <div className={`flex shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ${compact ? "h-10 w-10" : "h-12 w-12"}`}>
             <Repeat size={20} />
           </div>
           <div className="min-w-0 flex-1">
             <p className="font-semibold">{first.titulo}</p>
-            <p className="text-sm text-muted-foreground">
-              {patientName} · {frequencyLabel} · {sessions.length} sesiones
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {new Date(first.fecha_sesion).toLocaleDateString("es-AR")} –{" "}
-              {new Date(last.fecha_sesion).toLocaleDateString("es-AR")}
-            </p>
+            {compact ? (
+              <p className="text-sm capitalize text-muted-foreground">
+                {compactSchedule} · {sessions.length} sesiones
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  {patientName} · {frequencyLabel} · {sessions.length} sesiones
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(first.fecha_sesion).toLocaleDateString("es-AR")} –{" "}
+                  {new Date(last.fecha_sesion).toLocaleDateString("es-AR")}
+                </p>
+              </>
+            )}
           </div>
         </button>
-        <Button size="sm" variant="ghost" onClick={openEditDialog}>
-          <Pencil size={14} />
-        </Button>
+        {!compact && (
+          <Button size="sm" variant="ghost" onClick={() => setEditOpen(true)}>
+            <Pencil size={14} />
+          </Button>
+        )}
         <button
           type="button"
           onClick={() => setOpen((value) => !value)}
@@ -161,7 +97,7 @@ export default function SessionSeriesFolder({
                 {pendingCompletionCount} sesion{pendingCompletionCount === 1 ? "" : "es"} ya pasó
                 {pendingCompletionCount === 1 ? "" : "aron"} y siguen como "programada".
               </p>
-              <Button size="sm" variant="outline" onClick={markPastAsCompleted} disabled={completing}>
+              <Button size="sm" variant="outline" onClick={() => markPastAsCompleted(groupId)} disabled={completing}>
                 {completing ? <Loader2 size={14} className="animate-spin" /> : <CheckCheck size={14} />}
                 Marcar como completadas
               </Button>
@@ -185,43 +121,9 @@ export default function SessionSeriesFolder({
         </div>
       )}
 
-      <Dialog open={editOpen} onOpenChange={(next) => !saving && setEditOpen(next)}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Editar serie</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Título de la serie</Label>
-              <Input value={titulo} onChange={(event) => setTitulo(event.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Cantidad total de sesiones</Label>
-              <Input
-                type="number"
-                min={1}
-                max={52}
-                value={count}
-                onChange={(event) => setCount(event.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Si agrandás, se agregan sesiones nuevas al final siguiendo el
-                mismo patrón. Si achicás, se borran las últimas — nunca las
-                que ya pasaron.
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)} disabled={saving}>
-              Cancelar
-            </Button>
-            <Button onClick={submitEdit} disabled={saving}>
-              {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-              Guardar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {editOpen && (
+        <SeriesEditSheet groupId={groupId} sessions={sessions} onClose={() => setEditOpen(false)} onSeriesChanged={onSeriesChanged} />
+      )}
     </div>
   );
 }

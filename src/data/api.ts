@@ -30,6 +30,8 @@ import type {
   VinculoTutorPerteneciente as DbVinculoTutorPerteneciente,
   ZonaSegura as DbZonaSegura,
 } from '@/types/database';
+import { isCompletedActivityStatus } from '@/lib/activityStatus';
+import { notifyActivityStatusChanged } from '@/lib/activityEvents';
 
 export type UserRole = legacy.UserRole;
 export type User = legacy.User;
@@ -165,6 +167,7 @@ export interface ChatContact {
   avatar: string;
   role: 'user' | 'tutor' | 'profesional';
   subtitle?: string;
+  phone?: string;
 }
 
 export type EffectivePermission = {
@@ -424,11 +427,11 @@ function toLegacyActivity(activity: DbActividad, userId?: string): Activity {
     id: String(activity.id),
     title: activity.titulo,
     category: 'autonomía personal',
-    objective: activity.descripcion || activity.titulo,
-    description: activity.descripcion || activity.titulo,
+    objective: activityDisplayDescription(activity.descripcion) || activity.titulo,
+    description: activityDisplayDescription(activity.descripcion) || activity.titulo,
     difficulty: 'medio',
     duration: '10 min',
-    steps: [activity.descripcion || activity.titulo],
+    steps: [activityDisplayDescription(activity.descripcion) || activity.titulo],
     stepIcons: ['1'],
     status: 'pendiente',
     recommendedBy: 'app',
@@ -445,6 +448,12 @@ function extractCustomSteps(description?: string | null): string[] {
   if (!stepsLine) return [description || 'Completar la actividad asignada.'];
   const steps = stepsLine.replace(/^Pasos:\s*/i, '').split('|').map(step => step.trim()).filter(Boolean);
   return steps.length > 0 ? steps : [description || 'Completar la actividad asignada.'];
+}
+
+export function extractPlanB(description?: string | null): string | undefined {
+  const planBLine = (description || '').split('\n').find(line => line.trim().startsWith('PlanB:'));
+  if (!planBLine) return undefined;
+  return planBLine.trim().replace(/^PlanB:\s*/i, '').trim() || undefined;
 }
 
 function parseActivityGameMetadata(description?: string | null): { gameType?: GameType; gameData?: GameData } {
@@ -481,28 +490,37 @@ function toAssignedLegacyActivity(
   const completed = isCompletedStatus(status, assignment);
   const customDescription = 'id_actividad_base' in activity ? activityDisplayDescription(activity.descripcion) : '';
   const customSteps = 'id_actividad_base' in activity ? extractCustomSteps(activity.descripcion) : null;
+  const customPlanB = 'id_actividad_base' in activity ? extractPlanB(activity.descripcion) : undefined;
   const gameMetadata = parseActivityGameMetadata(activity.descripcion);
+  const asignadorRol = assignment.asignador_rol;
+  const recommendedBy = asignadorRol === 'tutor' || asignadorRol === 'profesional' ? asignadorRol : base.recommendedBy;
 
   return {
     ...base,
     id: String(assignment.id),
     title: activity.titulo,
-    description: customDescription || activity.descripcion || base.description,
+    description: customDescription || base.description,
     objective: activity.descripcion?.match(/Objetivo:\s*([^\n]+)/)?.[1] || base.objective,
     steps: customSteps || base.steps,
     stepIcons: customSteps ? customSteps.map((_, index) => String(index + 1)) : base.stepIcons,
+    planB: customPlanB,
     status: completed ? 'completada' : 'pendiente',
     progress: completed ? 100 : 0,
     assignedTo: userId,
-    recommendedBy: 'profesional',
+    recommendedBy: recommendedBy as Activity['recommendedBy'],
+    recommendedByName: assignment.asignador_nombre || base.recommendedByName,
     assignedActivityId: assignment.id,
     backendActivityId: assignment.id_actividad,
     backendCustomActivityId: assignment.id_actividad_personalizada,
+    assignedByName: assignment.asignador_nombre || undefined,
+    assignedByRole: asignadorRol === 'tutor' || asignadorRol === 'profesional' ? asignadorRol : undefined,
     ...gameMetadata,
   } as Activity & {
     assignedActivityId: number;
     backendActivityId: number | null;
     backendCustomActivityId: number | null;
+    assignedByName?: string;
+    assignedByRole?: 'tutor' | 'profesional';
   };
 }
 
@@ -579,6 +597,24 @@ export function clearStoredAuthToken(): void {
 export async function fetchPertenecienteByUsuarioId(userId: string | number): Promise<DbPerteneciente | null> {
   try {
     return await apiRequest<DbPerteneciente>(`/api/pertenecientes/usuario/${encodeURIComponent(String(userId))}`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export async function fetchTutorByUsuarioId(userId: string | number): Promise<DbTutor | null> {
+  try {
+    return await apiRequest<DbTutor>(`/api/tutores/usuario/${encodeURIComponent(String(userId))}`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export async function fetchProfesionalByUsuarioId(userId: string | number): Promise<DbProfesional | null> {
+  try {
+    return await apiRequest<DbProfesional>(`/api/profesionales/usuario/${encodeURIComponent(String(userId))}`);
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) return null;
     throw error;
@@ -870,52 +906,41 @@ export type UserProfileSettingsPayload = {
   accessibility: UserProfileSettings['accessibility'];
 };
 
-export function parseEmotionConfig(config: ConfiguracionUsuario): EmotionalRecord | null {
+function parseEmotionConfig(config: ConfiguracionUsuario): EmotionalRecord | null {
   if (!config.clave?.startsWith('emotion:')) return null;
 
   try {
-    const value = JSON.parse(config.valor || '{}') as Record<string, unknown>;
-    if (typeof value.emotion !== 'string' || !value.emotion.trim()) return null;
-
-    const modificationDate = typeof config.fecha_modificacion === 'string'
-      ? config.fecha_modificacion
-      : new Date().toISOString();
-    const parsedIntensity = Number(value.intensity);
+    const value = JSON.parse(config.valor || '{}') as Partial<EmotionalRecord>;
+    if (!value.emotion) return null;
 
     return {
       id: String(config.id),
       userId: String(config.id_usuario),
-      emotion: value.emotion.trim(),
-      emoji: typeof value.emoji === 'string' && value.emoji ? value.emoji : '🙂',
-      intensity: Number.isFinite(parsedIntensity) ? Math.min(5, Math.max(1, parsedIntensity)) : 3,
-      context: typeof value.context === 'string' ? value.context : '',
-      whatHelped: typeof value.whatHelped === 'string' ? value.whatHelped : '',
-      timestamp: typeof value.timestamp === 'string' && value.timestamp
-        ? value.timestamp
-        : new Date(modificationDate).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
-      date: typeof value.date === 'string' && value.date
-        ? value.date
-        : modificationDate.split('T')[0],
+      emotion: value.emotion,
+      emoji: value.emoji || '🙂',
+      intensity: Number(value.intensity || 3),
+      context: value.context || '',
+      whatHelped: value.whatHelped || '',
+      timestamp: value.timestamp || new Date(config.fecha_modificacion).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+      date: value.date || config.fecha_modificacion.split('T')[0],
     };
   } catch {
     return null;
   }
 }
 
-export function parsePersonalNoteConfig(config: ConfiguracionUsuario): PersonalNote | null {
+function parsePersonalNoteConfig(config: ConfiguracionUsuario): PersonalNote | null {
   if (!config.clave?.startsWith('personal-note:')) return null;
 
   try {
-    const value = JSON.parse(config.valor || '{}') as Record<string, unknown>;
-    if (typeof value.content !== 'string' || !value.content.trim()) return null;
+    const value = JSON.parse(config.valor || '{}') as Partial<PersonalNote>;
+    if (!value.content?.trim()) return null;
     return {
       id: String(config.id),
       userId: String(config.id_usuario),
       content: value.content.trim(),
-      title: typeof value.title === 'string' ? value.title.trim() || undefined : undefined,
-      createdAt: typeof value.createdAt === 'string' && value.createdAt
-        ? value.createdAt
-        : config.fecha_modificacion,
+      title: value.title?.trim() || undefined,
+      createdAt: value.createdAt || config.fecha_modificacion,
     };
   } catch {
     return null;
@@ -959,8 +984,7 @@ function buildAchievement(
 }
 
 function isCompletedStatus(status?: DbEstadoActividad, assigned?: DbActividadAsignada) {
-  const name = (status?.nombre || '').toLowerCase();
-  return Boolean(assigned?.fecha_completada || name.includes('complet') || name.includes('finaliz'));
+  return Boolean(assigned?.fecha_completada || isCompletedActivityStatus(status?.nombre));
 }
 
 function formatBackendDate(value?: string | null) {
@@ -970,16 +994,28 @@ function formatBackendDate(value?: string | null) {
   return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short' }).format(date);
 }
 
+// Convierte un timestamp ISO (con hora/UTC, ej. "2026-05-21T23:30:00.000Z")
+// a la fecha LOCAL en formato YYYY-MM-DD, usando metodos locales en vez de
+// toISOString() (que devuelve UTC y podria desplazar el dia).
+function backendDateToLocalISO(value?: string | null): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 async function fetchBackendAchievementDashboard(userId: string): Promise<AchievementDashboard> {
   const idUsuario = Number(userId);
-  const [pertenecientes, saldos, avatares, configs] = await Promise.all([
-    tandemApi.pertenecientes.getAll(),
+  const [perteneciente, saldos, avatares, configs] = await Promise.all([
+    fetchPertenecienteByUsuarioId(idUsuario),
     tandemApi.saldosPuntos.getAll(),
     tandemApi.avatares.getAll(),
-    tandemApi.configuracionesUsuarios.getAll(),
+    fetchUserConfigs(idUsuario),
   ]);
 
-  const perteneciente = pertenecientes.find((item) => item.id_usuario === idUsuario);
   const idPerteneciente = perteneciente?.id;
   const assignedForUser = idPerteneciente ? await fetchAssignedActivitiesByPerteneciente(idPerteneciente) : [];
   const completed = assignedForUser.filter((item) => item.fecha_completada || item.id_estado_actividad === 3);
@@ -996,7 +1032,7 @@ async function fetchBackendAchievementDashboard(userId: string): Promise<Achieve
     : undefined;
   const emotionDays = new Set(
     configs
-      .filter((config) => config.id_usuario === idUsuario && config.clave.startsWith('emotion:'))
+      .filter((config) => config.clave.startsWith('emotion:'))
       .map((config) => parseEmotionConfig(config)?.date || config.fecha_modificacion.split('T')[0])
       .filter(Boolean)
   ).size;
@@ -1054,7 +1090,7 @@ async function fetchBackendUserProfileDashboard(userId: string): Promise<UserPro
   const idUsuario = Number(userId);
   const [
     usuarios,
-    pertenecientes,
+    perteneciente,
     nivelesApoyo,
     autonomias,
     saldos,
@@ -1067,7 +1103,7 @@ async function fetchBackendUserProfileDashboard(userId: string): Promise<UserPro
     planes,
   ] = await Promise.all([
     tandemApi.usuarios.getAll(),
-    tandemApi.pertenecientes.getAll(),
+    fetchPertenecienteByUsuarioId(idUsuario),
     tandemApi.nivelesApoyos.getAll(),
     tandemApi.autonomiasOperativas.getAll(),
     tandemApi.saldosPuntos.getAll(),
@@ -1081,7 +1117,6 @@ async function fetchBackendUserProfileDashboard(userId: string): Promise<UserPro
   ]);
 
   const usuario = usuarios.find((item) => Number(item.id) === idUsuario) || null;
-  const perteneciente = (pertenecientes as DbPerteneciente[]).find((item) => Number(item.id_usuario) === idUsuario) || null;
 
   if (!perteneciente) {
     return {
@@ -1162,11 +1197,10 @@ async function fetchBackendUserProfileDashboard(userId: string): Promise<UserPro
 
 async function fetchUserAvatarUrl(userId: number): Promise<string | null> {
   try {
-    const [pertenecientes, avatares] = await Promise.all([
-      tandemApi.pertenecientes.getAll(),
+    const [pp, avatares] = await Promise.all([
+      fetchPertenecienteByUsuarioId(userId),
       tandemApi.avatares.getAll(),
     ]);
-    const pp = (pertenecientes as DbPerteneciente[]).find(p => Number(p.id_usuario) === userId);
     if (!pp) return null;
     const avatar = (avatares as DbAvatar[]).find(a => Number(a.id_perteneciente) === Number(pp.id));
     return avatar?.avatar_imagen_url || avatar?.avatar_imagen_origen_url || null;
@@ -1185,12 +1219,36 @@ export async function registerUser(
 }
 
 export async function loginWithGoogle(
-  payload: { idToken: string } & Partial<import('@/services/api').RegisterRequest>,
+  payload: { accessToken: string } & Partial<import('@/services/api').RegisterRequest>,
 ): Promise<User | Tutor | Professional | Admin> {
   const auth = await tandemApi.auth.google(payload);
   storeAuthToken();
   const avatarUrl = auth.user?.id ? await fetchUserAvatarUrl(auth.user.id) : null;
   return toLegacyUser(auth.user, avatarUrl);
+}
+
+export async function searchRefepsProfessional(
+  matricula: string,
+): Promise<import('@/services/api').RefepsSearchResult> {
+  return tandemApi.refeps.searchByMatricula(matricula);
+}
+
+export async function fetchProfessionalRegistryDetails(
+  payload: { selectionId?: string | null; matricula: string; dni: string; jurisdiccion: string; codigo?: string | null; profesion?: string | null },
+): Promise<import('@/services/api').RefepsProfessional> {
+  return tandemApi.refeps.getDetails(payload);
+}
+
+export async function searchRefepsByDni(
+  dni: string,
+): Promise<import('@/services/api').RefepsSearchResult> {
+  return tandemApi.refeps.searchByDni(dni);
+}
+
+export async function verifyProfessionalDni(
+  payload: import('@/services/api').ProfessionalDniVerificationRequest,
+): Promise<import('@/services/api').ProfessionalDniVerificationResult> {
+  return tandemApi.auth.verifyProfessionalDni(payload);
 }
 
 export async function verifyEmailToken(token: string): Promise<{ verified: boolean }> {
@@ -1213,12 +1271,6 @@ export async function findUser(username: string, password: string): Promise<User
     const avatarUrl = auth.user?.id ? await fetchUserAvatarUrl(auth.user.id) : null;
     return toLegacyUser(auth.user, avatarUrl);
   } catch {
-    const localUser = legacy.findUser(username, password);
-    if (localUser) {
-      storeAuthToken();
-      return localUser;
-    }
-
     return null;
   }
 }
@@ -1318,25 +1370,16 @@ export async function fetchPertenecienteHome(
   },
 ): Promise<PertenecienteHomeData> {
   if (!isBackendUserId(userId)) {
-    const user = legacy.getUserById(userId);
-    const activities = legacy.getActivitiesForUser(userId);
     return {
-      perteneciente: null,
-      supportLevel: user?.supportLevel || 'Sin registrar',
+      pertenec: null,
+      supportLevel: 'Sin registrar',
       autonomy: 'Sin registrar',
-      canSelfManage: Boolean(user?.onboarded),
-      points: user?.points ?? 0,
-      level: user?.level ?? 1,
+      canSelfManage: false,
+      points: 0,
+      level: 1,
       experience: 0,
-      activities: activities.map(activity => ({
-        id: activity.id,
-        title: activity.title,
-        description: activity.description,
-        status: activity.status,
-        completed: activity.status === 'completada',
-        assignedAt: 'Hoy',
-      })),
-      notifications: legacy.getNotificationsForUser(userId),
+      activities: [],
+      notifications: [],
     };
   }
 
@@ -1460,7 +1503,7 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
 
   const [
     usuarios,
-    tutores,
+    tutor,
     pertenecientes,
     vinculosTutor,
     estadosVinculos,
@@ -1474,7 +1517,7 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
     notificaciones,
   ] = await Promise.all([
     tandemApi.usuarios.getAll(),
-    tandemApi.tutores.getAll(),
+    fetchTutorByUsuarioId(idUsuarioTutor),
     tandemApi.pertenecientes.getAll(),
     tandemApi.vinculosTutorPertenecientes.getAll(),
     tandemApi.estadosVinculos.getAll(),
@@ -1487,8 +1530,6 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
     tandemApi.puntosOtorgados.getAll(),
     Promise.resolve([] as DbNotificacion[]),
   ]);
-
-  const tutor = (tutores as DbTutor[]).find(item => Number(item.id_usuario) === idUsuarioTutor);
 
   if (!tutor) {
     return { tutorId: null, linkedUsers: [], byUserId: {} };
@@ -1603,12 +1644,11 @@ export async function fetchActivitiesForUser(userId: string): Promise<Activity[]
 
   try {
     const numericUserId = Number(userId);
-    const [pertenecientes, actividades, estados] = await Promise.all([
-      tandemApi.pertenecientes.getAll(),
+    const [perteneciente, actividades, estados] = await Promise.all([
+      fetchPertenecienteByUsuarioId(numericUserId),
       tandemApi.actividades.getAll(),
       tandemApi.estadosActividades.getAll(),
     ]);
-    const perteneciente = pertenecientes.find(item => Number(item.id_usuario) === numericUserId);
     if (!perteneciente) return [];
 
     const [asignadas, actividadesPersonalizadas] = await Promise.all([
@@ -1636,14 +1676,18 @@ export async function fetchActivitiesForUser(userId: string): Promise<Activity[]
   }
 }
 
-export async function completeAssignedActivity(activity: Activity, userId: string): Promise<void> {
+export async function completeAssignedActivity(activity: Activity, userId: string, score?: number): Promise<void> {
+  if (!isBackendUserId(userId)) {
+    legacy.completeActivityForUser(activity.id, userId);
+    notifyActivityStatusChanged(activity.id);
+    return;
+  }
   let assignedActivityId = Number((activity as any).assignedActivityId || activity.id);
   if (!Number.isFinite(assignedActivityId)) {
     const numericUserId = Number(userId);
     const backendCustomActivityId = Number((activity as any).backendCustomActivityId || (activity as any).backendId);
     const backendActivityId = Number((activity as any).backendActivityId);
-    const pertenecientes = await tandemApi.pertenecientes.getAll();
-    const perteneciente = pertenecientes.find(item => Number(item.id_usuario) === numericUserId);
+    const perteneciente = await fetchPertenecienteByUsuarioId(numericUserId);
     const asignadas = perteneciente ? await fetchAssignedActivitiesByPerteneciente(Number(perteneciente.id)) : [];
     const assignment = asignadas.find(item =>
       (
@@ -1655,20 +1699,8 @@ export async function completeAssignedActivity(activity: Activity, userId: strin
   }
   if (!Number.isFinite(assignedActivityId)) return;
 
-  const token = getStoredAuthToken();
-  const [assignment, estados] = await Promise.all([
-    tandemApi.actividadesAsignadas.getById(assignedActivityId, { token }),
-    tandemApi.estadosActividades.getAll(),
-  ]);
-  const completedStatus = (estados as DbEstadoActividad[]).find(item =>
-    item.nombre.toLowerCase().includes('complet')
-  );
-
-  await tandemApi.actividadesAsignadas.update(assignedActivityId, {
-    ...assignment,
-    id_estado_actividad: completedStatus?.id || 3,
-    fecha_completada: new Date().toISOString(),
-  }, { token });
+  await tandemApi.actividadesAsignadas.complete(assignedActivityId, score);
+  notifyActivityStatusChanged(assignedActivityId);
 }
 
 export async function fetchMyNotifications(userId?: string): Promise<Notification[]> {
@@ -1746,24 +1778,126 @@ function toBackendCalendarPayload(data: Partial<CalendarEvent>) {
   };
 }
 
+// Convierte las actividades asignadas (por tutor/profesional) PENDIENTES del
+// usuario en "eventos" derivados de calendario, anclados al dia LOCAL de su
+// fecha de asignacion. Asi Inicio, Actividades y Calendario representan la
+// misma informacion con la misma fuente. Los eventos se marcan con
+// assignedActivityId para distinguirlos de los eventos manuales y evitar
+// duplicados. Guarda silencio (devuelve []) si algo falla, como el resto de
+// los cargadores del calendar.
+async function fetchPendingAssignedActivitiesAsCalendarEvents(userId: string): Promise<CalendarEvent[]> {
+  if (!isBackendUserId(userId)) return [];
+  try {
+    const numericUserId = Number(userId);
+    const perteneciente = await fetchPertenecienteByUsuarioId(numericUserId);
+    if (!perteneciente) return [];
+
+    const [actividades, estados, asignadas, actividadesPersonalizadas] = await Promise.all([
+      tandemApi.actividades.getAll(),
+      tandemApi.estadosActividades.getAll(),
+      fetchAssignedActivitiesByPerteneciente(Number(perteneciente.id)),
+      fetchCustomActivitiesByPerteneciente(Number(perteneciente.id)),
+    ]);
+
+    const customById = new Map((actividadesPersonalizadas as DbActividadPersonalizada[]).map(a => [Number(a.id), a]));
+    const activityById = new Map((actividades as DbActividad[]).map(a => [Number(a.id), a]));
+    const statusById = new Map((estados as DbEstadoActividad[]).map(e => [Number(e.id), e]));
+
+    return (asignadas as DbActividadAsignada[])
+      .filter(a => Number(a.id_perteneciente) === Number(perteneciente.id))
+      .filter(a =>
+        Boolean(a.id_actividad && activityById.has(Number(a.id_actividad))) ||
+        Boolean(a.id_actividad_personalizada && customById.has(Number(a.id_actividad_personalizada)))
+      )
+      .filter(a => {
+        const status = a.id_estado_actividad ? statusById.get(Number(a.id_estado_actividad)) : undefined;
+        return !isCompletedStatus(status, a);
+      })
+      .map(a => {
+        const base = a.id_actividad ? activityById.get(Number(a.id_actividad)) : undefined;
+        const custom = a.id_actividad_personalizada ? customById.get(Number(a.id_actividad_personalizada)) : undefined;
+        const date = backendDateToLocalISO(a.fecha_asignacion);
+        if (!date) return null;
+        return {
+          id: `asignada-${a.id}`,
+          title: activityDisplayTitle(base?.titulo || custom?.titulo || `Actividad #${a.id}`),
+          description: activityDisplayDescription(base?.descripcion || custom?.descripcion) || 'Actividad asignada desde el equipo de apoyo.',
+          date,
+          time: '',
+          type: 'actividad',
+          userId,
+          color: calendarTypeColor('actividad'),
+          assignedActivityId: String(a.id),
+        } as CalendarEvent;
+      })
+      .filter((e): e is CalendarEvent => Boolean(e));
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchCalendarEventsForUser(userId: string): Promise<CalendarEvent[]> {
   if (isBackendUserId(userId)) {
-    const rows = await apiRequest<BackendCalendarEventRow[]>(`/api/eventos-calendario/usuario/${encodeURIComponent(String(Number(userId)))}`);
-    const events = rows.map(row => mapBackendCalendarEvent(row, userId));
-
-    let professionalSessionEvents: CalendarEvent[] = [];
     try {
-      const sessions = await fetchProfessionalSessions();
-      const sessionPictogram = sessions.length > 0 ? await getProfessionalSessionPictogram() : null;
-      professionalSessionEvents = sessions
-        .filter(session => session.estado !== 'cancelada')
-        .map(session => professionalSessionToCalendarEvent(session, userId, sessionPictogram));
-    } catch {
-      professionalSessionEvents = [];
-    }
+      const configs = await fetchUserConfigs(Number(userId));
+      const eventsFromConfigs: CalendarEvent[] = [];
 
-    return [...events, ...professionalSessionEvents]
-      .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+      for (const cfg of configs) {
+        try {
+          if (cfg.clave === 'calendar.events') {
+            const parsed = JSON.parse(cfg.valor || '[]');
+            if (Array.isArray(parsed)) {
+              for (const e of parsed) {
+                eventsFromConfigs.push({
+                  id: String(cfg.id),
+                  userId: String(cfg.id_usuario),
+                  title: e.title || '',
+                  date: e.date,
+                  time: e.time || '00:00',
+                  type: e.type || 'actividad',
+                  description: e.description || '',
+                  color: e.color || calendarTypeColor(e.type),
+                  reminders: Array.isArray(e.reminders) ? e.reminders : [],
+                });
+              }
+            }
+          } else if (cfg.clave && cfg.clave.startsWith('calendar.event:')) {
+            const parsed = JSON.parse(cfg.valor || '{}');
+            eventsFromConfigs.push({
+              id: String(cfg.id),
+              userId: String(cfg.id_usuario),
+              title: parsed.title || '',
+              date: parsed.date,
+              time: parsed.time || '00:00',
+              type: parsed.type || 'actividad',
+              description: parsed.description || '',
+              color: parsed.color || calendarTypeColor(parsed.type),
+              reminders: Array.isArray(parsed.reminders) ? parsed.reminders : [],
+            });
+          }
+        } catch (e) {
+          // ignore malformed config value
+        }
+      }
+
+      let professionalSessionEvents: CalendarEvent[] = [];
+      try {
+        const sessions = await fetchProfessionalSessions();
+        const sessionPictogram = sessions.length > 0 ? await getProfessionalSessionPictogram() : null;
+        professionalSessionEvents = sessions
+          .filter(session => session.estado !== 'cancelada')
+          .map(session => professionalSessionToCalendarEvent(session, userId, sessionPictogram));
+      } catch {
+        professionalSessionEvents = [];
+      }
+
+      const assignedActivities = await fetchPendingAssignedActivitiesAsCalendarEvents(userId);
+
+      return [...eventsFromConfigs, ...professionalSessionEvents, ...assignedActivities]
+        .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+    } catch {
+      return [];
+    }
   }
 
   return legacy.getEventsForUser(userId);
@@ -1771,11 +1905,28 @@ export async function fetchCalendarEventsForUser(userId: string): Promise<Calend
 
 export async function createCalendarEvent(userId: string, data: Omit<CalendarEvent, 'id' | 'userId'>): Promise<CalendarEvent> {
   if (isBackendUserId(userId)) {
-    const row = await apiRequest<BackendCalendarEventRow>('/api/eventos-calendario', {
-      method: 'POST',
-      body: { idUsuario: Number(userId), ...toBackendCalendarPayload({ ...data, color: data.color || calendarTypeColor(data.type) }) },
-    });
-    const created = mapBackendCalendarEvent(row, userId);
+    const now = new Date().toISOString();
+    const key = `calendar.event:${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`;
+    const payload = {
+      id_usuario: Number(userId),
+      clave: key,
+      valor: JSON.stringify({ ...data, createdAt: now }),
+      fecha_modificacion: now,
+    };
+
+    const result = await apiRequest<{ id?: number }>('/api/configuraciones-usuarios', { method: 'POST', body: payload });
+    const createdId = result && (result as any).id ? String((result as any).id) : String(Date.now());
+    const created: CalendarEvent = {
+      id: createdId,
+      userId,
+      title: data.title,
+      date: data.date,
+      time: data.time,
+      type: data.type,
+      description: data.description || '',
+      color: data.color || calendarTypeColor(data.type),
+      reminders: data.reminders || [],
+    };
     syncCalendarReminders(userId);
     return created;
   }
@@ -1783,58 +1934,73 @@ export async function createCalendarEvent(userId: string, data: Omit<CalendarEve
   return apiFetchWithFallback<CalendarEvent>([`/calendar/events`, `/users/${encodeURIComponent(userId)}/calendar/events`], { method: 'POST', body: JSON.stringify({ ...data, userId }) });
 }
 
-// CalendarContext.tsx llama a updateEvent(id, patch)/deleteEvent(id) sin
-// pasar el userId dueño del evento — se resuelve con un GET puntual antes
-// de escribir, en vez del scan de TODAS las configs de TODOS los usuarios
-// que hacia findCalendarConfigByEventId contra el blob viejo.
-async function fetchBackendCalendarEventById(eventId: string): Promise<BackendCalendarEventRow | null> {
-  try {
-    return await apiRequest<BackendCalendarEventRow>(`/api/eventos-calendario/${encodeURIComponent(eventId)}`);
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) return null;
-    throw error;
-  }
-}
-
+// Update calendar event: support newer backend storage in configuraciones-usuarios
 export async function updateCalendarEvent(eventId: string, patch: Partial<CalendarEvent>): Promise<CalendarEvent> {
-  const existing = await fetchBackendCalendarEventById(eventId);
-  if (existing) {
-    const userId = String(existing.id_usuario);
-    const row = await apiRequest<BackendCalendarEventRow>(`/api/eventos-calendario/${encodeURIComponent(eventId)}`, {
+  // Try configuraciones-usuarios record first
+  try {
+    const cfg = await apiRequest<ConfiguracionUsuario>(`/api/configuraciones-usuarios/${encodeURIComponent(eventId)}`);
+    const parsed = (() => { try { return JSON.parse(cfg.valor || '{}'); } catch { return {}; } })();
+    const merged = { ...parsed, ...patch, color: patch.color || (patch.type ? calendarTypeColor(patch.type) : undefined) };
+    const now = new Date().toISOString();
+    await apiRequest(`/api/configuraciones-usuarios/${encodeURIComponent(eventId)}`, {
       method: 'PUT',
-      body: {
-        idUsuario: existing.id_usuario,
-        ...toBackendCalendarPayload({ ...patch, color: patch.color || (patch.type ? calendarTypeColor(patch.type) : undefined) }),
-      },
+      body: { id_usuario: cfg.id_usuario, clave: cfg.clave, valor: JSON.stringify(merged), fecha_modificacion: now },
     });
-    const updated = mapBackendCalendarEvent(row, userId);
-    syncCalendarReminders(userId);
+    const updatedCfg = await apiRequest<ConfiguracionUsuario>(`/api/configuraciones-usuarios/${encodeURIComponent(eventId)}`);
+    const parsedUpdated = (() => { try { return JSON.parse(updatedCfg.valor || '{}'); } catch { return {}; } })();
+    const updated: CalendarEvent = {
+      id: String(updatedCfg.id),
+      userId: String(updatedCfg.id_usuario),
+      title: parsedUpdated.title || '',
+      date: parsedUpdated.date,
+      time: parsedUpdated.time || '00:00',
+      type: parsedUpdated.type || 'actividad',
+      description: parsedUpdated.description || '',
+      color: parsedUpdated.color || calendarTypeColor(parsedUpdated.type),
+      reminders: Array.isArray(parsedUpdated.reminders) ? parsedUpdated.reminders : [],
+    };
+    syncCalendarReminders(String(updatedCfg.id_usuario));
     return updated;
+  } catch (error) {
+    if (!(error instanceof ApiError && error.status === 404)) throw error;
+    // fallback to legacy/eventos endpoint
   }
 
   return apiFetchWithFallback<CalendarEvent>([`/calendar/events/${encodeURIComponent(eventId)}`], { method: 'PATCH', body: JSON.stringify(patch) });
 }
 
 export async function deleteCalendarEvent(eventId: string): Promise<void> {
-  const existing = await fetchBackendCalendarEventById(eventId);
-  if (existing) {
-    const userId = String(existing.id_usuario);
-    await apiRequest(`/api/eventos-calendario/${encodeURIComponent(eventId)}?idUsuario=${existing.id_usuario}`, { method: 'DELETE' });
+  // Try configuraciones-usuarios record first
+  try {
+    const cfg = await apiRequest<ConfiguracionUsuario>(`/api/configuraciones-usuarios/${encodeURIComponent(eventId)}`);
+    const userId = String(cfg.id_usuario);
+    await apiRequest(`/api/configuraciones-usuarios/${encodeURIComponent(eventId)}`, { method: 'DELETE' });
     syncCalendarReminders(userId);
     return;
+  } catch (error) {
+    if (!(error instanceof ApiError && error.status === 404)) throw error;
+    // fallback
   }
 
   await apiFetchWithFallback<unknown>([`/calendar/events/${encodeURIComponent(eventId)}`], { method: 'DELETE' });
 }
 
+// Trae las configuraciones de un usuario puntual desde el endpoint que ya
+// filtra server-side (con permiso validado y cache en backend), en vez de
+// traer la tabla completa de configuraciones_usuarios y filtrar en el cliente.
+async function fetchUserConfigs(userId: number): Promise<ConfiguracionUsuario[]> {
+  return apiRequest<ConfiguracionUsuario[]>(
+    `/api/configuraciones-usuarios/usuario/${encodeURIComponent(String(userId))}`,
+  );
+}
+
 export async function fetchEmotionRecordsForUser(userId: string): Promise<EmotionalRecord[]> {
   if (isBackendUserId(userId)) {
     try {
-      const idUsuario = Number(userId);
-      const configs = await tandemApi.configuracionesUsuarios.getAll();
+      const configs = await fetchUserConfigs(Number(userId));
 
       return configs
-        .filter((config) => config.id_usuario === idUsuario && config.clave.startsWith('emotion:'))
+        .filter((config) => config.clave.startsWith('emotion:'))
         .map(parseEmotionConfig)
         .filter((record): record is EmotionalRecord => Boolean(record))
         .sort((a, b) => `${b.date} ${b.timestamp}`.localeCompare(`${a.date} ${a.timestamp}`));
@@ -1883,9 +2049,9 @@ export async function deleteEmotionRecord(recordId: string): Promise<void> {
 export async function fetchPersonalNotesForUser(userId: string): Promise<PersonalNote[]> {
   if (!isBackendUserId(userId)) return [];
 
-  const configs = await tandemApi.configuracionesUsuarios.getAll();
+  const configs = await fetchUserConfigs(Number(userId));
   return configs
-    .filter((config) => config.id_usuario === Number(userId) && config.clave.startsWith('personal-note:'))
+    .filter((config) => config.clave.startsWith('personal-note:'))
     .map(parsePersonalNoteConfig)
     .filter((note): note is PersonalNote => Boolean(note))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -2403,6 +2569,7 @@ export async function fetchChatContacts(): Promise<ChatContact[]> {
       avatar: avatarByUsuarioId.get(usuario.id) || (role === 'professional' ? '👩‍⚕️' : role === 'tutor' ? '👩' : '🙂'),
       role: role === 'professional' ? 'profesional' : role === 'tutor' ? 'tutor' : 'user',
       subtitle: `${role === 'professional' ? 'Profesional' : role === 'tutor' ? 'Tutor/a' : 'Usuario'} · @${usuario.nombre_usuario || usuario.correo || usuario.id} · ID ${usuario.id}`,
+      phone: usuario.telefono ? String(usuario.telefono) : undefined,
     };
   });
 }
@@ -2472,22 +2639,20 @@ export async function fetchLinkedPertenecientesForSupportUser(
   let linkedPertenecienteIds: number[] = [];
 
   if (role === 'professional') {
-    const [profesionalesBackend, vinculos] = await Promise.all([
-      tandemApi.profesionales.getAll(),
+    const [profesional, vinculos] = await Promise.all([
+      fetchProfesionalByUsuarioId(numericUserId),
       tandemApi.vinculosProfesionalesPertenecientes.getAll(),
     ]);
-    const profesional = (profesionalesBackend as DbProfesional[]).find((item) => Number(item.id_usuario) === numericUserId);
     if (!profesional) return [];
     linkedPertenecienteIds = (vinculos as DbVinculoProfesionalPerteneciente[])
       .filter((link) => Number(link.id_profesional) === Number(profesional.id))
       .filter((link) => Number(link.id_estado_vinculo) !== 3)
       .map((link) => Number(link.id_perteneciente));
   } else {
-    const [tutoresBackend, vinculos] = await Promise.all([
-      tandemApi.tutores.getAll(),
+    const [tutor, vinculos] = await Promise.all([
+      fetchTutorByUsuarioId(numericUserId),
       tandemApi.vinculosTutorPertenecientes.getAll(),
     ]);
-    const tutor = (tutoresBackend as DbTutor[]).find((item) => Number(item.id_usuario) === numericUserId);
     if (!tutor) return [];
     linkedPertenecienteIds = (vinculos as DbVinculoTutorPerteneciente[])
       .filter((link) => Number(link.id_tutor) === Number(tutor.id))
@@ -2635,16 +2800,18 @@ export const MAX_TRANSLATOR_PHRASES = 60;
 // paso ya tenia, no hay caso en que este fetch deba bloquear la pantalla.
 export async function pictogramizePhrases(
   phrases: { id: string; text: string }[],
-  options?: { minConfidence?: 'alta' | 'media'; language?: string; targetPertenecienteId?: string; preferredStyleOverride?: string },
+  options?: { minConfidence?: 'alta' | 'media'; language?: string; targetPertenecienteId?: string; preferredStyleOverride?: string; throwOnError?: boolean },
 ): Promise<PictogramizedPhrase[]> {
   if (phrases.length === 0) return [];
+  const { throwOnError, ...bodyOptions } = options ?? {};
   try {
     const result = await apiRequest<{ results: PictogramizedPhrase[] }>('/api/pictograms/pictogramize', {
       method: 'POST',
-      body: { phrases, ...options },
+      body: { phrases, ...bodyOptions },
     });
     return result.results;
-  } catch {
+  } catch (error) {
+    if (throwOnError) throw error;
     return [];
   }
 }
@@ -2784,6 +2951,15 @@ export async function sendReportToTutor(reportId: number): Promise<GeneratedRepo
   return apiRequest(`/api/reportes-profesionales/${reportId}/send`, { method: 'POST', token: getStoredAuthToken() });
 }
 
+/** Edita título y/o texto de un reporte propio que todavía no se envió. */
+export async function updateReport(reportId: number, changes: { titulo?: string; contenido?: string }): Promise<GeneratedReport> {
+  return apiRequest(`/api/reportes-profesionales/${reportId}`, { method: 'PATCH', token: getStoredAuthToken(), body: changes });
+}
+
+export async function deleteReport(reportId: number): Promise<{ rowsAffected: number }> {
+  return apiRequest(`/api/reportes-profesionales/${reportId}`, { method: 'DELETE', token: getStoredAuthToken() });
+}
+
 export async function fetchProfessionalReports(idPerteneciente?: number): Promise<GeneratedReport[]> {
   const query = idPerteneciente ? `?id_perteneciente=${idPerteneciente}` : '';
   return apiRequest(`/api/reportes-profesionales${query}`, { token: getStoredAuthToken() });
@@ -2793,8 +2969,38 @@ export async function fetchTutorReports(): Promise<GeneratedReport[]> {
   return apiRequest('/api/reportes-profesionales/tutor', { token: getStoredAuthToken() });
 }
 
-export async function downloadMonthlyReportPdf(anio: number, mes: number): Promise<Blob> {
-  const url = `${API_BASE_URL.replace(/\/$/, '')}/api/reportes-profesionales/pdf-mensual?anio=${anio}&mes=${mes}`;
+export type ReportPdfSection = 'ia' | 'asistencia' | 'detalle';
+export interface ReportPdfOptions {
+  /** Rango YYYY-MM-DD; reemplaza a anio/mes en el resumen. */
+  desde?: string;
+  hasta?: string;
+  /** Solo resumen: ids de perteneciente; sin esto salen todos. */
+  pacientes?: number[];
+  /** Secciones a incluir; sin esto, las de siempre. */
+  incluir?: ReportPdfSection[];
+}
+
+function reportPdfQuery(params: Record<string, string | undefined>) {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => value !== undefined && query.set(key, value));
+  const text = query.toString();
+  return text ? `?${text}` : '';
+}
+
+function reportPdfOptionsParams(options: ReportPdfOptions) {
+  const range = options.desde && options.hasta;
+  return {
+    desde: range ? options.desde : undefined,
+    hasta: range ? options.hasta : undefined,
+    pacientes: options.pacientes ? options.pacientes.join(',') : undefined,
+    incluir: options.incluir ? options.incluir.join(',') : undefined,
+  };
+}
+
+export async function downloadMonthlyReportPdf(anio: number, mes: number, options: ReportPdfOptions = {}): Promise<Blob> {
+  const params = reportPdfOptionsParams(options);
+  const period = params.desde ? {} : { anio: String(anio), mes: String(mes) };
+  const url = `${API_BASE_URL.replace(/\/$/, '')}/api/reportes-profesionales/pdf-mensual${reportPdfQuery({ ...period, ...params })}`;
   const res = await fetch(url, { credentials: 'include' });
   if (!res.ok) throw new Error('No se pudo generar el PDF.');
   return res.blob();
@@ -2848,11 +3054,104 @@ export async function askAboutPatient(payload: {
   return apiRequest('/api/reportes-profesionales/preguntar', { method: 'POST', token: getStoredAuthToken(), body: payload });
 }
 
-export async function downloadPatientHistoryPdf(idPerteneciente: number): Promise<Blob> {
-  const url = `${API_BASE_URL.replace(/\/$/, '')}/api/reportes-profesionales/pdf-paciente/${idPerteneciente}`;
+export async function downloadPatientHistoryPdf(idPerteneciente: number, options: Omit<ReportPdfOptions, 'pacientes'> = {}): Promise<Blob> {
+  const { desde, hasta, incluir } = reportPdfOptionsParams(options);
+  const url = `${API_BASE_URL.replace(/\/$/, '')}/api/reportes-profesionales/pdf-paciente/${idPerteneciente}${reportPdfQuery({ desde, hasta, incluir })}`;
   const res = await fetch(url, { credentials: 'include' });
   if (!res.ok) throw new Error('No se pudo generar el PDF.');
   return res.blob();
+}
+
+export interface SharedSupportNote {
+  id: number;
+  id_perteneciente: number;
+  id_usuario_autor: number;
+  contenido: string;
+  fecha_creacion: string;
+  fecha_actualizacion: string;
+  autor_nombre?: string;
+  autor_rol?: string;
+}
+
+export interface SharedSupportObjective {
+  id: number;
+  id_perteneciente: number;
+  id_usuario_creador: number;
+  titulo: string;
+  descripcion: string | null;
+  estado: 'activo' | 'pausado' | 'completado';
+  progreso: number;
+  fecha_creacion: string;
+  fecha_actualizacion: string;
+  autor_nombre?: string;
+  autor_rol?: string;
+}
+
+export interface SupportNetworkMember {
+  id_usuario: number;
+  nombre: string;
+  rol: 'tutor' | 'profesional';
+}
+
+export interface SharedSupportAgreement {
+  id: number;
+  id_perteneciente: number;
+  id_usuario_creador: number;
+  texto: string;
+  completado: boolean;
+  fecha_creacion: string;
+  fecha_actualizacion: string;
+}
+
+export interface AcompanamientoData {
+  id_perteneciente: number;
+  notas: SharedSupportNote[];
+  objetivos: SharedSupportObjective[];
+  acuerdos: SharedSupportAgreement[];
+}
+
+export async function fetchAcompanamiento(idPerteneciente: number): Promise<AcompanamientoData> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}`, { token: getStoredAuthToken() });
+}
+
+export async function createSharedSupportNote(idPerteneciente: number, contenido: string): Promise<AcompanamientoData> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}/notas`, { method: 'POST', token: getStoredAuthToken(), body: { contenido } });
+}
+
+export async function deleteSharedSupportNote(idPerteneciente: number, noteId: number): Promise<AcompanamientoData> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}/notas/${noteId}`, { method: 'DELETE', token: getStoredAuthToken() });
+}
+
+export async function createSharedSupportObjective(idPerteneciente: number, payload: { titulo: string; descripcion?: string }): Promise<AcompanamientoData> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}/objetivos`, { method: 'POST', token: getStoredAuthToken(), body: payload });
+}
+
+export async function updateSharedSupportObjective(idPerteneciente: number, objectiveId: number, payload: Partial<Pick<SharedSupportObjective, 'titulo' | 'descripcion' | 'estado' | 'progreso'>>): Promise<AcompanamientoData> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}/objetivos/${objectiveId}`, { method: 'PATCH', token: getStoredAuthToken(), body: payload });
+}
+
+export async function deleteSharedSupportObjective(idPerteneciente: number, objectiveId: number): Promise<AcompanamientoData> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}/objetivos/${objectiveId}`, { method: 'DELETE', token: getStoredAuthToken() });
+}
+
+export async function createSharedSupportAgreement(idPerteneciente: number, texto: string): Promise<AcompanamientoData> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}/acuerdos`, { method: 'POST', token: getStoredAuthToken(), body: { texto } });
+}
+
+export async function updateSharedSupportAgreement(idPerteneciente: number, agreementId: number, payload: { texto?: string; completado?: boolean }): Promise<AcompanamientoData> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}/acuerdos/${agreementId}`, { method: 'PATCH', token: getStoredAuthToken(), body: payload });
+}
+
+export async function deleteSharedSupportAgreement(idPerteneciente: number, agreementId: number): Promise<AcompanamientoData> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}/acuerdos/${agreementId}`, { method: 'DELETE', token: getStoredAuthToken() });
+}
+
+export async function askSharedSupportQuestion(idPerteneciente: number, pregunta: string): Promise<{ respuesta: string }> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}/ia/preguntar`, { method: 'POST', token: getStoredAuthToken(), body: { pregunta } });
+}
+
+export async function fetchSupportNetwork(idPerteneciente: number): Promise<SupportNetworkMember[]> {
+  return apiRequest(`/api/acompanamiento/perteneciente/${encodeURIComponent(String(idPerteneciente))}/red-apoyo`, { token: getStoredAuthToken() });
 }
 
 export async function fetchNoteTemplateFavorites(): Promise<string[]> {

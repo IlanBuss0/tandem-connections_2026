@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ChevronLeft,
   ChevronRight,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCustomActivities } from "@/contexts/CustomActivitiesContext";
 import {
@@ -57,6 +59,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { aiPictogramsApi } from "@/services/ai-pictograms";
 import RoutineSequenceEditor from "@/components/RoutineSequenceEditor";
 import { emptyRoutineSequence, validateRoutineSequence } from "@/data/routineSequence";
+import ResourceScenarioEditor from "@/components/ResourceScenarioEditor";
+import { emptyResourceScenario, isShoppingBudgetScenario, validateResourceScenario } from "@/data/resourceScenario";
 import {
   dragAnswerLetters,
   dragAnswerWords,
@@ -386,7 +390,15 @@ function VisualValue({
     );
   }
 
-  return <span className={className}>{value || "Agregar pictograma"}</span>;
+  return (
+    <span
+      className={`block w-full max-w-full text-center break-words ${
+        className || "text-sm text-muted-foreground"
+      }`}
+    >
+      {value || "Agregar pictograma"}
+    </span>
+  );
 }
 
 const PICTOGRAM_PAGE_SIZE = 24;
@@ -1245,7 +1257,7 @@ function MemorySandbox({
                     }}
                     className={`rounded-lg border-2 p-2 ${selected.pair === pairIndex && selected.side === side ? "border-primary bg-primary/5" : "border-border"}`}
                   >
-                    <div className="mb-2 flex h-20 items-center justify-center overflow-hidden rounded-md bg-muted/30 text-3xl">
+                    <div className="mb-2 flex min-h-20 items-center justify-center rounded-md bg-muted/30 text-3xl">
                       <VisualValue
                         value={pair[side]}
                         className={isImageValue(pair[side]) ? "h-16 w-16" : ""}
@@ -1630,13 +1642,17 @@ function DragWordSandbox({
 interface Props {
   initialId?: string;
   onClose: () => void;
+  onBack?: () => void;
   assignableUsersOverride?: User[];
+  preselectUserIds?: string[];
 }
 
 export default function ActivityBuilder({
   initialId,
   onClose,
+  onBack,
   assignableUsersOverride,
+  preselectUserIds,
 }: Props) {
   const { user } = useAuth();
   const { items, createOrUpdate } = useCustomActivities();
@@ -1647,6 +1663,14 @@ export default function ActivityBuilder({
   const [tplSearch, setTplSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [assignableUsers, setAssignableUsers] = useState<User[]>([]);
+
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
 
   const linkedUserIds: string[] = useMemo(() => {
     return assignableUsers.map((item) => item.id);
@@ -1690,6 +1714,7 @@ export default function ActivityBuilder({
         stepIcons: [...(editing.stepIcons || editing.steps.map(() => "📌"))],
         points: editing.points,
         completionMessage: editing.completionMessage || "¡Bien hecho!",
+        planB: editing.planB || "",
         assignedToIds:
           editing.assignedToIds ||
           (editing.assignedTo ? [editing.assignedTo] : []),
@@ -1713,7 +1738,8 @@ export default function ActivityBuilder({
       stepIcons: ["📌"],
       points: 30,
       completionMessage: "¡Bien hecho!",
-      assignedToIds: [] as string[],
+      planB: "",
+      assignedToIds: preselectUserIds ? [...preselectUserIds] : [],
       dueDate: "",
       notes: "",
       draft: true,
@@ -1742,6 +1768,7 @@ export default function ActivityBuilder({
       stepIcons: [...tpl.stepIcons],
       points: tpl.points,
       completionMessage: tpl.completionMessage,
+      planB: (tpl as { planB?: string }).planB || "",
       gameType: nextGameType,
       gameData: nextGameData,
     }));
@@ -1755,7 +1782,7 @@ export default function ActivityBuilder({
     setForm((prev) => ({
       ...prev,
       title: "",
-      category: gameType === "routine-sequence" ? "autonomía personal" : "comunicación",
+      category: gameType === "routine-sequence" ? "autonomía personal" : gameType === "resource-scenario" ? "compras" : "comunicación",
       type: "juego",
       difficulty: "fácil",
       duration: "5 min",
@@ -1765,6 +1792,7 @@ export default function ActivityBuilder({
       stepIcons: ["📌"],
       points: 30,
       completionMessage: "¡Bien hecho!",
+      planB: "",
       gameType,
       gameData: nextGameData,
     }));
@@ -1830,6 +1858,14 @@ export default function ActivityBuilder({
   const canNext = !errors[step];
 
   const persist = async (publishNow: boolean) => {
+    if (publishNow && form.gameType === "resource-scenario") {
+      const scenarioError = validateResourceScenario(form.gameData?.resourceScenario);
+      if (scenarioError) {
+        toast({ title: isShoppingBudgetScenario(form.gameData?.resourceScenario) ? "La compra está incompleta" : "La simulación está incompleta", description: scenarioError, variant: "destructive" });
+        setStep(2);
+        return;
+      }
+    }
     if (publishNow && form.gameType === "routine-sequence") {
       const routineError = validateRoutineSequence(form.gameData?.routineSequence);
       if (routineError) {
@@ -1945,6 +1981,7 @@ export default function ActivityBuilder({
         stepIcons: cleanSteps.map((x) => x.ic),
         points: form.points,
         completionMessage: form.completionMessage,
+        planB: form.planB.trim() || undefined,
         assignedToIds: form.assignedToIds,
         assignedTo: form.assignedToIds[0],
         dueDate: form.dueDate || undefined,
@@ -2012,26 +2049,38 @@ export default function ActivityBuilder({
     "Revisar",
   ];
 
-  return (
-    <div className="fixed inset-0 z-[60] bg-background/95 backdrop-blur-sm overflow-y-auto">
-      <div className="max-w-3xl mx-auto p-4 sm:p-6">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-foreground/40 p-3 backdrop-blur-md sm:p-6">
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl sm:max-h-[calc(100dvh-3rem)]">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Sparkles size={20} className="text-primary" />
-            <h2 className="font-heading font-bold text-lg sm:text-xl text-foreground">
+        <div className="flex shrink-0 items-center gap-1 border-b border-border/60 px-2 py-2.5 sm:px-3">
+          {onBack && preselectUserIds && preselectUserIds.length > 0 && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="shrink-0 rounded-lg p-2 text-foreground/80 hover:bg-muted hover:text-foreground"
+              aria-label="Volver al detalle del perteneciente"
+            >
+              <ChevronLeft size={20} />
+            </button>
+          )}
+          <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
+            <Sparkles size={20} className="text-primary shrink-0" />
+            <h2 className="truncate font-heading font-bold text-lg sm:text-xl text-foreground">
               {editing ? "Editar actividad" : "Crear actividad"}
             </h2>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-2 hover:bg-muted rounded-lg"
+            className="shrink-0 rounded-lg p-2 text-foreground/80 hover:bg-muted hover:text-foreground"
             aria-label="Cerrar"
           >
             <X size={20} />
           </button>
         </div>
 
+        <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
         {/* Stepper */}
         <div className="flex gap-1 mb-6 overflow-x-auto pb-1">
           {stepsLabels.map((lbl, i) => (
@@ -2447,12 +2496,23 @@ export default function ActivityBuilder({
                     onChange={(routineSequence) => setForm((prev) => ({ ...prev, gameData: { ...(prev.gameData || {}), routineSequence } }))}
                   />
                 )}
+                {form.gameType === "resource-scenario" && (
+                  <ResourceScenarioEditor
+                    value={form.gameData?.resourceScenario || emptyResourceScenario()}
+                    targetUsuarioId={form.assignedToIds[0]}
+                    onChange={(resourceScenario) => setForm((prev) => ({
+                      ...prev,
+                      gameData: { ...(prev.gameData || {}), resourceScenario },
+                    }))}
+                  />
+                )}
                 {form.gameType &&
                   form.gameType !== "multiple-choice" &&
                   form.gameType !== "drag-word" &&
                   form.gameType !== "wheel" &&
                   form.gameType !== "memory" &&
-                  form.gameType !== "routine-sequence" && (
+                  form.gameType !== "routine-sequence" &&
+                  form.gameType !== "resource-scenario" && (
                     <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <div>
@@ -2568,6 +2628,30 @@ export default function ActivityBuilder({
                     placeholder="¡Excelente trabajo!"
                   />
                 </div>
+                <div>
+                  <label
+                    htmlFor="activity-plan-b"
+                    className="text-xs font-medium text-[#0B6B4A]"
+                  >
+                    💡 Plan B (opcional)
+                  </label>
+                  <p className="text-xs text-muted-foreground mb-1">
+                    Si algo sale distinto, ¿qué puede hacer? Se lo mostramos cuando toque «No puedo seguir».
+                  </p>
+                  <Textarea
+                    id="activity-plan-b"
+                    value={form.planB}
+                    rows={3}
+                    maxLength={200}
+                    onChange={(e) =>
+                      setForm({ ...form, planB: e.target.value })
+                    }
+                    placeholder="Ej: Si no encontrás un cuaderno, poné una carpeta con hojas."
+                  />
+                  <p className="text-right text-xs text-muted-foreground">
+                    {form.planB.length} / 200
+                  </p>
+                </div>
               </div>
             )}
 
@@ -2661,6 +2745,11 @@ export default function ActivityBuilder({
                     {form.duration} · {form.points} pts
                   </p>
                   <p className="text-sm text-foreground">🎯 {form.objective}</p>
+                  {form.planB.trim() && (
+                    <p className="text-sm text-[#0B6B4A]">
+                      💡 Plan B: {form.planB.trim()}
+                    </p>
+                  )}
                   {form.description && (
                     <p className="text-sm text-muted-foreground">
                       {form.description}
@@ -2755,7 +2844,9 @@ export default function ActivityBuilder({
             </Button>
           </div>
         )}
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

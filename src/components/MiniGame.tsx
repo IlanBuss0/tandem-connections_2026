@@ -8,6 +8,9 @@ import { normalizeLegacySequence } from '@/data/routineSequence';
 import { normalizeWheel, selectedWheelSegment, wheelMotion, wheelScore, wheelSegmentAngles } from '@/data/wheelPrecision';
 import { memoryScore, normalizeMemory } from '@/data/memoryGame';
 import { dragAnswerLetters, dragAnswerWords } from '@/data/dragWord';
+import ResourceScenarioGame from '@/components/ResourceScenarioGame';
+import ShoppingBudgetGame from '@/components/ShoppingBudgetGame';
+import { isShoppingBudgetScenario } from '@/data/resourceScenario';
 
 interface Props {
   gameType: GameType;
@@ -1033,6 +1036,11 @@ export default function MiniGame({ gameType, gameData, onFinish }: Props) {
       return legacy ? <RoutineSequenceGame data={legacy} onFinish={onFinish} /> : <p className="text-sm text-destructive">Secuencia incompleta</p>;
     }
     case 'routine-sequence': return <RoutineSequenceGame data={gameData.routineSequence!} onFinish={onFinish} />;
+    case 'resource-scenario': return gameData.resourceScenario
+      ? isShoppingBudgetScenario(gameData.resourceScenario)
+        ? <ShoppingBudgetGame data={gameData.resourceScenario} onFinish={onFinish} />
+        : <ResourceScenarioGame data={gameData.resourceScenario} onFinish={onFinish} />
+      : <p className="text-sm text-destructive">Compra incompleta</p>;
     case 'true-false': return <TrueFalse data={gameData} onFinish={onFinish} />;
     case 'count-objects': return <CountObjects data={gameData} onFinish={onFinish} />;
     case 'fill-blank': return <FillBlank data={gameData} onFinish={onFinish} />;

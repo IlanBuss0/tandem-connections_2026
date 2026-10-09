@@ -1,24 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
-import {
-  BriefcaseMedical,
-  CheckCircle2,
-  Clipboard,
-  Link,
-  Loader2,
-  Plus,
-  QrCode,
-  RefreshCcw,
-  Shield,
-  Trash2,
-
-} from 'lucide-react';
+import { BriefcaseMedical, Loader2, Plus, QrCode, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
-import { deleteProfessionalPertenecienteLink, deleteTutorPertenecienteLink, generateProfessionalInvite, generateTutorInvite, fetchPermissionContext, setPertenecientePermissionByName, setProfessionalPermissionByName, type EffectivePertenecientePermissions, type EffectiveProfessionalPermissions, type PermissionContext, type ProfessionalInvite, type TutorInvite, type TutorPermissionContextPerteneciente } from '@/data/api';
+import { deleteProfessionalPertenecienteLink, deleteTutorPertenecienteLink, generateProfessionalInvite, generateTutorInvite, fetchPermissionContext, setPertenecientePermissionByName, setProfessionalPermissionByName, type EffectivePertenecientePermissions, type EffectiveProfessionalPermissions, type PermissionContext, type ProfessionalInvite, type TutorInvite, type TutorPermissionContextPerteneciente, type GeneratedReport } from '@/data/api';
+import { reportsOfPerson, reportsSummary } from '@/lib/tutorReports';
 import { toast } from '@/hooks/ui/use-toast';
+import InvitePanel from './personas/InvitePanel';
+import type { PermissionRow } from './personas/PermissionSwitchRow';
+import HelpCardSettingsCard from './personas/HelpCardSettingsCard';
+import PersonPermissionsCard from './personas/PersonPermissionsCard';
+import PersonSelector from './personas/PersonSelector';
+import ProfessionalLinkRow from './personas/ProfessionalLinkRow';
+import SelectedPersonCard from './personas/SelectedPersonCard';
+import SurfaceCard from './personas/SurfaceCard';
 
 const PERTENECIENTE_PERMISSION_LABELS: Record<string, string> = {
   EditarPerfil: 'Editar perfil',
@@ -57,7 +51,7 @@ function sourceLabel(source: string) {
   return source === 'otorgado' ? 'Definido' : 'Default';
 }
 
-export default function TutorConnections({ initialPertenecienteId }: { initialPertenecienteId?: number }) {
+export default function TutorConnections({ initialPertenecienteId, onOpenDetail, reports = [], onOpenReports }: { initialPertenecienteId?: number; onOpenDetail?: (id: string) => void; reports?: GeneratedReport[]; onOpenReports?: (pertenecienteId: number) => void }) {
   const [context, setContext] = useState<PermissionContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -69,13 +63,15 @@ export default function TutorConnections({ initialPertenecienteId }: { initialPe
   const [generatingProfessionalInvite, setGeneratingProfessionalInvite] = useState(false);
   const [professionalQrDataUrl, setProfessionalQrDataUrl] = useState('');
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
+  const [chosenId, setChosenId] = useState<number | null>(initialPertenecienteId ?? null);
+  const [expandedProfessionalId, setExpandedProfessionalId] = useState<number | null>(null);
 
   const pertenecientes = context?.pertenecientes || [];
-  const selectedId = initialPertenecienteId ?? pertenecientes[0]?.id ?? null;
   const selected = useMemo<TutorPermissionContextPerteneciente | null>(() => {
     if (!pertenecientes.length) return null;
-    return pertenecientes.find(item => item.id === selectedId) || pertenecientes[0];
-  }, [pertenecientes, selectedId]);
+    return pertenecientes.find(item => item.id === chosenId) || pertenecientes[0];
+  }, [pertenecientes, chosenId]);
+  const selectedId = selected?.id ?? null;
 
   const load = async () => {
     setLoading(true);
@@ -400,280 +396,148 @@ export default function TutorConnections({ initialPertenecienteId }: { initialPe
     );
   }
 
+  const toRows = (entries: ReturnType<typeof permissionEntries>, labels: Record<string, string>, keyPrefix: string): PermissionRow[] =>
+    entries.map(([permiso, value]) => ({
+      key: permiso,
+      label: labels[permiso] || permiso,
+      source: sourceLabel(value.source),
+      checked: value.habilitado,
+      saving: savingKey === `${keyPrefix}:${permiso}`,
+    }));
+
+  const selectPerson = (id: number) => {
+    setChosenId(id);
+    setExpandedProfessionalId(null);
+  };
+
+  const selectedName = selected ? fullName(selected.usuario) : '';
+  const selectedFirstName = selected?.usuario.nombre?.trim().split(/\s+/)[0] || selectedName;
+  const professionals = selected?.profesionales_vinculados || [];
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="evolution-scope mx-auto w-full max-w-2xl space-y-4 lg:max-w-none">
+      <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="font-heading text-xl font-bold text-foreground">Vinculos y permisos</h2>
-          <p className="text-sm text-muted-foreground">Gestion operativa de tus pertenecientes vinculados.</p>
+          <p className="text-[11px] font-extrabold uppercase tracking-[.1em] text-[var(--evo-primary)]">Red de apoyo</p>
+          <h1 className="mt-0.5 font-heading text-[23px] font-extrabold text-[var(--evo-text)] lg:text-[26px]">
+            {selected ? `Permisos de ${selectedName}` : 'Personas vinculadas'}
+          </h1>
         </div>
-        <Button variant="outline" size="sm" onClick={load}>
-          <RefreshCcw size={14} className="mr-2" />
+        <Button variant="outline" size="sm" onClick={load} className="min-h-11 gap-2 rounded-xl border-[var(--evo-border-1)] text-[var(--evo-primary-text)]">
+          <RefreshCcw size={14} aria-hidden />
           Actualizar
         </Button>
-      </div>
+      </header>
 
-      <section className="rounded-lg border border-border bg-card p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <QrCode size={18} className="text-primary" />
-              <h3 className="font-heading text-lg font-bold text-foreground">Invitar perteneciente</h3>
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Genera un codigo y un QR validos por 1 hora para crear el vinculo tutor-perteneciente.
+      <PersonSelector people={pertenecientes.map(p => ({ id: p.id, name: fullName(p.usuario) }))} selectedId={selectedId} onSelect={selectPerson} />
+
+      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+        <div className="space-y-4">
+          {selected ? (
+            <>
+              <SelectedPersonCard
+                name={selectedName}
+                isPrincipal={selected.vinculo.es_tutor_principal}
+                deleting={deletingKey === `tutor:${selected.vinculo.id}`}
+                onOpenDetail={onOpenDetail && (() => onOpenDetail(String(selected.usuario.id)))}
+                onDelete={deleteTutorLink}
+                reportsSummary={reportsSummary(reportsOfPerson(reports, selected.id))}
+                onOpenReports={onOpenReports && (() => onOpenReports(selected.id))}
+              />
+              <PersonPermissionsCard
+                key={selected.id}
+                rows={toRows(permissionEntries(selected.permisos_efectivos.permisos), PERTENECIENTE_PERMISSION_LABELS, `perteneciente:${selected.id}`)}
+                onToggle={togglePertenecientePermission}
+              />
+              <HelpCardSettingsCard key={`help-card-${selected.id}`} idPerteneciente={selected.id} name={selectedFirstName} />
+            </>
+          ) : (
+            <p className="rounded-[24px] border border-dashed border-[var(--evo-border-2)] bg-white p-5 text-sm text-[var(--evo-text-secondary)]">
+              No hay pertenecientes activos vinculados.
             </p>
-          </div>
-          <Button onClick={createInvite} disabled={generatingInvite} className="w-full gap-2 sm:w-fit">
-            {generatingInvite ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
-            Generar invitacion
-          </Button>
+          )}
         </div>
 
-        {invite && (
-          <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
-            <div className="space-y-3">
-              <div>
-                <p className="text-xs font-semibold uppercase text-muted-foreground">Codigo</p>
-                <div className="mt-1 flex flex-col gap-2 sm:flex-row">
-                  <Input readOnly value={invite.codigo} className="font-mono text-lg font-bold tracking-[0.18em]" />
-                  <Button variant="outline" onClick={() => copyText(invite.codigo, 'Codigo')} className="gap-2">
-                    <Clipboard size={15} />
-                    Copiar
+        <div className="space-y-4">
+          {selected && (
+            <SurfaceCard>
+              <h2 className="flex items-center gap-2.5 text-[15.5px] font-extrabold text-[var(--evo-text)]">
+                <BriefcaseMedical size={18} className="text-[var(--evo-primary)]" aria-hidden />
+                Profesionales vinculados
+              </h2>
+              <p className="mb-3 ml-7 mt-0.5 text-xs text-[var(--evo-text-secondary)]">Quiénes acompañan a {selectedName} y qué pueden ver.</p>
+
+              <div className="mb-2.5 rounded-2xl bg-[var(--evo-soft-2)] p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2.5">
+                  <span className="flex items-center gap-2.5 text-xs font-bold text-[var(--evo-primary-text)]">
+                    <QrCode size={18} aria-hidden />
+                    Invitar un profesional
+                  </span>
+                  <Button
+                    variant="outline"
+                    onClick={createProfessionalInvite}
+                    disabled={generatingProfessionalInvite}
+                    className="min-h-11 gap-1.5 rounded-xl border-[var(--evo-border-1)] bg-white text-xs font-extrabold text-[var(--evo-primary-text)]"
+                  >
+                    {generatingProfessionalInvite ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <QrCode size={15} aria-hidden />}
+                    Generar QR
                   </Button>
                 </div>
-              </div>
-
-              <div>
-                <p className="text-xs font-semibold uppercase text-muted-foreground">Link QR</p>
-                <div className="mt-1 flex flex-col gap-2 sm:flex-row">
-                  <Input readOnly value={inviteUrl} className="font-mono text-xs" />
-                  <Button variant="outline" onClick={() => copyText(inviteUrl, 'Link')} className="gap-2">
-                    <Link size={15} />
-                    Copiar
-                  </Button>
-                </div>
-              </div>
-
-              <p className="text-xs text-muted-foreground">
-                Expira: {new Date(invite.fecha_expiracion).toLocaleString('es-AR')}
-              </p>
-            </div>
-
-            <div className="flex min-h-[220px] items-center justify-center rounded-lg border border-border bg-background p-3">
-              {qrDataUrl ? (
-                <img src={qrDataUrl} alt="QR de vinculacion" className="h-[200px] w-[200px]" />
-              ) : (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 size={16} className="animate-spin" />
-                  Generando QR
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </section>
-
-      {pertenecientes.length === 0 ? (
-        <div className="rounded-lg border border-border bg-card p-5 text-sm text-muted-foreground">
-          No hay pertenecientes activos vinculados.
-        </div>
-      ) : (
-          selected && (
-            <div className="space-y-4">
-              <section className="rounded-lg border border-border bg-card p-4">
-                <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h3 className="font-heading text-lg font-bold text-foreground">{fullName(selected.usuario)}</h3>
-                    <p className="text-sm text-muted-foreground">Estado del vinculo: {selected.vinculo.estado_vinculo}</p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant={selected.vinculo.es_tutor_principal ? 'default' : 'secondary'}>
-                      {selected.vinculo.es_tutor_principal ? 'Tutor principal' : 'Tutor activo'}
-                    </Badge>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 text-destructive hover:text-destructive"
-                      onClick={deleteTutorLink}
-                      disabled={deletingKey === `tutor:${selected.vinculo.id}`}
-                    >
-                      {deletingKey === `tutor:${selected.vinculo.id}` ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                      Eliminar vinculo
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {permissionEntries(selected.permisos_efectivos.permisos).map(([permiso, value]) => {
-                    const key = `perteneciente:${selected.id}:${permiso}`;
-                    return (
-                      <div key={permiso} className="flex min-h-[72px] items-center justify-between gap-3 rounded-lg border border-border bg-background p-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-foreground">{PERTENECIENTE_PERMISSION_LABELS[permiso] || permiso}</p>
-                          <p className="text-xs text-muted-foreground">{sourceLabel(value.source)}</p>
-                        </div>
-                        <Switch
-                          checked={value.habilitado}
-                          disabled={savingKey === key}
-                          onCheckedChange={checked => togglePertenecientePermission(permiso, checked)}
-                          aria-label={PERTENECIENTE_PERMISSION_LABELS[permiso] || permiso}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-
-              <section className="rounded-lg border border-border bg-card p-4">
-                <div className="mb-4 flex items-center gap-2">
-                  <BriefcaseMedical size={18} className="text-primary" />
-                  <h3 className="font-heading text-lg font-bold text-foreground">Profesionales vinculados</h3>
-                </div>
-
-                <div className="mb-4 rounded-lg border border-border bg-background p-3">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <QrCode size={17} className="text-primary" />
-                        <p className="font-semibold text-foreground">Invitar profesional con codigo o QR</p>
-                      </div>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Genera una invitacion para que un profesional se vincule a {fullName(selected.usuario)}.
-                      </p>
-                    </div>
-                    <Button
-                      onClick={createProfessionalInvite}
-                      disabled={generatingProfessionalInvite}
-                      variant="outline"
-                      className="gap-2"
-                    >
-                      {generatingProfessionalInvite ? <Loader2 size={15} className="animate-spin" /> : <QrCode size={15} />}
-                      Generar codigo/QR
-                    </Button>
-                  </div>
-
-                  {professionalInvite && professionalInvite.id_perteneciente === selected.id && (
-                    <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
-                      <div className="space-y-3">
-                        <div>
-                          <p className="text-xs font-semibold uppercase text-muted-foreground">Codigo profesional</p>
-                          <div className="mt-1 flex flex-col gap-2 sm:flex-row">
-                            <Input readOnly value={professionalInvite.codigo} className="font-mono text-lg font-bold tracking-[0.18em]" />
-                            <Button variant="outline" onClick={() => copyText(professionalInvite.codigo, 'Codigo profesional')} className="gap-2">
-                              <Clipboard size={15} />
-                              Copiar
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div>
-                          <p className="text-xs font-semibold uppercase text-muted-foreground">Link QR profesional</p>
-                          <div className="mt-1 flex flex-col gap-2 sm:flex-row">
-                            <Input readOnly value={professionalInviteUrl} className="font-mono text-xs" />
-                            <Button variant="outline" onClick={() => copyText(professionalInviteUrl, 'Link profesional')} className="gap-2">
-                              <Link size={15} />
-                              Copiar
-                            </Button>
-                          </div>
-                        </div>
-
-                        <p className="text-xs text-muted-foreground">
-                          Expira: {new Date(professionalInvite.fecha_expiracion).toLocaleString('es-AR')}
-                        </p>
-                      </div>
-
-                      <div className="flex min-h-[200px] items-center justify-center rounded-lg border border-border bg-card p-3">
-                        {professionalQrDataUrl ? (
-                          <img src={professionalQrDataUrl} alt="QR de vinculacion profesional" className="h-[180px] w-[180px]" />
-                        ) : (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Loader2 size={16} className="animate-spin" />
-                            Generando QR
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {(selected.profesionales_vinculados || []).length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-border p-5 text-sm text-muted-foreground">
-                    No hay profesionales vinculados a este perteneciente.
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {(selected.profesionales_vinculados || []).map(item => (
-                      <div key={item.id_vinculo} className="rounded-lg border border-border bg-background p-3">
-                        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-foreground">{fullName(item.profesional.usuario)}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {[item.profesional.profesion, item.profesional.especialidad].filter(Boolean).join(' - ') || 'Profesional'}
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            <Badge variant={item.permisos_efectivos.vinculo_aprobado ? 'default' : 'secondary'}>
-                              {item.vinculo.estado_vinculo}
-                            </Badge>
-                            {item.permisos_efectivos.vinculo_aprobado && (
-                              <Badge variant="outline" className="gap-1">
-                                <CheckCircle2 size={12} />
-                                Aprobado
-                              </Badge>
-                            )}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 gap-1 text-destructive hover:text-destructive"
-                              onClick={() => deleteProfessionalLink(item.id_vinculo, fullName(item.profesional.usuario))}
-                              disabled={deletingKey === `profesional:${item.id_vinculo}`}
-                            >
-                              {deletingKey === `profesional:${item.id_vinculo}` ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-                              Eliminar
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          {permissionEntries(item.permisos_efectivos.permisos).map(([permiso, value]) => {
-                            const key = `profesional:${item.id_vinculo}:${permiso}`;
-                            return (
-                              <div key={permiso} className="flex min-h-[64px] items-center justify-between gap-3 rounded-lg border border-border bg-card p-3">
-                                <div className="min-w-0">
-                                  <p className="text-sm font-semibold text-foreground">{PROFESSIONAL_PERMISSION_LABELS[permiso] || permiso}</p>
-                                  <p className="text-xs text-muted-foreground">{sourceLabel(value.source)}</p>
-                                </div>
-                                <Switch
-                                  checked={value.habilitado}
-                                  disabled={savingKey === key}
-                                  onCheckedChange={checked => toggleProfessionalPermission(item.id_vinculo, permiso, checked)}
-                                  aria-label={PROFESSIONAL_PERMISSION_LABELS[permiso] || permiso}
-                                />
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                {professionalInvite && professionalInvite.id_perteneciente === selected.id && (
+                  <InvitePanel
+                    codigo={professionalInvite.codigo}
+                    url={professionalInviteUrl}
+                    expiresAt={professionalInvite.fecha_expiracion}
+                    qrDataUrl={professionalQrDataUrl}
+                    qrAlt="QR de vinculación profesional"
+                    suffix=" profesional"
+                    onCopy={copyText}
+                  />
                 )}
-              </section>
+              </div>
 
-              <section className="rounded-lg border border-border bg-muted/30 p-4">
-                <div className="flex items-start gap-3">
-                  <Shield size={18} className="mt-0.5 text-primary" />
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Altas y bajas de vinculos</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Las altas se hacen por codigo o QR. Las bajas se gestionan desde los botones de eliminar en el perteneciente o en cada profesional vinculado.
-                    </p>
-                  </div>
-                </div>
-              </section>
+              {professionals.length === 0 ? (
+                <p className="rounded-2xl border border-dashed border-[var(--evo-border-2)] p-5 text-center text-sm text-[var(--evo-text-secondary)]">
+                  No hay profesionales vinculados a este perteneciente.
+                </p>
+              ) : (
+                professionals.map(item => (
+                  <ProfessionalLinkRow
+                    key={item.id_vinculo}
+                    name={fullName(item.profesional.usuario)}
+                    subtitle={`${[item.profesional.profesion, item.profesional.especialidad].filter(Boolean).join(' - ') || 'Profesional'} · ${item.vinculo.estado_vinculo}`}
+                    expanded={expandedProfessionalId === item.id_vinculo}
+                    deleting={deletingKey === `profesional:${item.id_vinculo}`}
+                    rows={toRows(permissionEntries(item.permisos_efectivos.permisos), PROFESSIONAL_PERMISSION_LABELS, `profesional:${item.id_vinculo}`)}
+                    onToggleExpanded={() => setExpandedProfessionalId(expandedProfessionalId === item.id_vinculo ? null : item.id_vinculo)}
+                    onTogglePermission={(permiso, checked) => toggleProfessionalPermission(item.id_vinculo, permiso, checked)}
+                    onDelete={() => deleteProfessionalLink(item.id_vinculo, fullName(item.profesional.usuario))}
+                  />
+                ))
+              )}
+            </SurfaceCard>
+          )}
+
+          <SurfaceCard>
+            <div className="flex flex-wrap items-center gap-x-3.5 gap-y-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[var(--evo-soft)] text-[var(--evo-primary-text)]">
+                <QrCode size={20} aria-hidden />
+              </span>
+              <div className="min-w-[10rem] flex-1">
+                <p className="text-sm font-extrabold text-[var(--evo-text)]">Vincular una nueva persona</p>
+                <p className="mt-0.5 text-xs text-[var(--evo-text-secondary)]">Código o QR válido por 1 hora</p>
+              </div>
+              <Button onClick={createInvite} disabled={generatingInvite} className="min-h-11 gap-2 rounded-xl bg-[var(--evo-primary)] font-extrabold text-white hover:bg-[var(--evo-primary-text)]">
+                {generatingInvite ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <Plus size={15} aria-hidden />}
+                Generar invitación
+              </Button>
             </div>
-          )
-      )}
+            {invite && (
+              <InvitePanel codigo={invite.codigo} url={inviteUrl} expiresAt={invite.fecha_expiracion} qrDataUrl={qrDataUrl} qrAlt="QR de vinculación" onCopy={copyText} />
+            )}
+          </SurfaceCard>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,19 +1,53 @@
-import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { ArrowLeft, Eye, EyeOff, HeartHandshake, Sparkles, Stethoscope, User as UserIcon } from 'lucide-react';
+import { useEffect, useId, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  ArrowLeft,
+  BadgeCheck,
+  Check,
+  Eye,
+  EyeOff,
+  HeartHandshake,
+  Lock,
+  Loader2,
+  RotateCcw,
+  Search,
+  Sparkles,
+  Stethoscope,
+  User as UserIcon,
+  X,
+} from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { API_BASE_URL } from '@/services/api/client';
 import { ApiError } from '@/services/api/client';
-import type { RegisterRole } from '@/services/api';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import type { ProfessionalDniVerificationResult, RegisterRole, RefepsProfessional, RefepsSearchResult } from '@/services/api';
+import { fetchProfessionalRegistryDetails, searchRefepsByDni, searchRefepsProfessional, verifyProfessionalDni } from '@/data/api';
+import { DniChecklist } from '@/components/auth/DniChecklist';
+import { DniScanner } from '@/components/auth/DniScanner';
 
 type AuthView = 'welcome' | 'login' | 'register';
 type RegisterStep = 'role' | 'details';
 
+// Flujo profesional: 3 pasos más la previsualización de REFEPS (modal).
+type ProfStep = 'matricula' | 'identity' | 'account';
+type ProfProgress = 1 | 2 | 3;
+type DniVerificationState =
+  | { status: 'idle'; message: string }
+  | { status: 'processing'; message: string }
+  | { status: 'verified'; message: string; result: ProfessionalDniVerificationResult }
+  | { status: 'invalid_dni' | 'expired_document' | 'data_mismatch' | 'manual_review' | 'technical_error'; message: string; result?: ProfessionalDniVerificationResult };
+
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Misma regla que el backend: 8+ caracteres, al menos una letra y un numero.
 const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+const MATRICULA_REGEX = /^\d{4,}$/;
 
 const ROLE_OPTIONS: { value: RegisterRole; title: string; description: string; icon: typeof UserIcon }[] = [
   {
@@ -36,7 +70,85 @@ const ROLE_OPTIONS: { value: RegisterRole; title: string; description: string; i
   },
 ];
 
+// Especialidades visibles en TÁNDEM (catálogo local del perfil, no datos oficiales).
+const TANDEM_SPECIALTIES = [
+  'Autismo',
+  'Terapia familiar',
+  'Adolescentes',
+  'Psicología clínica',
+  'Neuropsicología',
+  'Terapia ocupacional',
+  'Psicopedagogía',
+  'Comunicación y lenguaje',
+  'Aprendizaje',
+  'Conducta',
+];
+
 const authGradient = 'linear-gradient(90deg, #6F518E 0%, #C9A7EB 100%)';
+
+const DNI_NOT_RECOGNIZED_MESSAGE = 'No pudimos reconocer un DNI. Asegurate de mostrar el frente correctamente.';
+const DNI_UNREADABLE_MESSAGE = 'No pudimos leer el DNI. Intentá nuevamente manteniéndolo quieto y con buena iluminación.';
+const DNI_EXPIRY_UNCONFIRMED_MESSAGE = 'Leímos tu DNI, pero no pudimos confirmar su vigencia. Vamos a revisarlo manualmente.';
+const DNI_INACTIVE_LICENSE_MESSAGE = 'Tu matrícula no figura habilitada en el registro profesional.';
+const DNI_MANUAL_REVIEW_MESSAGE = 'Necesitamos revisar tus datos manualmente. Te avisaremos por correo.';
+
+function manualReviewMessage(reason: string | null): string {
+  switch (reason) {
+    case 'ISSUED_UNDER_14':
+    case 'UNVERIFIABLE_EXPIRY':
+      return DNI_EXPIRY_UNCONFIRMED_MESSAGE;
+    case 'LOW_CONFIDENCE':
+    case 'OCR_TIMEOUT':
+    case 'OCR_ERROR':
+      return DNI_UNREADABLE_MESSAGE;
+    case 'INACTIVE_LICENSE':
+      return DNI_INACTIVE_LICENSE_MESSAGE;
+    default:
+      return DNI_MANUAL_REVIEW_MESSAGE;
+  }
+}
+
+function toDniVerificationState(result: ProfessionalDniVerificationResult): DniVerificationState {
+  if (result.status === 'VERIFIED') {
+    return { status: 'verified', message: '✓ DNI verificado', result };
+  }
+  if (result.status === 'DATA_MISMATCH') {
+    return {
+      status: 'data_mismatch',
+      message: 'Los datos del DNI no coinciden con el registro profesional seleccionado.',
+      result,
+    };
+  }
+  if (result.status === 'EXPIRED_DOCUMENT') {
+    return { status: 'expired_document', message: 'Tu DNI ya expiró. Para continuar necesitás utilizar un DNI vigente.', result };
+  }
+  if (result.reason === 'NOT_ARGENTINE_DNI' || result.reason === 'MISSING_FIELDS') {
+    return {
+      status: 'invalid_dni',
+      message: DNI_NOT_RECOGNIZED_MESSAGE,
+      result,
+    };
+  }
+  if (result.status === 'MANUAL_REVIEW') {
+    return {
+      status: 'manual_review',
+      message: manualReviewMessage(result.reason),
+      result,
+    };
+  }
+  return {
+    status: 'technical_error',
+    message: 'No pudimos verificar tu DNI en este momento. Intentá nuevamente.',
+    result,
+  };
+}
+
+function professionalDisplayName(professional: RefepsProfessional): string {
+  const nombre = String(professional?.nombre || '').trim();
+  const apellido = String(professional?.apellido || '').trim();
+  const fullName = [nombre, apellido].filter(Boolean).join(' ');
+  return fullName ? `Lic. ${fullName}` : 'Lic. Profesional';
+}
 
 type LoginProps = {
   initialView?: Exclude<AuthView, 'welcome'>;
@@ -51,6 +163,8 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
   const [password, setPassword] = useState('');
   const [registerStep, setRegisterStep] = useState<RegisterStep>('role');
   const [registerRole, setRegisterRole] = useState<RegisterRole | null>(null);
+
+  // Datos bases de la cuenta (no profesional).
   const [registerNombre, setRegisterNombre] = useState('');
   const [registerApellido, setRegisterApellido] = useState('');
   const [registerUsername, setRegisterUsername] = useState('');
@@ -58,13 +172,32 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
   const [registerPassword, setRegisterPassword] = useState('');
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState('');
   const [registerParentesco, setRegisterParentesco] = useState('');
-  const [registerProfesion, setRegisterProfesion] = useState('');
-  const [registerMatricula, setRegisterMatricula] = useState('');
-  const [registerEspecialidad, setRegisterEspecialidad] = useState('');
+
+  // Flujo profesional por pasos.
+  const [profStep, setProfStep] = useState<ProfStep>('matricula');
+  const [profMatricula, setProfMatricula] = useState('');
+  const [profSearchMode, setProfSearchMode] = useState<'matricula' | 'dni'>('matricula');
+  const [profSearching, setProfSearching] = useState(false);
+  const [refepsData, setRefepsData] = useState<RefepsSearchResult | null>(null);
+  const [selectedProfessional, setSelectedProfessional] = useState<RefepsProfessional | null>(null);
+  const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([]);
+  const [refepsError, setRefepsError] = useState('');
+  const [refepsLoading, setRefepsLoading] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  // DNI (paso 2).
+  const [registerDniFrente, setRegisterDniFrente] = useState<File | null>(null);
+  const [registerPdf417Raw, setRegisterPdf417Raw] = useState<string | undefined>();
+  const [registerDniPreview, setRegisterDniPreview] = useState<string | null>(null);
+  const [dniVerification, setDniVerification] = useState<DniVerificationState>({
+    status: 'idle',
+    message: 'Ubicá el frente de tu DNI dentro del recuadro.',
+  });
+
   const [registerLoading, setRegisterLoading] = useState(false);
   // Access token de Google en espera de que el usuario elija su rol (cuenta
-  // nueva) o complete matricula/profesion (rol profesional). Google ya dio
-  // nombre/mail, asi que en ese caso el paso de detalles NO pide password.
+  // nueva) o complete matricula/profesion (rol profesional).
   const [pendingGoogleToken, setPendingGoogleToken] = useState<string | null>(null);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -79,9 +212,78 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     }
   }, [initialView]);
 
+  useEffect(() => () => {
+    if (registerDniPreview) URL.revokeObjectURL(registerDniPreview);
+  }, [registerDniPreview]);
+
   const resetFeedback = () => {
     setError('');
     setShowCredentials(false);
+  };
+
+  const updateDniFrente = (file: File | null, pdf417Raw?: string) => {
+    if (registerDniPreview) URL.revokeObjectURL(registerDniPreview);
+    setRegisterDniFrente(file);
+    setRegisterPdf417Raw(file ? pdf417Raw : undefined);
+    setRegisterDniPreview(file ? URL.createObjectURL(file) : null);
+    setDniVerification({ status: 'idle', message: 'Ubicá el frente de tu DNI dentro del recuadro.' });
+  };
+
+  const updateAndVerifyDniFrente = (file: File | null, pdf417Raw?: string) => {
+    updateDniFrente(file, pdf417Raw);
+    if (!file) return;
+
+    if (!selectedProfessional?.nombre || !selectedProfessional?.apellido || !selectedProfessional?.matricula) {
+      setDniVerification({
+        status: 'technical_error',
+        message: 'No pudimos verificar tu DNI en este momento. Intentá nuevamente.',
+      });
+      return;
+    }
+
+    void verifyDniFrente(file, selectedProfessional, pdf417Raw);
+  };
+
+  const verifyDniFrente = async (file: File, professional: RefepsProfessional, pdf417Raw?: string) => {
+    setDniVerification({ status: 'processing', message: 'Verificando tu DNI...' });
+    console.info('[DniVerify] enviando al servidor', { bytes: file.size, conPdf417: Boolean(pdf417Raw), pdf417Largo: pdf417Raw?.length ?? 0 });
+    try {
+      const result = await verifyProfessionalDni({
+        dniFrente: file,
+        matricula: String(professional.matricula),
+        nombre: professional.nombre || '',
+        apellido: professional.apellido || '',
+        pdf417Raw,
+        refepsDni: professional.dni || undefined,
+        jurisdiccion: professional.jurisdiccion || undefined,
+        codigo: professional.codigo || undefined,
+        profesion: professional.profesion || undefined,
+        selectionId: professional.selectionId || undefined,
+      });
+      console.info('[DniVerify] respuesta del servidor', { status: result.status, reason: result.reason, estimado: result.dni?.fechaVencimientoEstimada ?? null });
+      setDniVerification(toDniVerificationState(result));
+    } catch (error) {
+      console.error('[DniVerify] fallo la solicitud', error instanceof Error ? error.message : error);
+      setDniVerification({
+        status: 'technical_error',
+        message: 'No pudimos verificar tu DNI en este momento. Intentá nuevamente.',
+      });
+    }
+  };
+
+  const resetProfessionalFlow = () => {
+    setProfStep('matricula');
+    setProfMatricula('');
+    setProfSearchMode('matricula');
+    setProfSearching(false);
+    setRefepsData(null);
+    setSelectedProfessional(null);
+    setSelectedSpecialties([]);
+    setRefepsError('');
+    setRefepsLoading(false);
+    setProfileLoaded(false);
+    setPreviewOpen(false);
+    updateDniFrente(null);
   };
 
   const goTo = (nextView: AuthView) => {
@@ -91,6 +293,8 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
       setRegisterStep('role');
       setRegisterRole(null);
       setPendingGoogleToken(null);
+      updateDniFrente(null);
+      resetProfessionalFlow();
     }
     onViewChange?.(nextView);
   };
@@ -99,13 +303,19 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     setGoogleLoading(true);
     setError('');
     try {
-      const payload: { accessToken: string } & Record<string, string | undefined> = { accessToken };
+      const payload: { accessToken: string } & Record<string, string | File | undefined> = { accessToken };
       if (role) payload.rol = role;
       if (role === 'tutor') payload.parentesco = registerParentesco.trim() || undefined;
       if (role === 'profesional') {
-        payload.profesion = registerProfesion.trim();
-        payload.matricula = registerMatricula.trim();
-        payload.especialidad = registerEspecialidad.trim() || undefined;
+        payload.profesion = selectedProfessional?.profesion || String(selectedProfessional?.matricula || '');
+        payload.matricula = String(selectedProfessional?.matricula || profMatricula.trim());
+        payload.especialidad = selectedSpecialties.join(', ') || undefined;
+        payload.dniFrente = registerDniFrente || undefined;
+        payload.pdf417Raw = registerPdf417Raw;
+        payload.refepsDni = selectedProfessional?.dni || undefined;
+        payload.jurisdiccion = selectedProfessional?.jurisdiccion || undefined;
+        payload.codigo = selectedProfessional?.codigo || undefined;
+        payload.selectionId = selectedProfessional?.selectionId || undefined;
       }
       await googleAuth(payload);
       setPendingGoogleToken(null);
@@ -165,42 +375,165 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
       return;
     }
 
+    // Profesional: entrar al flujo de 3 pasos empezando por la matrícula.
+    if (role === 'profesional') {
+      setProfStep('matricula');
+      setProfMatricula('');
+      setRefepsData(null);
+      setSelectedProfessional(null);
+      setSelectedSpecialties([]);
+      setRefepsError('');
+      setRegisterStep('details');
+      return;
+    }
+
     setRegisterStep('details');
   };
 
   const handleRegisterBack = () => {
     resetFeedback();
+    // Profesional: volver un paso dentro del flujo.
+    if (registerRole === 'profesional') {
+      if (profStep === 'account') {
+        setProfStep('identity');
+        return;
+      }
+      if (profStep === 'identity') {
+        setProfStep('matricula');
+        return;
+      }
+    }
     setRegisterStep('role');
     setRegisterRole(null);
     setPendingGoogleToken(null);
   };
 
+  // Paso 1: buscar matrícula en REFEPS.
+  const handleSearchMatricula = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    setError('');
+    setRefepsError('');
+    const matricula = profMatricula.trim();
+    const dni = matricula.replace(/\D/g, '');
+    const searchIsValid = profSearchMode === 'dni' ? /^\d{7,8}$/.test(dni) : MATRICULA_REGEX.test(matricula);
+    if (!searchIsValid) {
+      setRefepsError(profSearchMode === 'dni' ? 'El DNI debe tener 7 u 8 dígitos.' : 'La matrícula debe tener al menos 4 dígitos.');
+      return;
+    }
+
+    setProfSearching(true);
+    try {
+      const result = profSearchMode === 'dni' ? await searchRefepsByDni(dni) : await searchRefepsProfessional(matricula);
+      setRefepsData(result);
+      setSelectedProfessional(null);
+      setProfileLoaded(false);
+      if (!result.found) {
+        setRefepsError(profSearchMode === 'dni' ? 'No encontramos un profesional asociado a este DNI.' : 'No encontramos un profesional asociado a esta matrícula.');
+        return;
+      }
+      // Resultado único: lo seleccionamos y abrimos el modal de preview.
+      if (!result.ambiguous && result.results.length === 1) {
+        setSelectedProfessional(result.results[0]);
+        setPreviewOpen(true);
+        return;
+      }
+      // Ambiguo: abrimos el modal para que elija.
+      setPreviewOpen(true);
+    } catch (err) {
+      setRefepsError(
+        err instanceof ApiError && err.message
+          ? err.message
+          : 'No pudimos verificar tu matrícula en este momento. Intentá nuevamente.',
+      );
+    } finally {
+      setProfSearching(false);
+    }
+  };
+
+  const toggleSpecialty = (name: string) => {
+    setSelectedSpecialties(prev =>
+      prev.includes(name) ? prev.filter(s => s !== name) : [...prev, name],
+    );
+  };
+
+  const handleConfirmRefeps = async () => {
+    if (!selectedProfessional) return;
+    if (!profileLoaded) {
+      if (!selectedProfessional.dni || !selectedProfessional.jurisdiccion) {
+        setRefepsError('No pudimos obtener los datos oficiales de este registro. Elegí otro resultado.');
+        return;
+      }
+      setRefepsLoading(true);
+      setRefepsError('');
+      try {
+        const official = await fetchProfessionalRegistryDetails({
+          matricula: String(selectedProfessional.matricula),
+          dni: selectedProfessional.dni,
+          jurisdiccion: selectedProfessional.jurisdiccion,
+          codigo: selectedProfessional.codigo,
+          profesion: selectedProfessional.profesion,
+          selectionId: selectedProfessional.selectionId,
+        });
+        setSelectedProfessional(current => current ? { ...current, ...official } : current);
+        setProfileLoaded(true);
+        if (!official.habilitado) setRefepsError('Tu matrícula no figura habilitada en el registro profesional.');
+      } catch (err) {
+        setRefepsError(err instanceof ApiError && err.message ? err.message : 'No pudimos consultar el registro profesional en este momento. Intentá nuevamente.');
+      } finally {
+        setRefepsLoading(false);
+      }
+      return;
+    }
+    if (!selectedProfessional.habilitado) {
+      setRefepsError('Tu matrícula no figura habilitada en el registro profesional.');
+      return;
+    }
+    setPreviewOpen(false);
+    updateDniFrente(null);
+    setProfStep('identity');
+  };
+
+  const handleNotMe = () => {
+    setPreviewOpen(false);
+    setSelectedProfessional(null);
+    setRefepsData(null);
+    setProfMatricula('');
+    setRefepsError('');
+    setProfileLoaded(false);
+    setProfStep('matricula');
+  };
+
+  // Paso 3: crear la cuenta (registro normal o Google).
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (!registerRole) {
-      setError('Elegí quién sos para continuar');
-      setRegisterStep('role');
-      return;
-    }
-
     if (pendingGoogleToken) {
-      if (registerRole === 'profesional' && (!registerProfesion.trim() || !registerMatricula.trim())) {
-        setError('Completá profesión y matrícula para registrarte como profesional');
+      if (registerRole === 'profesional' && dniVerification.status !== 'verified') {
+        setError('Verificá el frente del DNI antes de continuar.');
         return;
       }
-      await completeGoogleAuth(pendingGoogleToken, registerRole);
+      await completeGoogleAuth(pendingGoogleToken, registerRole || undefined);
       return;
     }
 
-    const nombre = registerNombre.trim();
-    const apellido = registerApellido.trim();
+    const nombre = (selectedProfessional?.nombre || registerNombre).trim();
+    const apellido = (selectedProfessional?.apellido || registerApellido).trim();
     const nombreUsuario = registerUsername.trim();
     const correo = registerEmail.trim();
 
-    if (!nombre || !apellido || !nombreUsuario || !correo || !registerPassword || !registerConfirmPassword) {
+    if (registerRole !== 'profesional' && (!nombre || !apellido || !nombreUsuario || !correo || !registerPassword || !registerConfirmPassword)) {
       setError('Completá todos los campos para registrarte');
+      return;
+    }
+
+    if (registerRole === 'profesional' && (!nombreUsuario || !correo || !registerPassword || !registerConfirmPassword || !registerDniFrente)) {
+      setError('Completá los campos y subí la foto del frente del DNI para registrarte');
+      return;
+    }
+
+    if (registerRole === 'profesional' && dniVerification.status !== 'verified') {
+      setError('Verificá el frente del DNI antes de crear la cuenta.');
       return;
     }
 
@@ -219,15 +552,10 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
       return;
     }
 
-    if (registerRole === 'profesional' && (!registerProfesion.trim() || !registerMatricula.trim())) {
-      setError('Completá profesión y matrícula para registrarte como profesional');
-      return;
-    }
-
     setRegisterLoading(true);
     try {
       await register({
-        rol: registerRole,
+        rol: registerRole || 'perteneciente',
         nombre,
         apellido,
         nombre_usuario: nombreUsuario,
@@ -236,9 +564,15 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
         ...(registerRole === 'tutor' ? { parentesco: registerParentesco.trim() || undefined } : {}),
         ...(registerRole === 'profesional'
           ? {
-              profesion: registerProfesion.trim(),
-              matricula: registerMatricula.trim(),
-              especialidad: registerEspecialidad.trim() || undefined,
+              profesion: selectedProfessional?.profesion || '',
+              matricula: String(selectedProfessional?.matricula || profMatricula.trim()),
+              especialidad: selectedSpecialties.join(', ') || undefined,
+              dniFrente: registerDniFrente,
+              pdf417Raw: registerPdf417Raw,
+              refepsDni: selectedProfessional?.dni || undefined,
+              jurisdiccion: selectedProfessional?.jurisdiccion || undefined,
+              codigo: selectedProfessional?.codigo || undefined,
+              selectionId: selectedProfessional?.selectionId || undefined,
             }
           : {}),
       });
@@ -249,17 +583,25 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     }
   };
 
+  const profProgress: Record<ProfStep, ProfProgress> = {
+    matricula: 1,
+    identity: 2,
+    account: 3,
+  };
+
   const Logo = ({ compact = false }: { compact?: boolean }) => (
     <img
       src="/tandem-logo.png"
       alt="Tandem"
-      className={compact ? 'mx-auto h-auto w-[224px]' : 'mx-auto h-auto w-[294px] max-w-[78vw]'}
+      className={compact ? 'mx-auto h-auto w-[224px] md:w-[280px]' : 'mx-auto h-auto w-[294px] max-w-[78vw] md:w-[360px]'}
     />
   );
 
+  const isProfessionalActive = registerRole === 'profesional' && registerStep === 'details';
+
   return (
     <main className="min-h-screen bg-[#F8FAFB] text-[#6F518E]">
-      <section className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col px-8 py-10">
+      <section className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col px-8 py-10 md:max-w-[620px] md:px-10 md:py-14">
         {view === 'welcome' ? (
           <motion.div
             initial={{ opacity: 0, y: 14 }}
@@ -279,7 +621,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
           </motion.div>
         ) : (
           <motion.div
-            key={view}
+            key={`${view}-${registerStep}-${isProfessionalActive ? profStep : 'none'}`}
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35 }}
@@ -311,18 +653,21 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
               <form onSubmit={handleLoginSubmit} className="space-y-5">
                 <AuthField
                   label="Usuario o email"
+                  autoComplete="username"
                   value={username}
                   onChange={e => setUsername(e.target.value)}
-                  placeholder="ej: juan123"
                 />
 
                 <PasswordField
                   label="Contraseña"
+                  autoComplete="current-password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   showPassword={showPassword}
                   onTogglePassword={() => setShowPassword(prev => !prev)}
                 />
+
+                <a href="/olvidaste-contrasena" className="block text-right text-sm font-semibold text-[#6F518E] underline-offset-4 hover:underline">¿Olvidaste tu contraseña?</a>
 
                 <Feedback message={error} />
 
@@ -375,6 +720,46 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
                   Ya tengo cuenta
                 </button>
               </div>
+            ) : isProfessionalActive ? (
+              <ProfessionalFlow
+                profStep={profStep}
+                profProgress={profProgress[profStep]}
+                profMatricula={profMatricula}
+                profSearchMode={profSearchMode}
+                onSearchModeChange={mode => { setProfSearchMode(mode); setProfMatricula(''); setRefepsError(''); }}
+                setProfMatricula={value => setProfMatricula(value.replace(/\D/g, ''))}
+                profSearching={profSearching}
+                refepsError={refepsError}
+                onSubmitMatricula={handleSearchMatricula}
+                selectedProfessional={selectedProfessional}
+                selectedSpecialties={selectedSpecialties}
+                toggleSpecialty={toggleSpecialty}
+                registerDniPreview={registerDniPreview}
+                registerDniFrente={registerDniFrente}
+                updateDniFrente={updateAndVerifyDniFrente}
+                dniVerification={dniVerification}
+                onGoToAccount={() => setProfStep('account')}
+                onBackToMatricula={() => {
+                  updateDniFrente(null);
+                  setProfStep('matricula');
+                }}
+                onGoogleAuth={handleGoogleAuth}
+                pendingGoogleToken={pendingGoogleToken}
+                registerUsername={registerUsername}
+                setRegisterUsername={setRegisterUsername}
+                registerEmail={registerEmail}
+                setRegisterEmail={setRegisterEmail}
+                registerPassword={registerPassword}
+                setRegisterPassword={setRegisterPassword}
+                registerConfirmPassword={registerConfirmPassword}
+                setRegisterConfirmPassword={setRegisterConfirmPassword}
+                showRegisterPassword={showRegisterPassword}
+                onToggleRegisterPassword={() => setShowRegisterPassword(prev => !prev)}
+                registerLoading={registerLoading}
+                googleLoading={googleLoading}
+                onRegister={handleRegisterSubmit}
+                error={error}
+              />
             ) : (
               <form onSubmit={handleRegisterSubmit} className="space-y-5">
                 {pendingGoogleToken && (
@@ -387,28 +772,28 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
                   <>
                     <AuthField
                       label="Nombre"
+                      autoComplete="given-name"
                       value={registerNombre}
                       onChange={e => setRegisterNombre(e.target.value)}
-                      placeholder="Tu nombre"
                     />
                     <AuthField
                       label="Apellido"
+                      autoComplete="family-name"
                       value={registerApellido}
                       onChange={e => setRegisterApellido(e.target.value)}
-                      placeholder="Tu apellido"
                     />
                     <AuthField
                       label="Usuario"
+                      autoComplete="username"
                       value={registerUsername}
                       onChange={e => setRegisterUsername(e.target.value)}
-                      placeholder="ej: juan123"
                     />
                     <AuthField
                       label="Email"
                       type="email"
+                      autoComplete="email"
                       value={registerEmail}
                       onChange={e => setRegisterEmail(e.target.value)}
-                      placeholder="tu@email.com"
                     />
                   </>
                 )}
@@ -418,37 +803,14 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
                     label="Parentesco (opcional)"
                     value={registerParentesco}
                     onChange={e => setRegisterParentesco(e.target.value)}
-                    placeholder="ej: Madre, padre, hermano..."
                   />
-                )}
-
-                {registerRole === 'profesional' && (
-                  <>
-                    <AuthField
-                      label="Profesión"
-                      value={registerProfesion}
-                      onChange={e => setRegisterProfesion(e.target.value)}
-                      placeholder="ej: Psicóloga, terapeuta ocupacional..."
-                    />
-                    <AuthField
-                      label="Matrícula"
-                      value={registerMatricula}
-                      onChange={e => setRegisterMatricula(e.target.value)}
-                      placeholder="Tu número de matrícula"
-                    />
-                    <AuthField
-                      label="Especialidad (opcional)"
-                      value={registerEspecialidad}
-                      onChange={e => setRegisterEspecialidad(e.target.value)}
-                      placeholder="ej: TEA, neurodesarrollo..."
-                    />
-                  </>
                 )}
 
                 {!pendingGoogleToken && (
                   <>
                     <PasswordField
                       label="Contraseña"
+                      autoComplete="new-password"
                       value={registerPassword}
                       onChange={e => setRegisterPassword(e.target.value)}
                       showPassword={showRegisterPassword}
@@ -456,6 +818,7 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
                     />
                     <PasswordField
                       label="Repetir contraseña"
+                      autoComplete="new-password"
                       value={registerConfirmPassword}
                       onChange={e => setRegisterConfirmPassword(e.target.value)}
                       showPassword={showRegisterPassword}
@@ -494,7 +857,501 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
           </motion.div>
         )}
       </section>
+
+      {/* Modal: registro REFEPS encontrado */}
+      <RefepsPreviewModal
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        refepsData={refepsData}
+        selectedProfessional={selectedProfessional}
+        setSelectedProfessional={setSelectedProfessional}
+        profileLoaded={profileLoaded}
+        loading={refepsLoading}
+        error={refepsError}
+        selectedSpecialties={selectedSpecialties}
+        toggleSpecialty={toggleSpecialty}
+        onConfirm={handleConfirmRefeps}
+        onNotMe={handleNotMe}
+      />
+
     </main>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Flujo profesional de 3 pasos
+// ---------------------------------------------------------------------------
+function ProfessionalFlow({
+  profStep,
+  profProgress,
+  profMatricula,
+  profSearchMode,
+  onSearchModeChange,
+  setProfMatricula,
+  profSearching,
+  refepsError,
+  onSubmitMatricula,
+  selectedProfessional,
+  selectedSpecialties,
+  toggleSpecialty,
+  registerDniPreview,
+  registerDniFrente,
+  updateDniFrente,
+  dniVerification,
+  onGoToAccount,
+  onBackToMatricula,
+  onGoogleAuth,
+  pendingGoogleToken,
+  registerUsername,
+  setRegisterUsername,
+  registerEmail,
+  setRegisterEmail,
+  registerPassword,
+  setRegisterPassword,
+  registerConfirmPassword,
+  setRegisterConfirmPassword,
+  showRegisterPassword,
+  onToggleRegisterPassword,
+  registerLoading,
+  googleLoading,
+  onRegister,
+  error,
+}: {
+  profStep: ProfStep;
+  profProgress: ProfProgress;
+  profMatricula: string;
+  profSearchMode: 'matricula' | 'dni';
+  onSearchModeChange: (mode: 'matricula' | 'dni') => void;
+  setProfMatricula: (v: string) => void;
+  profSearching: boolean;
+  refepsError: string;
+  onSubmitMatricula: (e?: React.FormEvent) => void;
+  selectedProfessional: RefepsProfessional | null;
+  selectedSpecialties: string[];
+  toggleSpecialty: (name: string) => void;
+  registerDniPreview: string | null;
+  registerDniFrente: File | null;
+  updateDniFrente: (file: File | null, pdf417Raw?: string) => void;
+  dniVerification: DniVerificationState;
+  onGoToAccount: () => void;
+  onBackToMatricula: () => void;
+  onGoogleAuth: () => void;
+  pendingGoogleToken: string | null;
+  registerUsername: string;
+  setRegisterUsername: (v: string) => void;
+  registerEmail: string;
+  setRegisterEmail: (v: string) => void;
+  registerPassword: string;
+  setRegisterPassword: (v: string) => void;
+  registerConfirmPassword: string;
+  setRegisterConfirmPassword: (v: string) => void;
+  showRegisterPassword: boolean;
+  onToggleRegisterPassword: () => void;
+  registerLoading: boolean;
+  googleLoading: boolean;
+  onRegister: (e: React.FormEvent) => void;
+  error: string;
+}) {
+  const matriculaReady = profSearchMode === 'dni' ? /^\d{7,8}$/.test(profMatricula.replace(/\D/g, '')) : MATRICULA_REGEX.test(profMatricula.trim());
+  const canContinueIdentity = !!registerDniFrente && dniVerification.status === 'verified' && !registerLoading && !googleLoading;
+
+  useEffect(() => {
+    if (!canContinueIdentity) return;
+    const timer = window.setTimeout(onGoToAccount, 1100);
+    return () => window.clearTimeout(timer);
+  }, [canContinueIdentity, onGoToAccount]);
+
+  return (
+    <div className="space-y-5">
+      <ProgressIndicator current={profProgress} />
+
+      <AnimatePresence mode="wait">
+        {profStep === 'matricula' && (
+          <motion.form
+            key="matricula"
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -12 }}
+            transition={{ duration: 0.25 }}
+            onSubmit={onSubmitMatricula}
+            className="space-y-5"
+          >
+            <div className="space-y-1.5">
+              <h2 className="text-xl font-extrabold text-[#6F518E]">Buscá tu registro profesional</h2>
+              <p className="text-sm font-medium text-[#6F518E]/70">
+                Usá tu matrícula o DNI para consultar el Buscador Nacional de Profesionales de la Salud.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 rounded-2xl bg-[#C9A7EB]/15 p-1">
+              {(['matricula', 'dni'] as const).map(mode => (
+                <button key={mode} type="button" aria-pressed={profSearchMode === mode} onClick={() => onSearchModeChange(mode)} className={`min-h-10 rounded-xl px-3 text-sm font-bold transition ${profSearchMode === mode ? 'bg-white text-[#6F518E] shadow-sm' : 'text-[#6F518E]/65'}`}>
+                  {mode === 'matricula' ? 'Por matrícula' : 'Por DNI'}
+                </button>
+              ))}
+            </div>
+            <AuthField
+              label={profSearchMode === 'dni' ? 'DNI' : 'Matrícula'}
+              value={profMatricula}
+              onChange={e => setProfMatricula(e.target.value.replace(/\D/g, ''))}
+              placeholder={profSearchMode === 'dni' ? 'Tu número de DNI' : 'Tu número de matrícula'}
+              autoComplete="off"
+              inputMode="numeric"
+              pattern="[0-9]*"
+            />
+
+            {profSearching && (
+              <p className="flex items-center justify-center gap-2 rounded-2xl bg-[#C9A7EB]/18 px-4 py-3 text-sm font-semibold text-[#6F518E]">
+                <Search size={16} className="animate-pulse" />
+                Buscando tu registro profesional...
+              </p>
+            )}
+
+            {!profSearching && refepsError && <Feedback message={refepsError} />}
+            {!profSearching && profMatricula.length > 0 && !matriculaReady && !refepsError && (
+              <Feedback message={profSearchMode === 'dni' ? 'El DNI debe tener 7 u 8 dígitos.' : 'La matrícula debe tener al menos 4 dígitos.'} />
+            )}
+            {!profSearching && error && <Feedback message={error} />}
+
+            <AuthActionButton type="submit" disabled={!matriculaReady || profSearching || registerLoading || googleLoading}>
+              Continuar
+            </AuthActionButton>
+          </motion.form>
+        )}
+
+        {profStep === 'identity' && (
+          <motion.div
+            key="identity"
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -12 }}
+            transition={{ duration: 0.25 }}
+            className="space-y-5"
+          >
+            {dniVerification.status === 'verified' ? <div className="flex min-h-72 flex-col items-center justify-center text-center">
+              <motion.span initial={{ scale: .7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex h-20 w-20 items-center justify-center rounded-full bg-[#6F518E] text-white"><Check size={42} strokeWidth={3} /></motion.span>
+              <h2 className="mt-5 text-2xl font-extrabold text-[#6F518E]">Acceso concedido</h2>
+              <p className="mt-2 text-sm font-medium text-[#6F518E]/70">Tu identidad profesional fue verificada correctamente.</p>
+            </div> : <><div className="space-y-1.5">
+              <h2 className="text-xl font-extrabold text-[#6F518E]">Verificá tu identidad</h2>
+              <p className="text-sm font-medium text-[#6F518E]/70">
+                Ubicá el frente de tu DNI dentro del recuadro.
+              </p>
+            </div>
+
+            <DniFrontField
+              fileName={registerDniFrente?.name || null}
+              previewUrl={registerDniPreview}
+              verification={dniVerification}
+              onCapture={updateDniFrente}
+              onClear={() => updateDniFrente(null)}
+              onBackToMatricula={onBackToMatricula}
+            />
+
+            <Feedback message={error} />
+
+            </>}
+          </motion.div>
+        )}
+
+        {profStep === 'account' && (
+          <motion.form
+            key="account"
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -12 }}
+            transition={{ duration: 0.25 }}
+            onSubmit={onRegister}
+            className="space-y-5"
+          >
+            <div className="space-y-1.5">
+              <h2 className="text-xl font-extrabold text-[#6F518E]">Creá tu contraseña</h2>
+              <p className="text-sm font-medium text-[#6F518E]/70">
+                {pendingGoogleToken
+                  ? 'Ya tenemos tu nombre y mail de Google. Solo el último paso para terminar.'
+                  : 'Elegí una contraseña para tu cuenta. Encontraste tus datos en REFEPS.'}
+              </p>
+            </div>
+
+            {selectedProfessional && !pendingGoogleToken && (
+              <div className="space-y-3 rounded-2xl border border-[#C9A7EB]/40 bg-white p-4 text-[#6F518E] shadow-sm">
+                <p className="flex items-center gap-1.5 text-xs font-bold text-[#4a8f4e]">
+                  <BadgeCheck size={15} />
+                  Datos del registro (no editables)
+                </p>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                  <LockedField label="Nombre" value={selectedProfessional?.nombre || '—'} />
+                  <LockedField label="Apellido" value={selectedProfessional?.apellido || '—'} />
+                  <LockedField label="Profesión" value={selectedProfessional?.profesion || '—'} />
+                  <LockedField label="Matrícula" value={String(selectedProfessional?.matricula ?? '—')} />
+                </div>
+              </div>
+            )}
+
+            {!pendingGoogleToken && (
+              <>
+                <AuthField
+                  label="Usuario"
+                  value={registerUsername}
+                  onChange={e => setRegisterUsername(e.target.value)}
+                  placeholder="ej: juan123"
+                />
+                <AuthField
+                  label="Email"
+                  type="email"
+                  value={registerEmail}
+                  onChange={e => setRegisterEmail(e.target.value)}
+                  placeholder="tu@email.com"
+                />
+              </>
+            )}
+
+            <PasswordField
+              label="Contraseña"
+              value={registerPassword}
+              onChange={e => setRegisterPassword(e.target.value)}
+              showPassword={showRegisterPassword}
+              onTogglePassword={onToggleRegisterPassword}
+            />
+            <PasswordField
+              label="Repetir contraseña"
+              value={registerConfirmPassword}
+              onChange={e => setRegisterConfirmPassword(e.target.value)}
+              showPassword={showRegisterPassword}
+              onTogglePassword={onToggleRegisterPassword}
+            />
+
+            <Feedback message={error} />
+
+            <AuthActionButton type="submit" disabled={registerLoading || googleLoading}>
+              {registerLoading || googleLoading
+                ? 'Verificando tus credenciales profesionales...'
+                : 'Crear cuenta'}
+            </AuthActionButton>
+
+            {!pendingGoogleToken && (
+              <SocialAuthButtons mode="register" onSelect={onGoogleAuth} loading={googleLoading} />
+            )}
+          </motion.form>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function ProgressIndicator({ current }: { current: ProfProgress }) {
+  const steps: { n: ProfProgress; label: string }[] = [
+    { n: 1, label: 'Matrícula' },
+    { n: 2, label: 'Identidad' },
+    { n: 3, label: 'Cuenta' },
+  ];
+
+  return (
+    <div className="mb-6">
+      <div className="mb-3 flex items-center justify-between text-xs font-bold text-[#6F518E]/60">
+        <span>Paso {current} de 3</span>
+        <span>{steps.find(s => s.n === current)?.label}</span>
+      </div>
+      <div className="grid grid-cols-[auto_1fr_auto_1fr_auto] items-start">
+        {steps.map((step, index) => (<div key={step.n} className="contents">
+          <div className="flex min-w-14 flex-col items-center gap-1.5">
+            <span
+              className={`flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-extrabold transition ${
+                step.n < current
+                  ? 'border-[#6F518E] bg-[#6F518E] text-white'
+                  : step.n === current
+                    ? 'border-[#6F518E] bg-white text-[#6F518E]'
+                    : 'border-[#C9A7EB]/60 bg-white text-[#6F518E]/40'
+              }`}
+            >
+              {step.n < current ? <Check size={13} /> : step.n}
+            </span>
+            <span className={`text-[10px] font-semibold ${step.n === current ? 'text-[#6F518E]' : 'text-[#6F518E]/45'}`}>
+              {step.label}
+            </span>
+          </div>
+          {index < steps.length - 1 && <span className="mt-3 h-1 overflow-hidden rounded-full bg-[#C9A7EB]/35"><span className={`block h-full bg-[#6F518E] transition-[width] duration-300 ease-out ${step.n < current ? 'w-full' : 'w-0'}`} /></span>}
+        </div>))}
+      </div>
+    </div>
+  );
+}
+
+function LockedField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-0.5">
+      <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6F518E]/50">
+        <Lock size={10} />
+        {label}
+      </span>
+      <span className="block truncate text-sm font-bold text-[#6F518E]">{value}</span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Modal: registro REFEPS encontrado
+// ---------------------------------------------------------------------------
+function RefepsPreviewModal({
+  open,
+  onOpenChange,
+  refepsData,
+  selectedProfessional,
+  setSelectedProfessional,
+  profileLoaded,
+  loading,
+  error,
+  selectedSpecialties,
+  toggleSpecialty,
+  onConfirm,
+  onNotMe,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  refepsData: RefepsSearchResult | null;
+  selectedProfessional: RefepsProfessional | null;
+  setSelectedProfessional: (p: RefepsProfessional | null) => void;
+  profileLoaded: boolean;
+  loading: boolean;
+  error: string;
+  selectedSpecialties: string[];
+  toggleSpecialty: (name: string) => void;
+  onConfirm: () => void;
+  onNotMe: () => void;
+}) {
+  const options = (refepsData?.results || []).filter(
+    r => r && typeof r === 'object' && 'matricula' in r,
+  );
+  const ambiguous = refepsData?.ambiguous || options.length > 1;
+  const current = selectedProfessional;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden max-lg:bottom-4 max-lg:left-4 max-lg:right-4 max-lg:top-4 max-lg:w-auto max-lg:translate-x-0 max-lg:translate-y-0 max-lg:rounded-3xl max-lg:p-6 sm:max-h-[42rem] sm:max-w-md"
+        overlayClassName="bg-black/60"
+      >
+        <DialogHeader className="shrink-0 text-left">
+          <DialogTitle className="text-lg font-extrabold text-[#6F518E]">Encontramos tu registro profesional</DialogTitle>
+          <DialogDescription className="text-sm font-medium text-[#6F518E]/70">
+            Revisá los datos oficiales antes de confirmar tu identidad.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div data-testid="refeps-modal-scroll-area" className="mt-2 min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-1">
+          {current ? (
+            <>
+              <p className={`flex items-center gap-1.5 text-xs font-bold ${profileLoaded ? 'text-[#4a8f4e]' : 'text-[#6F518E]'}`}>
+                {profileLoaded ? <BadgeCheck size={15} /> : <Search size={15} />}
+                {profileLoaded ? 'Datos oficiales del Buscador Nacional de Profesionales' : 'Resultado seleccionado'}
+              </p>
+
+              <div className="grid grid-cols-2 gap-x-3 gap-y-3 rounded-2xl border border-[#C9A7EB]/40 bg-white p-4 text-[#6F518E]">
+                <LockedField label="Nombre" value={current?.nombre || '—'} />
+                <LockedField label="Apellido" value={current?.apellido || '—'} />
+                <LockedField label="Profesión" value={current?.profesion || '—'} />
+                <LockedField label="Matrícula" value={String(current?.matricula ?? '—')} />
+                  <LockedField label="Provincia/jurisdicción" value={current?.jurisdiccion || '—'} />
+                  {current?.especialidades?.length ? <LockedField label="Especialidad" value={current.especialidades.join(', ')} /> : null}
+                {profileLoaded && <LockedField label="Estado de matrícula" value={current?.estado || '—'} />}
+              </div>
+
+              {!profileLoaded && <p className="rounded-2xl bg-[#C9A7EB]/18 px-4 py-3 text-sm font-semibold text-[#6F518E]">
+                Consultaremos la ficha oficial del Buscador Nacional de Profesionales.
+              </p>}
+
+              <div className="space-y-2">
+                <p className="text-sm font-extrabold text-[#6F518E]">Especialidades visibles en TÁNDEM</p>
+                <p className="text-xs font-medium text-[#6F518E]/60">
+                  Elegí las especialidades que querés mostrar en tu perfil. No modifican tus datos oficiales.
+                </p>
+                <div className="grid gap-2">
+                  {TANDEM_SPECIALTIES.map(name => {
+                    const active = selectedSpecialties.includes(name);
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() => toggleSpecialty(name)}
+                        aria-pressed={active}
+                        className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm font-semibold transition ${
+                          active
+                            ? 'border-[#6F518E] bg-[#C9A7EB]/18 text-[#6F518E]'
+                            : 'border-[#C9A7EB]/50 bg-white text-[#6F518E]/70'
+                        }`}
+                      >
+                        <span
+                          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
+                            active ? 'border-[#6F518E] bg-[#6F518E] text-white' : 'border-[#C9A7EB]/70 bg-white'
+                          }`}
+                        >
+                          {active && <Check size={13} />}
+                        </span>
+                        {name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {ambiguous ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-bold text-[#6F518E]">Encontramos más de un registro. Elegí el tuyo:</p>
+                  <div className="space-y-2">
+                    {options.map((r, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setSelectedProfessional(r)}
+                        className={`flex w-full items-start justify-between gap-3 rounded-xl border px-3 py-3 text-left transition ${
+                          selectedProfessional === r
+                            ? 'border-[#6F518E] bg-[#C9A7EB]/18'
+                            : 'border-[#C9A7EB]/50 bg-white'
+                        }`}
+                      >
+                        <span className="min-w-0 space-y-0.5">
+                          <span className="block truncate text-sm font-bold text-[#6F518E]">{professionalDisplayName(r)}</span>
+                          <span className="block truncate text-xs font-semibold text-[#6F518E]/65">{r?.profesion || 'Profesional'}</span>
+                          <span className="block text-xs font-semibold text-[#6F518E]/55">Matrícula: {String(r?.matricula ?? '')}</span>
+                          {r?.jurisdiccion && <span className="block truncate text-xs font-semibold text-[#6F518E]/55">{r.jurisdiccion}</span>}
+                        </span>
+                        {selectedProfessional === r && <Check size={17} className="mt-0.5 shrink-0 text-[#6F518E]" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="rounded-2xl bg-[#C9A7EB]/18 px-4 py-3 text-sm font-semibold text-[#6F518E]">
+                  No pudimos confirmar este registro.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+
+        {error && <p className="mt-3 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700" role="alert">{error}</p>}
+
+        <div data-testid="refeps-modal-actions" className="mt-4 shrink-0 space-y-2">
+          <AuthActionButton
+            type="button"
+            disabled={!current || loading}
+            onClick={onConfirm}
+          >
+            {loading ? 'Consultando ficha...' : profileLoaded ? 'Confirmar datos' : 'Aceptar'}
+          </AuthActionButton>
+          <button
+            type="button"
+            onClick={onNotMe}
+            className="flex w-full items-center justify-center gap-1 rounded-full py-3 text-sm font-bold text-[#6F518E]/70 transition hover:bg-[#C9A7EB]/15 hover:text-[#6F518E]"
+          >
+            <X size={16} />
+            No soy esta persona
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -524,6 +1381,89 @@ function RoleOption({
         <span className="block text-xs font-medium text-[#6F518E]/65">{option.description}</span>
       </span>
     </button>
+  );
+}
+
+function DniFrontField({
+  fileName,
+  previewUrl,
+  verification,
+  onCapture,
+  onClear,
+  onBackToMatricula,
+}: {
+  fileName: string | null;
+  previewUrl: string | null;
+  verification: DniVerificationState;
+  onCapture: (file: File, pdf417Raw?: string) => void;
+  onClear: () => void;
+  onBackToMatricula: () => void;
+}) {
+  const isOk = verification.status === 'verified';
+  const isProcessing = verification.status === 'processing';
+  const isError = !['idle', 'processing', 'verified'].includes(verification.status);
+
+  return (
+    <div className="space-y-3 rounded-2xl border border-[#C9A7EB]/60 bg-white p-4 text-[#6F518E]">
+      <div className="space-y-1">
+        <p className="text-sm font-extrabold">Escaneo del frente de tu DNI</p>
+        <p className="text-xs font-medium leading-relaxed text-[#6F518E]/70">
+          Vamos a leer el código de barras de tu DNI (suele estar en el dorso) con la cámara para confirmar tu identidad.
+        </p>
+      </div>
+
+      {previewUrl && (
+        <img
+          src={previewUrl}
+          alt="Vista previa del frente del DNI"
+          className="h-40 w-full rounded-xl border border-[#C9A7EB]/40 object-cover"
+        />
+      )}
+
+      <div className="flex flex-col gap-2">
+        {!fileName && <DniScanner onCapture={onCapture} disabled={isProcessing} />}
+        {fileName && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] border border-[#C9A7EB]/60 px-3 text-sm font-bold"
+          >
+            <RotateCcw size={17} />
+            Escanear otro DNI
+          </button>
+        )}
+        {verification.status === 'data_mismatch' && (
+          <button
+            type="button"
+            onClick={onBackToMatricula}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] border border-[#C9A7EB]/60 px-3 text-sm font-bold"
+          >
+            <ArrowLeft size={17} />
+            Volver a matrícula
+          </button>
+        )}
+      </div>
+      {fileName && <p className="truncate text-xs font-semibold text-[#6F518E]/60">{fileName}</p>}
+      <p
+        className={`flex items-start gap-2 rounded-2xl px-4 py-3 text-sm font-bold ${
+          isOk
+            ? 'bg-[#4a8f4e]/10 text-[#3b7a3f]'
+            : isError
+              ? 'bg-red-50 text-red-700'
+              : 'bg-[#C9A7EB]/18 text-[#6F518E]'
+        }`}
+        role={isProcessing ? 'status' : isError ? 'alert' : undefined}
+      >
+        {isProcessing ? <Loader2 size={16} className="mt-0.5 shrink-0 animate-spin" /> : isOk ? <Check size={16} className="mt-0.5 shrink-0" /> : null}
+        <span>{verification.message}</span>
+      </p>
+      {verification.status !== 'idle' && verification.status !== 'processing' && verification.result?.steps && (
+        <DniChecklist
+          title={`Resultado de la verificación${verification.result.dni?.fuente ? ` (datos leídos por ${verification.result.dni.fuente === 'PDF417' ? 'código de barras' : 'OCR'})` : ''}`}
+          items={verification.result.steps}
+        />
+      )}
+    </div>
   );
 }
 
@@ -566,7 +1506,7 @@ function GoogleIcon() {
       <path fill="#4285F4" d="M21.6 12.23c0-.74-.07-1.45-.19-2.13H12v4.03h5.38a4.6 4.6 0 0 1-1.99 3.02v2.51h3.23c1.89-1.74 2.98-4.3 2.98-7.43Z" />
       <path fill="#34A853" d="M12 22c2.7 0 4.96-.9 6.62-2.43l-3.23-2.51c-.9.6-2.04.95-3.39.95-2.6 0-4.8-1.76-5.59-4.12H3.07v2.59A10 10 0 0 0 12 22Z" />
       <path fill="#FBBC05" d="M6.41 13.89A6 6 0 0 1 6.1 12c0-.65.11-1.29.31-1.89V7.52H3.07A10 10 0 0 0 2 12c0 1.61.39 3.14 1.07 4.48l3.34-2.59Z" />
-      <path fill="#EA4335" d="M12 5.99c1.47 0 2.78.5 3.82 1.49l2.87-2.87C16.95 2.99 14.7 2 12 2a10 10 0 0 0-8.93 5.52l3.34 2.59C7.2 7.75 9.4 5.99 12 5.99Z" />
+      <path fill="#EA4335" d="M12 5.99c1.47 0 2.78.5 3.82 1.49l2.87-2.87C16.95 2.99 14.7 2 12 2a10 10 0 0 0-8.93 5.52l3.34 2.59C7.2 7.75 9.4 5.99 12 12 5.99Z" />
     </svg>
   );
 }
@@ -589,16 +1529,26 @@ function AuthActionButton({
 function AuthField({
   label,
   className,
+  id,
   ...props
 }: React.ComponentProps<typeof Input> & { label: string }) {
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
   return (
-    <label className="block space-y-2 text-sm font-bold text-[#6F518E]">
-      <span>{label}</span>
+    <div className="relative">
       <Input
+        id={inputId}
+        placeholder=" "
         {...props}
-        className={`h-12 rounded-2xl border-[#C9A7EB]/60 bg-white px-5 text-[#6F518E] placeholder:text-[#6F518E]/45 focus-visible:ring-[#C9A7EB] ${className ?? ''}`}
+        className={`peer h-16 rounded-2xl border-[#C9A7EB]/60 bg-white px-5 pt-6 pb-2 text-base leading-snug text-[#6F518E] transition placeholder:text-transparent focus-visible:border-[#6F518E] focus-visible:ring-4 focus-visible:ring-[#C9A7EB]/25 md:text-lg ${className ?? ''}`}
       />
-    </label>
+      <label
+        htmlFor={inputId}
+        className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-sm font-bold text-[#6F518E]/55 transition-all duration-200 ease-out peer-focus:top-[10px] peer-focus:translate-y-0 peer-focus:text-[11px] peer-focus:text-[#6F518E] peer-[:not(:placeholder-shown)]:top-[10px] peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[11px]"
+      >
+        {label}
+      </label>
+    </div>
   );
 }
 
@@ -608,34 +1558,45 @@ function PasswordField({
   onChange,
   showPassword,
   onTogglePassword,
+  autoComplete,
+  id,
 }: {
   label: string;
   value: string;
   onChange: React.ChangeEventHandler<HTMLInputElement>;
   showPassword: boolean;
   onTogglePassword: () => void;
+  autoComplete?: string;
+  id?: string;
 }) {
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
   return (
-    <label className="block space-y-2 text-sm font-bold text-[#6F518E]">
-      <span>{label}</span>
-      <span className="relative block">
-        <Input
-          type={showPassword ? 'text' : 'password'}
-          value={value}
-          onChange={onChange}
-          placeholder="••••••"
-          className="h-12 rounded-2xl border-[#C9A7EB]/60 bg-white px-5 pr-12 text-[#6F518E] placeholder:text-[#6F518E]/45 focus-visible:ring-[#C9A7EB]"
-        />
-        <button
-          type="button"
-          onClick={onTogglePassword}
-          className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6F518E]/70 hover:text-[#6F518E]"
-          aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-        >
-          {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-        </button>
-      </span>
-    </label>
+    <div className="relative">
+      <Input
+        id={inputId}
+        type={showPassword ? 'text' : 'password'}
+        value={value}
+        onChange={onChange}
+        placeholder=" "
+        autoComplete={autoComplete}
+        className="peer h-16 rounded-2xl border-[#C9A7EB]/60 bg-white px-5 pr-12 pt-6 pb-2 text-base leading-snug text-[#6F518E] transition placeholder:text-transparent focus-visible:border-[#6F518E] focus-visible:ring-4 focus-visible:ring-[#C9A7EB]/25 md:text-lg"
+      />
+      <label
+        htmlFor={inputId}
+        className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-sm font-bold text-[#6F518E]/55 transition-all duration-200 ease-out peer-focus:top-[10px] peer-focus:translate-y-0 peer-focus:text-[11px] peer-focus:text-[#6F518E] peer-[:not(:placeholder-shown)]:top-[10px] peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[11px]"
+      >
+        {label}
+      </label>
+      <button
+        type="button"
+        onClick={onTogglePassword}
+        className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6F518E]/70 hover:text-[#6F518E]"
+        aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+      >
+        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+      </button>
+    </div>
   );
 }
 
@@ -681,7 +1642,7 @@ function DemoCredentials({
             Usuario: <span className="font-mono font-bold text-[#6F518E]">juan123</span>
           </p>
           <p>
-            Contraseña: <span className="font-mono font-bold text-[#6F518E]">123456</span>
+            Contraseña: <span className="font-mono font-bold text-[#6F518E]">juan123456</span>
           </p>
         </motion.div>
       )}

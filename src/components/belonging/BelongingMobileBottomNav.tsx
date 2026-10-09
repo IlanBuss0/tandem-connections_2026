@@ -1,5 +1,5 @@
 import { Calendar, CheckSquare, Home, MessageCircle, type LucideIcon } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 
@@ -9,6 +9,7 @@ type Props = {
   center: (compactProgress: number) => ReactNode;
   forceExpanded?: boolean;
   destinations?: readonly MobileDestination[];
+  scrollContainerRef?: RefObject<HTMLElement | null>;
 };
 
 export type MobileDestination = { id: string; label: string; icon: LucideIcon };
@@ -23,7 +24,7 @@ const defaultDestinations = [
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
 const lerp = (expanded: number, compact: number, progress: number) => expanded + (compact - expanded) * progress;
 
-function useScrollCompactProgress(forceExpanded: boolean) {
+function useScrollCompactProgress(forceExpanded: boolean, scrollContainerRef?: RefObject<HTMLElement | null>) {
   const [progress, setProgress] = useState(0);
   const progressRef = useRef(0);
   const targetProgressRef = useRef(0);
@@ -33,7 +34,7 @@ function useScrollCompactProgress(forceExpanded: boolean) {
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
-    const scrollElement = document.scrollingElement;
+    const scrollElement = scrollContainerRef?.current ?? document.scrollingElement;
     lastScrollRef.current = scrollElement?.scrollTop ?? window.scrollY;
 
     const animateTowardsTarget = () => {
@@ -91,13 +92,14 @@ function useScrollCompactProgress(forceExpanded: boolean) {
       if (scrollFrameRef.current == null) scrollFrameRef.current = window.requestAnimationFrame(updateTarget);
     };
 
-    window.addEventListener('scroll', onScroll, { passive: true });
+    const target = scrollContainerRef?.current ?? window;
+    target.addEventListener('scroll', onScroll, { passive: true });
     return () => {
-      window.removeEventListener('scroll', onScroll);
+      target.removeEventListener('scroll', onScroll);
       if (scrollFrameRef.current != null) window.cancelAnimationFrame(scrollFrameRef.current);
       if (animationFrameRef.current != null) window.cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [forceExpanded, reduceMotion]);
+  }, [forceExpanded, reduceMotion, scrollContainerRef]);
 
   useEffect(() => {
     if (!forceExpanded) return;
@@ -109,8 +111,8 @@ function useScrollCompactProgress(forceExpanded: boolean) {
   return forceExpanded ? 0 : progress;
 }
 
-export default function BelongingMobileBottomNav({ activeTab, onNavigate, center, forceExpanded = false, destinations = defaultDestinations }: Props) {
-  const compactProgress = useScrollCompactProgress(forceExpanded);
+export default function BelongingMobileBottomNav({ activeTab, onNavigate, center, forceExpanded = false, destinations = defaultDestinations, scrollContainerRef }: Props) {
+  const compactProgress = useScrollCompactProgress(forceExpanded, scrollContainerRef);
   const iconSize = lerp(20, 17, compactProgress);
   const textSize = lerp(10, 8.5, compactProgress);
   const itemGap = lerp(3, 1, compactProgress);

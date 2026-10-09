@@ -36,6 +36,21 @@ function DaltonismProfileProbe() {
   );
 }
 
+function WidgetPositionProbe() {
+  const { settings, applyProfile, updateWidgetPosition } = useAccessibility();
+  return createElement(
+    'button',
+    { type: 'button', onClick: () => {
+      if (!settings.activeProfile) {
+        applyProfile('color');
+        return;
+      }
+      updateWidgetPosition({ x: 120, y: 180 });
+    } },
+    `${settings.activeProfile ?? 'none'}:${settings.colorFilter}:${settings.mobileWidgetPosition?.x ?? 'unset'}`,
+  );
+}
+
 beforeEach(() => {
   cleanup();
   document.body.className = '';
@@ -134,5 +149,17 @@ describe('accessibility persistence policy', () => {
       expect(stored).not.toBeNull();
       expect(JSON.parse(stored ?? '{}').smartContrast).toBe(true);
     });
+  });
+});
+
+describe('accessibility widget position', () => {
+  it('keeps the active accessibility profile when only the mobile button position changes', () => {
+    render(createElement(AccessibilityProvider, null, createElement(WidgetPositionProbe)));
+
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByRole('button')).toHaveTextContent('color:deuteranopia:unset');
+
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByRole('button')).toHaveTextContent('color:deuteranopia:120');
   });
 });
