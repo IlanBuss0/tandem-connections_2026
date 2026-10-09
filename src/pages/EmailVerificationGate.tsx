@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { Mail, RefreshCw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { RefreshCw } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { resendVerificationEmail } from '@/data/api';
 import { ApiError } from '@/services/api/client';
+import { AuthPage } from '@/components/auth/AuthScreen';
+import { AuthSplitLayout } from '@/components/auth/AuthSplitLayout';
+import { AuthActionButton, AuthLinkButton } from '@/components/auth/AuthFormControls';
+import { panelForAccountRole } from '@/components/auth/authProfiles';
 
 export default function EmailVerificationGate({ email }: { email?: string }) {
-  const { refreshUser, logout } = useAuth();
+  const { user, refreshUser, logout } = useAuth();
   const [sending, setSending] = useState(false);
   const [checking, setChecking] = useState(false);
   const [feedback, setFeedback] = useState('');
@@ -35,35 +38,30 @@ export default function EmailVerificationGate({ email }: { email?: string }) {
   };
 
   return (
-    <main className="min-h-screen bg-[#F8FAFB] text-[#6F518E] flex items-center justify-center px-8">
-      <div className="w-full max-w-[400px] rounded-2xl bg-white p-8 text-center shadow-sm">
-        <Mail className="mx-auto mb-4 text-[#6F518E]" size={40} />
-        <h1 className="mb-1 text-lg font-extrabold">Confirmá tu email</h1>
-        <p className="mb-6 text-sm text-[#6F518E]/70">
-          Te mandamos un link a{email ? <> <strong>{email}</strong></> : ' tu casilla'}. Abrilo para poder usar Tándem.
-        </p>
+    <AuthPage>
+      <AuthSplitLayout
+        title="Confirmá tu email"
+        subtitle={email ? `Te mandamos un link a ${email}. Abrilo para poder usar Tándem.` : 'Te mandamos un link a tu casilla. Abrilo para poder usar Tándem.'}
+        // La cuenta ya existe: se muestra el personaje del perfil con el que se registró.
+        panel={panelForAccountRole(user?.role, 'Un último paso\npara empezar')}
+      >
+        <div className="space-y-4">
+          {feedback && (
+            <p role="status" className="rounded-2xl bg-[#C9A7EB]/18 px-4 py-3 text-center text-sm font-semibold text-[#6F518E]">{feedback}</p>
+          )}
 
-        {feedback && (
-          <p className="mb-4 rounded-xl bg-[#C9A7EB]/18 px-3 py-2 text-sm font-medium">{feedback}</p>
-        )}
-
-        <div className="space-y-3">
-          <Button onClick={handleCheckAgain} disabled={checking} className="w-full rounded-full">
-            <RefreshCw size={16} className={`mr-2 ${checking ? 'animate-spin' : ''}`} />
+          <AuthActionButton onClick={handleCheckAgain} disabled={checking}>
+            <RefreshCw size={18} className={`mr-2 ${checking ? 'animate-spin' : ''}`} />
             {checking ? 'Revisando...' : 'Ya lo confirmé'}
-          </Button>
-          <Button onClick={handleResend} disabled={sending} variant="outline" className="w-full rounded-full">
+          </AuthActionButton>
+          <AuthActionButton variant="secondary" onClick={handleResend} disabled={sending}>
             {sending ? 'Enviando...' : 'Reenviar mail'}
-          </Button>
-          <button
-            type="button"
-            onClick={logout}
-            className="mx-auto block text-sm font-semibold text-[#6F518E]/70 underline-offset-4 hover:underline"
-          >
+          </AuthActionButton>
+          <AuthLinkButton onClick={logout} className="mx-auto block">
             Cerrar sesión
-          </button>
+          </AuthLinkButton>
         </div>
-      </div>
-    </main>
+      </AuthSplitLayout>
+    </AuthPage>
   );
 }

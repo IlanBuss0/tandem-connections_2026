@@ -31,7 +31,7 @@ vi.mock('@/components/auth/DniScanner', () => ({
 
 function openProfessionalRegistration() {
   render(<Login initialView="register" />);
-  fireEvent.click(screen.getByRole('button', { name: /soy profesional/i }));
+  fireEvent.click(screen.getByRole('button', { name: /^profesional/i }));
 }
 
 function buildRefepsResults(count: number) {

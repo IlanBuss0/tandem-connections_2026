@@ -1,24 +1,17 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
   BadgeCheck,
   Check,
-  Eye,
-  EyeOff,
-  HeartHandshake,
   Lock,
   Loader2,
   RotateCcw,
   Search,
   Sparkles,
-  Stethoscope,
-  User as UserIcon,
   X,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { ApiError } from '@/services/api/client';
 import {
   Dialog,
@@ -31,6 +24,12 @@ import type { ProfessionalDniVerificationResult, RegisterRole, RefepsProfessiona
 import { fetchProfessionalRegistryDetails, searchRefepsByDni, searchRefepsProfessional, verifyProfessionalDni } from '@/data/api';
 import { DniChecklist } from '@/components/auth/DniChecklist';
 import { DniScanner } from '@/components/auth/DniScanner';
+import { AuthActionButton, AuthField, AuthLinkButton, Feedback, PasswordField, TermsText } from '@/components/auth/AuthFormControls';
+import { AuthLogo } from '@/components/auth/AuthLogo';
+import { AuthScreenStack } from '@/components/auth/AuthScreen';
+import { AuthSplitLayout } from '@/components/auth/AuthSplitLayout';
+import { ProfileSelectionScreen } from '@/components/auth/ProfileSelectionScreen';
+import { BASE_PANEL, PROFILE_CONFIG, profilePanel } from '@/components/auth/authProfiles';
 
 type AuthView = 'welcome' | 'login' | 'register';
 type RegisterStep = 'role' | 'details';
@@ -49,27 +48,6 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 const MATRICULA_REGEX = /^\d{4,}$/;
 
-const ROLE_OPTIONS: { value: RegisterRole; title: string; description: string; icon: typeof UserIcon }[] = [
-  {
-    value: 'perteneciente',
-    title: 'Soy la persona que usa Tándem',
-    description: 'Vas a manejar tu propia cuenta y tus actividades.',
-    icon: UserIcon,
-  },
-  {
-    value: 'tutor',
-    title: 'Soy tutor o familiar',
-    description: 'Vas a acompañar y vincularte con alguien que usa Tándem.',
-    icon: HeartHandshake,
-  },
-  {
-    value: 'profesional',
-    title: 'Soy profesional',
-    description: 'Vas a trabajar con pacientes dentro de la plataforma.',
-    icon: Stethoscope,
-  },
-];
-
 // Especialidades visibles en TÁNDEM (catálogo local del perfil, no datos oficiales).
 const TANDEM_SPECIALTIES = [
   'Autismo',
@@ -83,8 +61,6 @@ const TANDEM_SPECIALTIES = [
   'Aprendizaje',
   'Conducta',
 ];
-
-const authGradient = 'linear-gradient(90deg, #6F518E 0%, #C9A7EB 100%)';
 
 const DNI_NOT_RECOGNIZED_MESSAGE = 'No pudimos reconocer un DNI. Asegurate de mostrar el frente correctamente.';
 const DNI_UNREADABLE_MESSAGE = 'No pudimos leer el DNI. Intentá nuevamente manteniéndolo quieto y con buena iluminación.';
@@ -589,274 +565,252 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
     account: 3,
   };
 
-  const Logo = ({ compact = false }: { compact?: boolean }) => (
-    <img
-      src="/tandem-logo.png"
-      alt="Tandem"
-      className={compact ? 'mx-auto h-auto w-[224px] md:w-[280px]' : 'mx-auto h-auto w-[294px] max-w-[78vw] md:w-[360px]'}
-    />
-  );
-
   const isProfessionalActive = registerRole === 'profesional' && registerStep === 'details';
 
-  return (
-    <main className="min-h-screen bg-[#F8FAFB] text-[#6F518E]">
-      <section className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col px-8 py-10 md:max-w-[620px] md:px-10 md:py-14">
-        {view === 'welcome' ? (
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45 }}
-            className="flex min-h-[calc(100vh-5rem)] flex-col"
-          >
-            <div className="flex flex-1 items-center justify-center pb-16">
-              <Logo />
-            </div>
+  const handleBackFromPublicScreen = () => {
+    resetFeedback();
+    if (onBackToLanding) onBackToLanding();
+    else goTo('welcome');
+  };
 
-            <div className="space-y-7 pb-[17vh]">
-              <AuthActionButton onClick={() => goTo('login')}>Iniciar sesión</AuthActionButton>
-              <AuthActionButton onClick={() => goTo('register')}>Registrarse</AuthActionButton>
-              <TermsText />
-            </div>
-          </motion.div>
-        ) : (
-          <motion.div
-            key={`${view}-${registerStep}-${isProfessionalActive ? profStep : 'none'}`}
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35 }}
-            className="flex min-h-[calc(100vh-5rem)] flex-col"
-          >
-            <button
-              type="button"
-              onClick={() => {
-                if (view === 'register' && registerStep === 'details') {
-                  handleRegisterBack();
-                } else if (onBackToLanding) {
-                  resetFeedback();
-                  onBackToLanding();
-                } else {
-                  goTo('welcome');
-                }
-              }}
-              className="mb-10 flex h-11 w-11 items-center justify-center rounded-full text-[#6F518E] transition hover:bg-[#C9A7EB]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A7EB]"
-              aria-label="Volver"
+  const formRole: RegisterRole = registerRole ?? 'perteneciente';
+  const screenKey = view === 'login' ? 'login' : registerStep === 'role' ? 'select' : `form-${formRole}`;
+
+  const renderScreen = () => {
+    if (view === 'login') {
+      return (
+        <AuthSplitLayout
+          title="Iniciar sesión"
+          subtitle="Nos alegra verte de nuevo"
+          panel={BASE_PANEL}
+          onBack={handleBackFromPublicScreen}
+          footer={<TermsText />}
+        >
+          <form onSubmit={handleLoginSubmit} className="space-y-5">
+            <AuthField
+              label="Usuario o email"
+              autoComplete="username"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+            />
+
+            <PasswordField
+              label="Contraseña"
+              autoComplete="current-password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              showPassword={showPassword}
+              onTogglePassword={() => setShowPassword(prev => !prev)}
+            />
+
+            <a
+              href="/olvidaste-contrasena"
+              className="block rounded-md text-right text-sm font-semibold text-[#6F518E] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6F518E]"
             >
-              <ArrowLeft size={24} />
-            </button>
+              ¿Olvidaste tu contraseña?
+            </a>
 
-            <div className="mb-12">
-              <Logo compact />
-            </div>
+            <Feedback message={error} />
 
-            {view === 'login' ? (
-              <form onSubmit={handleLoginSubmit} className="space-y-5">
-                <AuthField
-                  label="Usuario o email"
-                  autoComplete="username"
-                  value={username}
-                  onChange={e => setUsername(e.target.value)}
-                />
+            <AuthActionButton type="submit">Iniciar sesión</AuthActionButton>
 
-                <PasswordField
-                  label="Contraseña"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  showPassword={showPassword}
-                  onTogglePassword={() => setShowPassword(prev => !prev)}
-                />
+            <SocialAuthButtons mode="login" onSelect={handleGoogleAuth} loading={googleLoading} />
 
-                <a href="/olvidaste-contrasena" className="block text-right text-sm font-semibold text-[#6F518E] underline-offset-4 hover:underline">¿Olvidaste tu contraseña?</a>
+            <p className="flex items-center justify-center gap-1.5 text-sm font-medium text-[#6F518E]/80">
+              ¿Todavía no tenés cuenta?
+              <AuthLinkButton onClick={() => goTo('register')} className="font-extrabold underline">
+                Registrate
+              </AuthLinkButton>
+            </p>
 
-                <Feedback message={error} />
+            <DemoCredentials show={showCredentials} onToggle={() => setShowCredentials(prev => !prev)} />
+          </form>
+        </AuthSplitLayout>
+      );
+    }
 
-                <AuthActionButton type="submit">Iniciar sesión</AuthActionButton>
+    if (registerStep === 'role') {
+      return (
+        <ProfileSelectionScreen
+          onSelect={handleSelectRole}
+          onBack={handleBackFromPublicScreen}
+          onHaveAccount={() => goTo('login')}
+          subtitle={
+            pendingGoogleToken
+              ? 'Ya tenemos tu nombre y mail de Google. Solo falta elegir tu perfil.'
+              : 'Elegí el perfil que mejor te representa'
+          }
+          error={error}
+          disabled={googleLoading}
+        />
+      );
+    }
 
-                <SocialAuthButtons mode="login" onSelect={handleGoogleAuth} loading={googleLoading} />
+    const profile = PROFILE_CONFIG[formRole];
 
-                <button
-                  type="button"
-                  onClick={() => goTo('register')}
-                  className="mx-auto block text-sm font-semibold text-[#6F518E] underline-offset-4 hover:underline"
-                >
-                  Crear cuenta
-                </button>
-
-                <DemoCredentials
-                  show={showCredentials}
-                  onToggle={() => setShowCredentials(prev => !prev)}
-                />
-              </form>
-            ) : registerStep === 'role' ? (
-              <div className="space-y-5">
-                <div className="space-y-1.5">
-                  <h2 className="text-xl font-extrabold text-[#6F518E]">¿Quién sos?</h2>
-                  <p className="text-sm font-medium text-[#6F518E]/70">
-                    {pendingGoogleToken
-                      ? 'Ya tenemos tu nombre y mail de Google — solo faltar elegir tu rol.'
-                      : 'Elegí la opción que te describe para armar tu cuenta.'}
-                  </p>
-                </div>
-
-                <div className="space-y-3">
-                  {ROLE_OPTIONS.map(option => (
-                    <RoleOption
-                      key={option.value}
-                      option={option}
-                      disabled={googleLoading}
-                      onSelect={() => handleSelectRole(option.value)}
-                    />
-                  ))}
-                </div>
-
-                <Feedback message={error} />
-
-                <button
-                  type="button"
-                  onClick={() => goTo('login')}
-                  className="mx-auto block text-sm font-semibold text-[#6F518E] underline-offset-4 hover:underline"
-                >
-                  Ya tengo cuenta
-                </button>
-              </div>
-            ) : isProfessionalActive ? (
-              <ProfessionalFlow
-                profStep={profStep}
-                profProgress={profProgress[profStep]}
-                profMatricula={profMatricula}
-                profSearchMode={profSearchMode}
-                onSearchModeChange={mode => { setProfSearchMode(mode); setProfMatricula(''); setRefepsError(''); }}
-                setProfMatricula={value => setProfMatricula(value.replace(/\D/g, ''))}
-                profSearching={profSearching}
-                refepsError={refepsError}
-                onSubmitMatricula={handleSearchMatricula}
-                selectedProfessional={selectedProfessional}
-                selectedSpecialties={selectedSpecialties}
-                toggleSpecialty={toggleSpecialty}
-                registerDniPreview={registerDniPreview}
-                registerDniFrente={registerDniFrente}
-                updateDniFrente={updateAndVerifyDniFrente}
-                dniVerification={dniVerification}
-                onGoToAccount={() => setProfStep('account')}
-                onBackToMatricula={() => {
-                  updateDniFrente(null);
-                  setProfStep('matricula');
-                }}
-                onGoogleAuth={handleGoogleAuth}
-                pendingGoogleToken={pendingGoogleToken}
-                registerUsername={registerUsername}
-                setRegisterUsername={setRegisterUsername}
-                registerEmail={registerEmail}
-                setRegisterEmail={setRegisterEmail}
-                registerPassword={registerPassword}
-                setRegisterPassword={setRegisterPassword}
-                registerConfirmPassword={registerConfirmPassword}
-                setRegisterConfirmPassword={setRegisterConfirmPassword}
-                showRegisterPassword={showRegisterPassword}
-                onToggleRegisterPassword={() => setShowRegisterPassword(prev => !prev)}
-                registerLoading={registerLoading}
-                googleLoading={googleLoading}
-                onRegister={handleRegisterSubmit}
-                error={error}
-              />
-            ) : (
-              <form onSubmit={handleRegisterSubmit} className="space-y-5">
-                {pendingGoogleToken && (
-                  <p className="rounded-2xl bg-[#C9A7EB]/18 px-4 py-3 text-sm font-semibold text-[#6F518E]">
-                    Ya tenemos tu nombre y mail de Google. Solo faltan estos datos para terminar.
-                  </p>
-                )}
-
-                {!pendingGoogleToken && (
-                  <>
-                    <AuthField
-                      label="Nombre"
-                      autoComplete="given-name"
-                      value={registerNombre}
-                      onChange={e => setRegisterNombre(e.target.value)}
-                    />
-                    <AuthField
-                      label="Apellido"
-                      autoComplete="family-name"
-                      value={registerApellido}
-                      onChange={e => setRegisterApellido(e.target.value)}
-                    />
-                    <AuthField
-                      label="Usuario"
-                      autoComplete="username"
-                      value={registerUsername}
-                      onChange={e => setRegisterUsername(e.target.value)}
-                    />
-                    <AuthField
-                      label="Email"
-                      type="email"
-                      autoComplete="email"
-                      value={registerEmail}
-                      onChange={e => setRegisterEmail(e.target.value)}
-                    />
-                  </>
-                )}
-
-                {registerRole === 'tutor' && !pendingGoogleToken && (
-                  <AuthField
-                    label="Parentesco (opcional)"
-                    value={registerParentesco}
-                    onChange={e => setRegisterParentesco(e.target.value)}
-                  />
-                )}
-
-                {!pendingGoogleToken && (
-                  <>
-                    <PasswordField
-                      label="Contraseña"
-                      autoComplete="new-password"
-                      value={registerPassword}
-                      onChange={e => setRegisterPassword(e.target.value)}
-                      showPassword={showRegisterPassword}
-                      onTogglePassword={() => setShowRegisterPassword(prev => !prev)}
-                    />
-                    <PasswordField
-                      label="Repetir contraseña"
-                      autoComplete="new-password"
-                      value={registerConfirmPassword}
-                      onChange={e => setRegisterConfirmPassword(e.target.value)}
-                      showPassword={showRegisterPassword}
-                      onTogglePassword={() => setShowRegisterPassword(prev => !prev)}
-                    />
-                  </>
-                )}
-
-                <Feedback message={error} />
-
-                <AuthActionButton type="submit" disabled={registerLoading || googleLoading}>
-                  {registerLoading || googleLoading
-                    ? 'Creando cuenta...'
-                    : pendingGoogleToken
-                      ? 'Continuar'
-                      : 'Registrarse'}
-                </AuthActionButton>
-
-                {!pendingGoogleToken && (
-                  <SocialAuthButtons mode="register" onSelect={handleGoogleAuth} loading={googleLoading} />
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => goTo('login')}
-                  className="mx-auto block text-sm font-semibold text-[#6F518E] underline-offset-4 hover:underline"
-                >
-                  Ya tengo cuenta
-                </button>
-              </form>
+    return (
+      <AuthSplitLayout
+        title={profile.formTitle}
+        subtitle={profile.formSubtitle}
+        panel={profilePanel(formRole)}
+        onBack={handleRegisterBack}
+        footer={<TermsText />}
+      >
+        {isProfessionalActive ? (
+          <ProfessionalFlow
+            key={profStep}
+            profStep={profStep}
+            profProgress={profProgress[profStep]}
+            profMatricula={profMatricula}
+            profSearchMode={profSearchMode}
+            onSearchModeChange={mode => { setProfSearchMode(mode); setProfMatricula(''); setRefepsError(''); }}
+            setProfMatricula={value => setProfMatricula(value.replace(/\D/g, ''))}
+            profSearching={profSearching}
+            refepsError={refepsError}
+            onSubmitMatricula={handleSearchMatricula}
+            selectedProfessional={selectedProfessional}
+            selectedSpecialties={selectedSpecialties}
+            toggleSpecialty={toggleSpecialty}
+            registerDniPreview={registerDniPreview}
+            registerDniFrente={registerDniFrente}
+            updateDniFrente={updateAndVerifyDniFrente}
+            dniVerification={dniVerification}
+            onGoToAccount={() => setProfStep('account')}
+            onBackToMatricula={() => {
+              updateDniFrente(null);
+              setProfStep('matricula');
+            }}
+            onGoogleAuth={handleGoogleAuth}
+            pendingGoogleToken={pendingGoogleToken}
+            registerUsername={registerUsername}
+            setRegisterUsername={setRegisterUsername}
+            registerEmail={registerEmail}
+            setRegisterEmail={setRegisterEmail}
+            registerPassword={registerPassword}
+            setRegisterPassword={setRegisterPassword}
+            registerConfirmPassword={registerConfirmPassword}
+            setRegisterConfirmPassword={setRegisterConfirmPassword}
+            showRegisterPassword={showRegisterPassword}
+            onToggleRegisterPassword={() => setShowRegisterPassword(prev => !prev)}
+            registerLoading={registerLoading}
+            googleLoading={googleLoading}
+            onRegister={handleRegisterSubmit}
+            error={error}
+          />
+        ) : (
+          <form onSubmit={handleRegisterSubmit} className="space-y-5">
+            {pendingGoogleToken && (
+              <p className="rounded-2xl bg-[#C9A7EB]/18 px-4 py-3 text-sm font-semibold text-[#6F518E]">
+                Ya tenemos tu nombre y mail de Google. Solo faltan estos datos para terminar.
+              </p>
             )}
 
-            <div className="mt-auto pt-10">
-              <TermsText />
-            </div>
-          </motion.div>
+            {!pendingGoogleToken && (
+              <>
+                <div className="grid gap-5 xl:grid-cols-2">
+                  <AuthField
+                    label="Nombre"
+                    autoComplete="given-name"
+                    value={registerNombre}
+                    onChange={e => setRegisterNombre(e.target.value)}
+                  />
+                  <AuthField
+                    label="Apellido"
+                    autoComplete="family-name"
+                    value={registerApellido}
+                    onChange={e => setRegisterApellido(e.target.value)}
+                  />
+                </div>
+                <AuthField
+                  label="Usuario"
+                  autoComplete="username"
+                  value={registerUsername}
+                  onChange={e => setRegisterUsername(e.target.value)}
+                />
+                <AuthField
+                  label="Email"
+                  type="email"
+                  autoComplete="email"
+                  value={registerEmail}
+                  onChange={e => setRegisterEmail(e.target.value)}
+                />
+              </>
+            )}
+
+            {registerRole === 'tutor' && !pendingGoogleToken && (
+              <AuthField
+                label="Parentesco (opcional)"
+                value={registerParentesco}
+                onChange={e => setRegisterParentesco(e.target.value)}
+              />
+            )}
+
+            {!pendingGoogleToken && (
+              <>
+                <PasswordField
+                  label="Contraseña"
+                  autoComplete="new-password"
+                  value={registerPassword}
+                  onChange={e => setRegisterPassword(e.target.value)}
+                  showPassword={showRegisterPassword}
+                  onTogglePassword={() => setShowRegisterPassword(prev => !prev)}
+                />
+                <PasswordField
+                  label="Repetir contraseña"
+                  autoComplete="new-password"
+                  value={registerConfirmPassword}
+                  onChange={e => setRegisterConfirmPassword(e.target.value)}
+                  showPassword={showRegisterPassword}
+                  onTogglePassword={() => setShowRegisterPassword(prev => !prev)}
+                />
+              </>
+            )}
+
+            <Feedback message={error} />
+
+            <AuthActionButton type="submit" disabled={registerLoading || googleLoading}>
+              {registerLoading || googleLoading
+                ? 'Creando cuenta...'
+                : pendingGoogleToken
+                  ? 'Continuar'
+                  : 'Registrarse'}
+            </AuthActionButton>
+
+            {!pendingGoogleToken && (
+              <SocialAuthButtons mode="register" onSelect={handleGoogleAuth} loading={googleLoading} />
+            )}
+
+            <AuthLinkButton onClick={() => goTo('login')} className="mx-auto block">
+              Ya tengo cuenta
+            </AuthLinkButton>
+          </form>
         )}
-      </section>
+      </AuthSplitLayout>
+    );
+  };
+
+  return (
+    <main className="auth-theme min-h-screen">
+      {view === 'welcome' ? (
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45 }}
+          className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col px-8 py-10 md:max-w-[620px] md:px-10 md:py-14"
+        >
+          <div className="flex flex-1 items-center justify-center pb-16">
+            <AuthLogo className="mx-auto w-[294px] max-w-[78vw] md:w-[360px]" />
+          </div>
+
+          <div className="space-y-7 pb-[17vh]">
+            <AuthActionButton onClick={() => goTo('login')}>Iniciar sesión</AuthActionButton>
+            <AuthActionButton onClick={() => goTo('register')}>Registrarse</AuthActionButton>
+            <TermsText />
+          </div>
+        </motion.div>
+      ) : (
+        <AuthScreenStack screenKey={screenKey}>{renderScreen()}</AuthScreenStack>
+      )}
 
       {/* Modal: registro REFEPS encontrado */}
       <RefepsPreviewModal
@@ -873,7 +827,6 @@ export default function Login({ initialView, onBackToLanding, onViewChange }: Lo
         onConfirm={handleConfirmRefeps}
         onNotMe={handleNotMe}
       />
-
     </main>
   );
 }
@@ -1355,35 +1308,6 @@ function RefepsPreviewModal({
   );
 }
 
-function RoleOption({
-  option,
-  onSelect,
-  disabled,
-}: {
-  option: (typeof ROLE_OPTIONS)[number];
-  onSelect: () => void;
-  disabled?: boolean;
-}) {
-  const Icon = option.icon;
-
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      disabled={disabled}
-      className="flex w-full items-start gap-4 rounded-2xl border border-[#C9A7EB]/60 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#6F518E] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A7EB] disabled:cursor-not-allowed disabled:opacity-50"
-    >
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#C9A7EB]/25 text-[#6F518E]">
-        <Icon size={22} />
-      </span>
-      <span className="space-y-0.5">
-        <span className="block text-sm font-bold text-[#6F518E]">{option.title}</span>
-        <span className="block text-xs font-medium text-[#6F518E]/65">{option.description}</span>
-      </span>
-    </button>
-  );
-}
-
 function DniFrontField({
   fileName,
   previewUrl,
@@ -1506,111 +1430,8 @@ function GoogleIcon() {
       <path fill="#4285F4" d="M21.6 12.23c0-.74-.07-1.45-.19-2.13H12v4.03h5.38a4.6 4.6 0 0 1-1.99 3.02v2.51h3.23c1.89-1.74 2.98-4.3 2.98-7.43Z" />
       <path fill="#34A853" d="M12 22c2.7 0 4.96-.9 6.62-2.43l-3.23-2.51c-.9.6-2.04.95-3.39.95-2.6 0-4.8-1.76-5.59-4.12H3.07v2.59A10 10 0 0 0 12 22Z" />
       <path fill="#FBBC05" d="M6.41 13.89A6 6 0 0 1 6.1 12c0-.65.11-1.29.31-1.89V7.52H3.07A10 10 0 0 0 2 12c0 1.61.39 3.14 1.07 4.48l3.34-2.59Z" />
-      <path fill="#EA4335" d="M12 5.99c1.47 0 2.78.5 3.82 1.49l2.87-2.87C16.95 2.99 14.7 2 12 2a10 10 0 0 0-8.93 5.52l3.34 2.59C7.2 7.75 9.4 5.99 12 12 5.99Z" />
+      <path fill="#EA4335" d="M12 5.99c1.47 0 2.78.5 3.82 1.49l2.87-2.87C16.95 2.99 14.7 2 12 2a10 10 0 0 0-8.93 5.52l3.34 2.59C7.2 7.75 9.4 5.99 12 5.99Z" />
     </svg>
-  );
-}
-
-function AuthActionButton({
-  children,
-  ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <Button
-      {...props}
-      className="h-16 w-full rounded-full border-0 text-lg font-extrabold text-white shadow-[0_10px_18px_rgba(111,81,142,0.28)] transition hover:brightness-105 focus-visible:ring-[#C9A7EB]"
-      style={{ background: authGradient }}
-    >
-      {children}
-    </Button>
-  );
-}
-
-function AuthField({
-  label,
-  className,
-  id,
-  ...props
-}: React.ComponentProps<typeof Input> & { label: string }) {
-  const generatedId = useId();
-  const inputId = id ?? generatedId;
-  return (
-    <div className="relative">
-      <Input
-        id={inputId}
-        placeholder=" "
-        {...props}
-        className={`peer h-16 rounded-2xl border-[#C9A7EB]/60 bg-white px-5 pt-6 pb-2 text-base leading-snug text-[#6F518E] transition placeholder:text-transparent focus-visible:border-[#6F518E] focus-visible:ring-4 focus-visible:ring-[#C9A7EB]/25 md:text-lg ${className ?? ''}`}
-      />
-      <label
-        htmlFor={inputId}
-        className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-sm font-bold text-[#6F518E]/55 transition-all duration-200 ease-out peer-focus:top-[10px] peer-focus:translate-y-0 peer-focus:text-[11px] peer-focus:text-[#6F518E] peer-[:not(:placeholder-shown)]:top-[10px] peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[11px]"
-      >
-        {label}
-      </label>
-    </div>
-  );
-}
-
-function PasswordField({
-  label,
-  value,
-  onChange,
-  showPassword,
-  onTogglePassword,
-  autoComplete,
-  id,
-}: {
-  label: string;
-  value: string;
-  onChange: React.ChangeEventHandler<HTMLInputElement>;
-  showPassword: boolean;
-  onTogglePassword: () => void;
-  autoComplete?: string;
-  id?: string;
-}) {
-  const generatedId = useId();
-  const inputId = id ?? generatedId;
-  return (
-    <div className="relative">
-      <Input
-        id={inputId}
-        type={showPassword ? 'text' : 'password'}
-        value={value}
-        onChange={onChange}
-        placeholder=" "
-        autoComplete={autoComplete}
-        className="peer h-16 rounded-2xl border-[#C9A7EB]/60 bg-white px-5 pr-12 pt-6 pb-2 text-base leading-snug text-[#6F518E] transition placeholder:text-transparent focus-visible:border-[#6F518E] focus-visible:ring-4 focus-visible:ring-[#C9A7EB]/25 md:text-lg"
-      />
-      <label
-        htmlFor={inputId}
-        className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-sm font-bold text-[#6F518E]/55 transition-all duration-200 ease-out peer-focus:top-[10px] peer-focus:translate-y-0 peer-focus:text-[11px] peer-focus:text-[#6F518E] peer-[:not(:placeholder-shown)]:top-[10px] peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[11px]"
-      >
-        {label}
-      </label>
-      <button
-        type="button"
-        onClick={onTogglePassword}
-        className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6F518E]/70 hover:text-[#6F518E]"
-        aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-      >
-        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-      </button>
-    </div>
-  );
-}
-
-function Feedback({ message }: { message: string }) {
-  if (!message) return null;
-
-  return (
-    <motion.p
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="rounded-2xl bg-[#C9A7EB]/18 px-4 py-3 text-center text-sm font-semibold text-[#6F518E]"
-    >
-      {message}
-    </motion.p>
   );
 }
 
@@ -1647,13 +1468,5 @@ function DemoCredentials({
         </motion.div>
       )}
     </div>
-  );
-}
-
-function TermsText() {
-  return (
-    <p className="mx-auto max-w-[290px] text-center text-sm font-medium leading-[1.2] text-[#6F518E]/62">
-      Al continuar, aceptas nuestros términos de servicio y política de privacidad.
-    </p>
   );
 }

@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { verifyEmailToken } from '@/data/api';
 import { ApiError } from '@/services/api/client';
+import { AuthPage } from '@/components/auth/AuthScreen';
+import { AuthSplitLayout } from '@/components/auth/AuthSplitLayout';
+import { AuthActionButton } from '@/components/auth/AuthFormControls';
+import { BASE_PANEL } from '@/components/auth/authProfiles';
 
 type Status = 'verifying' | 'success' | 'error';
 
@@ -30,38 +33,33 @@ export default function VerifyEmailPage({
       });
   }, [token]);
 
+  const title = status === 'verifying' ? 'Verificando tu email' : status === 'success' ? '¡Email verificado!' : 'No pudimos verificar tu email';
+  const subtitle = status === 'verifying' ? undefined : status === 'success' ? 'Ya podés usar Tándem con tu cuenta confirmada.' : message;
+
   return (
-    <main className="min-h-screen bg-[#F8FAFB] text-[#6F518E] flex items-center justify-center px-8">
-      <div className="w-full max-w-[380px] rounded-2xl bg-white p-8 text-center shadow-sm">
-        {status === 'verifying' && (
-          <>
-            <Loader2 className="mx-auto mb-4 animate-spin text-[#6F518E]" size={40} />
-            <p className="text-sm font-semibold">Verificando tu email...</p>
-          </>
-        )}
-
-        {status === 'success' && (
-          <>
-            <CheckCircle2 className="mx-auto mb-4 text-success" size={40} />
-            <h1 className="mb-1 text-lg font-extrabold">¡Email verificado!</h1>
-            <p className="mb-6 text-sm text-[#6F518E]/70">Ya podés usar Tándem con tu cuenta confirmada.</p>
-            <Button onClick={onGoToLogin} className="w-full rounded-full">
-              Iniciar sesión
-            </Button>
-          </>
-        )}
-
-        {status === 'error' && (
-          <>
-            <XCircle className="mx-auto mb-4 text-destructive" size={40} />
-            <h1 className="mb-1 text-lg font-extrabold">No pudimos verificar tu email</h1>
-            <p className="mb-6 text-sm text-[#6F518E]/70">{message}</p>
-            <Button onClick={onGoToLogin} variant="outline" className="w-full rounded-full">
-              Volver al inicio
-            </Button>
-          </>
-        )}
-      </div>
-    </main>
+    <AuthPage>
+      <AuthSplitLayout title={title} subtitle={subtitle} panel={{ ...BASE_PANEL, message: 'Un paso más\ny empezamos' }}>
+        <div role="status" className="space-y-6">
+          {status === 'verifying' && (
+            <p className="flex items-center justify-center gap-3 rounded-2xl bg-[#C9A7EB]/18 px-4 py-6 text-sm font-semibold lg:justify-start">
+              <Loader2 className="animate-spin" size={22} />
+              Verificando tu email...
+            </p>
+          )}
+          {status === 'success' && (
+            <>
+              <CheckCircle2 className="mx-auto text-success lg:mx-0" size={44} />
+              <AuthActionButton onClick={onGoToLogin}>Iniciar sesión</AuthActionButton>
+            </>
+          )}
+          {status === 'error' && (
+            <>
+              <XCircle className="mx-auto text-destructive lg:mx-0" size={44} />
+              <AuthActionButton variant="secondary" onClick={onGoToLogin}>Volver al inicio</AuthActionButton>
+            </>
+          )}
+        </div>
+      </AuthSplitLayout>
+    </AuthPage>
   );
 }
