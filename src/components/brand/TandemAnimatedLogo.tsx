@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
-import mLayer from '@/assets/auth/tandem-m.png';
-import dot1Layer from '@/assets/auth/tandem-dot-1.png';
-import dot2Layer from '@/assets/auth/tandem-dot-2.png';
+import mLayer from '@/assets/auth/tandem-m.svg';
+import dot1Layer from '@/assets/auth/tandem-dot-1.svg';
+import dot2Layer from '@/assets/auth/tandem-dot-2.svg';
 import './tandem-logo.css';
 
 type TandemAnimatedLogoProps = {

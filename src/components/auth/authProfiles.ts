@@ -1,11 +1,12 @@
 import type { RegisterRole } from '@/services/api';
-import mBase from '@/assets/auth/m-base.png';
+import mBase from '@/assets/auth/m-base.svg';
+import tandemLogo from '@/assets/auth/tandem-logo.svg';
 import mascotPerteneciente from '@/assets/auth/mascot-perteneciente.webp';
 import mascotTutor from '@/assets/auth/mascot-tutor.webp';
 import mascotProfesional from '@/assets/auth/mascot-profesional.webp';
 
-/** Logo completo oficial de TÁNDEM (el mismo que usa el resto de la app). */
-export const TANDEM_LOGO_SRC = '/tandem-logo.png';
+/** Logo completo oficial de TÁNDEM, vectorizado a partir del PNG original. */
+export const TANDEM_LOGO_SRC = tandemLogo;
 
 /** Tono visual del panel ilustrado. Solo cambia el fondo y sus detalles, nunca la M. */
 export type AuthTone = 'base' | RegisterRole;
