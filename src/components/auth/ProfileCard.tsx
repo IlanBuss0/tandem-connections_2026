@@ -31,8 +31,9 @@ export function ProfileCard({ role, onSelect, pickedRef, shared, disabled }: Pro
   const variants: Variants = {
     hidden: { opacity: 0, y: 18 },
     show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: AUTH_EASE } },
-    // Se evalúa al salir: la tarjeta elegida conserva la mascota, las demás se desvanecen enteras.
-    exit: () => ({ opacity: pickedRef.current === role ? 1 : 0, transition: { duration: 0.25, ease: 'easeIn' } }),
+    // Se evalúa al salir. Solo en desktop la tarjeta elegida conserva la mascota (viaja al panel);
+    // en mobile no hay panel, así que todas se desvanecen enteras y no queda ninguna M flotando.
+    exit: () => ({ opacity: shared && pickedRef.current === role ? 1 : 0, transition: { duration: shared ? 0.25 : 0.12, ease: 'easeIn' } }),
   };
 
   const imageClass =
