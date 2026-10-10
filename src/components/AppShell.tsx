@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
+import { TandemLoadingScreen } from "@/components/brand/TandemLoadingScreen";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWallet } from "@/contexts/WalletContext";
@@ -127,7 +128,7 @@ export default function AppShell() {
   if (user.role === "admin")
     return (
       <ScreenErrorBoundary>
-        <Suspense fallback={<ScreenFallback />}>
+        <Suspense fallback={<TandemLoadingScreen />}>
           <SuperAdminDashboard />
         </Suspense>
       </ScreenErrorBoundary>
@@ -135,7 +136,7 @@ export default function AppShell() {
   if (user.role === "tutor") {
     return (
       <ScreenErrorBoundary>
-        <Suspense fallback={<ScreenFallback />}>
+        <Suspense fallback={<TandemLoadingScreen />}>
           <TutorExperience />
         </Suspense>
       </ScreenErrorBoundary>
@@ -144,7 +145,7 @@ export default function AppShell() {
   if (user.role === "professional")
     return (
       <ScreenErrorBoundary>
-        <Suspense fallback={<ScreenFallback />}>
+        <Suspense fallback={<TandemLoadingScreen />}>
           <ProfessionalDashboard />
         </Suspense>
       </ScreenErrorBoundary>

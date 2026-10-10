@@ -1,0 +1,53 @@
+/*
+ * Tokens del rediseño de autenticación. Se limitan a `.auth-theme` para no
+ * afectar al resto de la app. El violeta/lavanda de marca es el que ya usaban
+ * Login y Landing (#6F518E / #C9A7EB); las superficies del panel salen de la
+ * paleta de los mockups.
+ */
+.auth-theme {
+  --auth-primary: #6f518e;
+  --auth-primary-strong: #5a3f77;
+  --auth-primary-soft: #8a66b4;
+  --auth-accent: #c9a7eb;
+  --auth-ink: #4b3566;
+  --auth-bg: #fafafe;
+  --auth-surface: #ffffff;
+  --auth-lavender: #f0ebff;
+  --auth-periwinkle: #e3e9ff;
+  --auth-mint: #e0f5ea;
+  --auth-cream: #fff0dc;
+  background: var(--auth-bg);
+  color: var(--auth-primary);
+}
+
+.auth-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.auth-panel::before,
+.auth-panel::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  border-radius: 9999px;
+  pointer-events: none;
+}
+
+/* Detalles decorativos mínimos: dos manchas suaves por tono. */
+.auth-panel[data-tone='base'] { background: linear-gradient(160deg, var(--auth-lavender) 0%, var(--auth-periwinkle) 100%); }
+.auth-panel[data-tone='base']::before { width: 22rem; height: 22rem; top: -7rem; right: -6rem; background: rgb(201 167 235 / 0.28); }
+.auth-panel[data-tone='base']::after { width: 16rem; height: 16rem; bottom: -5rem; left: -4rem; background: rgb(163 217 240 / 0.3); }
+
+.auth-panel[data-tone='perteneciente'] { background: var(--auth-lavender); }
+.auth-panel[data-tone='perteneciente']::before { width: 22rem; height: 22rem; top: -7rem; left: -6rem; background: rgb(201 167 235 / 0.3); }
+.auth-panel[data-tone='perteneciente']::after { width: 16rem; height: 16rem; bottom: -5rem; right: -4rem; background: rgb(163 217 240 / 0.28); }
+
+.auth-panel[data-tone='tutor'] { background: var(--auth-cream); }
+.auth-panel[data-tone='tutor']::before { width: 22rem; height: 22rem; top: -7rem; right: -6rem; background: rgb(224 245 234 / 0.95); }
+.auth-panel[data-tone='tutor']::after { width: 15rem; height: 15rem; bottom: -5rem; left: -4rem; background: rgb(224 245 234 / 0.75); }
+
+.auth-panel[data-tone='profesional'] { background: var(--auth-periwinkle); }
+.auth-panel[data-tone='profesional']::before { width: 22rem; height: 22rem; top: -7rem; left: -6rem; background: rgb(201 167 235 / 0.3); }
+.auth-panel[data-tone='profesional']::after { width: 16rem; height: 16rem; bottom: -5rem; right: -4rem; background: rgb(255 255 255 / 0.55); }

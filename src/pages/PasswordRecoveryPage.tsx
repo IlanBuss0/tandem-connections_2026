@@ -1,14 +1,16 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
-import { ArrowLeft, KeyRound, Loader2, Mail } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { useState, type FormEvent } from 'react';
+import { Loader2 } from 'lucide-react';
 import { tandemApi } from '@/services/api';
+import { AuthPage } from '@/components/auth/AuthScreen';
+import { AuthSplitLayout } from '@/components/auth/AuthSplitLayout';
+import { AuthActionButton, AuthField, Feedback, PasswordField } from '@/components/auth/AuthFormControls';
+import { BASE_PANEL } from '@/components/auth/authProfiles';
 
 const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 
 export default function PasswordRecoveryPage({ isReset, token, onGoToLogin }: { isReset: boolean; token?: string | null; onGoToLogin: () => void }) {
   const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [confirmation, setConfirmation] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false); const [message, setMessage] = useState(''); const [error, setError] = useState('');
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setError(''); setMessage('');
@@ -21,14 +23,31 @@ export default function PasswordRecoveryPage({ isReset, token, onGoToLogin }: { 
     } catch (err) { setError(err instanceof Error ? err.message : 'No pudimos completar la solicitud. Intentá nuevamente.'); }
     finally { setLoading(false); }
   };
-  return <main className="min-h-screen bg-[#F8FAFB] px-6 py-10 text-[#6F518E]"><section className="mx-auto w-full max-w-[430px]">
-    <button type="button" onClick={onGoToLogin} className="mb-10 flex h-11 w-11 items-center justify-center rounded-full hover:bg-[#C9A7EB]/20" aria-label="Volver al inicio de sesión"><ArrowLeft /></button>
-    <img src="/tandem-logo.png" alt="Tandem" className="mx-auto mb-10 h-auto w-[224px]" />
-    <div className="rounded-3xl border border-[#C9A7EB]/60 bg-white p-6 shadow-sm"><div className="mb-5 flex items-center gap-3">{isReset ? <KeyRound /> : <Mail />}<div><h1 className="text-xl font-extrabold">{isReset ? 'Crear nueva contraseña' : 'Recuperar contraseña'}</h1><p className="text-sm text-[#6F518E]/70">{isReset ? 'El enlace solo puede usarse una vez.' : 'Te enviaremos un enlace seguro a tu correo.'}</p></div></div>
-      <form onSubmit={submit} className="space-y-4">{isReset ? <><Field label="Nueva contraseña"><Input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="new-password" required /></Field><Field label="Repetir contraseña"><Input type="password" value={confirmation} onChange={e => setConfirmation(e.target.value)} autoComplete="new-password" required /></Field></> : <Field label="Correo"><Input type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" required /></Field>}
-        {error && <p role="alert" className="text-sm font-semibold text-red-600">{error}</p>}{message && <p role="status" className="text-sm font-semibold text-emerald-700">{message}</p>}
-        <Button type="submit" className="w-full rounded-full" disabled={loading || Boolean(isReset && message)}>{loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{isReset ? 'Actualizar contraseña' : 'Enviar enlace'}</Button>{message && <Button type="button" variant="outline" className="w-full rounded-full" onClick={onGoToLogin}>Ir a iniciar sesión</Button>}
-      </form></div>
-  </section></main>;
+  return (
+    <AuthPage>
+      <AuthSplitLayout
+        title={isReset ? 'Crear nueva contraseña' : 'Recuperar contraseña'}
+        subtitle={isReset ? 'El enlace solo puede usarse una vez.' : 'Te enviaremos un enlace seguro a tu correo.'}
+        panel={{ ...BASE_PANEL, message: 'Volvé a tu espacio\ncuando quieras' }}
+        onBack={onGoToLogin}
+      >
+        <form onSubmit={submit} className="space-y-5">
+          {isReset ? (
+            <>
+              <PasswordField label="Nueva contraseña" value={password} onChange={e => setPassword(e.target.value)} autoComplete="new-password" showPassword={showPassword} onTogglePassword={() => setShowPassword(prev => !prev)} />
+              <PasswordField label="Repetir contraseña" value={confirmation} onChange={e => setConfirmation(e.target.value)} autoComplete="new-password" showPassword={showPassword} onTogglePassword={() => setShowPassword(prev => !prev)} />
+            </>
+          ) : (
+            <AuthField label="Correo" type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" required />
+          )}
+          <Feedback message={error} />
+          {message && <p role="status" className="rounded-2xl bg-emerald-50 px-4 py-3 text-center text-sm font-semibold text-emerald-800">{message}</p>}
+          <AuthActionButton type="submit" disabled={loading || Boolean(isReset && message)}>
+            {loading && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}{isReset ? 'Actualizar contraseña' : 'Enviar enlace'}
+          </AuthActionButton>
+          {message && <AuthActionButton type="button" variant="secondary" onClick={onGoToLogin}>Ir a iniciar sesión</AuthActionButton>}
+        </form>
+      </AuthSplitLayout>
+    </AuthPage>
+  );
 }
-function Field({ label, children }: { label: string; children: ReactNode }) { return <div className="space-y-2"><Label>{label}</Label>{children}</div>; }
