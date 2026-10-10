@@ -21,6 +21,7 @@ import NotFoundPage from '@/pages/NotFoundPage';
 import PublicHelpCardPage from '@/pages/PublicHelpCardPage';
 import { helpCardTokenFromPath } from '@/lib/helpCard';
 import AppShell from '@/components/AppShell';
+import { TandemLoadingScreen } from '@/components/brand/TandemLoadingScreen';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -157,9 +158,7 @@ function AuthGate() {
   ) : isVerifyEmailRoute ? (
     <VerifyEmailPage token={verifyEmailToken} onGoToLogin={() => navigatePublic('login')} />
   ) : isLoading ? (
-    <div className="min-h-screen bg-background flex items-center justify-center text-sm font-medium text-muted-foreground">
-      Cargando sesión...
-    </div>
+    <TandemLoadingScreen />
   ) : professionalInviteToken && isAuthenticated ? (
     <ProfessionalInviteLinkHandler token={professionalInviteToken} />
   ) : professionalInviteToken ? (
@@ -171,9 +170,7 @@ function AuthGate() {
   ) : isAuthenticated && user?.emailVerified === false ? (
     <EmailVerificationGate email={user.email} />
   ) : isAuthenticated && user?.role === 'user' && !onboardingChecked ? (
-    <div className="min-h-screen bg-background flex items-center justify-center text-sm font-medium text-muted-foreground">
-      Cargando sesión...
-    </div>
+    <TandemLoadingScreen />
   ) : isAuthenticated && user?.role === 'user' && onboardingPending ? (
     <OnboardingQuestionnaire onFinish={() => setOnboardingPending(false)} />
   ) : isAuthenticated ? (
