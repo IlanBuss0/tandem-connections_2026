@@ -63,12 +63,12 @@ export default function AppHeader({
             aria-label="Ir a Inicio"
             className={`absolute inline-flex h-11 items-center justify-center rounded-xl px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden ${centerLogoMobile ? 'left-1/2 -translate-x-1/2' : 'left-3 sm:left-5'}`}
           >
-            <img className="h-7 max-w-[108px] object-contain min-[360px]:h-8 min-[360px]:max-w-[132px]" src="/tandem-logo.png" alt="Tandem" />
+            <img className="h-7 max-w-[108px] object-contain min-[360px]:h-8 min-[360px]:max-w-[132px]" src="/tandem-logo.svg" alt="Tandem" />
           </button>
         )}
         <img
           className={`absolute left-1/2 h-8 max-w-[132px] -translate-x-1/2 object-contain ${onLogoClick ? 'hidden lg:block' : ''}`}
-          src="/tandem-logo.png"
+          src="/tandem-logo.svg"
           alt="Tandem"
         />
         {onBack && contextTitle && <span className="pointer-events-none absolute left-1/2 max-w-[55vw] -translate-x-1/2 truncate text-sm font-bold lg:hidden">{contextTitle}</span>}

@@ -87,7 +87,7 @@ export default function Landing({ onNavigate }: LandingProps) {
     <main className="landing-page">
       <header className="landing-header">
         <button className="landing-brand" type="button" onClick={() => onNavigate('landing')}>
-          <img className="landing-brand-logo" src="/tandem-logo.png" alt="TÁNDEM" />
+          <img className="landing-brand-logo" src="/tandem-logo.svg" alt="TÁNDEM" />
           <span className="landing-brand-text">Avanzamos juntos</span>
         </button>
         <nav className="landing-actions" aria-label="Acceso">

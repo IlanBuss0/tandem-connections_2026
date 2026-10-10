@@ -123,7 +123,7 @@ export default function BelongingQuickActionsMenu({ activeTab, onNavigate, onOpe
         }}
       >
         <span style={{ transform: `scale(${1 - compactProgress * 0.14})` }}>
-          {centerContent ? centerContent(open) : open ? <X size={26} aria-hidden /> : <img src="/tandem-mark.png" alt="" className="h-10 w-10 rounded-full object-cover" />}
+          {centerContent ? centerContent(open) : open ? <X size={26} aria-hidden /> : <img src="/tandem-mark.svg" alt="" className="h-10 w-10 rounded-full object-cover" />}
         </span>
       </button>
     </>
