@@ -7,6 +7,7 @@ import { reportsOfPerson, reportsSummary } from '@/lib/tutorReports';
 import { toast } from '@/hooks/ui/use-toast';
 import InvitePanel from './personas/InvitePanel';
 import type { PermissionRow } from './personas/PermissionSwitchRow';
+import HelpCardSettingsCard from './personas/HelpCardSettingsCard';
 import PersonPermissionsCard from './personas/PersonPermissionsCard';
 import PersonSelector from './personas/PersonSelector';
 import ProfessionalLinkRow from './personas/ProfessionalLinkRow';
@@ -410,6 +411,7 @@ export default function TutorConnections({ initialPertenecienteId, onOpenDetail,
   };
 
   const selectedName = selected ? fullName(selected.usuario) : '';
+  const selectedFirstName = selected?.usuario.nombre?.trim().split(/\s+/)[0] || selectedName;
   const professionals = selected?.profesionales_vinculados || [];
 
   return (
@@ -447,6 +449,7 @@ export default function TutorConnections({ initialPertenecienteId, onOpenDetail,
                 rows={toRows(permissionEntries(selected.permisos_efectivos.permisos), PERTENECIENTE_PERMISSION_LABELS, `perteneciente:${selected.id}`)}
                 onToggle={togglePertenecientePermission}
               />
+              <HelpCardSettingsCard key={`help-card-${selected.id}`} idPerteneciente={selected.id} name={selectedFirstName} />
             </>
           ) : (
             <p className="rounded-[24px] border border-dashed border-[var(--evo-border-2)] bg-white p-5 text-sm text-[var(--evo-text-secondary)]">

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useRoleNavigation, type RoleNavigationConfig } from './useRoleNavigation';
 import type { ProfessionalTab } from '@/components/professional/ProfessionalNavigation';
 
 export type ProfessionalLocation = { tab: ProfessionalTab; patientId: string | null; chatId?: string };
@@ -27,40 +27,18 @@ function pathFor(tab: ProfessionalTab, context?: { patientId?: string | null; ch
   return paths[tab] || '/professional';
 }
 
+type ProfessionalContext = { patientId?: string | null; chatId?: string };
+const navigationConfig: RoleNavigationConfig<ProfessionalLocation, ProfessionalTab, ProfessionalContext> = {
+  locationFromPath,
+  pathFor,
+  homeTab: 'home',
+  homePath: '/professional',
+  markerKey: 'tandemProfessional',
+  depthKey: 'professionalDepth',
+  scrollKey: 'professionalScrollY',
+  scrollFrames: 1,
+};
+
 export function useProfessionalNavigation() {
-  const [location, setLocation] = useState<ProfessionalLocation>(() => locationFromPath(window.location.pathname));
-
-  useEffect(() => {
-    const current = locationFromPath(window.location.pathname);
-    const valid = window.location.pathname === pathFor(current.tab, current);
-    const initialPath = valid ? window.location.pathname : '/professional';
-    const initial = valid ? current : locationFromPath(initialPath);
-    window.history.replaceState({ ...window.history.state, tandemProfessional: true, professionalDepth: 0, professionalScrollY: window.scrollY }, '', initialPath);
-    setLocation(initial);
-    const onPopState = (event: PopStateEvent) => {
-      setLocation(locationFromPath(window.location.pathname));
-      const scrollY = typeof event.state?.professionalScrollY === 'number' ? event.state.professionalScrollY : 0;
-      window.requestAnimationFrame(() => window.scrollTo({ top: scrollY, behavior: 'auto' }));
-    };
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
-  }, []);
-
-  const navigate = useCallback((tab: ProfessionalTab, context?: { patientId?: string | null; chatId?: string }) => {
-    const nextPath = pathFor(tab, context);
-    window.history.replaceState({ ...window.history.state, professionalScrollY: window.scrollY }, '');
-    if (window.location.pathname !== nextPath) {
-      const depth = Number(window.history.state?.professionalDepth || 0) + 1;
-      window.history.pushState({ tandemProfessional: true, professionalDepth: depth, professionalScrollY: 0 }, '', nextPath);
-    }
-    setLocation(locationFromPath(nextPath));
-    window.scrollTo({ top: 0, behavior: 'auto' });
-  }, []);
-
-  const goBack = useCallback((fallback: ProfessionalTab = 'home') => {
-    if (Number(window.history.state?.professionalDepth || 0) > 0) window.history.back();
-    else navigate(fallback);
-  }, [navigate]);
-
-  return { ...location, navigate, goBack };
+  return useRoleNavigation(navigationConfig);
 }

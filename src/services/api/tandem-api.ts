@@ -452,6 +452,79 @@ class HelpApiService {
   }
 }
 
+/** Tutor con vinculo activo, tal como lo ve otro tutor en la vista previa de la tarjeta (sin datos de contacto). */
+export interface HelpCardTutor {
+  nombre: string;
+  apellido: string;
+  parentesco: string | null;
+  esTutorPrincipal: boolean;
+  tieneCelular: boolean;
+  tieneMail: boolean;
+}
+
+/** Configuracion de la tarjeta de ayuda para el tutor. `url` es relativa: /tarjeta/<token>. */
+export interface HelpCardConfig {
+  activa: boolean;
+  mostrarCelular: boolean;
+  mostrarMail: boolean;
+  mostrarDomicilio: boolean;
+  domicilio: string | null;
+  mensaje: string | null;
+  url: string;
+  fechaModificacion: string;
+  tutores: HelpCardTutor[];
+}
+
+export interface HelpCardUpdateBody {
+  activa: boolean;
+  mostrarCelular: boolean;
+  mostrarMail: boolean;
+  mostrarDomicilio: boolean;
+  domicilio?: string | null;
+  mensaje?: string | null;
+}
+
+/** Pagina publica (sin sesion): solo lo que el tutor decidio mostrar. Celular en digitos, sin formato. */
+export interface HelpCardPublic {
+  nombre: string;
+  apellido: string;
+  mensaje?: string;
+  domicilio?: string;
+  tutores: Array<{ nombre: string; apellido: string; parentesco?: string; celular?: string; mail?: string }>;
+}
+
+/** Lo que ve el propio perteneciente: sin datos de tutores. */
+export interface HelpCardMine {
+  activa: boolean;
+  url: string;
+  nombre: string;
+  apellido: string;
+}
+
+class HelpCardApiService {
+  getForPerteneciente(idPerteneciente: number): Promise<HelpCardConfig> {
+    return apiRequest<HelpCardConfig>(`/api/tarjeta-ayuda/perteneciente/${encodeURIComponent(String(idPerteneciente))}`);
+  }
+
+  update(idPerteneciente: number, body: HelpCardUpdateBody): Promise<HelpCardConfig> {
+    return apiRequest<HelpCardConfig>(`/api/tarjeta-ayuda/perteneciente/${encodeURIComponent(String(idPerteneciente))}`, { method: "PUT", body });
+  }
+
+  /** Genera un token nuevo: el QR anterior deja de funcionar. */
+  regenerate(idPerteneciente: number): Promise<HelpCardConfig> {
+    return apiRequest<HelpCardConfig>(`/api/tarjeta-ayuda/perteneciente/${encodeURIComponent(String(idPerteneciente))}/regenerar`, { method: "POST" });
+  }
+
+  getMine(): Promise<HelpCardMine> {
+    return apiRequest<HelpCardMine>("/api/tarjeta-ayuda/mia");
+  }
+
+  /** Sin sesion ni CSRF. Un 404 (ApiError) significa tarjeta apagada, token viejo o inexistente. */
+  getPublic(token: string): Promise<HelpCardPublic> {
+    return apiRequest<HelpCardPublic>(`/api/public/tarjeta/${encodeURIComponent(token)}`);
+  }
+}
+
 class FileApiService extends CrudApiService<Archivo> {
   constructor() {
     super("/api/archivos");
@@ -482,6 +555,7 @@ export const tandemApi = {
   actividadesPersonalizadas: new CustomActivityApiService("/api/actividades-personalizadas"),
   actividadesAsignadas: new AssignedActivityApiService("/api/actividades-asignadas"),
   ayuda: new HelpApiService(),
+  tarjetaAyuda: new HelpCardApiService(),
   favoritosActividades: new CrudApiService<FavoritoActividad>("/api/favoritos-actividades"),
   calificacionesActividades: new CrudApiService<CalificacionActividad>("/api/calificaciones-actividades"),
   avatares: new CrudApiService<Avatar>("/api/avatares"),

@@ -18,7 +18,10 @@ import EmailVerificationGate from '@/pages/EmailVerificationGate';
 import OnboardingQuestionnaire from '@/pages/OnboardingQuestionnaire';
 import Pdf417TestPage from '@/pages/Pdf417TestPage';
 import NotFoundPage from '@/pages/NotFoundPage';
+import PublicHelpCardPage from '@/pages/PublicHelpCardPage';
+import { helpCardTokenFromPath } from '@/lib/helpCard';
 import AppShell from '@/components/AppShell';
+import { TandemLoadingScreen } from '@/components/brand/TandemLoadingScreen';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -142,6 +145,11 @@ function AuthGate() {
     setPasswordRecoveryPath(path);
   };
 
+  // Tarjeta de ayuda: la abre un desconocido que escaneo el QR, con o sin sesion.
+  // Va antes que todo lo demas y sin el widget de accesibilidad ni nada de la app.
+  const helpCardToken = helpCardTokenFromPath(window.location.pathname);
+  if (helpCardToken) return <PublicHelpCardPage token={helpCardToken} />;
+
   const isPasswordRecoveryRoute = passwordRecoveryPath === '/olvidaste-contrasena' || passwordRecoveryPath === '/restablecer-contrasena';
   const content = window.location.pathname === '/test/pdf417' ? (
     <Pdf417TestPage />
@@ -150,9 +158,7 @@ function AuthGate() {
   ) : isVerifyEmailRoute ? (
     <VerifyEmailPage token={verifyEmailToken} onGoToLogin={() => navigatePublic('login')} />
   ) : isLoading ? (
-    <div className="min-h-screen bg-background flex items-center justify-center text-sm font-medium text-muted-foreground">
-      Cargando sesión...
-    </div>
+    <TandemLoadingScreen />
   ) : professionalInviteToken && isAuthenticated ? (
     <ProfessionalInviteLinkHandler token={professionalInviteToken} />
   ) : professionalInviteToken ? (
@@ -164,9 +170,7 @@ function AuthGate() {
   ) : isAuthenticated && user?.emailVerified === false ? (
     <EmailVerificationGate email={user.email} />
   ) : isAuthenticated && user?.role === 'user' && !onboardingChecked ? (
-    <div className="min-h-screen bg-background flex items-center justify-center text-sm font-medium text-muted-foreground">
-      Cargando sesión...
-    </div>
+    <TandemLoadingScreen />
   ) : isAuthenticated && user?.role === 'user' && onboardingPending ? (
     <OnboardingQuestionnaire onFinish={() => setOnboardingPending(false)} />
   ) : isAuthenticated ? (

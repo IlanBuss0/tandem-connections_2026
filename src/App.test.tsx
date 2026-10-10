@@ -16,7 +16,7 @@ vi.mock('@/contexts/EmotionsContext', () => passthrough('EmotionsProvider'));
 vi.mock('@/contexts/RoutinesContext', () => passthrough('RoutinesProvider'));
 vi.mock('@/contexts/CalendarContext', () => passthrough('CalendarProvider'));
 vi.mock('@/contexts/MobileMenuProvider', () => ({ default: ({ children }: { children: React.ReactNode }) => children }));
-vi.mock('@/components/AccessibilityWidget', () => ({ default: () => null }));
+vi.mock('@/components/AccessibilityWidget', () => ({ default: () => <span data-testid="a11y-widget" /> }));
 vi.mock('@/components/SwitchScanningOverlay', () => ({ default: () => null }));
 vi.mock('@/components/ui/toaster', () => ({ Toaster: () => null }));
 vi.mock('@/components/ui/tooltip', () => ({ TooltipProvider: ({ children }: { children: React.ReactNode }) => children }));
@@ -25,6 +25,7 @@ vi.mock('@/pages/Landing', () => ({ default: () => <p>Landing</p> }));
 vi.mock('@/pages/NotFoundPage', () => ({ default: () => <p>Página no encontrada</p> }));
 vi.mock('@/pages/Login', () => ({ default: ({ initialView }: { initialView?: string }) => <p>Login {initialView}</p> }));
 vi.mock('@/pages/InviteLinkHandler', () => ({ default: () => <p>Invitación</p> }));
+vi.mock('@/pages/PublicHelpCardPage', () => ({ default: ({ token }: { token: string }) => <p>Tarjeta pública {token}</p> }));
 vi.mock('@/data/api', () => ({ fetchOnboardingStatus: vi.fn(async () => ({ done: true, skipped: false })) }));
 
 import App from './App';
@@ -88,5 +89,35 @@ describe('AuthGate: cerrar sesión', () => {
     await act(async () => { rerender(<App />); });
     expect(screen.getByText('Landing')).toBeInTheDocument();
     expect(window.location.pathname).toBe('/');
+  });
+});
+
+describe('AuthGate: tarjeta de ayuda pública', () => {
+  const token = 'a'.repeat(64);
+  beforeEach(() => {
+    auth.value = loggedOut;
+    window.history.replaceState(null, '', `/tarjeta/${token}`);
+  });
+
+  it('sin sesión muestra la página pública (no la 404 ni el login), sin el widget de accesibilidad', () => {
+    render(<App />);
+    expect(screen.getByText(`Tarjeta pública ${token}`)).toBeInTheDocument();
+    expect(screen.queryByText('Página no encontrada')).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Login/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('a11y-widget')).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe(`/tarjeta/${token}`);
+  });
+
+  it('con sesión también muestra la página pública y no la app', () => {
+    auth.value = loggedIn;
+    render(<App />);
+    expect(screen.getByText(`Tarjeta pública ${token}`)).toBeInTheDocument();
+    expect(screen.queryByText('Pantalla con sesión')).not.toBeInTheDocument();
+  });
+
+  it('mientras carga la sesión no espera: muestra la tarjeta igual', () => {
+    auth.value = { user: null, isAuthenticated: false, isLoading: true };
+    render(<App />);
+    expect(screen.getByText(`Tarjeta pública ${token}`)).toBeInTheDocument();
   });
 });

@@ -498,7 +498,11 @@ async function ensureShopTypes(currentTypes: TipoItemAvatar[]) {
   const next = [...currentTypes];
   for (const typeName of Array.from(new Set(Object.values(TYPE_BY_CATEGORY)))) {
     if (next.some(type => type.nombre === typeName)) continue;
+
+
+
     const created = await tandemApi.tiposItemsAvatares.create({ nombre: typeName as TipoItemAvatar['nombre'], orden: next.length + 1  });
+
     next.push({ id: Number(created.id), nombre: typeName as TipoItemAvatar['nombre'], orden: next.length + 1 });
   }
   return next;

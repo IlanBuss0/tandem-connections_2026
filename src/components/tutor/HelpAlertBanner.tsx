@@ -12,10 +12,12 @@ interface Props {
   onDismiss: (alert: Notification) => void;
 }
 
-const REASON_STYLE: Record<HelpReason, { icon: string; iconBg: string; title: string; box: string; border: string }> = {
+const REASON_STYLE: Record<HelpReason, { icon: string; iconBg: string; title: string; box: string; border: string; accent?: string }> = {
   ayuda: { icon: '🙋', iconBg: '#FDEDE8', title: '#9A3A24', box: '#FFF8F5', border: '#F6C3B5' },
   no_entiende: { icon: '❓', iconBg: '#DDF0FA', title: '#14587A', box: '#F2F9FD', border: '#DDF0FA' },
   pausa: { icon: '🌙', iconBg: '#EDE6FA', title: '#553588', box: '#F7F3FD', border: '#EDE6FA' },
+  // Escaneo de la tarjeta de ayuda: aviso informativo, sin caja de color en el texto.
+  tarjeta: { icon: '🪪', iconBg: '#DDF0FA', title: '#2B2145', box: 'transparent', border: '#EDE6FA', accent: '#6F4CA6' },
 };
 
 export default function HelpAlertBanner({ alerts, onWrite, onDismiss }: Props) {
@@ -40,7 +42,7 @@ export default function HelpAlertBanner({ alerts, onWrite, onDismiss }: Props) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: still ? 0 : 0.2 }}
         className="pointer-events-auto relative rounded-[22px] border-[1.5px] bg-white p-3.5 shadow-[0_10px_30px_rgba(85,53,136,0.14)]"
-        style={{ borderColor: style.border }}
+        style={{ borderColor: style.border, ...(style.accent ? { borderLeftColor: style.accent, borderLeftWidth: 6 } : {}) }}
       >
         <button
           type="button"
@@ -57,7 +59,7 @@ export default function HelpAlertBanner({ alerts, onWrite, onDismiss }: Props) {
             <p className="text-xs text-[#8b7aa0]">{time ? time.charAt(0).toLowerCase() + time.slice(1) : ''}</p>
           </div>
         </div>
-        <p className="mt-3 rounded-2xl px-3.5 py-3 text-sm text-[#2b2145]" style={{ backgroundColor: style.box }}>
+        <p className={`mt-3 rounded-2xl text-sm text-[#2b2145] ${reason === 'tarjeta' ? 'px-0 py-1' : 'px-3.5 py-3'}`} style={{ backgroundColor: style.box }}>
           {parseHelpMessage(current.message).map((part, index) => (
             <span key={index}>
               {part.breakBefore && <br />}

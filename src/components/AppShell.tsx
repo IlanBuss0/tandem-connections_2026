@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
+import { TandemLoadingScreen } from "@/components/brand/TandemLoadingScreen";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWallet } from "@/contexts/WalletContext";
@@ -39,6 +40,7 @@ const UserPictograms = lazy(() => import("@/pages/user/UserPictograms"));
 const UserCommunicator = lazy(() => import("@/pages/user/UserCommunicator"));
 import CantSpeakMode from "@/components/CantSpeakMode";
 import type { CantSpeakModeHandle } from "@/components/CantSpeakMode";
+import HelpCardMode, { type HelpCardModeHandle } from "@/components/HelpCardMode";
 import ScreenErrorBoundary from "@/components/ScreenErrorBoundary";
 import BelongingMobileBottomNav from "@/components/belonging/BelongingMobileBottomNav";
 import BelongingQuickActionsMenu from "@/components/belonging/BelongingQuickActionsMenu";
@@ -108,6 +110,7 @@ export default function AppShell() {
   const [profilePanelOpen, setProfilePanelOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const cantSpeakRef = useRef<CantSpeakModeHandle>(null);
+  const helpCardRef = useRef<HelpCardModeHandle>(null);
   const mainRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -125,7 +128,7 @@ export default function AppShell() {
   if (user.role === "admin")
     return (
       <ScreenErrorBoundary>
-        <Suspense fallback={<ScreenFallback />}>
+        <Suspense fallback={<TandemLoadingScreen />}>
           <SuperAdminDashboard />
         </Suspense>
       </ScreenErrorBoundary>
@@ -133,7 +136,7 @@ export default function AppShell() {
   if (user.role === "tutor") {
     return (
       <ScreenErrorBoundary>
-        <Suspense fallback={<ScreenFallback />}>
+        <Suspense fallback={<TandemLoadingScreen />}>
           <TutorExperience />
         </Suspense>
       </ScreenErrorBoundary>
@@ -142,7 +145,7 @@ export default function AppShell() {
   if (user.role === "professional")
     return (
       <ScreenErrorBoundary>
-        <Suspense fallback={<ScreenFallback />}>
+        <Suspense fallback={<TandemLoadingScreen />}>
           <ProfessionalDashboard />
         </Suspense>
       </ScreenErrorBoundary>
@@ -209,7 +212,7 @@ export default function AppShell() {
       case "professional-directory":
         return <ProfessionalDirectory />;
       case "profile":
-        return <UserProfile onOpenSettings={() => goToTab("profile-settings")} onOpenShop={() => goToTab("shop")} />;
+        return <UserProfile onOpenSettings={() => goToTab("profile-settings")} onOpenShop={() => goToTab("shop")} onOpenHelpCard={() => helpCardRef.current?.open()} />;
       case "profile-settings":
         return <UserProfileSettings onBack={() => goToTab("profile")} />;
       case "about":
@@ -335,10 +338,11 @@ export default function AppShell() {
           onNavigate={goToTab}
           forceExpanded={quickActionsOpen}
           scrollContainerRef={mainRef}
-          center={(compactProgress) => <BelongingQuickActionsMenu activeTab={activeTab} onNavigate={goToTab} onOpenCantSpeak={() => cantSpeakRef.current?.open()} compactProgress={compactProgress} onOpenChange={setQuickActionsOpen} />}
+          center={(compactProgress) => <BelongingQuickActionsMenu activeTab={activeTab} onNavigate={goToTab} onOpenCantSpeak={() => cantSpeakRef.current?.open()} onOpenHelpCard={() => helpCardRef.current?.open()} compactProgress={compactProgress} onOpenChange={setQuickActionsOpen} />}
         />
       </div>
       <CantSpeakMode ref={cantSpeakRef} hideMobileTrigger />
+      <HelpCardMode ref={helpCardRef} />
     </div>
   );
 }

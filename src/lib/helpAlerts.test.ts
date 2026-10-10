@@ -18,6 +18,12 @@ describe('isHelpAlert / helpReason', () => {
     expect(helpReason(make('1', 'activity_help:otra', 1))).toBe('ayuda');
     expect(helpReason(make('1', 'activity_help', 1))).toBe('ayuda');
   });
+
+  it('reconoce el escaneo de la tarjeta de ayuda como su propio motivo', () => {
+    expect(isHelpAlert(make('1', 'help_card_scan', 1))).toBe(true);
+    expect(helpReason(make('1', 'help_card_scan', 1))).toBe('tarjeta');
+    expect(isHelpAlert(make('2', 'help_card_scan_otro', 1))).toBe(false);
+  });
 });
 
 describe('pendingHelpAlerts', () => {
@@ -37,6 +43,22 @@ describe('pendingHelpAlerts', () => {
   it('acepta un Set de descartados y fechas inválidas se ignoran', () => {
     const bad = { ...make('malo', 'activity_help:ayuda', 1), timestamp: 'no-es-fecha' };
     expect(pendingHelpAlerts([bad, make('ok', 'activity_help:ayuda', 1)], new Set(['x']), NOW).map((n) => n.id)).toEqual(['ok']);
+  });
+});
+
+describe('pendingHelpAlerts con escaneos de la tarjeta', () => {
+  const scan = (id: string, minutes: number, source: string | undefined, read = false): Notification => ({ ...make(id, 'help_card_scan', minutes, read), sourceUserId: source });
+
+  it('incluye los escaneos con la misma ventana de 2 horas, la lectura y el descarte', () => {
+    const list = [scan('reciente', 1, '9'), scan('viejo', 121, '8'), scan('leido', 2, '7', true), scan('descartado', 3, '6'), make('ayuda', 'activity_help:ayuda', 5)];
+    expect(pendingHelpAlerts(list, ['descartado'], NOW).map((n) => n.id)).toEqual(['reciente', 'ayuda']);
+  });
+
+  it('de la misma persona solo cuenta el escaneo más nuevo y al descartarlo no reaparece el anterior', () => {
+    const list = [scan('nuevo', 1, '9'), scan('anterior', 12, '9'), scan('de-otra', 5, '8')];
+    expect(pendingHelpAlerts(list, [], NOW).map((n) => n.id)).toEqual(['nuevo', 'de-otra']);
+    expect(pendingHelpAlerts(list, ['nuevo'], NOW).map((n) => n.id)).toEqual(['de-otra']);
+    expect(pendingHelpAlerts([scan('nuevo', 1, '9', true), scan('anterior', 12, '9')], [], NOW)).toEqual([]);
   });
 });
 
