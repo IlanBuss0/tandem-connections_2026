@@ -1,6 +1,6 @@
 import * as legacy from './mockData';
 import { tandemApi } from '@/services/api';
-import { API_BASE_URL, ApiError, apiRequest, clearDefaultAuthToken, unwrapApiData } from '@/services/api/client';
+import { API_BASE_URL, ApiError, apiRequest, clearDefaultAuthToken, getApiCacheUser, unwrapApiData } from '@/services/api/client';
 import { activityDisplayDescription, activityDisplayTitle } from '@/lib/activityDescription';
 import type { GameData, GameType } from '@/data/miniGames';
 import type {
@@ -1195,7 +1195,10 @@ async function fetchBackendUserProfileDashboard(userId: string): Promise<UserPro
   };
 }
 
-async function fetchUserAvatarUrl(userId: number): Promise<string | null> {
+async function fetchUserAvatarUrl(userId: number, idTipoUsuario?: number | null): Promise<string | null> {
+  // Solo los pertenecientes tienen avatar: para tutor/profesional/admin no
+  // hace falta pedir su perfil de perteneciente (404) ni todos los avatares.
+  if (idTipoUsuario != null && backendRoleToLegacyRole(idTipoUsuario) !== 'user') return null;
   try {
     const [pp, avatares] = await Promise.all([
       fetchPertenecienteByUsuarioId(userId),
@@ -1214,7 +1217,7 @@ export async function registerUser(
 ): Promise<User | Tutor | Professional | Admin> {
   const auth = await tandemApi.auth.register(payload);
   storeAuthToken();
-  const avatarUrl = auth.user?.id ? await fetchUserAvatarUrl(auth.user.id) : null;
+  const avatarUrl = auth.user?.id ? await fetchUserAvatarUrl(auth.user.id, auth.user.id_tipo_usuario) : null;
   return toLegacyUser(auth.user, avatarUrl);
 }
 
@@ -1223,7 +1226,7 @@ export async function loginWithGoogle(
 ): Promise<User | Tutor | Professional | Admin> {
   const auth = await tandemApi.auth.google(payload);
   storeAuthToken();
-  const avatarUrl = auth.user?.id ? await fetchUserAvatarUrl(auth.user.id) : null;
+  const avatarUrl = auth.user?.id ? await fetchUserAvatarUrl(auth.user.id, auth.user.id_tipo_usuario) : null;
   return toLegacyUser(auth.user, avatarUrl);
 }
 
@@ -1268,7 +1271,7 @@ export async function findUser(username: string, password: string): Promise<User
     });
 
     storeAuthToken();
-    const avatarUrl = auth.user?.id ? await fetchUserAvatarUrl(auth.user.id) : null;
+    const avatarUrl = auth.user?.id ? await fetchUserAvatarUrl(auth.user.id, auth.user.id_tipo_usuario) : null;
     return toLegacyUser(auth.user, avatarUrl);
   } catch {
     return null;
@@ -1278,13 +1281,13 @@ export async function findUser(username: string, password: string): Promise<User
 export async function fetchStoredAuthUser(): Promise<User | Tutor | Professional | Admin | null> {
   try {
     const user = await tandemApi.auth.me();
-    const avatarUrl = user?.id ? await fetchUserAvatarUrl(user.id) : null;
+    const avatarUrl = user?.id ? await fetchUserAvatarUrl(user.id, user.id_tipo_usuario) : null;
     return toLegacyUser(user, avatarUrl);
   } catch {
     try {
       await tandemApi.auth.refresh();
       const user = await tandemApi.auth.me();
-      const avatarUrl = user?.id ? await fetchUserAvatarUrl(user.id) : null;
+      const avatarUrl = user?.id ? await fetchUserAvatarUrl(user.id, user.id_tipo_usuario) : null;
       return toLegacyUser(user, avatarUrl);
     } catch {
       return null;
@@ -1579,9 +1582,14 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
   const byUserId: TutorHomeData['byUserId'] = {};
 
   await Promise.all(linkedUsers.map(async linked => {
-    const [assignedRows, customActivities] = await Promise.all([
+    // Todo lo de cada persona vinculada en paralelo (antes: zonas seguras,
+    // emociones y calendario esperaban uno detras del otro).
+    const [assignedRows, customActivities, safeZonesRows, emotions, events] = await Promise.all([
       fetchAssignedActivitiesByPerteneciente(Number(linked.pertenecienteId)),
       fetchCustomActivitiesByPerteneciente(Number(linked.pertenecienteId)),
+      fetchSafeZonesByPerteneciente(Number(linked.pertenecienteId)).catch(() => []),
+      fetchEmotionRecordsForUser(linked.id).catch(() => []),
+      fetchCalendarEventsForUser(linked.id).catch(() => []),
     ]);
     const customActivityById = new Map((customActivities as DbActividadPersonalizada[]).map(item => [Number(item.id), item]));
     const assignedForUser = assignedRows
@@ -1608,7 +1616,6 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
         } satisfies TutorHomeActivity;
       });
 
-    const safeZonesRows = await fetchSafeZonesByPerteneciente(Number(linked.pertenecienteId)).catch(() => []);
     const safeZones = safeZonesRows
       .filter(item => item.activa)
       .map(item => ({
@@ -1620,8 +1627,8 @@ export async function fetchTutorHome(userId: string): Promise<TutorHomeData> {
 
     byUserId[linked.id] = {
       activities: assignedForUser,
-      emotions: await fetchEmotionRecordsForUser(linked.id).catch(() => []),
-      events: await fetchCalendarEventsForUser(linked.id).catch(() => []),
+      emotions,
+      events,
       locations: [
         ...safeZones,
       ],
@@ -2873,9 +2880,24 @@ export async function fetchProfessionalById(id: string): Promise<Professional | 
   try { return await apiFetchWithFallback<Professional>([`/professionals/${encodeURIComponent(id)}`]); } catch { return null; }
 }
 
+// Sin id_perteneciente, /api/sesiones-profesionales responde 403 a quien no es
+// profesional ni perteneciente (p. ej. un tutor) y el calendario lo pedia en
+// cada carga, una vez por persona vinculada. Si el backend ya dijo 403 en esta
+// sesion, no se vuelve a pedir (se reintenta al cambiar de usuario).
+let ownSessionsForbiddenFor: string | null = null;
+
 export async function fetchProfessionalSessions(idPerteneciente?: number): Promise<ProfessionalSession[]> {
   const query = idPerteneciente ? `?id_perteneciente=${encodeURIComponent(String(idPerteneciente))}` : '';
-  return apiRequest<ProfessionalSession[]>(`/api/sesiones-profesionales${query}`, { token: getStoredAuthToken() });
+  const sessionUser = getApiCacheUser();
+  if (!query && sessionUser && ownSessionsForbiddenFor === sessionUser) {
+    throw new ApiError('No autorizado para listar sesiones profesionales.', 403);
+  }
+  try {
+    return await apiRequest<ProfessionalSession[]>(`/api/sesiones-profesionales${query}`, { token: getStoredAuthToken() });
+  } catch (error) {
+    if (!query && sessionUser && error instanceof ApiError && error.status === 403) ownSessionsForbiddenFor = sessionUser;
+    throw error;
+  }
 }
 
 export async function createProfessionalSession(payload: Omit<ProfessionalSession, 'id' | 'id_profesional'>): Promise<{ id: number }> {

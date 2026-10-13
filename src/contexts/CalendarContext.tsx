@@ -49,8 +49,11 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     fetchEvents();
   }, [fetchEvents]);
 
+  // Los patrones solo los usa el calendario del perteneciente (UserCalendar):
+  // para tutor/profesional/admin no se piden.
+  const loadsPatterns = user?.role === 'user';
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !loadsPatterns) return;
     const loadPatterns = () => {
       fetchPatternsReport(userId).then((report) => setEventTypePatterns(report?.eventTypePatterns || []));
     };
@@ -60,7 +63,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     }
     const timer = window.setTimeout(loadPatterns, 1000);
     return () => window.clearTimeout(timer);
-  }, [userId]);
+  }, [userId, loadsPatterns]);
 
   const addEvent: Ctx['addEvent'] = useCallback(async (data) => {
     if (!userId) return;
