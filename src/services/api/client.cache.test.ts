@@ -183,6 +183,30 @@ describe('invalidacion despues de mutaciones', () => {
     expect(fetchMock).toHaveBeenCalledTimes(9);
   });
 
+  it('un GET que salio antes de una escritura no guarda el dato viejo', async () => {
+    let releaseGet: () => void = () => {};
+    let version = 1;
+    vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') return Promise.resolve(new Response('{}', { status: 200 }));
+      const v = version;
+      return new Promise<Response>((resolve) => {
+        releaseGet = () => resolve(new Response(JSON.stringify([{ v }]), { status: 200 }));
+      });
+    }));
+    setApiCacheUser('1');
+    const pending = apiRequest('/api/vinculos-tutor-pertenecientes');
+    await Promise.resolve();
+    version = 2;
+    await apiRequest('/api/vinculos-tutor-pertenecientes/1', { method: 'POST', body: {} });
+    releaseGet();
+    expect(await pending).toEqual([{ v: 1 }]);
+    expect(persistedKeys()).toHaveLength(0);
+    const next = apiRequest('/api/vinculos-tutor-pertenecientes');
+    await Promise.resolve();
+    releaseGet();
+    expect(await next).toEqual([{ v: 2 }]);
+  });
+
   it('guardar la configuracion de accesibilidad solo invalida esa configuracion', async () => {
     const fetchMock = mockFetch(() => [{ id: 1 }]);
     setApiCacheUser('1');

@@ -107,6 +107,9 @@ export function isPersistableApiPath(path: string): boolean {
 }
 
 let cacheUserId: string | null = null;
+// Sube con cada invalidacion: un GET que salio antes de una escritura no
+// guarda su respuesta (podria ser el dato de antes del cambio).
+let cacheEpoch = 0;
 // Claves ya revalidadas en esta carga de pagina: lo guardado en storage solo
 // se sirve "viejo" la primera vez; despues manda la cache en memoria normal.
 const revalidatedKeys = new Set<string>();
@@ -206,6 +209,7 @@ function isCacheableGet(path: string, method?: string, body?: unknown): boolean 
 
 /** Limpia la cache en memoria de GET (todas las sesiones). */
 export function clearGetCache(): void {
+  cacheEpoch += 1;
   getCache.clear();
   getInflight.clear();
   revalidatedKeys.clear();
@@ -247,6 +251,7 @@ const ISOLATED_MUTATION_PREFIXES = ["/api/eventos-uso", "/api/configuraciones-ac
 function invalidateAfterMutation(path: string): void {
   const isolated = ISOLATED_MUTATION_PREFIXES.find((prefix) => path.startsWith(prefix));
   if (isolated) {
+    cacheEpoch += 1;
     for (const key of [...getCache.keys()]) {
       if (key.includes(` GET ${isolated}`)) getCache.delete(key);
     }
@@ -471,11 +476,12 @@ async function apiRequestInternal<T>(
 
   if (cacheableGet) {
     const userAtStart = cacheUserId;
+    const epochAtStart = cacheEpoch;
     getInflight.set(cacheKey, requestPromise);
     try {
       const value = await requestPromise;
-      // Si mientras tanto cambio la sesion, no guardar la respuesta.
-      if (userAtStart === cacheUserId) {
+      // Si mientras tanto cambio la sesion o hubo una escritura, no guardar.
+      if (userAtStart === cacheUserId && epochAtStart === cacheEpoch) {
         getCache.set(cacheKey, { value, expiresAt: Date.now() + ttlMs });
         if (ttlMs > 0) writePersisted(path, value);
       }
