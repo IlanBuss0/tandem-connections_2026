@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/components/ui/use-toast';
 import { aiPictogramsApi, type AiCreation, type AiGeneration, type AiTarget } from '@/services/ai-pictograms';
 import { fetchPictograms, type Pictogram } from '@/data/api';
+import { useApiCacheRefresh } from '@/hooks/useApiCacheRefresh';
 
 const categories = ['acciones y rutinas','actividades','casa','comida','comunicacion','emociones','escuela y aprendizaje','higiene','lugares','objetos','ocio','personas','salud y cuerpo','transporte','vida diaria','otros'];
 
@@ -32,6 +33,7 @@ export default function AiPictogramStudio() {
   useEffect(() => {
     load().catch(e => toast({ title: 'No se pudo cargar', description: e.message, variant: 'destructive' }));
   }, []);
+  useApiCacheRefresh(() => { load().catch(() => undefined); }, (path) => /\/ai\/(creations\/mine|targets)$/.test(path));
 
   useEffect(() => {
     let cancelled = false;

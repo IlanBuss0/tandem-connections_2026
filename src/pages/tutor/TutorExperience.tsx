@@ -26,6 +26,7 @@ import { ChatProvider } from '@/contexts/ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSyncMobileMenuOpen } from '@/contexts/MobileMenuState';
 import { useTutorNavigation } from '@/hooks/useTutorNavigation';
+import { useApiCacheRefresh } from '@/hooks/useApiCacheRefresh';
 import { tutorRelativeTime, type TutorAggregateActivity as AggregateActivity, type TutorAggregateEmotion as AggregateEmotion } from '@/lib/tutorHomeModel';
 import {
   createCalendarEvent, deleteCalendarEvent, fetchCalendarEventsForUser, fetchPictograms,
@@ -78,6 +79,7 @@ export default function TutorExperience() {
   const [detailSessions, setDetailSessions] = useState<ProfessionalSession[]>([]);
   const [reports, setReports] = useState<GeneratedReport[]>([]);
   const [reportsFailed, setReportsFailed] = useState(false);
+  const [reportsLoaded, setReportsLoaded] = useState(false);
   const [reportsPersonId, setReportsPersonId] = useState<number | undefined>();
   const mainRef = useRef<HTMLElement>(null);
   const { unreadCount, setUnreadCount, notifications } = useUnreadNotifications(user?.role === 'tutor' ? { id: String(user.id) } : null);
@@ -85,23 +87,39 @@ export default function TutorExperience() {
   const helpAlerts = pendingHelpAlerts(notifications, dismissedHelpIds);
   useSyncMobileMenuOpen(menuOpen || profileOpen || quickOpen);
 
-  const load = useCallback(async () => {
+  // silent: refresco por detras (datos guardados que se revalidaron) sin
+  // volver a mostrar el skeleton ni el error si ya hay algo en pantalla.
+  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     if (!user || user.role !== 'tutor') return;
-    setLoading(true); setError(null);
+    if (!silent) { setLoading(true); setError(null); }
     try {
-      const [home, ownEvents, pics, tutorReports] = await Promise.all([
+      // Los reportes no se ven en el Inicio: se cargan al abrir su seccion.
+      const [home, ownEvents, pics] = await Promise.all([
         fetchTutorHome(user.id),
         fetchCalendarEventsForUser(user.id).catch(() => []),
         fetchPictograms({ limit: 6 }).catch(() => []),
-        fetchTutorReports().then(list => { setReportsFailed(false); return list; }).catch(() => { setReportsFailed(true); return []; }),
       ]);
-      setData(home); setTutorEvents(ownEvents); setPictograms(pics); setReports(tutorReports);
+      setData(home); setTutorEvents(ownEvents); setPictograms(pics);
+      if (silent) setError(null);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No pudimos cargar la experiencia del tutor.');
-    } finally { setLoading(false); }
+      if (!silent) setError(reason instanceof Error ? reason.message : 'No pudimos cargar la experiencia del tutor.');
+    } finally { if (!silent) setLoading(false); }
   }, [user]);
 
   useEffect(() => { void load(); }, [load]);
+  useApiCacheRefresh(() => { void load({ silent: true }); });
+
+  const reportsNeeded = tab === 'reports' || tab === 'connections' || tab === 'detail' || tab === 'notifications';
+  useEffect(() => {
+    if (!reportsNeeded || reportsLoaded || !user || user.role !== 'tutor') return;
+    let cancelled = false;
+    fetchTutorReports()
+      .then(list => { if (!cancelled) { setReports(list); setReportsFailed(false); } })
+      .catch(() => { if (!cancelled) setReportsFailed(true); })
+      .finally(() => { if (!cancelled) setReportsLoaded(true); });
+    return () => { cancelled = true; };
+  }, [reportsNeeded, reportsLoaded, user]);
+  useEffect(() => { setReports([]); setReportsLoaded(false); setReportsFailed(false); }, [user?.id]);
   useEffect(() => { setSelectedNotificationChatId(chatId); }, [chatId]);
 
   const linkedUsers = useMemo(() => data?.linkedUsers || [], [data]);
@@ -188,7 +206,7 @@ export default function TutorExperience() {
       <main ref={mainRef} id="tutor-main" tabIndex={-1} className="min-h-0 w-full flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 lg:py-9">
        <div className="mx-auto w-full max-w-[1280px]">
         {tab !== 'home' && <TutorBreadcrumb current={pageTitle} parent={tab === 'detail' || tab === 'reports' ? 'Personas vinculadas' : undefined} onBack={() => goBack('home')} />}
-        {loading ? <TutorSkeleton /> : error ? <ErrorState message={error} onRetry={load} /> : (
+        {loading || (tab === 'reports' && !reportsLoaded) ? <TutorSkeleton /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : (
           <TutorContent
             tab={tab} userName={user.name} userId={user.id} data={data!} linkedUsers={linkedUsers}
             activities={aggregates.activities} emotions={aggregates.emotions} events={aggregates.events}

@@ -6,6 +6,7 @@ import {
   fetchProfessionalDirectory,
   type ProfessionalPublicProfile,
 } from "@/data/api";
+import { useApiCacheRefresh } from "@/hooks/useApiCacheRefresh";
 
 export default function ProfessionalDirectory() {
   const [items, setItems] = useState<ProfessionalPublicProfile[]>([]);
@@ -18,6 +19,12 @@ export default function ProfessionalDirectory() {
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);
+  useApiCacheRefresh(
+    () => {
+      fetchProfessionalDirectory().then((list) => { setItems(list); setError(false); }).catch(() => undefined);
+    },
+    (path) => path === "/api/perfiles-profesionales/directory",
+  );
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase("es");
     return !q
