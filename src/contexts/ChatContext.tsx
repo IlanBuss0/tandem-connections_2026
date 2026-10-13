@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
+import { useApiCacheRefresh } from '@/hooks/useApiCacheRefresh';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import { API_BASE_URL, AUTH_EXPIRED_EVENT, TOKEN_REFRESHED_EVENT, ApiError } from '@/services/api/client';
@@ -434,6 +435,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       mounted = false;
     };
   }, []);
+
+  // Contactos mostrados desde lo guardado: si al revalidar cambiaron, se
+  // actualizan por detras (sin volver a mostrar el estado de carga).
+  useApiCacheRefresh(() => {
+    fetchChatContacts().then(setContacts).catch(() => undefined);
+  }, (path) => path === '/api/usuarios' || path === '/api/avatares');
 
   useEffect(() => {
     let mounted = true;
