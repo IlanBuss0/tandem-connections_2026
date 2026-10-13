@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
 import { clearStoredAuthToken, fetchStoredAuthUser, findUser, loginWithGoogle, logoutStoredAuthSession, registerUser, User, Tutor, Professional, Admin } from '@/data/api';
 import type { RegisterRequest } from '@/services/api';
-import { AUTH_EXPIRED_EVENT } from '@/services/api/client';
+import { AUTH_EXPIRED_EVENT, clearApiCache, setApiCacheUser } from '@/services/api/client';
 import { resetActiveTabToHome } from '@/lib/activeTab';
+import { clearAuthSnapshot, readAuthSnapshot, writeAuthSnapshot } from '@/lib/authSnapshot';
 
 type AuthUser = User | Tutor | Professional | Admin;
 
@@ -20,9 +21,30 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+// Usuario de la ultima sesion de esta pestana (sessionStorage). Permite
+// disparar los pedidos de la pantalla en paralelo con /api/auth/me en vez de
+// esperarlo; /api/auth/me igual decide: si falla se limpia todo y va al login.
+function readInitialUser(): AuthUser | null {
+  const snapshot = readAuthSnapshot<AuthUser>();
+  const initial = snapshot ? ({ ...snapshot, password: '' } as AuthUser) : null;
+  // Sincronico (antes del primer render de las pantallas): la cache de API
+  // queda asociada a este usuario antes de que se dispare cualquier pedido.
+  setApiCacheUser(initial?.id ?? null);
+  return initial;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUserState] = useState<AuthUser | null>(readInitialUser);
+  const [isLoading, setIsLoading] = useState(() => user === null);
+
+  // Todo cambio de usuario pasa por aca: la cache de API se ata al usuario
+  // nuevo (y se borra si cambio) y se actualiza o borra la copia de sesion.
+  const setUser = useCallback((next: AuthUser | null) => {
+    setApiCacheUser(next?.id ?? null);
+    if (next) writeAuthSnapshot(next);
+    else clearAuthSnapshot();
+    setUserState(next);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -34,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(currentUser);
         } else {
           clearStoredAuthToken();
+          clearApiCache();
           setUser(null);
         }
       })
@@ -44,11 +67,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [setUser]);
 
   useEffect(() => {
     const handleAuthExpired = () => {
       clearStoredAuthToken();
+      clearApiCache();
       setUser(null);
       setIsLoading(false);
     };
@@ -57,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
     };
-  }, []);
+  }, [setUser]);
 
   const login = async (username: string, password: string): Promise<boolean> => {
     const found = await findUser(username, password);
@@ -101,6 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     void logoutStoredAuthSession();
     clearStoredAuthToken();
+    clearApiCache();
     setUser(null);
   };
 
