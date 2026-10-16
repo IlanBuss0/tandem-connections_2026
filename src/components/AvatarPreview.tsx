@@ -18,6 +18,7 @@ const DEFAULT_APPEARANCE: AvatarAppearance = {
   peinado: 'corto',
   colorPelo: 'castanio',
   expresion: 'feliz',
+  ropa: 'hoodie',
 };
 
 export default function AvatarPreview({

@@ -15,7 +15,6 @@ export default function Pdf417TestPage() {
   const stopCamera = useCallback(() => {
     controlsRef.current?.stop();
     controlsRef.current = null;
-    readerRef.current?.reset();
     readerRef.current = null;
     const video = videoRef.current;
     const stream = video?.srcObject;

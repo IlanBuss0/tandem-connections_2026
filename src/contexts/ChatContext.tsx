@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useApiCacheRefresh } from '@/hooks/useApiCacheRefresh';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
-import { API_BASE_URL, AUTH_EXPIRED_EVENT, TOKEN_REFRESHED_EVENT, ApiError } from '@/services/api/client';
+import { API_BASE_URL, AUTH_EXPIRED_EVENT, TOKEN_REFRESHED_EVENT, ApiError, apiRequest } from '@/services/api/client';
 import {
   createDirectConversationWith,
   createGroupConversation,
@@ -499,6 +499,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     nextSocket.on('disconnect', (reason) => {
       setConnectionStatus(reason === 'io client disconnect' ? 'offline' : 'reconnecting');
       logRealtime('socket desconectado', { reason });
+      if (reason === 'io server disconnect') {
+        void apiRequest('/api/auth/me').then(() => nextSocket.connect()).catch(() => setConnectionStatus('offline'));
+      }
     });
 
     nextSocket.on('message:new', (message) => {
@@ -612,9 +615,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     };
 
     const handleTokenRefreshed = () => {
-      if (nextSocket.connected) {
-        nextSocket.disconnect().connect();
-      }
+      nextSocket.disconnect().connect();
     };
 
     window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);

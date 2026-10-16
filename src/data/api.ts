@@ -1374,7 +1374,7 @@ export async function fetchPertenecienteHome(
 ): Promise<PertenecienteHomeData> {
   if (!isBackendUserId(userId)) {
     return {
-      pertenec: null,
+      perteneciente: null,
       supportLevel: 'Sin registrar',
       autonomy: 'Sin registrar',
       canSelfManage: false,
@@ -1910,7 +1910,7 @@ export async function fetchCalendarEventsForUser(userId: string): Promise<Calend
   return legacy.getEventsForUser(userId);
 }
 
-export async function createCalendarEvent(userId: string, data: Omit<CalendarEvent, 'id' | 'userId'>): Promise<CalendarEvent> {
+export async function createCalendarEvent(userId: string, data: Omit<CalendarEvent, 'id' | 'userId' | 'color'> & { color?: string }): Promise<CalendarEvent> {
   if (isBackendUserId(userId)) {
     const now = new Date().toISOString();
     const key = `calendar.event:${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`;
@@ -2583,7 +2583,7 @@ export async function fetchChatContacts(): Promise<ChatContact[]> {
 
 export async function fetchAllUsers(): Promise<User[]> {
   const usuarios = await tandemApi.usuarios.getAll();
-  return usuarios.map(toLegacyUser).filter((user): user is User => user.role === 'user');
+  return usuarios.map(usuario => toLegacyUser(usuario)).filter((user): user is User => user.role === 'user');
 }
 
 export async function fetchAllTutors(): Promise<Tutor[]> {
