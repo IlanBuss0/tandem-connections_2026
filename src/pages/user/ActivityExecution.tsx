@@ -35,7 +35,6 @@ function StepIcon({ value, fallback, className = '' }: { value?: string; fallbac
 
 export default function ActivityExecution({ activity, onBack, onComplete }: Props) {
   const { earn } = useWallet();
-  const [coinsAwarded, setCoinsAwarded] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<boolean[]>(activity.steps.map(() => false));
   const [paused, setPaused] = useState(false);
@@ -65,18 +64,9 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
   // El Plan B se apaga solo al cambiar de paso.
   useEffect(() => { setPlanBActive(false); }, [currentStep]);
 
-  // Otorgar monedas una sola vez al terminar
-  useEffect(() => {
-    if (finished && !coinsAwarded) {
-      const reward = Math.max(10, Math.round(activity.points / 2));
-      earn(reward, `Actividad: ${activity.title}`);
-      setCoinsAwarded(true);
-    }
-  }, [finished, coinsAwarded, activity, earn]);
-
   useEffect(() => {
     if (finished && !completionReported) {
-      onComplete(activity.id, gameResult?.score);
+      void Promise.resolve(onComplete(activity.id, gameResult?.score)).then(() => earn(Math.max(10, Math.round(activity.points / 2)), `Actividad: ${activity.title}`));
       if (gameResult?.gameType === 'routine-sequence') {
         const result = gameResult as RoutineSequenceResult;
         const assignedActivity = activity as Activity & { assignedActivityId?: string | number };
@@ -98,7 +88,7 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
       }
       setCompletionReported(true);
     }
-  }, [finished, completionReported, activity, gameResult, onComplete]);
+  }, [finished, completionReported, activity, gameResult, onComplete, earn]);
 
   if (finished) {
     const reward = Math.max(10, Math.round(activity.points / 2));

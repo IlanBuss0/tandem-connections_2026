@@ -4,7 +4,7 @@ import { tandemApi } from '@/services/api';
 import { fetchPertenecienteByUsuarioId } from '@/data/api';
 import { SHOP_ITEMS, ShopCategory, getItemById } from '@/data/shopItems';
 import { buildDiceBearAvatarUrl } from '@/lib/dicebearAvatar';
-import type { Avatar, InventarioAvatar, ItemAvatar, SaldoPuntos, TipoItemAvatar } from '@/types/database';
+import type { Avatar, InventarioAvatar, ItemAvatar, SaldoPuntos } from '@/types/database';
 
 export interface CoinTxn {
   id: string;
@@ -63,13 +63,6 @@ const DEFAULT_EQUIPPED: AvatarEquipped = { ropa: 'shirt-blue', fondo: 'bg-defaul
 const DEFAULT_INVENTORY = ['shirt-blue', 'bg-default'];
 const KEY = (userId: string) => `tandem:wallet:${userId}`;
 
-const TYPE_BY_CATEGORY: Record<ShopCategory, string> = {
-  pelo: 'Sombrero',
-  accesorio: 'Accenorio',
-  ropa: 'Ropa',
-  fondo: 'Fondo',
-  mascota: 'Mascota',
-};
 
 const DEFAULT_STATE = (initialBalance = 0): WalletState => ({
   balance: initialBalance,
@@ -181,14 +174,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       perteneciente,
       avatares,
       saldos,
-      tipos,
       itemsBeforeSync,
       inventarios,
     ] = await Promise.all([
       fetchPertenecienteByUsuarioId(Number(user.id)),
       tandemApi.avatares.getAll(),
       tandemApi.saldosPuntos.getAll(),
-      tandemApi.tiposItemsAvatares.getAll(),
       tandemApi.itemsAvatares.getAll(),
       tandemApi.inventariosAvatares.getAll(),
     ]);
@@ -197,8 +188,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       throw new Error('No se encontro el perfil perteneciente para este usuario.');
     }
 
-    const syncedTypes = await ensureShopTypes(tipos as TipoItemAvatar[]);
-    const syncedItems = await ensureShopItems(itemsBeforeSync as ItemAvatar[], syncedTypes);
+    const syncedItems = (itemsBeforeSync as ItemAvatar[]).filter(item => item.activo !== false);
     const itemByExternalId = new Map(
       syncedItems
         .filter(item => item.codigo_item_externo)
@@ -233,37 +223,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
 
     let saldo = (saldos as SaldoPuntos[]).find(item => Number(item.id_perteneciente) === Number(perteneciente.id));
-    if (!saldo) {
-      const initialBalance = Math.max(100, Math.round(seedPoints / 4));
-      const created = await tandemApi.saldosPuntos.create({ id_perteneciente: perteneciente.id, saldo: initialBalance });
-      saldo = { id: Number(created.id), id_perteneciente: perteneciente.id, saldo: initialBalance };
-    }
+    if (!saldo) saldo = { id: 0, id_perteneciente: perteneciente.id, saldo: 0 };
 
-    let inventoryRecords = (inventarios as InventarioAvatar[])
+    const inventoryRecords = (inventarios as InventarioAvatar[])
       .filter(item => Number(item.id_avatar) === Number(avatar.id));
-
-    for (const defaultId of DEFAULT_INVENTORY) {
-      const dbItem = itemByExternalId.get(defaultId);
-      const exists = dbItem && inventoryRecords.some(record => Number(record.id_item_avatar) === Number(dbItem.id));
-      if (dbItem && !exists) {
-        const created = await tandemApi.inventariosAvatares.create({
-          id_avatar: avatar.id,
-          id_item_avatar: dbItem.id,
-          equipado: true,
-          fecha_obtencion: new Date().toISOString(),
-        });
-        inventoryRecords = [
-          {
-            id: Number(created.id),
-            id_avatar: avatar.id,
-            id_item_avatar: dbItem.id,
-            equipado: true,
-            fecha_obtencion: new Date().toISOString(),
-          },
-          ...inventoryRecords,
-        ];
-      }
-    }
 
     const inventoryIds = normalizeInventory(
       inventoryRecords
@@ -336,14 +299,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const earn = useCallback(async (amount: number, reason: string) => {
     if (amount <= 0) return;
-    if (snapshot) {
-      const nextSaldo = Number(snapshot.saldo.saldo || 0) + amount;
-      await tandemApi.saldosPuntos.update(snapshot.saldo.id, { ...snapshot.saldo, saldo: nextSaldo });
-      setSnapshot(prev => prev ? { ...prev, saldo: { ...prev.saldo, saldo: nextSaldo } } : prev);
-    }
+    if (isBackendUserId(user?.id)) { await refresh(); return; }
     const tx: CoinTxn = { id: `tx-${Date.now()}`, type: 'ingreso', amount, reason, at: Date.now() };
     setState(prev => ({ ...prev, balance: prev.balance + amount, history: [tx, ...prev.history].slice(0, 50) }));
-  }, [snapshot]);
+  }, [user?.id, refresh]);
 
   const buy = useCallback(async (itemId: string) => {
     const item = getItemById(itemId);
@@ -355,27 +314,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const dbItem = snapshot.itemByExternalId.get(itemId);
       if (!dbItem) return { ok: false, reason: 'El item no esta disponible en la base de datos' };
 
-      const nextSaldo = state.balance - item.price;
-      const created = await tandemApi.inventariosAvatares.create({
+      await tandemApi.inventariosAvatares.create({
         id_avatar: snapshot.avatar.id,
         id_item_avatar: dbItem.id,
         equipado: false,
         fecha_obtencion: new Date().toISOString(),
       });
-      await tandemApi.saldosPuntos.update(snapshot.saldo.id, { ...snapshot.saldo, saldo: nextSaldo });
+      await refresh();
 
-      const record: InventarioAvatar = {
-        id: Number(created.id),
-        id_avatar: snapshot.avatar.id,
-        id_item_avatar: dbItem.id,
-        equipado: false,
-        fecha_obtencion: new Date().toISOString(),
-      };
-      setSnapshot(prev => prev ? {
-        ...prev,
-        saldo: { ...prev.saldo, saldo: nextSaldo },
-        inventoryRecords: [record, ...prev.inventoryRecords],
-      } : prev);
+      return { ok: true };
     }
 
     const tx: CoinTxn = { id: `tx-${Date.now()}`, type: 'egreso', amount: item.price, reason: `Compra: ${item.name}`, itemId, at: Date.now() };
@@ -386,7 +333,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       history: [tx, ...prev.history].slice(0, 50),
     }));
     return { ok: true };
-  }, [snapshot, state.balance, state.inventory]);
+  }, [snapshot, state.balance, state.inventory, refresh]);
 
   const equip = useCallback(async (itemId: string) => {
     const item = getItemById(itemId);
@@ -492,50 +439,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       {children}
     </WalletContext.Provider>
   );
-}
-
-async function ensureShopTypes(currentTypes: TipoItemAvatar[]) {
-  const next = [...currentTypes];
-  for (const typeName of Array.from(new Set(Object.values(TYPE_BY_CATEGORY)))) {
-    if (next.some(type => type.nombre === typeName)) continue;
-
-
-
-    const created = await tandemApi.tiposItemsAvatares.create({ nombre: typeName as TipoItemAvatar['nombre'], orden: next.length + 1  });
-
-    next.push({ id: Number(created.id), nombre: typeName as TipoItemAvatar['nombre'], orden: next.length + 1 });
-  }
-  return next;
-}
-
-async function ensureShopItems(currentItems: ItemAvatar[], types: TipoItemAvatar[]) {
-  const next = [...currentItems];
-  for (const item of SHOP_ITEMS) {
-    if (next.some(dbItem => dbItem.codigo_item_externo === item.id)) continue;
-    const typeName = TYPE_BY_CATEGORY[item.category];
-    const type = types.find(candidate => candidate.nombre === typeName);
-    if (!type) continue;
-    const created = await tandemApi.itemsAvatares.create({
-      id_tipo_item_avatar: type.id,
-      nombre: item.name,
-      codigo_item_externo: item.id,
-      precio_punto: item.price,
-      requiere_cantidad_actividad: null,
-      requiere_id_dificultad_actividad: null,
-      activo: true,
-    });
-    next.push({
-      id: Number(created.id),
-      id_tipo_item_avatar: type.id,
-      nombre: item.name,
-      codigo_item_externo: item.id,
-      precio_punto: item.price,
-      requiere_cantidad_actividad: null,
-      requiere_id_dificultad_actividad: null,
-      activo: true,
-    });
-  }
-  return next.filter(item => item.activo !== false);
 }
 
 export function useWallet() {

@@ -57,7 +57,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     const loadPatterns = () => {
       fetchPatternsReport(userId).then((report) => setEventTypePatterns(report?.eventTypePatterns || []));
     };
-    if ('requestIdleCallback' in window) {
+    if (typeof window.requestIdleCallback === 'function') {
       const idleId = window.requestIdleCallback(loadPatterns, { timeout: 2500 });
       return () => window.cancelIdleCallback(idleId);
     }

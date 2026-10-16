@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CalendarDays, CheckCircle2, Heart, Info, ListChecks, MessageSquare, Sparkles } from 'lucide-react';
+import { AlertTriangle, CalendarDays, CheckCircle2, Heart, Info, ListChecks, MessageSquare, Sparkles, type LucideIcon } from 'lucide-react';
 import type { EmotionalRecord, ProfessionalSession, User } from '@/data/api';
 import { fetchUsageEvents, type UsageEventRecord } from '@/data/usageApi';
 import { sinceLastSession } from '@/lib/sinceLastSession';
@@ -77,12 +77,12 @@ export default function ProfessionalPatientOverview({ user, emotions, sessions, 
       </section>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
+        {([
           ['Nivel de apoyo', supportLevel, Sparkles, 'bg-violet-50 text-violet-600'],
           ['Autonomía', autonomy, MessageSquare, 'bg-amber-50 text-amber-600'],
           ['Última sesión', formatDate(data.last?.fecha_sesion), CheckCircle2, 'bg-emerald-50 text-emerald-600'],
           ['Próxima sesión', formatDate(data.next?.fecha_sesion), CalendarDays, 'bg-violet-50 text-violet-600'],
-        ].map(([label, value, Icon, tone]) => (
+        ] satisfies [string, string, LucideIcon, string][]).map(([label, value, Icon, tone]) => (
           <div key={String(label)} className={`${card} flex min-h-36 flex-col items-center justify-center p-3 text-center max-sm:min-h-32 max-sm:rounded-[22px]`}>
             <span className={`mb-3 flex h-11 w-11 items-center justify-center rounded-full ${tone}`}><Icon size={20} /></span>
             <p className="text-xs text-[#776d83]">{label}</p><p className="mt-1 text-base font-bold text-[#302444]">{value}</p>

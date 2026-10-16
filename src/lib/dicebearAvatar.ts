@@ -117,7 +117,7 @@ export function buildDiceBearAvatarUrl(
 
   options.mouth = EXPRESSION[appearance.expresion];
 
-  if (equipped.accesorio === 'acc-glasses') {
+  if (equipped.accenorio === 'acc-glasses') {
     options.accessories = 'prescription02';
   }
 
