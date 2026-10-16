@@ -224,7 +224,7 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
       <ActivityExecution
         activity={executingActivity}
         onBack={() => setExecutingActivity(null)}
-        onComplete={(id, score) => { void completeActivity(id, score); }}
+        onComplete={completeActivity}
       />
     );
   }

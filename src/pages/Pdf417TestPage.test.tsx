@@ -2,11 +2,11 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Pdf417TestPage from './Pdf417TestPage';
 
-const mocks = vi.hoisted(() => ({ callback: null as ((result: { getText: () => string } | null, error?: Error) => void) | null, stop: vi.fn(), reset: vi.fn() }));
-vi.mock('@zxing/browser', () => ({ BrowserPDF417Reader: class { reset = mocks.reset; decodeFromConstraints = vi.fn(async (_constraints, _video, callback) => { mocks.callback = callback; return { stop: mocks.stop }; }); } }));
+const mocks = vi.hoisted(() => ({ callback: null as ((result: { getText: () => string } | null, error?: Error) => void) | null, stop: vi.fn() }));
+vi.mock('@zxing/browser', () => ({ BrowserPDF417Reader: class { decodeFromConstraints = vi.fn(async (_constraints, _video, callback) => { mocks.callback = callback; return { stop: mocks.stop }; }); } }));
 
 describe('Pdf417TestPage', () => {
-  afterEach(() => { vi.clearAllMocks(); mocks.callback = null; });
+  afterEach(() => { vi.clearAllMocks(); vi.unstubAllGlobals(); mocks.callback = null; });
 
   it('monta y abre la cámara con el lector PDF417', async () => {
     Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: vi.fn() } });
@@ -36,9 +36,23 @@ describe('Pdf417TestPage', () => {
     Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: vi.fn() } });
     const { unmount } = render(<Pdf417TestPage />);
     fireEvent.click(screen.getByRole('button', { name: /abrir cámara/i }));
-    await waitFor(() => expect(mocks.callback).not.toBeNull());
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/buscando código pdf417/i));
     unmount();
     expect(mocks.stop).toHaveBeenCalled();
-    expect(mocks.reset).toHaveBeenCalled();
+  });
+
+  it('detiene los tracks y limpia el video al cancelar', async () => {
+    const stopTrack = vi.fn();
+    vi.stubGlobal('MediaStream', class { getTracks() { return [{ stop: stopTrack }]; } });
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: vi.fn() } });
+    render(<Pdf417TestPage />);
+    fireEvent.click(screen.getByRole('button', { name: /abrir cámara/i }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/buscando código pdf417/i));
+    const video = screen.getByLabelText<HTMLVideoElement>('Cámara para leer PDF417');
+    video.srcObject = new MediaStream();
+    fireEvent.click(screen.getByRole('button', { name: /detener cámara/i }));
+    expect(mocks.stop).toHaveBeenCalled();
+    expect(stopTrack).toHaveBeenCalled();
+    expect(video.srcObject).toBeNull();
   });
 });

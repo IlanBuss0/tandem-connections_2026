@@ -58,7 +58,7 @@ describe('Memory interaction', () => {
     expect(screen.getByText('Probemos otra pareja')).toBeInTheDocument();
     expect(hidden[0]).toHaveAttribute('data-state', 'front');
     expect(hidden[1]).toHaveAttribute('data-state', 'front');
-    expect(screen.getAllByRole('button').every(button => button.disabled)).toBe(true);
+    expect(screen.getAllByRole<HTMLButtonElement>('button').every(button => button.disabled)).toBe(true);
 
     act(() => vi.advanceTimersByTime(900));
 

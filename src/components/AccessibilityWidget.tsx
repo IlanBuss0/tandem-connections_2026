@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ComponentType, type MutableRefObject, type PointerEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type MutableRefObject, type PointerEvent, type ReactNode } from 'react';
 import {
   Accessibility,
   AlignLeft,
@@ -32,6 +32,7 @@ import {
   Volume2,
   X,
   Zap,
+  type LucideIcon,
 } from 'lucide-react';
 import {
   ACCESSIBILITY_PROFILES,
@@ -46,7 +47,7 @@ import {
 import { useMobileMenu } from '@/contexts/MobileMenuState';
 import { useAuth } from '@/contexts/AuthContext';
 
-type IconComponent = ComponentType<{ size?: number; className?: string }>;
+type IconComponent = LucideIcon;
 
 type ToolAction = {
   id: string;

@@ -33,7 +33,8 @@ export interface User {
   plan: 'free' | 'premium';
   simplifiedMode?: boolean;
   onboarded?: boolean;
-  supportLevel?: 'bajo' | 'medio' | 'alto';
+  supportLevel?: string;
+  autonomy?: string;
   goals?: string[];
   emailVerified?: boolean;
 }

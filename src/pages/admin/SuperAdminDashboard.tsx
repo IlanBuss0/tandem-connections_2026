@@ -828,24 +828,29 @@ function BuildActivityModel() {
     title: '', category: 'autonomía personal', type: 'guiada', difficulty: 'medio',
     duration: 15, gameType: 'multipleChoice', steps: 4, reward: 30,
   });
-  const submit = (publishNow: boolean) => {
+  const submit = async (publishNow: boolean) => {
     if (!form.title.trim()) return toast({ title: 'Falta título' });
-    const created = createOrUpdate({
-      title: form.title,
-      description: `[GOD] ${form.gameType} model injected by superadmin`,
-      objective: 'Modelo creado desde god-mode',
-      category: form.category as any,
-      type: form.type as any,
-      difficulty: form.difficulty as any,
-      duration: `${form.duration} min`,
-      steps: Array.from({ length: form.steps }, (_, i) => `Paso ${i + 1}`),
-      stepIcons: Array.from({ length: form.steps }, () => '✨'),
-      points: form.reward,
-      assignedToIds: [],
-      draft: !publishNow,
-    } as any);
-    if (publishNow && created) publish(created.id);
-    toast({ title: publishNow ? 'Modelo publicado globalmente' : 'Borrador creado' });
+    try {
+      const created = await createOrUpdate({
+        title: form.title,
+        description: `[GOD] ${form.gameType} model injected by superadmin`,
+        objective: 'Modelo creado desde god-mode',
+        category: form.category as any,
+        type: form.type as any,
+        difficulty: form.difficulty as any,
+        duration: `${form.duration} min`,
+        steps: Array.from({ length: form.steps }, (_, i) => `Paso ${i + 1}`),
+        stepIcons: Array.from({ length: form.steps }, () => '✨'),
+        points: form.reward,
+        assignedToIds: [],
+        draft: !publishNow,
+      } as any);
+      if (!created) return toast({ title: 'No se pudo guardar el modelo', variant: 'destructive' });
+      if (publishNow) await publish(created.activity.id);
+      toast({ title: publishNow ? 'Modelo publicado globalmente' : 'Borrador creado' });
+    } catch (error) {
+      toast({ title: 'No se pudo guardar el modelo', description: error instanceof Error ? error.message : undefined, variant: 'destructive' });
+    }
   };
   return (
     <div className="row g-3">

@@ -1,7 +1,1 @@
-export interface PerfilCompleto {
-  id_usuario: number;
-  nombre: string;
-  apellido: string;
-  email?: string;
-  avatar?: string;
-}
+export type PerfilCompleto = NonNullable<ReturnType<typeof import('@/data/normalized').getPerfilCompleto>>;
