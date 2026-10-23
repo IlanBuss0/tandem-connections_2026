@@ -1,450 +1,152 @@
-import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { tandemApi } from '@/services/api';
 import { fetchPertenecienteByUsuarioId } from '@/data/api';
-import { SHOP_ITEMS, ShopCategory, getItemById } from '@/data/shopItems';
-import { buildDiceBearAvatarUrl } from '@/lib/dicebearAvatar';
-import type { Avatar, InventarioAvatar, ItemAvatar, SaldoPuntos } from '@/types/database';
+import { AvatarCategory, AvatarConfig, avatarCatalog, equipmentCategories, compatibleCode, defaultAvatar, equipmentCode, freeInventory, ownedConfig, wardrobeItems } from '@/features/avatar/avatarCatalog';
+import { localAvatarStorage, readAvatarConfig, serializeAvatar, walletKey, WalletState } from '@/features/avatar/avatarStorage';
+import type { Avatar, ItemAvatar } from '@/types/database';
+import { ApiError } from '@/services/api/client';
 
-export interface CoinTxn {
-  id: string;
-  type: 'ingreso' | 'egreso';
-  amount: number;
-  reason: string;
-  itemId?: string;
-  at: number;
-}
-
-export interface AvatarEquipped {
-  pelo?: string;
-  accenorio?: string;
-  ropa?: string;
-  fondo?: string;
-  mascota?: string;
-}
-
-export type AvatarGender = 'neutral' | 'femenino' | 'masculino' | 'enojado' | 'triste' | 'arribaAbajo' | 'ceno';
-export type AvatarSkinTone = 'claro' | 'medio' | 'oscuro';
-export type AvatarFaceShape = 'redonda' | 'ovalada' | 'cuadrada' | 'cerrados' | 'guino' | 'corazones' | 'sorprendidos' | 'llanto';
-export type AvatarHairStyle = 'corto' | 'largo' | 'rizado' | 'rapado' | 'cortoLiso' | 'mediaMelena' | 'despeinado' | 'afro' | 'bun' | 'trenzas';
-export type AvatarHairColor = 'castanio' | 'negro' | 'rubio' | 'rojo';
-export type AvatarExpression = 'feliz' | 'tranquilo' | 'concentrado' | 'preocupado' | 'triste' | 'sorprendido' | 'lengua' | 'descreido';
-export type AvatarClothing = 'hoodie' | 'blazerCamisa' | 'blazerSueter' | 'cuelloSueter' | 'remeraGrafica' | 'overall' | 'remeraCuelloRedondo' | 'remeraEscote' | 'remeraCuelloV';
-
-export interface AvatarAppearance {
-  genero: AvatarGender;
-  colorPiel: AvatarSkinTone;
-  formaCara: AvatarFaceShape;
-  peinado: AvatarHairStyle;
-  colorPelo: AvatarHairColor;
-  expresion: AvatarExpression;
-  ropa: AvatarClothing;
-}
-
-export interface WalletState {
-  balance: number;
-  inventory: string[];
-  equipped: AvatarEquipped;
-  appearance: AvatarAppearance;
-  history: CoinTxn[];
-}
-
-const DEFAULT_APPEARANCE: AvatarAppearance = {
-  genero: 'neutral',
-  colorPiel: 'medio',
-  formaCara: 'redonda',
-  peinado: 'corto',
-  colorPelo: 'castanio',
-  expresion: 'feliz',
-  ropa: 'hoodie',
-};
-
-const DEFAULT_EQUIPPED: AvatarEquipped = { ropa: 'shirt-blue', fondo: 'bg-default' };
-const DEFAULT_INVENTORY = ['shirt-blue', 'bg-default'];
-const KEY = (userId: string) => `tandem:wallet:${userId}`;
-
-
-const DEFAULT_STATE = (initialBalance = 0): WalletState => ({
-  balance: initialBalance,
-  inventory: DEFAULT_INVENTORY,
-  equipped: DEFAULT_EQUIPPED,
-  appearance: DEFAULT_APPEARANCE,
-  history: initialBalance > 0
-    ? [{ id: 'seed', type: 'ingreso', amount: initialBalance, reason: 'Bienvenida TANDEM', at: Date.now() }]
-    : [],
-});
-
-function loadLocalState(userId: string, fallbackPoints: number): WalletState {
-  try {
-    const raw = localStorage.getItem(KEY(userId));
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<WalletState>;
-      return {
-        ...DEFAULT_STATE(Math.max(100, Math.round(fallbackPoints / 4))),
-        ...parsed,
-        inventory: Array.from(new Set([...(parsed.inventory || []), ...DEFAULT_INVENTORY])),
-        equipped: { ...DEFAULT_EQUIPPED, ...(parsed.equipped || {}) },
-        appearance: { ...DEFAULT_APPEARANCE, ...(parsed.appearance || {}) },
-      };
-    }
-  } catch {
-    // localStorage can fail in restricted browser modes.
-  }
-  return DEFAULT_STATE(Math.max(100, Math.round(fallbackPoints / 4)));
-}
-
-function saveLocalState(userId: string, state: WalletState) {
-  try {
-    localStorage.setItem(KEY(userId), JSON.stringify(state));
-  } catch {
-    // Storage persistence is best effort.
-  }
-}
-
-function parseAvatarAppearance(raw?: string | null): AvatarAppearance {
-  if (!raw) return DEFAULT_APPEARANCE;
-  try {
-    const parsed = JSON.parse(raw);
-    return { ...DEFAULT_APPEARANCE, ...(parsed?.appearance || parsed || {}) };
-  } catch {
-    return DEFAULT_APPEARANCE;
-  }
-}
-
-function serializeAvatarJson(appearance: AvatarAppearance, equipped: AvatarEquipped = DEFAULT_EQUIPPED) {
-  return JSON.stringify({ appearance, equipped: { ...DEFAULT_EQUIPPED, ...equipped } });
-}
-
-function buildAvatarImageSourceUrl(appearance: AvatarAppearance, equipped: AvatarEquipped) {
-  return buildDiceBearAvatarUrl(appearance, equipped, 'tandem-avatar', 'png');
-}
-
-function categoryOfExternalId(id: string): ShopCategory | undefined {
-  return getItemById(id)?.category;
-}
-
-function normalizeInventory(ids: string[]) {
-  return Array.from(new Set([...ids, ...DEFAULT_INVENTORY]));
-}
-
-interface BackendSnapshot {
-  avatar: Avatar;
-  saldo: SaldoPuntos;
-  itemByExternalId: Map<string, ItemAvatar>;
-  inventoryRecords: InventarioAvatar[];
-  state: WalletState;
-}
-
+export type { WalletState } from '@/features/avatar/avatarStorage';
+interface BackendSnapshot { avatar: Avatar; items: ItemAvatar[] }
 interface WalletCtx {
-  state: WalletState;
-  loading: boolean;
-  error: string | null;
-  earn: (amount: number, reason: string) => Promise<void>;
-  buy: (itemId: string) => Promise<{ ok: boolean; reason?: string }>;
-  equip: (itemId: string) => Promise<void>;
-  unequip: (category: ShopCategory) => Promise<void>;
-  saveAppearance: (appearance: AvatarAppearance) => Promise<{ ok: boolean; reason?: string }>;
-  hasItem: (itemId: string) => boolean;
-  isEquipped: (itemId: string) => boolean;
-  refresh: () => Promise<void>;
+  state: WalletState; savedConfig: AvatarConfig; loading: boolean; saving: boolean; error: string | null; message: string;
+  catalog: typeof wardrobeItems; earn: (amount: number, reason: string) => Promise<void>;
+  buy: (id: string) => Promise<{ok: boolean; reason?: string}>; equip: (id: string) => Promise<void>;
+  unequip: (category: AvatarCategory) => Promise<void>; select: (category: AvatarCategory,id: string) => void;
+  saveAvatar: () => Promise<void>; hasItem: (id: string) => boolean; isEquipped: (id: string) => boolean; refresh: () => Promise<boolean>;
 }
-
 const WalletContext = createContext<WalletCtx | null>(null);
 
-function isBackendUserId(userId?: string) {
-  return Number.isInteger(Number(userId));
+// A keyed provider prevents state and pending requests from crossing accounts.
+export function WalletProvider({children}: {children: ReactNode}) {
+  const {user}=useAuth();
+  return <UserWallet key={user?.id || '__guest__'} userId={user?.id || '__guest__'} belonging={user?.role==='user'}>{children}</UserWallet>;
 }
+function UserWallet({userId,belonging,children}: {userId:string;belonging:boolean;children:ReactNode}) {
+  const [state,setState]=useState<WalletState>(()=>localAvatarStorage.load(userId));
+  const [savedConfig,setSavedConfig]=useState(state.config);
+  const stateRef=useRef(state);
+  const [snapshot,setSnapshot]=useState<BackendSnapshot|null>(null);
+  const [loading,setLoading]=useState(belonging);
+  const [saving,setSaving]=useState(false);
+  const [error,setError]=useState<string|null>(null);
+  const [message,setMessage]=useState('');
+  const busy=useRef(false);
+  const generation=useRef(0);
+  const invalidateRequests=useCallback(()=>{generation.current++;},[]);
+  const initialized=useRef(false);
+  const remote=belonging && /^\d+$/.test(userId);
+  const apply=useCallback((next:WalletState,persist=true)=>{
+    if(persist) localAvatarStorage.save(userId,next);
+    stateRef.current=next;setState(next);
+  },[userId]);
 
-export function WalletProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
-  const userId = user?.id ?? '__guest__';
-  const seedPoints = (user && 'points' in user) ? (user as any).points : 0;
-
-  const [state, setState] = useState<WalletState>(() => loadLocalState(userId, seedPoints));
-  const [snapshot, setSnapshot] = useState<BackendSnapshot | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const buildSnapshot = useCallback(async (): Promise<BackendSnapshot> => {
-    if (!user || user.role !== 'user') {
-      throw new Error('La tienda persistente requiere un perteneciente autenticado.');
-    }
-
-    const [
-      perteneciente,
-      avatares,
-      saldos,
-      itemsBeforeSync,
-      inventarios,
-    ] = await Promise.all([
-      fetchPertenecienteByUsuarioId(Number(user.id)),
-      tandemApi.avatares.getAll(),
-      tandemApi.saldosPuntos.getAll(),
-      tandemApi.itemsAvatares.getAll(),
-      tandemApi.inventariosAvatares.getAll(),
-    ]);
-
-    if (!perteneciente) {
-      throw new Error('No se encontro el perfil perteneciente para este usuario.');
-    }
-
-    const syncedItems = (itemsBeforeSync as ItemAvatar[]).filter(item => item.activo !== false);
-    const itemByExternalId = new Map(
-      syncedItems
-        .filter(item => item.codigo_item_externo)
-        .map(item => [String(item.codigo_item_externo), item])
-    );
-    const externalByDbId = new Map(
-      syncedItems
-        .filter(item => item.codigo_item_externo)
-        .map(item => [Number(item.id), String(item.codigo_item_externo)])
-    );
-
-    let avatar = (avatares as Avatar[]).find(item => Number(item.id_perteneciente) === Number(perteneciente.id));
-    if (!avatar) {
-      const created = await tandemApi.avatares.create({
-        id_perteneciente: perteneciente.id,
-        nivel: 1,
-        experiencia: 0,
-        avatar_api: 'tandem',
-        avatar_externo_id: null,
-        avatar_json: serializeAvatarJson(DEFAULT_APPEARANCE, DEFAULT_EQUIPPED),
-        avatar_imagen_origen_url: buildAvatarImageSourceUrl(DEFAULT_APPEARANCE, DEFAULT_EQUIPPED),
-      });
-      avatar = {
-        id: Number(created.id),
-        id_perteneciente: perteneciente.id,
-        nivel: 1,
-        experiencia: 0,
-        avatar_api: 'tandem',
-        avatar_externo_id: null,
-        avatar_json: serializeAvatarJson(DEFAULT_APPEARANCE, DEFAULT_EQUIPPED),
-      };
-    }
-
-    let saldo = (saldos as SaldoPuntos[]).find(item => Number(item.id_perteneciente) === Number(perteneciente.id));
-    if (!saldo) saldo = { id: 0, id_perteneciente: perteneciente.id, saldo: 0 };
-
-    const inventoryRecords = (inventarios as InventarioAvatar[])
-      .filter(item => Number(item.id_avatar) === Number(avatar.id));
-
-    const inventoryIds = normalizeInventory(
-      inventoryRecords
-        .map(record => externalByDbId.get(Number(record.id_item_avatar)))
-        .filter(Boolean) as string[]
-    );
-
-    const equipped: AvatarEquipped = { ...DEFAULT_EQUIPPED };
-    for (const record of inventoryRecords) {
-      if (!record.equipado) continue;
-      const externalId = externalByDbId.get(Number(record.id_item_avatar));
-      if (!externalId) continue;
-      const category = categoryOfExternalId(externalId);
-      if (category) equipped[category] = externalId;
-    }
-
-    return {
-      avatar,
-      saldo,
-      itemByExternalId,
-      inventoryRecords,
-      state: {
-        balance: Number(saldo.saldo || 0),
-        inventory: inventoryIds,
-        equipped,
-        appearance: parseAvatarAppearance(avatar.avatar_json),
-        history: loadLocalState(userId, seedPoints).history,
-      },
-    };
-  }, [seedPoints, user, userId]);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const refresh=useCallback(async()=>{
+    if(!remote) {setLoading(false);return true;}
+    const ticket=++generation.current;
+    setLoading(true);setError(null);
     try {
-      const next = await buildSnapshot();
-      setSnapshot(next);
-      setState(next.state);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'No se pudo cargar la tienda.';
-      setSnapshot(null);
-      setState(loadLocalState(userId, seedPoints));
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  }, [buildSnapshot, seedPoints, userId]);
-
-  useEffect(() => {
-    if (!user || user.role !== 'user' || !isBackendUserId(user.id)) {
-      setSnapshot(null);
-      setState(loadLocalState(userId, seedPoints));
-      setLoading(false);
-      return;
-    }
-
-    const run = () => { void refresh(); };
-    if ('requestIdleCallback' in window) {
-      const idleId = window.requestIdleCallback(run, { timeout: 2500 });
-      return () => window.cancelIdleCallback(idleId);
-    }
-
-    const timer = setTimeout(run, 1200);
-    return () => window.clearTimeout(timer);
-  }, [refresh, seedPoints, user, userId]);
-
-  useEffect(() => {
-    saveLocalState(userId, state);
-  }, [userId, state]);
-
-  const earn = useCallback(async (amount: number, reason: string) => {
-    if (amount <= 0) return;
-    if (isBackendUserId(user?.id)) { await refresh(); return; }
-    const tx: CoinTxn = { id: `tx-${Date.now()}`, type: 'ingreso', amount, reason, at: Date.now() };
-    setState(prev => ({ ...prev, balance: prev.balance + amount, history: [tx, ...prev.history].slice(0, 50) }));
-  }, [user?.id, refresh]);
-
-  const buy = useCallback(async (itemId: string) => {
-    const item = getItemById(itemId);
-    if (!item) return { ok: false, reason: 'Item no encontrado' };
-    if (state.inventory.includes(itemId)) return { ok: false, reason: 'Ya tenes este item' };
-    if (state.balance < item.price) return { ok: false, reason: 'No tenes suficientes monedas' };
-
-    if (snapshot) {
-      const dbItem = snapshot.itemByExternalId.get(itemId);
-      if (!dbItem) return { ok: false, reason: 'El item no esta disponible en la base de datos' };
-
-      await tandemApi.inventariosAvatares.create({
-        id_avatar: snapshot.avatar.id,
-        id_item_avatar: dbItem.id,
-        equipado: false,
-        fecha_obtencion: new Date().toISOString(),
-      });
-      await refresh();
-
-      return { ok: true };
-    }
-
-    const tx: CoinTxn = { id: `tx-${Date.now()}`, type: 'egreso', amount: item.price, reason: `Compra: ${item.name}`, itemId, at: Date.now() };
-    setState(prev => ({
-      ...prev,
-      balance: prev.balance - item.price,
-      inventory: normalizeInventory([...prev.inventory, itemId]),
-      history: [tx, ...prev.history].slice(0, 50),
-    }));
-    return { ok: true };
-  }, [snapshot, state.balance, state.inventory, refresh]);
-
-  const equip = useCallback(async (itemId: string) => {
-    const item = getItemById(itemId);
-    if (!item || !state.inventory.includes(itemId)) return;
-
-    if (snapshot) {
-      const updates = snapshot.inventoryRecords.filter(record => {
-        const externalId = Array.from(snapshot.itemByExternalId.entries())
-          .find(([, dbItem]) => Number(dbItem.id) === Number(record.id_item_avatar))?.[0];
-        return externalId && getItemById(externalId)?.category === item.category;
-      });
-      const selectedDbItem = snapshot.itemByExternalId.get(itemId);
-      await Promise.all(updates.map(record => tandemApi.inventariosAvatares.update(record.id, { ...record, equipado: false })));
-      if (selectedDbItem) {
-        const selected = snapshot.inventoryRecords.find(record => Number(record.id_item_avatar) === Number(selectedDbItem.id));
-        if (selected) await tandemApi.inventariosAvatares.update(selected.id, { ...selected, equipado: true });
+      const [owner,avatars,balances,items,records]=await Promise.all([
+        fetchPertenecienteByUsuarioId(userId),tandemApi.avatares.getAll({cache:'no-store'}),tandemApi.saldosPuntos.getAll({cache:'no-store'}),
+        tandemApi.itemsAvatares.getAll({cache:'no-store'}),tandemApi.inventariosAvatares.getAll({cache:'no-store'}),
+      ]);
+      if(!owner) throw new Error('No encontramos tu perfil.');
+      let avatar=avatars.find(a=>Number(a.id_perteneciente)===Number(owner.id));
+      const local=localAvatarStorage.load(userId);
+      if(!avatar) {
+        const base={...local,config:ownedConfig(local.config,freeInventory)};
+        const created=await tandemApi.avatares.create({id_perteneciente:owner.id,avatar_json:serializeAvatar(base)});
+        avatar={id:Number(created.id),id_perteneciente:owner.id,nivel:1,experiencia:0,avatar_api:null,avatar_externo_id:null,avatar_json:serializeAvatar(base)};
       }
-      setSnapshot(prev => prev ? {
-        ...prev,
-        inventoryRecords: prev.inventoryRecords.map(record => {
-          const externalId = Array.from(prev.itemByExternalId.entries())
-            .find(([, dbItem]) => Number(dbItem.id) === Number(record.id_item_avatar))?.[0];
-          if (externalId && getItemById(externalId)?.category === item.category) {
-            return { ...record, equipado: externalId === itemId };
-          }
-          return record;
-        }),
-      } : prev);
+      const receiptCodes=records.filter(record=>Number(record.id_avatar)===Number(avatar.id))
+        .map(record=>items.find(item=>Number(item.id)===Number(record.id_item_avatar))?.codigo_item_externo).filter((id):id is string=>!!id);
+      const inventory=[...new Set([...freeInventory,...receiptCodes.flatMap(code=>compatibleCode(code)||[])])];
+      const parsed=(()=>{try{return JSON.parse(avatar.avatar_json||'{}');}catch{return {};}})();
+      const hasStudioLocal = (()=>{try{return JSON.parse(localStorage.getItem(walletKey(userId))||'{}').version===2||JSON.parse(localStorage.getItem('tandem:avatar-studio:v1:'+encodeURIComponent(userId))||'{}').version===1;}catch{return false;}})();
+      const persistedConfig=ownedConfig(parsed.version===2||!hasStudioLocal?readAvatarConfig(parsed):local.config,inventory);
+      const config=initialized.current?ownedConfig(stateRef.current.config,inventory):persistedConfig;
+      const next:WalletState={...local,config,inventory,
+        legacyInventory:[...new Set([...local.legacyInventory,...receiptCodes.filter(code=>!code.includes(':'))])],
+        legacyAvatar:local.legacyAvatar??(parsed.version!==2?parsed:parsed.legacyAvatar),
+        balance:Number(balances.find(balance=>Number(balance.id_perteneciente)===Number(owner.id))?.saldo??0)};
+      if(ticket!==generation.current) return false;
+      apply(next,false);
+      try {localAvatarStorage.save(userId,{...next,config:persistedConfig});}
+      catch {setError('Tu cuenta está sincronizada, pero este navegador no pudo guardar una copia local.');}
+      initialized.current=true;setSavedConfig(persistedConfig);setSnapshot({avatar,items});
+      return true;
+    } catch {
+      if(ticket===generation.current) {setSnapshot(null);setError('No pudimos sincronizar la tienda. Podés ver tu avatar guardado; reintentá para comprar o guardar en la cuenta.');}
+      return false;
+    } finally {if(ticket===generation.current) setLoading(false);}
+  },[remote,userId,apply]);
+  useEffect(()=>{void refresh();return invalidateRequests;},[refresh,invalidateRequests]);
+  useEffect(()=>{
+    if(JSON.stringify(state.config)===JSON.stringify(savedConfig)) return;
+    const warn=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue='';};
+    window.addEventListener('beforeunload',warn);
+    return ()=>window.removeEventListener('beforeunload',warn);
+  },[state.config,savedConfig]);
+
+  const select=(category:AvatarCategory,id:string)=>{
+    if(busy.current||loading) return;
+    const current=stateRef.current;
+    if(!avatarCatalog[category].some(item=>item.id===id&&item.available)) return;
+    if(equipmentCategories.includes(category as typeof equipmentCategories[number])&&!current.inventory.includes(equipmentCode(category,id))) return;
+    apply({...current,config:{...current.config,[category]:id}},false);setMessage('');
+  };
+  const persist=async(next:WalletState)=>{
+    if(remote) {
+      if(!snapshot) throw new Error('La cuenta no está sincronizada.');
+      await tandemApi.avatares.update(snapshot.avatar.id,{avatar_json:serializeAvatar(next)});
+      apply(next,false);setSavedConfig(next.config);
+      try {localAvatarStorage.save(userId,next);return true;}
+      catch {return false;}
     }
-
-    setState(prev => ({ ...prev, equipped: { ...prev.equipped, [item.category]: itemId } }));
-
-    if (snapshot) {
-      const nextEquipped = { ...state.equipped, [item.category]: itemId };
-      const avatar_json = serializeAvatarJson(state.appearance, nextEquipped);
-      await tandemApi.avatares.update(snapshot.avatar.id, {
-        ...snapshot.avatar,
-        avatar_api: 'tandem',
-        avatar_json,
-        avatar_imagen_origen_url: buildAvatarImageSourceUrl(state.appearance, nextEquipped),
-      });
-      setSnapshot(prev => prev ? {
-        ...prev,
-        avatar: { ...prev.avatar, avatar_api: 'tandem', avatar_json },
-      } : prev);
+    apply(next);setSavedConfig(next.config);
+    return true;
+  };
+  const saveAvatar=async()=>{
+    if(busy.current) return;
+    busy.current=true;setSaving(true);setError(null);setMessage('');
+    const next={...stateRef.current,config:{...stateRef.current.config}};
+    try {const cached=await persist(next);setMessage(cached?'Avatar guardado.':'Avatar guardado en tu cuenta. Este navegador no pudo guardar una copia local.');}
+    catch {setError('No pudimos guardar tu avatar. Tus cambios siguen disponibles para reintentar.');}
+    finally {busy.current=false;setSaving(false);}
+  };
+  const equip=async(code:string)=>{
+    const item=wardrobeItems.find(item=>item.id===code);
+    if(!item||!stateRef.current.inventory.includes(code)||busy.current||loading) return;
+    busy.current=true;setSaving(true);setError(null);
+    try {await persist({...stateRef.current,config:{...stateRef.current.config,[item.category]:item.option}});}
+    catch {setError('No pudimos equipar el objeto. Intentá nuevamente.');}
+    finally {busy.current=false;setSaving(false);}
+  };
+  const buy=async(id:string)=>{
+    if(busy.current) return {ok:false,reason:'Esperá a que termine la operación actual.'};
+    const item=wardrobeItems.find(item=>item.id===id);
+    if(!item||stateRef.current.inventory.includes(id)) return {ok:false,reason:'Este objeto ya está disponible o no existe.'};
+    if(!snapshot||!remote) return {ok:false,reason:'Conectate a tu cuenta para comprar con monedas.'};
+    const dbItem=snapshot.items.find(item=>item.codigo_item_externo===id&&item.activo);
+    if(!dbItem) return {ok:false,reason:'Este objeto no está disponible en la tienda.'};
+    busy.current=true;setSaving(true);
+    try {
+      await tandemApi.inventariosAvatares.create({id_avatar:snapshot.avatar.id,id_item_avatar:dbItem.id,equipado:false,fecha_obtencion:new Date().toISOString()});
+      if(!await refresh()) return {ok:false,reason:'La compra fue procesada, pero falta actualizar tu inventario. Reintentá sincronizar antes de comprar nuevamente.'};
+      return {ok:true};
+    } catch (error) {
+      const reason=error instanceof ApiError&&error.status<500?error.message:'No pudimos confirmar la compra. Sincronizá antes de volver a comprar.';
+      // Refresh even after a lost response: the transaction may have committed.
+      await refresh();
+      return {ok:false,reason};
     }
-  }, [snapshot, state.appearance, state.equipped, state.inventory]);
-
-  const unequip = useCallback(async (category: ShopCategory) => {
-    if (snapshot) {
-      const updates = snapshot.inventoryRecords.filter(record => {
-        const externalId = Array.from(snapshot.itemByExternalId.entries())
-          .find(([, dbItem]) => Number(dbItem.id) === Number(record.id_item_avatar))?.[0];
-        return externalId && getItemById(externalId)?.category === category && record.equipado;
-      });
-      await Promise.all(updates.map(record => tandemApi.inventariosAvatares.update(record.id, { ...record, equipado: false })));
-      setSnapshot(prev => prev ? {
-        ...prev,
-        inventoryRecords: prev.inventoryRecords.map(record => updates.some(update => update.id === record.id) ? { ...record, equipado: false } : record),
-      } : prev);
-    }
-
-    setState(prev => ({ ...prev, equipped: { ...prev.equipped, [category]: undefined } }));
-
-    if (snapshot) {
-      const nextEquipped = { ...state.equipped, [category]: undefined };
-      const avatar_json = serializeAvatarJson(state.appearance, nextEquipped);
-      await tandemApi.avatares.update(snapshot.avatar.id, {
-        ...snapshot.avatar,
-        avatar_api: 'tandem',
-        avatar_json,
-        avatar_imagen_origen_url: buildAvatarImageSourceUrl(state.appearance, nextEquipped),
-      });
-      setSnapshot(prev => prev ? {
-        ...prev,
-        avatar: { ...prev.avatar, avatar_api: 'tandem', avatar_json },
-      } : prev);
-    }
-  }, [snapshot, state.appearance, state.equipped]);
-
-  const saveAppearance = useCallback(async (appearance: AvatarAppearance) => {
-    if (snapshot) {
-      await tandemApi.avatares.update(snapshot.avatar.id, {
-        ...snapshot.avatar,
-        avatar_api: 'tandem',
-        avatar_json: serializeAvatarJson(appearance, state.equipped),
-        avatar_imagen_origen_url: buildAvatarImageSourceUrl(appearance, state.equipped),
-      });
-      setSnapshot(prev => prev ? {
-        ...prev,
-        avatar: { ...prev.avatar, avatar_api: 'tandem', avatar_json: serializeAvatarJson(appearance, state.equipped) },
-      } : prev);
-    }
-    setState(prev => ({ ...prev, appearance }));
-    return { ok: true };
-  }, [snapshot, state.equipped]);
-
-  const hasItem = useCallback((id: string) => state.inventory.includes(id), [state.inventory]);
-  const isEquipped = useCallback((id: string) => Object.values(state.equipped).includes(id), [state.equipped]);
-
-  return (
-    <WalletContext.Provider value={{ state, loading, error, earn, buy, equip, unequip, saveAppearance, hasItem, isEquipped, refresh }}>
-      {children}
-    </WalletContext.Provider>
-  );
+    finally {busy.current=false;setSaving(false);}
+  };
+  const earn=async(_amount:number,_reason:string)=>{await refresh();};
+  const catalog=wardrobeItems.map(item=>({...item,price:snapshot?.items.find(db=>db.codigo_item_externo===item.id)?.precio_punto??item.price}));
+  return <WalletContext.Provider value={{state,savedConfig,loading,saving,error,message,catalog,earn,buy,equip,
+    unequip:category=>equip(equipmentCode(category,defaultAvatar[category])),select,saveAvatar,
+    hasItem:id=>state.inventory.includes(id),isEquipped:id=>equipmentCategories.some(category=>equipmentCode(category,state.config[category])===id),refresh}}>{children}</WalletContext.Provider>;
 }
-
-export function useWallet() {
-  const ctx = useContext(WalletContext);
-  if (!ctx) throw new Error('useWallet must be inside WalletProvider');
-  return ctx;
-}
-
-export { SHOP_ITEMS };
+export function useWallet() {const context=useContext(WalletContext);if(!context) throw new Error('useWallet must be inside WalletProvider');return context;}

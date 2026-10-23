@@ -46,6 +46,17 @@ afterEach(() => {
 });
 
 describe('cache de API por usuario', () => {
+  it('no-store always reads current wallet data instead of memory or persisted cache', async () => {
+    let saldo=200;
+    const fetchMock=mockFetch(()=>[{saldo}]);
+    setApiCacheUser('1');
+    await apiRequest('/api/saldos-puntos');
+    saldo=130;
+    expect(await apiRequest('/api/saldos-puntos',{cache:'no-store'})).toEqual([{saldo:130}]);
+    saldo=30;
+    expect(await apiRequest('/api/saldos-puntos',{cache:'no-store'})).toEqual([{saldo:30}]);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
   it('la clave incluye el usuario: otro usuario nunca recibe la respuesta cacheada del anterior', async () => {
     let owner = 'A';
     const fetchMock = mockFetch(() => [{ id: 1, nombre: `de-${owner}` }]);

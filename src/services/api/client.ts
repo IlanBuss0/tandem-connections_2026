@@ -397,7 +397,7 @@ async function apiRequestInternal<T>(
   }
   const method = init.method;
   const cacheKey = memoryKey(method, path);
-  const cacheableGet = allowRefresh && isCacheableGet(path, method, body);
+  const cacheableGet = allowRefresh && init.cache !== 'no-store' && isCacheableGet(path, method, body);
   const ttlMs = options.cacheTtlMs ?? DEFAULT_GET_CACHE_TTL_MS;
   if (cacheableGet && !forceNetwork) {
     const cached = getCache.get(cacheKey);

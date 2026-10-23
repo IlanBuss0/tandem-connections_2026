@@ -1,0 +1,601 @@
+[
+  {
+    "id": "top:tee",
+    "category": "top",
+    "option": "tee",
+    "name": "Remera celeste",
+    "resource": "tee",
+    "color": "#829ec4",
+    "price": 0,
+    "legacyIds": [
+      "shirt-blue"
+    ]
+  },
+  {
+    "id": "top:tee-white",
+    "category": "top",
+    "option": "tee-white",
+    "name": "Remera blanca",
+    "resource": "tee",
+    "color": "#ebe8ee",
+    "price": 60,
+    "legacyIds": []
+  },
+  {
+    "id": "top:tee-black",
+    "category": "top",
+    "option": "tee-black",
+    "name": "Remera negra",
+    "resource": "tee",
+    "color": "#34323f",
+    "price": 70,
+    "legacyIds": []
+  },
+  {
+    "id": "top:tee-green",
+    "category": "top",
+    "option": "tee-green",
+    "name": "Remera verde",
+    "resource": "tee",
+    "color": "#638c76",
+    "price": 70,
+    "legacyIds": [
+      "shirt-green"
+    ]
+  },
+  {
+    "id": "top:hoodie",
+    "category": "top",
+    "option": "hoodie",
+    "name": "Buzo lila",
+    "resource": "hoodie",
+    "color": "#9780c4",
+    "price": 0,
+    "legacyIds": []
+  },
+  {
+    "id": "top:hoodie-blue",
+    "category": "top",
+    "option": "hoodie-blue",
+    "name": "Buzo azul",
+    "resource": "hoodie",
+    "color": "#4b729d",
+    "price": 100,
+    "legacyIds": []
+  },
+  {
+    "id": "top:hoodie-gray",
+    "category": "top",
+    "option": "hoodie-gray",
+    "name": "Buzo gris",
+    "resource": "hoodie",
+    "color": "#858596",
+    "price": 90,
+    "legacyIds": []
+  },
+  {
+    "id": "top:hoodie-black",
+    "category": "top",
+    "option": "hoodie-black",
+    "name": "Hoodie negro",
+    "resource": "hoodie",
+    "color": "#373443",
+    "price": 120,
+    "legacyIds": []
+  },
+  {
+    "id": "top:jacket",
+    "category": "top",
+    "option": "jacket",
+    "name": "Campera celeste",
+    "resource": "jacket",
+    "color": "#64889b",
+    "price": 0,
+    "legacyIds": []
+  },
+  {
+    "id": "top:jacket-denim",
+    "category": "top",
+    "option": "jacket-denim",
+    "name": "Campera de jean",
+    "resource": "jacket",
+    "color": "#496e95",
+    "price": 140,
+    "legacyIds": []
+  },
+  {
+    "id": "top:tee-red",
+    "category": "top",
+    "option": "tee-red",
+    "name": "Remera roja",
+    "resource": "tee",
+    "color": "#ad6068",
+    "price": 70,
+    "legacyIds": [
+      "shirt-red"
+    ]
+  },
+  {
+    "id": "top:tee-purple",
+    "category": "top",
+    "option": "tee-purple",
+    "name": "Remera lila",
+    "resource": "tee",
+    "color": "#a589bf",
+    "price": 90,
+    "legacyIds": [
+      "shirt-purple"
+    ]
+  },
+  {
+    "id": "top:tee-rainbow",
+    "category": "top",
+    "option": "tee-rainbow",
+    "name": "Remera arcoíris",
+    "resource": "tee",
+    "color": "#8c9fbc",
+    "price": 350,
+    "legacyIds": [
+      "shirt-rainbow"
+    ]
+  },
+  {
+    "id": "bottom:jeans",
+    "category": "bottom",
+    "option": "jeans",
+    "name": "Jean azul",
+    "resource": "jeans",
+    "color": "#425d83",
+    "price": 0,
+    "legacyIds": []
+  },
+  {
+    "id": "bottom:jeans-black",
+    "category": "bottom",
+    "option": "jeans-black",
+    "name": "Jean negro",
+    "resource": "jeans",
+    "color": "#363847",
+    "price": 90,
+    "legacyIds": []
+  },
+  {
+    "id": "bottom:joggers",
+    "category": "bottom",
+    "option": "joggers",
+    "name": "Jogger gris",
+    "resource": "joggers",
+    "color": "#747282",
+    "price": 0,
+    "legacyIds": []
+  },
+  {
+    "id": "bottom:joggers-black",
+    "category": "bottom",
+    "option": "joggers-black",
+    "name": "Jogger negro",
+    "resource": "joggers",
+    "color": "#333340",
+    "price": 90,
+    "legacyIds": []
+  },
+  {
+    "id": "bottom:chinos",
+    "category": "bottom",
+    "option": "chinos",
+    "name": "Pantalón beige",
+    "resource": "chinos",
+    "color": "#bca88e",
+    "price": 110,
+    "legacyIds": []
+  },
+  {
+    "id": "bottom:sport-blue",
+    "category": "bottom",
+    "option": "sport-blue",
+    "name": "Pantalón deportivo azul",
+    "resource": "joggers",
+    "color": "#3e618d",
+    "price": 100,
+    "legacyIds": []
+  },
+  {
+    "id": "shoes:white",
+    "category": "shoes",
+    "option": "white",
+    "name": "Zapatillas blancas",
+    "resource": "sneakers",
+    "color": "#f8f7fb",
+    "price": 0,
+    "legacyIds": []
+  },
+  {
+    "id": "shoes:black",
+    "category": "shoes",
+    "option": "black",
+    "name": "Zapatillas negras",
+    "resource": "sneakers",
+    "color": "#393641",
+    "price": 80,
+    "legacyIds": []
+  },
+  {
+    "id": "shoes:violet",
+    "category": "shoes",
+    "option": "violet",
+    "name": "Zapatillas violetas",
+    "resource": "sneakers",
+    "color": "#8770b1",
+    "price": 0,
+    "legacyIds": []
+  },
+  {
+    "id": "shoes:blue",
+    "category": "shoes",
+    "option": "blue",
+    "name": "Zapatillas azules",
+    "resource": "sneakers",
+    "color": "#4877a6",
+    "price": 80,
+    "legacyIds": []
+  },
+  {
+    "id": "shoes:sport",
+    "category": "shoes",
+    "option": "sport",
+    "name": "Zapatillas deportivas",
+    "resource": "sport",
+    "color": "#6a8796",
+    "price": 120,
+    "legacyIds": []
+  },
+  {
+    "id": "accessory:none",
+    "category": "accessory",
+    "option": "none",
+    "name": "Sin accesorio",
+    "resource": "none",
+    "color": null,
+    "price": 0,
+    "legacyIds": []
+  },
+  {
+    "id": "accessory:cap",
+    "category": "accessory",
+    "option": "cap",
+    "name": "Gorra violeta",
+    "resource": "cap",
+    "color": "#74619c",
+    "price": 0,
+    "legacyIds": [
+      "hair-cap"
+    ]
+  },
+  {
+    "id": "accessory:cap-black",
+    "category": "accessory",
+    "option": "cap-black",
+    "name": "Gorra negra",
+    "resource": "cap",
+    "color": "#35333f",
+    "price": 70,
+    "legacyIds": [
+      "hair-tophat"
+    ]
+  },
+  {
+    "id": "accessory:cap-blue",
+    "category": "accessory",
+    "option": "cap-blue",
+    "name": "Gorra celeste",
+    "resource": "cap",
+    "color": "#719fb9",
+    "price": 70,
+    "legacyIds": [
+      "hair-helmet"
+    ]
+  },
+  {
+    "id": "accessory:glasses",
+    "category": "accessory",
+    "option": "glasses",
+    "name": "Anteojos comunes",
+    "resource": "glasses",
+    "color": "#51465f",
+    "price": 0,
+    "legacyIds": []
+  },
+  {
+    "id": "accessory:sunglasses",
+    "category": "accessory",
+    "option": "sunglasses",
+    "name": "Anteojos de sol",
+    "resource": "sunglasses",
+    "color": "#353141",
+    "price": 80,
+    "legacyIds": [
+      "acc-glasses"
+    ]
+  },
+  {
+    "id": "accessory:headphones",
+    "category": "accessory",
+    "option": "headphones",
+    "name": "Auriculares",
+    "resource": "headphones",
+    "color": "#76629b",
+    "price": 120,
+    "legacyIds": [
+      "acc-headphones"
+    ]
+  },
+  {
+    "id": "accessory:medal",
+    "category": "accessory",
+    "option": "medal",
+    "name": "Medalla",
+    "resource": "medal",
+    "color": "#c6a35a",
+    "price": 300,
+    "legacyIds": [
+      "acc-medal",
+      "hair-graduation"
+    ]
+  },
+  {
+    "id": "accessory:flower",
+    "category": "accessory",
+    "option": "flower",
+    "name": "Flor",
+    "resource": "flower",
+    "color": "#b583a7",
+    "price": 60,
+    "legacyIds": [
+      "acc-flower"
+    ]
+  },
+  {
+    "id": "accessory:crown",
+    "category": "accessory",
+    "option": "crown",
+    "name": "Corona",
+    "resource": "crown",
+    "color": "#b99b58",
+    "price": 500,
+    "legacyIds": [
+      "hair-crown"
+    ]
+  },
+  {
+    "id": "accessory:mask",
+    "category": "accessory",
+    "option": "mask",
+    "name": "Antifaz",
+    "resource": "mask",
+    "color": "#625381",
+    "price": 250,
+    "legacyIds": [
+      "acc-mask"
+    ]
+  },
+  {
+    "id": "hairstyle:classic",
+    "category": "hairstyle",
+    "option": "classic",
+    "name": "Corto clásico",
+    "resource": "classic",
+    "color": null,
+    "price": 0,
+    "legacyIds": []
+  },
+  {
+    "id": "hairstyle:swept",
+    "category": "hairstyle",
+    "option": "swept",
+    "name": "Corto con volumen",
+    "resource": "swept",
+    "color": null,
+    "price": 0,
+    "legacyIds": []
+  },
+  {
+    "id": "hairstyle:side-part",
+    "category": "hairstyle",
+    "option": "side-part",
+    "name": "Medio hacia un lado",
+    "resource": "side-part",
+    "color": null,
+    "price": 0,
+    "legacyIds": []
+  },
+  {
+    "id": "hairstyle:neat",
+    "category": "hairstyle",
+    "option": "neat",
+    "name": "Corto prolijo",
+    "resource": "neat",
+    "color": null,
+    "price": 0,
+    "legacyIds": []
+  },
+  {
+    "id": "hairstyle:bob",
+    "category": "hairstyle",
+    "option": "bob",
+    "name": "Media melena simple",
+    "resource": "bob",
+    "color": null,
+    "price": 0,
+    "legacyIds": []
+  },
+  {
+    "id": "hairstyle:long",
+    "category": "hairstyle",
+    "option": "long",
+    "name": "Pelo largo simple",
+    "resource": "long",
+    "color": null,
+    "price": 0,
+    "legacyIds": []
+  },
+  {
+    "id": "hairstyle:waves",
+    "category": "hairstyle",
+    "option": "waves",
+    "name": "Rulos cortos clásicos",
+    "resource": "waves",
+    "color": null,
+    "price": 0,
+    "legacyIds": []
+  },
+  {
+    "id": "hairstyle:curls-tight",
+    "category": "hairstyle",
+    "option": "curls-tight",
+    "name": "Rulos compactos",
+    "resource": "curls-tight",
+    "color": null,
+    "price": 90,
+    "legacyIds": []
+  },
+  {
+    "id": "hairstyle:curls-medium",
+    "category": "hairstyle",
+    "option": "curls-medium",
+    "name": "Rulos medianos",
+    "resource": "curls-medium",
+    "color": null,
+    "price": 110,
+    "legacyIds": []
+  },
+  {
+    "id": "hairstyle:fringe-short",
+    "category": "hairstyle",
+    "option": "fringe-short",
+    "name": "Flequillo corto",
+    "resource": "fringe-short",
+    "color": null,
+    "price": 80,
+    "legacyIds": []
+  },
+  {
+    "id": "hairstyle:fringe-long",
+    "category": "hairstyle",
+    "option": "fringe-long",
+    "name": "Flequillo largo",
+    "resource": "fringe-long",
+    "color": null,
+    "price": 100,
+    "legacyIds": []
+  },
+  {
+    "id": "hairstyle:straight-long",
+    "category": "hairstyle",
+    "option": "straight-long",
+    "name": "Largo lacio",
+    "resource": "straight-long",
+    "color": null,
+    "price": 120,
+    "legacyIds": []
+  },
+  {
+    "id": "hairstyle:wavy-long",
+    "category": "hairstyle",
+    "option": "wavy-long",
+    "name": "Largo con ondas",
+    "resource": "wavy-long",
+    "color": null,
+    "price": 130,
+    "legacyIds": []
+  },
+  {
+    "id": "hairstyle:bun",
+    "category": "hairstyle",
+    "option": "bun",
+    "name": "Rodete",
+    "resource": "bun",
+    "color": null,
+    "price": 100,
+    "legacyIds": []
+  },
+  {
+    "id": "hairstyle:pony-high",
+    "category": "hairstyle",
+    "option": "pony-high",
+    "name": "Colita alta",
+    "resource": "pony-high",
+    "color": null,
+    "price": 110,
+    "legacyIds": []
+  },
+  {
+    "id": "hairstyle:pony-low",
+    "category": "hairstyle",
+    "option": "pony-low",
+    "name": "Colita baja",
+    "resource": "pony-low",
+    "color": null,
+    "price": 90,
+    "legacyIds": []
+  },
+  {
+    "id": "hairstyle:half-up",
+    "category": "hairstyle",
+    "option": "half-up",
+    "name": "Media cola",
+    "resource": "half-up",
+    "color": null,
+    "price": 100,
+    "legacyIds": []
+  },
+  {
+    "id": "hairstyle:crop-modern",
+    "category": "hairstyle",
+    "option": "crop-modern",
+    "name": "Corte moderno corto",
+    "resource": "crop-modern",
+    "color": null,
+    "price": 110,
+    "legacyIds": []
+  },
+  {
+    "id": "hairstyle:shag",
+    "category": "hairstyle",
+    "option": "shag",
+    "name": "Corte desmechado",
+    "resource": "shag",
+    "color": null,
+    "price": 110,
+    "legacyIds": []
+  },
+  {
+    "id": "hairstyle:braids",
+    "category": "hairstyle",
+    "option": "braids",
+    "name": "Trenzas simples",
+    "resource": "braids",
+    "color": null,
+    "price": 120,
+    "legacyIds": []
+  },
+  {
+    "id": "hairstyle:formal",
+    "category": "hairstyle",
+    "option": "formal",
+    "name": "Peinado formal",
+    "resource": "formal",
+    "color": null,
+    "price": 90,
+    "legacyIds": []
+  },
+  {
+    "id": "hairstyle:casual",
+    "category": "hairstyle",
+    "option": "casual",
+    "name": "Peinado casual",
+    "resource": "casual",
+    "color": null,
+    "price": 90,
+    "legacyIds": []
+  }
+]

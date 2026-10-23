@@ -1,3 +1,4 @@
+import { profileAvatarUrl, avatarDataUrl } from '@/features/avatar/profileAvatar';
 import * as legacy from './mockData';
 import { tandemApi } from '@/services/api';
 import { API_BASE_URL, ApiError, apiRequest, clearDefaultAuthToken, getApiCacheUser, unwrapApiData } from '@/services/api/client';
@@ -355,7 +356,7 @@ function toLegacyUser(user: Partial<Usuario>, avatarUrl?: string | null): User |
     password: '',
     name: [user.nombre, user.apellido].filter(Boolean).join(' ') || user.nombre_usuario || user.correo || 'Usuario',
     email: user.correo ?? '',
-    avatar: avatarUrl || '🙂',
+    avatar: avatarUrl || (role === 'user' ? avatarDataUrl() : '🙂'),
     emailVerified: user.email_verificado ?? undefined,
   };
 
@@ -402,9 +403,9 @@ function ageFromDate(value?: string | null): number | undefined {
   return age >= 0 ? age : undefined;
 }
 
-function enrichPertenecienteUser(user: Usuario, perteneciente?: DbPerteneciente, points = 0, level = 1): User {
+function enrichPertenecienteUser(user: Usuario, perteneciente?: DbPerteneciente, points = 0, level = 1, avatar?: DbAvatar): User {
   return {
-    ...(toLegacyUser(user) as User),
+    ...(toLegacyUser(user, profileAvatarUrl(avatar)) as User),
     age: ageFromDate(user.fecha_nacimiento),
     bio: perteneciente?.observacion_general || '',
     points,
@@ -1206,7 +1207,7 @@ async function fetchUserAvatarUrl(userId: number, idTipoUsuario?: number | null)
     ]);
     if (!pp) return null;
     const avatar = (avatares as DbAvatar[]).find(a => Number(a.id_perteneciente) === Number(pp.id));
-    return avatar?.avatar_imagen_url || avatar?.avatar_imagen_origen_url || null;
+    return profileAvatarUrl(avatar);
   } catch {
     return null;
   }
@@ -2564,7 +2565,7 @@ export async function fetchChatContacts(): Promise<ChatContact[]> {
   for (const a of avatares as DbAvatar[]) {
     const pp = (pertenecientes as DbPerteneciente[]).find(p => Number(p.id) === Number(a.id_perteneciente));
     if (pp) {
-      const url = a.avatar_imagen_url || a.avatar_imagen_origen_url;
+      const url = profileAvatarUrl(a);
       if (url) avatarByUsuarioId.set(Number(pp.id_usuario), url);
     }
   }
@@ -2573,7 +2574,7 @@ export async function fetchChatContacts(): Promise<ChatContact[]> {
     return {
       id: String(usuario.id),
       name: [usuario.nombre, usuario.apellido].filter(Boolean).join(' ') || usuario.nombre_usuario || usuario.correo || `Usuario #${usuario.id}`,
-      avatar: avatarByUsuarioId.get(usuario.id) || (role === 'professional' ? '👩‍⚕️' : role === 'tutor' ? '👩' : '🙂'),
+      avatar: avatarByUsuarioId.get(usuario.id) || (role === 'professional' ? '👩‍⚕️' : role === 'tutor' ? '👩' : avatarDataUrl()),
       role: role === 'professional' ? 'profesional' : role === 'tutor' ? 'tutor' : 'user',
       subtitle: `${role === 'professional' ? 'Profesional' : role === 'tutor' ? 'Tutor/a' : 'Usuario'} · @${usuario.nombre_usuario || usuario.correo || usuario.id} · ID ${usuario.id}`,
       phone: usuario.telefono ? String(usuario.telefono) : undefined,
@@ -2675,7 +2676,7 @@ export async function fetchLinkedPertenecientesForSupportUser(
       if (!usuario) return null;
       const saldo = (saldos as DbSaldoPuntos[]).find((item) => Number(item.id_perteneciente) === Number(perteneciente.id));
       const avatar = (avatares as DbAvatar[]).find((item) => Number(item.id_perteneciente) === Number(perteneciente.id));
-      return enrichPertenecienteUser(usuario, perteneciente, saldo?.saldo ?? 0, avatar?.nivel ?? 1);
+      return enrichPertenecienteUser(usuario, perteneciente, saldo?.saldo ?? 0, avatar?.nivel ?? 1, avatar);
     })
     .filter((item): item is User => Boolean(item));
 }
