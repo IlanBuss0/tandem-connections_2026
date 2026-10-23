@@ -1,15 +1,19 @@
 import { UserRound } from 'lucide-react';
+import AvatarPreview from './AvatarPreview';
+import type { AvatarConfig } from '@/features/avatar/avatarCatalog';
 
 type HeaderUserAvatarProps = {
   avatar?: string | null;
   name?: string | null;
+  config?: AvatarConfig;
 };
 
 function isImageAvatar(value: string) {
   return /^(https?:|data:image\/|\/|\.\/|\.\.\/)/.test(value) || /\.(png|jpe?g|webp|gif|svg)$/i.test(value);
 }
 
-export default function HeaderUserAvatar({ avatar, name }: HeaderUserAvatarProps) {
+export default function HeaderUserAvatar({ avatar, name, config }: HeaderUserAvatarProps) {
+  if(config) return <AvatarPreview config={config} photo={avatar} size={40}/>;
   const cleanAvatar = avatar?.trim();
 
   return (

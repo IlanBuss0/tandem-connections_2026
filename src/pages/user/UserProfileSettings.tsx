@@ -1,3 +1,5 @@
+import AvatarPreview from '@/components/AvatarPreview';
+import { useWallet } from '@/contexts/WalletContext';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Accessibility, AlertCircle, ArrowLeft, Bell, Loader2, Save, Shield, UserRound } from 'lucide-react';
 import { ACCESSIBILITY_PROFILES, DEFAULT_SETTINGS, useAccessibility, type AccessibilitySettings } from '@/contexts/AccessibilityContext';
@@ -193,6 +195,7 @@ export default function UserProfileSettings({ onBack }: { onBack?: () => void })
     );
   }, [form]);
 
+  const { state: avatarWallet } = useWallet();
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarProgress, setAvatarProgress] = useState(0);
@@ -223,23 +226,15 @@ export default function UserProfileSettings({ onBack }: { onBack?: () => void })
 
       const pertenecienteId = settings?.perteneciente?.id;
       if (pertenecienteId) {
-        try {
-          const { tandemApi } = await import('../../services/api');
-          const avatares = await tandemApi.avatares.getAll();
-          const avatar = (avatares as any[]).find(a => Number(a.id_perteneciente) === Number(pertenecienteId));
-          if (avatar?.id) {
-            await tandemApi.avatares.update(avatar.id, {
-              avatar_imagen_url: data.url,
-              avatar_imagen_origen_url: data.url,
-              avatar_imagen_content_type: file.type,
-              avatar_imagen_actualizada_en: new Date().toISOString(),
-            });
-            await refreshUser();
-          }
-        } catch (err) {
-          console.warn('No se pudo persistir el avatar:', err);
-        }
-      }
+        const { tandemApi } = await import('../../services/api');
+        const avatares = await tandemApi.avatares.getAll();
+        const avatar = avatares.find(a => Number(a.id_perteneciente) === Number(pertenecienteId));
+        if (!avatar?.id) throw new Error('No encontramos el avatar para asociar la foto.');
+        await tandemApi.avatares.update(avatar.id, {
+          avatar_imagen_origen_url: data.url,
+        });
+        await refreshUser();
+      } else throw new Error('No encontramos el perfil para asociar la foto.');
 
       toast({ title: 'Foto subida', description: 'La foto de perfil se actualizo.' });
     } catch {
@@ -250,7 +245,7 @@ export default function UserProfileSettings({ onBack }: { onBack?: () => void })
       setAvatarProgress(0);
       if (avatarInputRef.current) avatarInputRef.current.value = '';
     }
-  }, [toast, settings]);
+  }, [settings, refreshUser]);
 
   const load = async () => {
     if (!user || user.role !== 'user') return;
@@ -388,7 +383,7 @@ export default function UserProfileSettings({ onBack }: { onBack?: () => void })
                   {avatarPreview ? (
                     <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
                   ) : (
-                    user.avatar || '👤'
+                    <AvatarPreview config={avatarWallet.config} photo={user.avatar} size={64}/>
                   )}
                   {avatarUploading && (
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center">

@@ -1,5 +1,6 @@
 import { Info, LogOut, Settings, UserRound } from 'lucide-react';
 import HeaderUserAvatar from '@/components/HeaderUserAvatar';
+import { useWallet } from '@/contexts/WalletContext';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 type Props = {
@@ -11,18 +12,19 @@ type Props = {
 };
 
 export default function BelongingProfileAccountPanel({ open, onOpenChange, user, onNavigate, onLogout }: Props) {
+  const {state}=useWallet();
   const select = (tab: string) => { onOpenChange(false); onNavigate(tab); };
 
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
         <button type="button" aria-label="Abrir opciones de cuenta" aria-expanded={open} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-          <HeaderUserAvatar avatar={user.avatar} name={user.name} />
+          <HeaderUserAvatar avatar={user.avatar} name={user.name} config={state.config}/>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" sideOffset={10} className="z-[80] w-[min(19rem,calc(100vw-2rem))] rounded-2xl border-violet-100 p-2 shadow-xl">
         <DropdownMenuLabel className="flex items-center gap-3 p-3">
-          <HeaderUserAvatar avatar={user.avatar} name={user.name} />
+          <HeaderUserAvatar avatar={user.avatar} name={user.name} config={state.config}/>
           <span className="min-w-0 flex-1">
             <span className="block truncate font-bold">{user.name}</span>
             <span className="block text-xs font-normal text-muted-foreground">Perteneciente</span>

@@ -1,3 +1,4 @@
+import AvatarPreview from '@/components/AvatarPreview';
 import { useEffect, useMemo, useState } from "react";
 import {
   Check,
@@ -105,46 +106,11 @@ function loadPertenecienteHome(
   return request;
 }
 
-function isImageAvatar(value: string) {
-  return (
-    /^(https?:|data:image\/|\/|\.\/|\.\.\/)/.test(value) ||
-    /\.(png|jpe?g|webp|gif|svg)$/i.test(value)
-  );
-}
-
-function HomeAvatar({
-  avatar,
-  name,
-  compact = false,
-}: {
-  avatar?: string;
-  name: string;
-  compact?: boolean;
-}) {
-  const cleanAvatar = avatar?.trim();
-  return (
-    <div
-      className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/80 bg-white/75 shadow-sm ${compact ? "h-16 w-16 sm:h-20 sm:w-20 lg:h-24 lg:w-24" : "h-24 w-24 sm:h-28 sm:w-28 lg:h-36 lg:w-36"}`}
-      aria-label={`Avatar de ${name}`}
-    >
-      {cleanAvatar && isImageAvatar(cleanAvatar) ? (
-        <img src={cleanAvatar} alt="" className="h-full w-full object-cover" />
-      ) : cleanAvatar ? (
-        <span
-          className={
-            compact
-              ? "text-4xl sm:text-5xl"
-              : "text-6xl sm:text-7xl lg:text-8xl"
-          }
-          aria-hidden
-        >
-          {cleanAvatar}
-        </span>
-      ) : (
-        <UserRound className="h-1/2 w-1/2 text-[#7b5fa6]" aria-hidden />
-      )}
-    </div>
-  );
+function HomeAvatar({avatar,name,compact=false}:{avatar?:string;name:string;compact?:boolean}) {
+  const {state}=useWallet();
+  return <div className={'shrink-0 overflow-hidden rounded-full border border-white/80 bg-white/75 shadow-sm '+(compact?'h-16 w-16 sm:h-20 sm:w-20 lg:h-24 lg:w-24':'h-24 w-24 sm:h-28 sm:w-28 lg:h-36 lg:w-36')} aria-label={'Avatar de '+name}>
+    <AvatarPreview config={state.config} photo={avatar} className="!h-full !w-full"/>
+  </div>;
 }
 
 function statusLabel(status: string) {

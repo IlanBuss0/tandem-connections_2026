@@ -281,10 +281,9 @@ export default function AppShell() {
                   className="mb-5 flex w-full items-center gap-3 rounded-2xl border border-violet-100 bg-white/70 p-3 text-left transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <AvatarPreview
-                    equipped={wallet.equipped}
-                    appearance={wallet.appearance}
+                    config={wallet.config}
+                    photo={user.avatar}
                     size={48}
-                    showBackground={false}
                   />
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-sm text-foreground truncate">
