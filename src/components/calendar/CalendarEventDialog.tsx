@@ -161,7 +161,7 @@ export default function CalendarEventDialog({ open, editing, form, onOpenChange,
             <span>Descripción</span>
             <textarea value={form.description} onChange={event => onFormChange({ ...form, description: event.target.value })} placeholder="Descripción (opcional)" className="h-20 w-full resize-none rounded-2xl border border-[#ede4f8] bg-[#faf8ff] p-3 text-base font-normal text-[#4a4a5a] outline-none focus:ring-2 focus:ring-[#6b4c9a]/20" />
           </label>
-          <ReminderPicker value={form.reminders} onChange={reminders => onFormChange({ ...form, reminders })} />
+          <ReminderPicker allowCustom value={form.reminders} onChange={reminders => onFormChange({ ...form, reminders })} />
           <button type="submit" className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-3 text-sm font-semibold text-white shadow-md shadow-purple-200 transition hover:bg-[#5a3c8a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed] focus-visible:ring-offset-2"><Save size={16} />{editing ? 'Guardar cambios' : 'Crear evento'}</button>
         </form>
       </DialogContent>

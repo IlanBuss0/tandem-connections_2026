@@ -73,7 +73,7 @@ function FilterChip({
   );
 }
 
-export default function UserPictograms() {
+export default function UserPictograms({ initialMode = 'catalogo' }: { initialMode?: 'catalogo' | 'traductor' } = {}) {
   const { user } = useAuth();
   const { context: permissionContext } = usePermissionContext();
   const [search, setSearch] = useState('');
@@ -88,7 +88,7 @@ export default function UserPictograms() {
   // esta misma pantalla como un segundo modo, en vez de una pagina nueva en
   // la navegacion, porque es el mismo publico (quien busca pictogramas) con
   // otra forma de llegar a ellos (escribiendolo en vez de buscarlo).
-  const [mode, setMode] = useState<'catalogo' | 'traductor'>('catalogo');
+  const [mode, setMode] = useState<'catalogo' | 'traductor'>(initialMode);
 
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);

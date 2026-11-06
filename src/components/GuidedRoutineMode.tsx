@@ -19,15 +19,15 @@ import type { HelpMotivo } from '@/components/activity-help/useHelpRequest';
 // pensada para tener panorama), este modo achica la pantalla a una sola
 // cosa: la que hay que hacer ahora. Menos pasos visibles a la vez = menos
 // sobrecarga en el momento de hacer las cosas, no de planificarlas.
-export default function GuidedRoutineMode({ routineId, items }: { routineId: string; items: RoutineItem[] }) {
+export default function GuidedRoutineMode({ routineId, items, initialItemId, initialOpen = false, onClose }: { routineId: string; items: RoutineItem[]; initialItemId?: string; initialOpen?: boolean; onClose?: () => void }) {
   const { toggleItem, routines } = useRoutines();
-  const [open, setOpen] = useState(false);
-  const [index, setIndex] = useState(0);
+  const [open, setOpen] = useState(initialOpen);
+  const [index, setIndex] = useState(() => Math.max(0, items.filter(item => !item.completed).findIndex(item => item.id === initialItemId)));
   const [helpView, setHelpView] = useState<null | 'sheet' | 'explain' | 'sent' | 'calm'>(null);
   const [lastMotivo, setLastMotivo] = useState<HelpMotivo>('ayuda');
 
   const pending = useMemo(() => items.filter((it) => !it.completed), [items]);
-  const current = pending[index] || null;
+  const current = pending[index] || pending[0] || null;
 
   // Datos del paso para el pedido de ayuda: el numero es la posicion entre
   // TODOS los pasos de la rutina (no solo los pendientes).
@@ -70,7 +70,7 @@ export default function GuidedRoutineMode({ routineId, items }: { routineId: str
     toggleItem(routineId, current.id);
     // No se avanza el indice: al completarse, `current` sale de `pending`
     // y el siguiente pendiente ocupa el mismo indice solo.
-    if (pending.length <= 1) setOpen(false);
+    if (pending.length <= 1) { setOpen(false); onClose?.(); }
   };
 
   if (!open) {
@@ -98,8 +98,8 @@ export default function GuidedRoutineMode({ routineId, items }: { routineId: str
     <div className="fixed inset-0 z-[60] flex flex-col bg-white">
       <div className="flex items-center justify-between border-b border-[#ede4f8] p-4">
         <span className="text-xs font-semibold text-[#8b7aa0]">Paso {stepNumber} de {items.length}</span>
-        <button type="button" onClick={() => setOpen(false)} aria-label="Cerrar" className="rounded-full p-2 text-[#8b7aa0] hover:bg-[#f5f0ff]">
-          <X size={22} />
+        <button type="button" onClick={() => { setOpen(false); onClose?.(); }} aria-label={onClose ? 'Volver al calendario' : 'Cerrar'} className="flex min-h-11 items-center gap-2 rounded-full p-2 text-[#6b4c9a] hover:bg-[#f5f0ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          {onClose ? 'Volver al calendario' : <X size={22} />}
         </button>
       </div>
 
@@ -151,7 +151,9 @@ export default function GuidedRoutineMode({ routineId, items }: { routineId: str
         <>
           <div className="flex flex-1 flex-col items-center justify-center gap-4 overflow-y-auto p-6">
             <RoutinePictogram item={current} size="lg" />
+            {initialOpen && <p className="text-center text-sm font-semibold text-[#6b4c9a]">{routineName}</p>}
             <h2 className="text-center text-2xl font-bold text-[#4a4a5a]">{current.pictogramLabel || current.title}</h2>
+            {initialOpen && current.pictogramLabel && current.pictogramLabel !== current.title && <p className="max-w-lg text-center text-[#4a4a5a]">{current.title}</p>}
             <SpeakButton text={current.pictogramLabel || current.title} size={20} />
           </div>
           <div className="border-t border-[#ede4f8] p-4">

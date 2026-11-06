@@ -33,7 +33,7 @@ const baseActivity = {
 } as Activity;
 
 function renderActivity(overrides: Partial<Activity> = {}) {
-  return render(<ActivityExecution activity={{ ...baseActivity, ...overrides }} onBack={vi.fn()} onComplete={vi.fn()} />);
+  return render(<ActivityExecution activity={{ ...baseActivity, ...overrides }} onBack={vi.fn()} onHome={vi.fn()} onComplete={vi.fn()} />);
 }
 
 describe('helpRecipientLabel', () => {

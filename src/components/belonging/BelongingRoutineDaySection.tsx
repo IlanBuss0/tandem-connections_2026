@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  CheckCircle2,
-  Circle,
-  Clock,
   Copy,
   Pencil,
   Plus,
@@ -23,8 +20,6 @@ import {
   RoutineItem,
 } from "@/data/api";
 import { useAuth } from "@/contexts/AuthContext";
-import SpeakButton from "@/components/SpeakButton";
-import StartTaskHint from "@/components/StartTaskHint";
 import GuidedRoutineMode from "@/components/GuidedRoutineMode";
 import {
   isPermissionEnabled,
@@ -32,7 +27,7 @@ import {
   usePermissionContext,
 } from "@/hooks/usePermissions";
 import SectionSelector from "@/components/SectionSelector";
-import RoutinePictogram from "@/components/RoutinePictogram";
+import BelongingRoutineStep from "./BelongingRoutineStep";
 import RoutinePictogramPicker from "@/components/RoutinePictogramPicker";
 import { useRoutinePictograms } from "@/hooks/useRoutinePictograms";
 import type { Pictogram } from "@/data/api";
@@ -204,13 +199,13 @@ export default function BelongingRoutineDaySection({
     return (
       <section
         aria-labelledby="calendar-routine-title"
-        className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3.5 text-amber-950"
+        className="min-w-0 rounded-3xl border border-amber-200 bg-amber-50 p-4 text-amber-950"
       >
         <h3
           id="calendar-routine-title"
           className="text-sm font-extrabold uppercase tracking-wide text-[#5f477c]"
         >
-          Rutina
+          El paso a paso de hoy
         </h3>
         <p className="mt-1.5 text-xs leading-relaxed">
           Tu tutor deshabilitó temporalmente Mi día. No podés ver ni completar
@@ -298,14 +293,14 @@ export default function BelongingRoutineDaySection({
   return (
     <section
       aria-labelledby="calendar-routine-title"
-      className="mt-4 border-t border-[#eee5f7] pt-3.5"
+      className="min-w-0 rounded-3xl border border-[#f0e8f8] bg-white p-4 shadow-lg"
     >
-      <h3
+      <h2
         id="calendar-routine-title"
-        className="text-sm font-extrabold uppercase tracking-wide text-[#5f477c]"
+        className="text-xl font-bold text-[#6b4c9a]"
       >
-        Rutina
-      </h3>
+        El paso a paso de hoy
+      </h2>
 
       {!active ? (
         <div className="mt-2 rounded-2xl border border-dashed border-[#e0d8f0] bg-[#faf8ff] px-3 py-3">
@@ -350,7 +345,19 @@ export default function BelongingRoutineDaySection({
         </div>
       ) : (
         <div className="mt-2 space-y-3">
-          <div className="bg-white rounded-2xl border border-[#f0e8f8] p-3">
+          <p className="break-words text-lg font-bold text-[#3f3153]">{active.name}</p>
+          <div className="flex flex-wrap items-start gap-2 [&_button]:min-h-11">
+            {active.items.length > 0 && (
+              <>
+                <GuidedRoutineMode routineId={active.id} items={active.items} />
+                <button type="button" aria-pressed={pictogramView} onClick={() => setPictogramView(value => !value)} className="min-h-11 rounded-full border border-[#ddcfed] bg-[#faf8ff] px-3 text-xs font-semibold text-[#6b4c9a] hover:bg-[#f5f0ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]">
+                  {pictogramView ? "Ver listado" : "Ver paso a paso"}
+                </button>
+              </>
+            )}
+            <details className="max-w-full text-sm text-[#6b4c9a] open:w-full">
+              <summary className="min-h-11 cursor-pointer rounded-xl px-2 py-3 text-xs font-semibold hover:bg-[#faf8ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]">Opciones de rutina</summary>
+              <div className="space-y-2 py-2">
             {!editingDay ? (
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <select
@@ -436,36 +443,17 @@ export default function BelongingRoutineDaySection({
                 </div>
               </div>
             )}
-
-            <div className="mt-3 flex justify-between items-center mb-1.5">
-              <span className="text-xs font-medium text-[#4a4a5a]">
-                Progreso
-              </span>
-              <span className="text-xs font-bold text-[#6b4c9a]">
-                {Math.round((completed / total) * 100)}% · {completed}/
-                {active.items.length}
-              </span>
-            </div>
-            <div className="w-full bg-[#f0e8f8] rounded-full h-2.5">
-              <motion.div
-                className="bg-[#6b4c9a] h-2.5 rounded-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${(completed / total) * 100}%` }}
-              />
-            </div>
-
-            {active.items.length > 0 && (
-              <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
-                <GuidedRoutineMode routineId={active.id} items={active.items} />
-                <button
-                  type="button"
-                  onClick={() => setPictogramView((v) => !v)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold bg-[#6b4c9a] text-white border-transparent hover:bg-[#5a3c8a]"
-                >
-                  {pictogramView ? "📝 Texto" : "🖼️ Pictograma"}
-                </button>
               </div>
-            )}
+            </details>
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap justify-between gap-2 text-xs text-[#675a78]">
+              <span>{completed} de {active.items.length} pasos completados</span>
+              <span className="font-semibold text-[#6b4c9a]">{Math.round((completed / total) * 100)}%</span>
+            </div>
+            <div role="progressbar" aria-label="Progreso de la rutina" aria-valuenow={Math.round((completed / total) * 100)} aria-valuemin={0} aria-valuemax={100} className="h-1.5 overflow-hidden rounded-full bg-[#eee5fa]">
+              <div className="h-full rounded-full bg-[#6b4c9a]" style={{ width: `${(completed / total) * 100}%` }} />
+            </div>
           </div>
 
           {showAddItem && (
@@ -607,184 +595,45 @@ export default function BelongingRoutineDaySection({
             </motion.div>
           )}
 
-          {!showAddItem && (
-            <button
-              type="button"
-              onClick={openCreate}
-              className="w-full py-2.5 rounded-xl border-2 border-dashed border-[#e0d8f0] text-[#8b7aa0] hover:border-[#6b4c9a] hover:text-[#6b4c9a] hover:bg-[#faf8ff] text-sm inline-flex items-center justify-center gap-2"
-            >
-              <Plus size={16} /> Agregar paso
-            </button>
-          )}
 
-          {active.items.length > 0 && (
-            <div className="space-y-3">
-              {allCategories.map((cat) => {
-                const catItems = active.items.filter(
-                  (it) => it.category === cat,
-                );
-                if (catItems.length === 0) return null;
+          {active.items.length > 0 ? (
+            <div className="space-y-4">
+              {allCategories.map(category => {
+                const items = active.items.filter(item => item.category === category);
+                if (!items.length) return null;
                 return (
-                  <div key={cat} className="space-y-1.5">
-                    <h4 className="text-xs font-bold text-[#6b4c9a] uppercase tracking-wide">
-                      {allLabels[cat] || cat}
-                    </h4>
-                    {!pictogramView ? (
-                      <div className="space-y-1.5">
-                        {catItems.map((item, i) => (
-                          <motion.div
-                            key={item.id}
-                            initial={{ opacity: 0, x: -8 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: i * 0.03 }}
-                            className={`group flex items-center gap-2.5 rounded-xl border p-2.5 transition-all ${initialItemId === item.id ? "ring-2 ring-[#6b4c9a] border-[#6b4c9a]" : ""} ${item.completed ? "bg-green-50 border-green-200" : "bg-white border-[#f0e8f8] hover:border-[#d8c7ef]"}`}
-                          >
-                            <button
-                              type="button"
-                              onClick={() => toggleItem(active.id, item.id)}
-                              className="shrink-0"
-                              aria-label={
-                                item.completed
-                                  ? "Marcar pendiente"
-                                  : "Marcar completado"
-                              }
-                            >
-                              {item.completed ? (
-                                <CheckCircle2
-                                  size={19}
-                                  className="text-green-500"
-                                />
-                              ) : (
-                                <Circle size={19} className="text-[#8b7aa0]" />
-                              )}
-                            </button>
-                            {item.pictogramImageUrl ? (
-                              <img
-                                src={item.pictogramImageUrl}
-                                alt={item.pictogramName ?? item.title}
-                                className="h-7 w-7 shrink-0 object-contain"
-                                loading="lazy"
-                              />
-                            ) : (
-                              <span className="text-lg shrink-0">
-                                {item.icon}
-                              </span>
-                            )}
-                            <div className="flex-1 text-left min-w-0">
-                              <p
-                                className={`text-[13px] font-medium truncate ${item.completed ? "line-through text-[#8b7aa0]" : "text-[#4a4a5a]"}`}
-                              >
-                                {item.title}
-                              </p>
-                              {(item.reminders?.length || 0) > 0 && (
-                                <p className="text-[10px] text-[#6b4c9a]">
-                                  🔔 {item.reminders!.length} aviso
-                                  {item.reminders!.length === 1 ? "" : "s"}
-                                </p>
-                              )}
-                            </div>
-                            <span className="text-[11px] text-[#8b7aa0] flex items-center gap-0.5">
-                              <Clock size={11} /> {item.time}
-                            </span>
-                            <div className="flex gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                              <SpeakButton
-                                text={item.pictogramLabel || item.title}
-                                size={11}
-                                className="p-1.5"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => openEdit(item)}
-                                className="p-1.5 rounded-lg hover:bg-[#f5f0ff] text-[#8b7aa0]"
-                                title="Editar"
-                              >
-                                <Pencil size={11} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => deleteItem(active.id, item.id)}
-                                className="p-1.5 rounded-lg hover:bg-red-50 text-red-400"
-                                title="Eliminar"
-                              >
-                                <Trash2 size={11} />
-                              </button>
-                            </div>
-                          </motion.div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        {catItems.map((item, i) => (
-                          <motion.div
-                            key={item.id}
-                            initial={{ opacity: 0, scale: 0.92 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: i * 0.03 }}
-                            className={`group relative flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border-2 transition-all cursor-pointer ${item.completed ? "bg-green-50 border-green-300" : "bg-white border-[#d8c7ef] hover:border-[#6b4c9a] hover:shadow-md"}`}
-                            onClick={() => toggleItem(active.id, item.id)}
-                          >
-                            <RoutinePictogram item={item} size="sm" />
-                            <span className="text-xs font-semibold text-[#4a4a5a] text-center leading-tight">
-                              {item.pictogramLabel || item.title}
-                            </span>
-                            <span className="text-[10px] text-[#8b7aa0] flex items-center gap-0.5">
-                              <Clock size={9} /> {item.time}
-                            </span>
-                            <span className="absolute top-1 right-1">
-                              {item.completed ? (
-                                <CheckCircle2
-                                  size={15}
-                                  className="text-green-500"
-                                />
-                              ) : (
-                                <Circle size={15} className="text-[#8b7aa0]" />
-                              )}
-                            </span>
-                            <div className="absolute top-1 left-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <SpeakButton
-                                text={item.pictogramLabel || item.title}
-                                size={8}
-                                className="p-0.5"
-                              />
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openEdit(item);
-                                }}
-                                className="p-0.5 rounded hover:bg-[#f5f0ff] text-[#8b7aa0]"
-                              >
-                                <Pencil size={9} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  deleteItem(active.id, item.id);
-                                }}
-                                className="p-0.5 rounded hover:bg-red-50 text-red-400"
-                              >
-                                <Trash2 size={9} />
-                              </button>
-                            </div>
-                            {!item.completed && (
-                              <div
-                                className="mt-0.5"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <StartTaskHint
-                                  stepTitle={item.pictogramLabel || item.title}
-                                />
-                              </div>
-                            )}
-                          </motion.div>
-                        ))}
-                      </div>
-                    )}
+                  <div key={category} className="space-y-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wide text-[#6b4c9a]">{allLabels[category] || category}</h3>
+                    <ol className={pictogramView ? "grid grid-cols-1 gap-3 sm:grid-cols-2" : "space-y-3"}>
+                      {items.map(item => (
+                        <BelongingRoutineStep
+                          key={item.id}
+                          item={item}
+                          position={active.items.findIndex(step => step.id === item.id) + 1}
+                          next={active.items.find(step => !step.completed)?.id === item.id}
+                          selected={initialItemId === item.id}
+                          visual={pictogramView}
+                          onToggle={() => toggleItem(active.id, item.id)}
+                          onEdit={() => openEdit(item)}
+                          onDelete={() => deleteItem(active.id, item.id)}
+                        />
+                      ))}
+                    </ol>
                   </div>
                 );
               })}
             </div>
+          ) : (
+            <p className="rounded-2xl border border-dashed border-[#e0d8f0] bg-[#faf8ff] p-3 text-sm text-[#675a78]">Todavía no hay pasos en esta rutina. Podés agregar el primero abajo.</p>
+          )}
+          {!showAddItem && (
+            <button
+              type="button"
+              onClick={openCreate}
+              className="min-h-11 w-full py-2.5 rounded-xl border-2 border-dashed border-[#e0d8f0] text-[#8b7aa0] hover:border-[#6b4c9a] hover:text-[#6b4c9a] hover:bg-[#faf8ff] text-sm inline-flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"
+            >
+              <Plus size={16} /> Agregar paso
+            </button>
           )}
         </div>
       )}

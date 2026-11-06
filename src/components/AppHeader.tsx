@@ -60,17 +60,28 @@ export default function AppHeader({
           <button
             type="button"
             onClick={onLogoClick}
-            aria-label="Ir a Inicio"
-            className={`absolute inline-flex h-11 items-center justify-center rounded-xl px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden ${centerLogoMobile ? 'left-1/2 -translate-x-1/2' : 'left-3 sm:left-5'}`}
+            aria-label="Ir al inicio de TÁNDEM"
+            className={`absolute inline-flex h-11 cursor-pointer items-center justify-center rounded-xl px-1 transition hover:bg-muted active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden ${centerLogoMobile ? 'left-1/2 -translate-x-1/2' : 'left-3 sm:left-5'}`}
           >
             <img className="h-7 max-w-[108px] object-contain min-[360px]:h-8 min-[360px]:max-w-[132px]" src="/tandem-logo.svg" alt="Tandem" />
           </button>
         )}
-        <img
-          className={`absolute left-1/2 h-8 max-w-[132px] -translate-x-1/2 object-contain ${onLogoClick ? 'hidden lg:block' : ''}`}
-          src="/tandem-logo.svg"
-          alt="Tandem"
-        />
+        {onLogoClick ? (
+          <button
+            type="button"
+            onClick={onLogoClick}
+            aria-label="Ir al inicio de TÁNDEM"
+            className="absolute left-1/2 hidden h-11 -translate-x-1/2 cursor-pointer items-center justify-center rounded-xl px-1 transition hover:bg-muted active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:inline-flex"
+          >
+            <img className="h-8 max-w-[132px] object-contain" src="/tandem-logo.svg" alt="Tandem" />
+          </button>
+        ) : (
+          <img
+            className="absolute left-1/2 h-8 max-w-[132px] -translate-x-1/2 object-contain"
+            src="/tandem-logo.svg"
+            alt="Tandem"
+          />
+        )}
         {onBack && contextTitle && <span className="pointer-events-none absolute left-1/2 max-w-[55vw] -translate-x-1/2 truncate text-sm font-bold lg:hidden">{contextTitle}</span>}
 
         <div className="flex min-w-11 items-center justify-end gap-3">

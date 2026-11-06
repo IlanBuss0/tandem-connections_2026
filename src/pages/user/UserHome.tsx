@@ -1,11 +1,11 @@
 import AvatarPreview from '@/components/AvatarPreview';
 import { useEffect, useMemo, useState } from "react";
 import {
-  Check,
   CheckCircle2,
   ChevronRight,
-  Circle,
-  Lightbulb,
+  ChevronLeft,
+  Play,
+  MessageSquare,
   ListTodo,
   Plus,
   Trophy,
@@ -30,6 +30,9 @@ import {
   usePermissionContext,
 } from "@/hooks/usePermissions";
 import { useCalendarPictograms } from "@/hooks/useCalendarPictograms";
+import { localDateKey as dateKey } from "@/lib/routineDay";
+import { addDays } from "date-fns";
+import { useDailyActivity } from "@/hooks/useDailyActivity";
 
 interface Props {
   onNavigate?: (tab: string, params?: Record<string, string>) => void;
@@ -56,8 +59,6 @@ const emotions = [
   { label: "Enojado", emoji: "😠" },
 ] as const;
 
-const homeRequests = new Map<string, Promise<PertenecienteHomeData>>();
-const weekDayLabels = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 const monthLabels = [
   "Enero",
   "Febrero",
@@ -73,42 +74,20 @@ const monthLabels = [
   "Diciembre",
 ];
 
-function dateKey(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function currentWeek() {
-  const start = new Date();
-  const offset = (start.getDay() + 6) % 7;
-  start.setDate(start.getDate() - offset);
-  start.setHours(0, 0, 0, 0);
-  return Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + index);
-    return date;
-  });
-}
-
 function loadPertenecienteHome(
   userId: string,
   onActivitiesReady: (activities: PertenecienteHomeActivity[]) => void,
 ) {
-  const existing = homeRequests.get(userId);
-  if (existing) return existing;
-  const request = fetchPertenecienteHome(userId, {
+  return fetchPertenecienteHome(userId, {
     onActivitiesReady,
     skipProfileLookups: true,
-  }).finally(() => homeRequests.delete(userId));
-  homeRequests.set(userId, request);
-  return request;
+    freshActivities: true,
+  });
 }
 
-function HomeAvatar({avatar,name,compact=false}:{avatar?:string;name:string;compact?:boolean}) {
+function HomeAvatar({avatar,name}:{avatar?:string;name:string}) {
   const {state}=useWallet();
-  return <div className={'shrink-0 overflow-hidden rounded-full border border-white/80 bg-white/75 shadow-sm '+(compact?'h-16 w-16 sm:h-20 sm:w-20 lg:h-24 lg:w-24':'h-24 w-24 sm:h-28 sm:w-28 lg:h-36 lg:w-36')} aria-label={'Avatar de '+name}>
+  return <div className="h-24 w-24 shrink-0 overflow-hidden rounded-full border border-white/80 bg-white/75 shadow-sm sm:h-28 sm:w-28 lg:h-36 lg:w-36" aria-label={'Avatar de '+name}>
     <AvatarPreview config={state.config} photo={avatar} className="!h-full !w-full"/>
   </div>;
 }
@@ -125,14 +104,17 @@ export default function UserHome({ onNavigate }: Props) {
   const { user } = useAuth();
   const { todayRoutine } = useRoutines();
   const { state: wallet } = useWallet();
-  const { events, eventsOn } = useCalendar();
+  const { events } = useCalendar();
   const { context: permissionContext } = usePermissionContext();
   const [home, setHome] = useState<PertenecienteHomeData>(emptyHome);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
   const [selectedEmotion, setSelectedEmotion] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState(() => dateKey(new Date()));
-  const weekDays = useMemo(currentWeek, []);
+  const selectedDate = new Date(`${selectedDay}T12:00:00`);
+  const changeDay = (offset: number) => setSelectedDay(current => dateKey(addDays(new Date(`${current}T12:00:00`), offset)));
   const selectedDayEvents = useMemo(
     () => events.filter((event) => event.date === selectedDay),
     [events, selectedDay],
@@ -150,20 +132,36 @@ export default function UserHome({ onNavigate }: Props) {
     else onNavigate?.("emotions");
   };
 
+  const pendingActivities = useMemo(
+    () => home.activities.filter(isPendingActivity),
+    [home.activities],
+  );
+  const routineItems = todayRoutine?.items ?? [];
+  const visibleRoutineItems = routineItems.filter(item => !item.completed).slice(0, 3);
+  const visibleActivities = pendingActivities.slice(0, Math.max(0, 3 - visibleRoutineItems.length));
+  const daily = useDailyActivity(user?.id, home.activities, loadedKey, visibleActivities.map(item => item.id));
+  const recommendedActivity = daily.result?.status === 'pending' ? daily.result.activity : undefined;
+
   useEffect(() => {
     let mounted = true;
+    let requestId = 0;
     if (!user || user.role !== "user") return;
     const refresh = () => {
+      const ticket = ++requestId;
       setLoading(true);
       setError("");
+      setLoadedKey(null);
       void loadPertenecienteHome(user.id, (activities) => {
-        if (mounted) setHome((current) => ({ ...current, activities }));
+        if (mounted && ticket === requestId) setHome((current) => ({ ...current, activities }));
       })
         .then((data) => {
-          if (mounted) setHome(data);
+          if (mounted && ticket === requestId) {
+            setHome(data);
+            setLoadedKey(`${user.id}:${daily.day}`);
+          }
         })
         .catch(() => {
-          if (mounted) {
+          if (mounted && ticket === requestId) {
             setHome(emptyHome);
             setError(
               "No pudimos cargar todos tus datos. Intentá nuevamente en unos minutos.",
@@ -171,42 +169,26 @@ export default function UserHome({ onNavigate }: Props) {
           }
         })
         .finally(() => {
-          if (mounted) setLoading(false);
+          if (mounted && ticket === requestId) setLoading(false);
         });
     };
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
     refresh();
     window.addEventListener(ACTIVITY_STATUS_CHANGED_EVENT, refresh);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       mounted = false;
       window.removeEventListener(ACTIVITY_STATUS_CHANGED_EVENT, refresh);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [user]);
-
-  const pendingActivities = useMemo(
-    () => home.activities.filter(isPendingActivity),
-    [home.activities],
+  }, [user, daily.day, reload]);
+  const canStartActivity = isPermissionEnabled(
+    permissionContext?.perteneciente?.permisos_efectivos?.permisos,
+    PERTENECIENTE_PERMISSIONS.COMPLETAR_ACTIVIDADES,
+    false,
   );
-  const routineItems = todayRoutine?.items ?? [];
-  const completedRoutineItems = routineItems.filter(
-    (item) => item.completed,
-  ).length;
-  const dayProgress = routineItems.length
-    ? Math.round((completedRoutineItems / routineItems.length) * 100)
-    : home.activities.length
-      ? Math.round(
-          (home.activities.filter((activity) => activity.completed).length /
-            home.activities.length) *
-            100,
-        )
-      : 0;
-  const visibleRoutineItems = routineItems
-    .filter((item) => !item.completed)
-    .slice(0, 3);
-  const visibleActivities = pendingActivities.slice(
-    0,
-    Math.max(0, 3 - visibleRoutineItems.length),
-  );
-  const goalSteps = routineItems.slice(0, 5);
   const points = wallet.balance || home.points;
 
   if (!user || user.role !== "user") return null;
@@ -261,8 +243,8 @@ export default function UserHome({ onNavigate }: Props) {
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#7b5fa6] sm:text-xs">
-                {monthLabels[weekDays[0].getMonth()]}{" "}
-                {weekDays[0].getFullYear()}
+                {monthLabels[selectedDate.getMonth()]}{" "}
+                {selectedDate.getFullYear()}
               </p>
               <h2 className="text-[18px] font-bold text-[#2e2344] sm:text-[20px]">
                 Mi semana
@@ -270,7 +252,7 @@ export default function UserHome({ onNavigate }: Props) {
             </div>
             <button
               type="button"
-              onClick={() => onNavigate?.("calendar")}
+              onClick={() => onNavigate?.("calendar", { date: selectedDay })}
               className="text-xs font-bold text-[#6f4ca6] transition hover:text-[#2e2344] sm:text-sm"
             >
               Ver calendario
@@ -278,38 +260,19 @@ export default function UserHome({ onNavigate }: Props) {
           </div>
 
           <div className="mt-4 grid gap-4">
-            <div className="grid grid-cols-7 gap-1 sm:gap-2">
-              {weekDays.map((day) => {
-                const key = dateKey(day);
-                const dayEvents = eventsOn(key);
-                const isToday = key === dateKey(new Date());
-                const isSelected = key === selectedDay;
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setSelectedDay(key)}
-                    className={`flex min-h-[66px] flex-col items-center justify-center rounded-[14px] border px-1 py-2 transition sm:min-h-[76px] ${isToday ? "border-[#6f4ca6] bg-[#6f4ca6] text-white shadow-sm" : isSelected ? "border-[#d9c7ed] bg-[#f5f0ff] text-[#3f3153]" : "border-transparent bg-[#fcfaff] text-[#675a78] hover:bg-[#f5f0ff]"}`}
-                  >
-                    <span
-                      className={`text-[10px] font-bold sm:text-xs ${isToday ? "text-white/80" : "text-[#7b5fa6]"}`}
-                    >
-                      {weekDayLabels[day.getDay()]}
-                    </span>
-                    <span className="mt-1 text-lg font-extrabold leading-none sm:text-xl">
-                      {day.getDate()}
-                    </span>
-                    <span className="mt-1.5 flex h-1.5 gap-1" aria-hidden>
-                      {dayEvents.slice(0, 3).map((event) => (
-                        <span
-                          key={event.id}
-                          className={`h-1.5 w-1.5 rounded-full ${isToday ? "bg-white/80" : "bg-[#8b65bd]"}`}
-                        />
-                      ))}
-                    </span>
-                  </button>
-                );
-              })}
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#ddccf0] bg-[#f7f2ff] p-2 sm:p-3">
+              <button type="button" aria-label="Día anterior" onClick={() => changeDay(-1)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#6b4c9a] hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]">
+                <ChevronLeft size={24} aria-hidden />
+              </button>
+              <div className="min-w-0 text-center" aria-live="polite" aria-atomic="true">
+                <p className="text-base font-bold capitalize text-[#3f3153] sm:text-xl">
+                  {selectedDate.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
+                </p>
+                {selectedDay === dateKey(new Date()) && <span className="text-xs font-semibold text-[#6b4c9a]">Hoy</span>}
+              </div>
+              <button type="button" aria-label="Día siguiente" onClick={() => changeDay(1)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#6b4c9a] hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]">
+                <ChevronRight size={24} aria-hidden />
+              </button>
             </div>
 
             <div className="min-h-[76px] rounded-[16px] border border-[#eee5f7] bg-[#fcfaff] px-3 py-2.5">
@@ -326,7 +289,7 @@ export default function UserHome({ onNavigate }: Props) {
                   <button
                     key={event.id}
                     type="button"
-                    onClick={() => onNavigate?.("calendar")}
+                    onClick={() => onNavigate?.("calendar", { date: selectedDay })}
                     className="flex min-h-9 w-full items-center gap-2 border-b border-[#eee5f7] text-left last:border-0"
                   >
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center">
@@ -343,7 +306,7 @@ export default function UserHome({ onNavigate }: Props) {
               ) : (
                 <button
                   type="button"
-                  onClick={() => onNavigate?.("calendar")}
+                  onClick={() => onNavigate?.("calendar", { date: selectedDay })}
                   className="flex min-h-10 w-full items-center text-left text-xs text-[#756a82]"
                 >
                   No hay eventos para este día.
@@ -437,6 +400,7 @@ export default function UserHome({ onNavigate }: Props) {
                         onNavigate?.("calendar", {
                           routineId: todayRoutine!.id,
                           itemId: item.id,
+                          focus: "routine",
                         })
                       }
                       className="group grid min-h-[64px] w-full grid-cols-[44px_1px_44px_minmax(0,1fr)_20px] items-center gap-2 border-b border-[#f1e9f8] text-left last:border-0 sm:min-h-[70px] sm:grid-cols-[58px_1px_50px_minmax(0,1fr)_24px] sm:gap-3 lg:min-h-[76px]"
@@ -519,113 +483,61 @@ export default function UserHome({ onNavigate }: Props) {
         </div>
 
         <div className="grid gap-4 sm:gap-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(260px,0.65fr)] lg:items-stretch lg:gap-6">
-          <section className="relative overflow-hidden rounded-[24px] border border-[#ddccf0] bg-gradient-to-br from-white via-[#fdfbff] to-[#eee5fa] p-4 shadow-[0_10px_28px_rgba(75,50,110,0.10)] sm:p-6 lg:p-7">
-            <span
-              className="absolute -right-16 -top-20 h-52 w-52 rounded-full border-[28px] border-white/55"
-              aria-hidden
-            />
-            <span
-              className="absolute left-0 top-0 h-full w-1 bg-gradient-to-b from-[#7c3aed] via-[#a987d0] to-[#7fc997]"
-              aria-hidden
-            />
-            <div className="relative">
-              <h2 className="text-[18px] font-bold text-[#2e2344] sm:text-[20px] lg:text-[22px]">
-                Mi día: un paso más cerca
-              </h2>
-              <p className="mt-1 text-xs text-[#756a82] sm:text-sm">
-                Estás avanzando muy bien hoy
-              </p>
-            </div>
-            <div className="relative mt-5 grid grid-cols-[minmax(100px,0.72fr)_minmax(0,1.45fr)] items-center gap-4 sm:grid-cols-[0.7fr_1.65fr_auto] sm:gap-6 lg:grid-cols-[0.65fr_1.8fr_auto] lg:gap-10">
-              <div className="flex flex-col items-center">
-                <div
-                  className="relative flex h-24 w-24 items-center justify-center rounded-full sm:h-28 sm:w-28"
-                  style={{
-                    background: `conic-gradient(#6f4ca6 0 ${dayProgress}%, #7fc997 ${dayProgress}% ${Math.min(100, dayProgress + 10)}%, #e7dcf5 ${Math.min(100, dayProgress + 10)}% 100%)`,
-                  }}
-                >
-                  <div className="flex h-[74px] w-[74px] items-center justify-center rounded-full bg-white text-xl font-extrabold text-[#4a3a6a] sm:h-[86px] sm:w-[86px] sm:text-2xl">
-                    {dayProgress}%
-                  </div>
+          <section aria-labelledby="recommended-activity-title" className="overflow-hidden rounded-[24px] border border-[#ddccf0] bg-gradient-to-br from-white via-[#fdfbff] to-[#eee5fa] p-4 shadow-[0_10px_28px_rgba(75,50,110,0.10)] sm:p-6">
+            <h2 id="recommended-activity-title" className="text-lg font-bold text-[#2e2344] sm:text-xl">
+              {daily.result?.status === 'completed' ? '¡Completaste tu actividad de hoy!' : daily.result?.status === 'empty' ? '¡Estás al día!' : 'Actividad del día'}
+            </h2>
+            {recommendedActivity ? (
+              <div className="mt-4 grid items-center gap-5 sm:grid-cols-[140px_minmax(0,1fr)]">
+                <div className="flex min-h-36 items-center justify-center rounded-3xl border border-[#e5d8f3] bg-[#f5f0ff] p-5 text-6xl text-[#6b4c9a]">
+                  {recommendedActivity.previewIcon?.startsWith("http") ? (
+                    <img src={recommendedActivity.previewIcon} alt="" className="h-28 w-28 object-contain" />
+                  ) : recommendedActivity.previewIcon && !/^\d+$/.test(recommendedActivity.previewIcon) ? recommendedActivity.previewIcon : <ListTodo size={72} aria-hidden />}
                 </div>
-                <p className="mt-2 text-center text-[11px] font-bold text-[#4a3a6a] sm:text-xs">
-                  Mi día en equilibrio
-                </p>
+                <div className="min-w-0">
+                  {recommendedActivity.category && <p className="text-xs font-semibold capitalize text-[#6b4c9a]">{recommendedActivity.category}</p>}
+                  <h3 className="mt-1 text-lg font-bold text-[#3f3153]">{recommendedActivity.title}</h3>
+                  <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#675a78]">{recommendedActivity.description}</p>
+                  <button type="button" disabled={!canStartActivity} onClick={() => onNavigate?.("activities", { activityId: recommendedActivity.id, start: "true" })} className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#6b4c9a] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#5a3c8a] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed] focus-visible:ring-offset-2 disabled:opacity-50">
+                    <Play size={16} aria-hidden /> Comenzar actividad
+                  </button>
+                  {!canStartActivity && <p className="mt-2 text-xs text-[#675a78]">Tu tutor deshabilitó completar actividades por ahora.</p>}
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() =>
-                  todayRoutine &&
-                  onNavigate?.("calendar", { routineId: todayRoutine.id })
-                }
-                disabled={!todayRoutine}
-                className="min-w-0 rounded-[18px] border border-white/80 bg-white/65 p-3 text-left shadow-sm backdrop-blur-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed] disabled:cursor-default sm:p-4"
-              >
-                <span className="flex items-center gap-2 text-xs font-bold text-[#6f4ca6] sm:text-sm">
-                  <span aria-hidden>🎯</span> Mi próxima meta
-                </span>
-                <span className="mt-1.5 block text-sm font-extrabold leading-5 text-[#3f3153] sm:text-base">
-                  {todayRoutine?.name || "Tu próxima rutina aparecerá acá"}
-                </span>
-                <span className="mt-1 block text-[11px] font-semibold text-[#7b7185] sm:text-xs">
-                  {routineItems.length
-                    ? `${completedRoutineItems}/${routineItems.length} pasos`
-                    : "Sin pasos para hoy"}
-                </span>
-                <span className="mt-3 block h-2 overflow-hidden rounded-full bg-[#e8ddf5]">
-                  <span
-                    className="block h-full rounded-full bg-[#7c3aed] transition-[width]"
-                    style={{ width: `${dayProgress}%` }}
-                  />
-                </span>
-              </button>
-              <div className="col-span-2 flex justify-center sm:col-auto">
-                <HomeAvatar avatar={user.avatar} name={user.name} compact />
+            ) : daily.result?.status === 'completed' || daily.result?.status === 'empty' ? (
+              <div className="mt-4 space-y-4">
+                <CheckCircle2 size={40} className="text-[#6b4c9a]" aria-hidden />
+                <p className="text-sm leading-6 text-[#675a78]">{daily.result.status === 'completed' ? '¡Muy bien! Si tenés ganas de seguir jugando, podés explorar más actividades.' : 'Ya completaste todas tus actividades disponibles. Podés volver a jugar alguna cuando quieras.'}</p>
+                <button type="button" onClick={() => onNavigate?.('activities')} className="min-h-11 rounded-full bg-[#6b4c9a] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#5a3c8a] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed] focus-visible:ring-offset-2">
+                  {daily.result.status === 'completed' ? 'Explorar actividades' : 'Ver actividades'}
+                </button>
               </div>
-            </div>
-            {goalSteps.length > 0 && (
-              <button
-                type="button"
-                onClick={() =>
-                  onNavigate?.("calendar", { routineId: todayRoutine!.id })
-                }
-                className="relative mt-5 grid w-full grid-cols-5 gap-2 rounded-[18px] border border-white/80 bg-white/55 px-2 py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed] sm:gap-3 sm:px-4"
-              >
-                {goalSteps.map((item) => (
-                  <span key={item.id} className="min-w-0 text-center">
-                    <span
-                      className={`mx-auto flex h-7 w-7 items-center justify-center rounded-full ${item.completed ? "bg-[#dff3e6] text-[#3f9b61]" : "bg-[#f1ebf8] text-[#9b8aaa]"}`}
-                    >
-                      {item.completed ? (
-                        <Check size={16} strokeWidth={3} />
-                      ) : (
-                        <Circle size={13} />
-                      )}
-                    </span>
-                    <span className="mt-1.5 block truncate text-[9px] font-semibold text-[#675a78] sm:text-[11px]">
-                      {item.title}
-                    </span>
-                  </span>
-                ))}
-              </button>
+            ) : (
+              <div className="mt-4 space-y-3 text-sm leading-6 text-[#675a78]">
+                <p role={error || daily.error ? 'alert' : 'status'}>{error || daily.error || 'Buscando tu actividad del día...'}</p>
+                {(error || daily.error) && <button type="button" onClick={() => { daily.retry(); if (error) setReload(value => value + 1); }} className="min-h-11 rounded-full border border-[#ddccf0] px-5 font-semibold text-[#6b4c9a] hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]">Reintentar</button>}
+              </div>
             )}
           </section>
 
           <section className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-5 lg:grid-cols-1 lg:content-stretch">
             <button
               type="button"
-              onClick={() => onNavigate?.("emotions")}
-              className="group flex min-h-[82px] items-center gap-4 rounded-[18px] border border-[#e5d8f3] bg-gradient-to-r from-[#f7f1ff] to-white p-4 text-left shadow-[0_6px_18px_rgba(75,50,110,0.07)] transition hover:-translate-y-0.5 hover:border-[#d3bfe9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"
+              onClick={() => onNavigate?.("pictograms", { mode: "traductor" })}
+              className="group flex min-h-[82px] cursor-pointer items-center gap-4 rounded-[18px] border border-[#e5d8f3] bg-gradient-to-r from-[#f7f1ff] to-white p-4 text-left shadow-[0_6px_18px_rgba(75,50,110,0.07)] transition hover:-translate-y-0.5 hover:border-[#d3bfe9] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"
             >
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#7c3aed] text-white">
-                <Lightbulb size={22} aria-hidden />
+                <MessageSquare size={22} aria-hidden />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-bold text-[#2e2344] sm:text-base">
-                  Consejo del día
+                  ¿Querés comunicar algo?
                 </span>
                 <span className="mt-1 block text-xs leading-5 text-[#675a78] sm:text-[13px]">
-                  Respirá profundo, tomate tu tiempo y hacé lo mejor que puedas.
+                  Escribí lo que querés decir y transformalo en pictogramas.
+                </span>
+                <span className="mt-2 block text-xs font-bold text-[#6b4c9a] group-hover:underline">
+                  Abrir traductor
                 </span>
               </span>
               <ChevronRight

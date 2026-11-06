@@ -818,12 +818,13 @@ export async function deleteProfessionalPertenecienteLink(idVinculo: number): Pr
 export async function fetchAssignedActivitiesByPerteneciente(
   idPerteneciente: number,
   token = getStoredAuthToken(),
+  fresh = false,
 ): Promise<DbActividadAsignada[]> {
   if (!token) return [];
 
   return apiRequest<DbActividadAsignada[]>(
     `/api/actividades-asignadas?id_perteneciente=${encodeURIComponent(String(idPerteneciente))}`,
-    { token },
+    { token, ...(fresh ? { cache: 'no-store' as const } : {}) },
   );
 }
 
@@ -1307,6 +1308,8 @@ export interface PertenecienteHomeActivity {
   status: string;
   completed: boolean;
   assignedAt: string;
+  category?: string;
+  previewIcon?: string;
 }
 
 export interface PertenecienteHomeData {
@@ -1371,6 +1374,7 @@ export async function fetchPertenecienteHome(
   options?: {
     onActivitiesReady?: (activities: PertenecienteHomeActivity[]) => void;
     skipProfileLookups?: boolean;
+    freshActivities?: boolean;
   },
 ): Promise<PertenecienteHomeData> {
   if (!isBackendUserId(userId)) {
@@ -1409,7 +1413,7 @@ export async function fetchPertenecienteHome(
   }
 
   const activitiesRequest = Promise.all([
-    fetchAssignedActivitiesByPerteneciente(Number(perteneciente.id)),
+    fetchAssignedActivitiesByPerteneciente(Number(perteneciente.id), undefined, options?.freshActivities),
     fetchCustomActivitiesByPerteneciente(Number(perteneciente.id)),
     activityCatalogsRequest,
   ]);
@@ -1437,8 +1441,11 @@ export async function fetchPertenecienteHome(
       const base = a.id_actividad ? activitiesById.get(Number(a.id_actividad)) : undefined;
       const custom = a.id_actividad_personalizada ? customById.get(Number(a.id_actividad_personalizada)) : undefined;
       const status = a.id_estado_actividad ? statusById.get(Number(a.id_estado_actividad)) : undefined;
+      const activity = toAssignedLegacyActivity(a, base || custom, status, userId);
       return {
         id: String(a.id),
+        category: activity.category,
+        previewIcon: activity.stepIcons?.[0],
         title: activityDisplayTitle(base?.titulo || custom?.titulo || `Actividad #${a.id}`),
         description: activityDisplayDescription(base?.descripcion || custom?.descripcion) || 'Actividad asignada desde el equipo de apoyo.',
         status: status?.nombre || (a.fecha_completada ? 'Completada' : 'Pendiente'),
@@ -1464,25 +1471,7 @@ export async function fetchPertenecienteHome(
     points: saldo?.saldo ?? 0,
     level: avatar?.nivel ?? 1,
     experience: avatar?.experiencia ?? 0,
-    activities: (asignadas as DbActividadAsignada[])
-      .filter(a => Number(a.id_perteneciente) === Number(perteneciente.id))
-      .filter(a =>
-        Boolean(a.id_actividad && activitiesById.has(Number(a.id_actividad))) ||
-        Boolean(a.id_actividad_personalizada && customById.has(Number(a.id_actividad_personalizada)))
-      )
-      .map(a => {
-        const base = a.id_actividad ? activitiesById.get(Number(a.id_actividad)) : undefined;
-        const custom = a.id_actividad_personalizada ? customById.get(Number(a.id_actividad_personalizada)) : undefined;
-        const status = a.id_estado_actividad ? statusById.get(Number(a.id_estado_actividad)) : undefined;
-        return {
-          id: String(a.id),
-          title: activityDisplayTitle(base?.titulo || custom?.titulo || `Actividad #${a.id}`),
-          description: activityDisplayDescription(base?.descripcion || custom?.descripcion) || 'Actividad asignada desde el equipo de apoyo.',
-          status: status?.nombre || (a.fecha_completada ? 'Completada' : 'Pendiente'),
-          completed: isCompletedStatus(status, a),
-          assignedAt: formatBackendDate(a.fecha_asignacion),
-        };
-      }),
+    activities: homeActivities,
     notifications: (notificaciones as DbNotificacion[])
       .filter(n => Number(n.id_usuario_destino) === Number(userId))
       .map(n => ({

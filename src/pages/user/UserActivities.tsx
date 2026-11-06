@@ -141,7 +141,7 @@ function FilterSelect({
   );
 }
 
-export default function UserActivities({ initialAssignedActivityId }: { initialAssignedActivityId?: string } = {}) {
+export default function UserActivities({ initialAssignedActivityId, startActivity = false, onHome }: { initialAssignedActivityId?: string; startActivity?: boolean; onHome: () => void }) {
   const { user } = useAuth();
   const { forUser, complete: completeCustomActivity } = useCustomActivities();
   const { context: permissionContext } = usePermissionContext();
@@ -207,7 +207,8 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
     setSelectedOrigin('todos');
     setSelectedLauncher('todos');
     setExpandedId(activity.id);
-  }, [initialAssignedActivityId, availableActivities]);
+    if (startActivity && canCompleteActivities) setExecutingActivity(activity);
+  }, [initialAssignedActivityId, availableActivities, startActivity, canCompleteActivities]);
 
   useEffect(() => {
     const storedId = localStorage.getItem('tandem:execute-activity-id');
@@ -224,6 +225,7 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
       <ActivityExecution
         activity={executingActivity}
         onBack={() => setExecutingActivity(null)}
+        onHome={onHome}
         onComplete={completeActivity}
       />
     );
@@ -365,7 +367,7 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className={`text-sm font-bold sm:text-base ${isCompleted ? 'line-through text-[#8b7aa0]' : 'text-[#4a4a5a]'}`}>
+              <p className={`text-sm font-bold sm:text-base ${isCompleted ? 'text-[#8b7aa0]' : 'text-[#4a4a5a]'}`}>
                 {activity.title}
               </p>
               {(activity as any).isCustom && (
@@ -440,21 +442,14 @@ export default function UserActivities({ initialAssignedActivityId }: { initialA
                 ))}
               </ol>
             </div>
-            {!isCompleted && canCompleteActivities && (
+            {canCompleteActivities && (
               <div className="flex gap-3 pt-1">
                 <button
                   type="button"
                   onClick={() => setExecutingActivity(activity)}
                   className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-200 transition hover:bg-[#5a3c8a] active:scale-95"
                 >
-                  <Play size={14} /> Empezar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => completeActivity(activity.id)}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-[#ede4f8] bg-[#faf8ff] px-4 py-2.5 text-sm font-semibold text-[#6b4c9a] transition hover:bg-[#f5f0ff]"
-                >
-                  <CheckCircle2 size={14} /> Completada
+                  <Play size={14} /> {isCompleted ? 'Volver a jugar' : 'Empezar'}
                 </button>
               </div>
             )}

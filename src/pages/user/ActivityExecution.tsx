@@ -20,6 +20,7 @@ import { helpRecipientLabel } from '@/components/activity-help/helpRecipientLabe
 interface Props {
   activity: Activity;
   onBack: () => void;
+  onHome: () => void;
   onComplete: (id: string, score?: number) => void;
 }
 
@@ -33,7 +34,7 @@ function StepIcon({ value, fallback, className = '' }: { value?: string; fallbac
   return <>{value || fallback}</>;
 }
 
-export default function ActivityExecution({ activity, onBack, onComplete }: Props) {
+export default function ActivityExecution({ activity, onBack, onHome, onComplete }: Props) {
   const { earn } = useWallet();
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<boolean[]>(activity.steps.map(() => false));
@@ -92,6 +93,8 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
 
   if (finished) {
     const reward = Math.max(10, Math.round(activity.points / 2));
+    const completionMessage = activity.completionMessage?.trim() || '¡Excelente trabajo! Seguí así.';
+    const showCompletionMessage = completionMessage.toLowerCase().replace(/[¡!.\s]/g, '') !== 'actividadcompletada';
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6 px-4">
         <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', bounce: 0.5 }}>
@@ -99,7 +102,9 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <h2 className="text-2xl font-heading font-bold text-[#6b4c9a]">¡Actividad completada!</h2>
-          <p className="text-[#8b7aa0] mt-2 max-w-sm">{activity.completionMessage || '¡Excelente trabajo! Seguí así.'}</p>
+          {showCompletionMessage && (
+            <p className="text-[#8b7aa0] mt-2 max-w-sm">{completionMessage}</p>
+          )}
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             {gameResult && (
               <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-100 text-purple-700 font-bold">
@@ -114,9 +119,14 @@ export default function ActivityExecution({ activity, onBack, onComplete }: Prop
             </span>
           </div>
         </motion.div>
-        <button onClick={onBack} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 transition mt-4">
-          Volver a actividades
-        </button>
+        <div className="mt-4 flex w-full flex-wrap justify-center gap-3">
+          <button type="button" onClick={onBack} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-transparent bg-[#6b4c9a] px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 transition">
+            Volver a actividades
+          </button>
+          <button type="button" onClick={onHome} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[#ede4f8] bg-white px-5 py-2.5 text-sm font-semibold text-[#6b4c9a] shadow-sm hover:bg-[#f5f0ff] active:scale-95 transition">
+            Volver al inicio
+          </button>
+        </div>
       </div>
     );
   }

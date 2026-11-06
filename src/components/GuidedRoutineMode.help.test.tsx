@@ -16,6 +16,24 @@ vi.mock('@/contexts/RoutinesContext', () => ({
 
 import GuidedRoutineMode from './GuidedRoutineMode';
 
+it('abre directamente el paso elegido y vuelve al calendario sin cambiar el progreso', () => {
+  const onClose = vi.fn();
+  toggleItem.mockClear();
+  render(<GuidedRoutineMode routineId="r1" items={items} initialItemId="i3" initialOpen onClose={onClose} />);
+  expect(screen.getByRole('heading', { name: 'Desayunar' })).toBeInTheDocument();
+  expect(screen.getByText('Mi mañana')).toBeInTheDocument();
+  expect(toggleItem).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Volver al calendario' }));
+  expect(onClose).toHaveBeenCalledOnce();
+});
+
+it('conserva el control de avance del paso seleccionado', () => {
+  toggleItem.mockClear();
+  render(<GuidedRoutineMode routineId="r1" items={items} initialItemId="i3" initialOpen />);
+  fireEvent.click(screen.getByRole('button', { name: /Listo, siguiente/ }));
+  expect(toggleItem).toHaveBeenCalledWith('r1', 'i3');
+});
+
 function openHelpSheet() {
   render(<GuidedRoutineMode routineId="r1" items={items} />);
   fireEvent.click(screen.getByRole('button', { name: /Modo guiado/ }));

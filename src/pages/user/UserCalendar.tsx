@@ -28,7 +28,9 @@ import { formatConcreteDays } from "@/lib/concreteTime";
 import SocialStoryView from "@/components/SocialStoryView";
 import { isDayOverloaded } from "@/lib/weekLoad";
 import CalendarEventDialog from "@/components/calendar/CalendarEventDialog";
+import CalendarMonthNavigation from "@/components/calendar/CalendarMonthNavigation";
 import BelongingRoutineDaySection from "@/components/belonging/BelongingRoutineDaySection";
+import GuidedRoutineMode from "@/components/GuidedRoutineMode";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -89,7 +91,9 @@ export default function UserCalendar({
   onBack,
   initialRoutineId,
   initialItemId,
-}: { onBack: () => void; initialRoutineId?: string; initialItemId?: string }) {
+  initialDate,
+  focusRoutine = false,
+}: { onBack: () => void; initialRoutineId?: string; initialItemId?: string; initialDate?: string; focusRoutine?: boolean }) {
   const { context: permissionContext } = usePermissionContext();
   const { events, addEvent, updateEvent, deleteEvent, eventTypePatterns } =
     useCalendar();
@@ -111,9 +115,10 @@ export default function UserCalendar({
   const today = new Date();
   const todayKey = dateKey(today);
   const [cursor, setCursor] = useState(
-    new Date(today.getFullYear(), today.getMonth(), 1),
+    new Date(`${initialDate || todayKey}T12:00:00`),
   );
-  const [selectedDate, setSelectedDate] = useState(todayKey);
+  const [selectedDate, setSelectedDate] = useState(initialDate || todayKey);
+  const [routineFocus, setRoutineFocus] = useState(focusRoutine);
   const dayDetailRef = useRef<HTMLElement>(null);
 
   const [showForm, setShowForm] = useState(false);
@@ -214,8 +219,6 @@ export default function UserCalendar({
     );
   }
 
-  const monthLabel = `${monthNames[cursor.getMonth()]} ${cursor.getFullYear()}`;
-
   const goToMonth = (offset: number) => {
     const next = new Date(cursor.getFullYear(), cursor.getMonth() + offset, 1);
     setCursor(next);
@@ -227,14 +230,8 @@ export default function UserCalendar({
     setSelectedDate(todayKey);
   };
 
-  const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const next = new Date(cursor.getFullYear(), parseInt(e.target.value), 1);
-    setCursor(next);
-    setSelectedDate(dateKey(next));
-  };
-
-  const handleYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const next = new Date(parseInt(e.target.value), cursor.getMonth(), 1);
+  const selectMonth = (year: number, month: number) => {
+    const next = new Date(year, month, 1);
     setCursor(next);
     setSelectedDate(dateKey(next));
   };
@@ -320,8 +317,27 @@ export default function UserCalendar({
     setDeleteCandidate(null);
   };
 
+  if (routineFocus && initialRoutineId) {
+    const routine = routines.find(item => item.id === initialRoutineId);
+    const canUseRoutine = isPermissionEnabled(
+      permissionContext?.perteneciente?.permisos_efectivos?.permisos,
+      PERTENECIENTE_PERMISSIONS.USAR_MI_DIA,
+      true,
+    );
+    if (routine && routine.items.some(item => !item.completed) && canUseRoutine) {
+      return <GuidedRoutineMode routineId={routine.id} items={routine.items} initialItemId={initialItemId} initialOpen onClose={() => setRoutineFocus(false)} />;
+    }
+    return (
+      <div className="space-y-4 rounded-3xl border border-[#ddcfed] bg-white p-6">
+        <h1 className="text-xl font-bold text-[#6b4c9a]">{routine?.name || 'Tu rutina'}</h1>
+        <p>{!canUseRoutine ? 'Tu tutor deshabilitó temporalmente Mi día.' : routine ? 'No quedan pasos pendientes en esta rutina.' : 'Estamos buscando la rutina seleccionada. Podés consultarla en el calendario.'}</p>
+        <button type="button" onClick={() => setRoutineFocus(false)} className="min-h-11 rounded-full bg-[#6b4c9a] px-5 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Volver al calendario</button>
+      </div>
+    );
+  }
+
   return (
-    <div className="pb-24 lg:pb-6 space-y-6">
+    <div className="pb-24 lg:pb-6 space-y-3 sm:space-y-4">
       <button
         type="button"
         onClick={onBack}
@@ -334,73 +350,44 @@ export default function UserCalendar({
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+        className="flex flex-wrap items-center justify-between gap-3"
       >
         <div>
           <h1 className="text-3xl sm:text-4xl font-bold text-[#6b4c9a] leading-tight">
             Calendario
           </h1>
-          <p className="text-sm sm:text-base text-[#8b7aa0] mt-1 font-medium">
-            {monthLabel}
-          </p>
         </div>
         <button
+          type="button"
           onClick={() => openCreate()}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-3 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 transition"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-[#6b4c9a] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-purple-200 hover:bg-[#5a3c8a] active:scale-95 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed] focus-visible:ring-offset-2"
         >
           <Plus size={17} />
-          Crear nuevo Evento
+          Nuevo evento
         </button>
       </motion.div>
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.75fr)_minmax(280px,0.65fr)] xl:grid-cols-[minmax(0,2fr)_minmax(300px,0.7fr)] xl:gap-6">
+      <div className="space-y-4">
         <motion.section
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
-          className="w-full min-w-0 rounded-3xl border border-[#f0e8f8] bg-white p-3 shadow-lg sm:p-5 xl:p-6"
+          className="w-full min-w-0 rounded-3xl border border-[#f0e8f8] bg-white p-3 shadow-lg sm:p-4"
         >
-          <div className="flex flex-col items-center gap-1.5 mb-4">
-            <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 w-full">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <div className="grid min-w-0 flex-1 grid-cols-[auto_1fr_auto] items-center gap-1">
               <button
                 onClick={() => goToMonth(-1)}
-                className="flex h-10 w-10 items-center justify-center rounded-full text-[#8b7aa0] hover:bg-[#f5f0ff] hover:text-[#6b4c9a] transition"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-[#8b7aa0] hover:bg-[#f5f0ff] hover:text-[#6b4c9a] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"
                 aria-label="Mes anterior"
               >
                 <ChevronLeft size={20} />
               </button>
 
-              <div className="flex items-center justify-center gap-0">
-                <select
-                  value={cursor.getMonth()}
-                  onChange={handleMonthChange}
-                  className="appearance-none bg-transparent rounded-full px-3 py-1.5 text-sm sm:text-base font-bold text-[#6b4c9a] hover:bg-[#f5f0ff] transition cursor-pointer outline-none"
-                >
-                  {monthNames.map((name, i) => (
-                    <option key={i} value={i}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={cursor.getFullYear()}
-                  onChange={handleYearChange}
-                  className="appearance-none bg-transparent rounded-full px-3 py-1.5 text-sm sm:text-base font-bold text-[#6b4c9a] hover:bg-[#f5f0ff] transition cursor-pointer outline-none"
-                >
-                  {Array.from(
-                    { length: 21 },
-                    (_, i) => today.getFullYear() - 10 + i,
-                  ).map((year) => (
-                    <option key={year} value={year}>
-                      {year}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
+              <CalendarMonthNavigation year={cursor.getFullYear()} month={cursor.getMonth()} months={monthNames} onChange={selectMonth} />
               <button
                 onClick={() => goToMonth(1)}
-                className="flex h-10 w-10 items-center justify-center rounded-full text-[#8b7aa0] hover:bg-[#f5f0ff] hover:text-[#6b4c9a] transition"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-[#8b7aa0] hover:bg-[#f5f0ff] hover:text-[#6b4c9a] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"
                 aria-label="Mes siguiente"
               >
                 <ChevronRight size={20} />
@@ -409,7 +396,7 @@ export default function UserCalendar({
 
             <button
               onClick={goToToday}
-              className="text-xs font-semibold text-[#8b7aa0] hover:text-[#6b4c9a] hover:bg-[#f5f0ff] px-3 py-1 rounded-full transition"
+              className="min-h-11 text-xs font-semibold text-[#6b4c9a] hover:bg-[#f5f0ff] px-3 py-1 rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed]"
             >
               Hoy
             </button>
@@ -435,7 +422,7 @@ export default function UserCalendar({
               <div
                 key={`blank-${blank}`}
                 aria-hidden
-                className="min-h-[68px] sm:min-h-[86px] xl:min-h-[92px]"
+                className="min-h-14 sm:min-h-16"
               />
             ))}
 
@@ -452,24 +439,23 @@ export default function UserCalendar({
                   onClick={() => selectDate(key)}
                   onDoubleClick={() => openCreate(key)}
                   aria-pressed={isSelected}
+                  aria-current={isToday ? 'date' : undefined}
                   aria-label={`${day} de ${monthNames[cursor.getMonth()]}${hasEvents ? `, ${dayEvents.length} elementos` : ", sin contenido"}`}
-                  className={`relative flex min-h-[68px] sm:min-h-[86px] xl:min-h-[92px] flex-col rounded-2xl border p-1.5 sm:p-2 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed] focus-visible:ring-offset-2 ${
-                    isToday
+                  className={`relative flex min-h-14 sm:min-h-16 flex-col rounded-xl border p-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c3aed] focus-visible:ring-offset-2 ${
+                    isSelected
                       ? "border-[#6b4c9a] bg-[#6b4c9a] text-white shadow-md shadow-purple-200"
-                      : isPastEventDay && isSelected
-                        ? "border-[#6b4c9a] bg-[#faf8ff] text-[#6b4c9a] shadow-md shadow-purple-100"
+                      : isToday
+                        ? "border-[#b9a0d5] bg-[#faf8ff] text-[#6b4c9a]"
                         : isPastEventDay
                           ? "border-transparent bg-[#faf8ff] text-[#4a3a6a] hover:bg-[#f5f0ff]"
-                          : isSelected
-                            ? "border-[#d8c7ef] bg-[#f5f0ff] text-[#6b4c9a] shadow-sm"
-                            : hasEvents
+                          : hasEvents
                               ? "border-[#eadcff] bg-[#EFE3FF] text-[#6b4c9a] hover:border-[#6b4c9a]/30"
                               : "border-transparent bg-[#faf8ff] text-[#4a3a6a] hover:bg-[#f5f0ff]"
                   }`}
                 >
                   <span
-                    className={`flex h-7 w-7 items-center justify-center rounded-full text-sm sm:text-base font-extrabold leading-none ${
-                      isToday
+                    className={`flex h-6 w-6 items-center justify-center rounded-full text-sm font-extrabold leading-none ${
+                      isSelected
                         ? "bg-white/20 text-white"
                         : isPastEventDay
                           ? "bg-[#EFE3FF] text-[#6b4c9a]"
@@ -478,21 +464,23 @@ export default function UserCalendar({
                   >
                     {day}
                   </span>
+                  {isToday && <span aria-hidden className={`absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-[#6b4c9a]'}`} />}
 
                   {hasEvents && (
-                    <div className="mt-auto min-w-0 pt-2">
+                    <div className="mt-auto min-w-0 pt-1">
                       <div className="hidden sm:flex flex-col gap-1 overflow-hidden">
-                        {dayEvents.slice(0, 2).map((event) => (
+                        {dayEvents.slice(0, 1).map((event) => (
                           <span
                             key={event.id}
                             className={`truncate rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                              isToday
+                              isSelected
                                 ? "bg-white/20 text-white"
                                 : "bg-white text-[#6b4c9a]"
                             }`}
                           >
                             <EventPictogram event={event} size="sm" />{" "}
                             {event.title}
+                            {dayEvents.length > 1 && ` · +${dayEvents.length - 1}`}
                           </span>
                         ))}
                       </div>
@@ -500,14 +488,14 @@ export default function UserCalendar({
                         {dayEvents.slice(0, 1).map((event) => (
                           <span
                             key={event.id}
-                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${isToday ? "bg-white/25 text-white" : "bg-white text-[#6b4c9a]"}`}
+                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${isSelected ? "bg-white/25 text-white" : "bg-white text-[#6b4c9a]"}`}
                           >
                             <EventPictogram event={event} size="sm" />
                           </span>
                         ))}
                         {dayEvents.length > 1 && (
                           <span
-                            className={`text-[9px] font-bold leading-none ${isToday ? "text-white" : "text-[#6b4c9a]"}`}
+                            className={`text-[9px] font-bold leading-none ${isSelected ? "text-white" : "text-[#6b4c9a]"}`}
                           >
                             +{dayEvents.length - 1}
                           </span>
@@ -530,8 +518,10 @@ export default function UserCalendar({
           onSubmit={submit}
         />
 
+        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <motion.section
           ref={dayDetailRef}
+          aria-labelledby="day-detail-title"
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
@@ -544,7 +534,7 @@ export default function UserCalendar({
                 {selectedDate !== todayKey &&
                   ` · ${formatConcreteDays(selectedDate, new Date())}`}
               </p>
-              <h2 className="text-xl font-bold text-[#6b4c9a]">
+              <h2 id="day-detail-title" className="text-xl font-bold text-[#6b4c9a]">
                 Detalle del día
               </h2>
               {isDayOverloaded(events, selectedDate) && (
@@ -599,7 +589,7 @@ export default function UserCalendar({
                     transition={{ delay: index * 0.04 }}
                     className={`group min-w-0 max-w-full overflow-hidden rounded-2xl border p-3 ${typeBg[event.type] || "bg-[#faf8ff] border-[#ede4f8]"}`}
                   >
-                    <div className="flex min-w-0 max-w-full items-start gap-3">
+                    <div className="grid min-w-0 max-w-full grid-cols-[44px_minmax(0,1fr)] items-start gap-3">
                       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/70 text-xl">
                         <EventPictogram event={event} />
                       </span>
@@ -624,7 +614,7 @@ export default function UserCalendar({
                           <SocialStoryView event={event} />
                         </div>
                       </div>
-                      <div className="flex shrink-0 gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                      <div className="col-start-2 flex flex-wrap gap-1">
                         <SpeakButton
                           text={event.title}
                           size={14}
@@ -674,7 +664,7 @@ export default function UserCalendar({
                 {selectedDayActivities.map((activity) => (
                   <div
                     key={activity.id}
-                    className="group flex items-start gap-3 rounded-2xl border border-yellow-200 bg-yellow-50 p-3 text-yellow-800"
+                    className="group grid grid-cols-[44px_minmax(0,1fr)] items-start gap-3 rounded-2xl border border-yellow-200 bg-yellow-50 p-3 text-yellow-800"
                   >
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/70">
                       <EventPictogram event={activity} />
@@ -692,7 +682,7 @@ export default function UserCalendar({
                         <Clock size={12} /> {activity.time}
                       </p>
                     </div>
-                    <div className="flex shrink-0 gap-1">
+                    <div className="col-start-2 flex flex-wrap gap-1">
                       <button
                         onClick={() => openEdit(activity)}
                         aria-label={`Editar ${activity.title}`}
@@ -714,12 +704,13 @@ export default function UserCalendar({
             )}
           </section>
 
+        </motion.section>
           <BelongingRoutineDaySection
             dayOfWeek={new Date(`${selectedDate}T12:00:00`).getDay() as DayKey}
             initialRoutineId={initialRoutineId}
             initialItemId={initialItemId}
           />
-        </motion.section>
+        </div>
       </div>
 
       <AlertDialog

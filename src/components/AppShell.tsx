@@ -172,6 +172,8 @@ export default function AppShell() {
             onBack={() => goToTab(previousTab)}
             initialRoutineId={navParams?.routineId}
             initialItemId={navParams?.itemId}
+            initialDate={navParams?.date}
+            focusRoutine={navParams?.focus === "routine"}
           />
         );
       case "activities":
@@ -179,12 +181,19 @@ export default function AppShell() {
           <UserActivities
             key={`activities-${navKey}`}
             initialAssignedActivityId={navParams?.activityId}
+            startActivity={navParams?.start === "true"}
+            onHome={() => goToTab("home")}
           />
         );
       case "shop":
         return <UserShop />;
       case "pictograms":
-        return <UserPictograms />;
+        return (
+          <UserPictograms
+            key={`pictograms-${navKey}`}
+            initialMode={navParams?.mode === "traductor" ? "traductor" : "catalogo"}
+          />
+        );
       case "communicator":
         return <UserCommunicator />;
       case "explainThis":
